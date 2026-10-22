@@ -184,7 +184,7 @@ test.describe("rail", () => {
       }
       const scroll = await rail(page).evaluate((element) => ({ scrollHeight: element.scrollHeight, clientHeight: element.clientHeight }));
       expect(scroll.scrollHeight).toBeLessThanOrEqual(scroll.clientHeight);
-      // The panel still opens beside the rail.
+      // The panel opens after the rail (on the right of the stage since the workspace redesign).
       await expect(page.locator('[data-panel="transcript"]')).toBeInViewport();
       const panelBox = await page.locator("#editor-panel").boundingBox();
       expect(panelBox.x).toBeGreaterThanOrEqual(railBox.x + railBox.width - 0.5);

@@ -12,7 +12,7 @@ const read = (relative) => readFile(path.join(WEB, relative), "utf8");
 
 test("the page renders every entry under its anchor, works without JS and sits behind the shared header", async () => {
   const page = await read("app/bantuan/page.jsx");
-  assert.match(page, /<AppHeader current="\/bantuan" \/>/);
+  assert.match(page, /<AppShell current="\/bantuan">/);
   assert.doesNotMatch(page, /^"use client"/m, "the entries are rendered on the server");
   assert.match(page, /HELP_ENTRIES/);
   assert.match(page, /id=\{entry\.id\}/);
@@ -32,10 +32,13 @@ test("the page renders every entry under its anchor, works without JS and sits b
   for (const source of [page, search]) assert.doesNotMatch(source, /—|dangerouslySetInnerHTML/);
 });
 
-test("the header offers the help page as a quiet link outside the main navigation", async () => {
-  const header = await read("components/AppHeader.jsx");
-  assert.match(header, /<a [^>]*href="\/bantuan"[^>]*aria-current=\{current === "\/bantuan" \? "page" : undefined\}/);
-  assert.equal(header.match(/<nav\b/g)?.length, 1);
+test("the sidebar offers the help page under Sistem, marked current on the help page", async () => {
+  const { NAV_GROUPS, navItems } = await import("../lib/app-nav.mjs");
+  const system = NAV_GROUPS.find((group) => group.id === "sistem");
+  assert.ok(system.links.some((entry) => entry.href === "/bantuan" && entry.label === "Bantuan"));
+  assert.deepEqual(navItems("/bantuan").filter((item) => item.current).map((item) => item.href), ["/bantuan"]);
+  const shell = await read("components/AppShell.jsx");
+  assert.equal(shell.match(/<nav\b/g)?.length, 1);
 });
 
 test("the project page, the dashboard and the settings test result link their errors to the help page", async () => {

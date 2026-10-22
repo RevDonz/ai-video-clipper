@@ -1,17 +1,19 @@
-/* Halaman depan. Keeps the page's character: a very tight, heavy headline with its last line
-   in lime, a tilted screenshot of the real Hasil panel, a ruled four-step track and one joined
-   strip of the automatic features. The proof is real: the screenshots and the Sebelum/Sesudah
-   pair come from one project made from an open film (docs/design/LANDING.md). Lime marks the
-   headline, the primary links and the brand mark only; everything else is text on the dark
-   surfaces. Motion is hover feedback and the one clip, which lib/landing-preview.mjs plays only
-   on screen. */
+/* Halaman depan. A type-led hero ("Tempel link, klipnya menyusul." with its last line in lime),
+   then the proof straight under it: the real 16:9 frame with the 9:16 window the clip took from
+   it, the moment marked on the film's length, and the real clip playing beside it. The window
+   glides once from the middle to the figure, the marker drops in, the arrow draws and the phone
+   rises: one choreographed moment that explains reframing, then everything holds still. Under
+   prefers-reduced-motion the final frame shows at once (globals.css zeroes the durations).
+   The work is drawn as two lanes, like the editor's timeline: what Anda does at both ends, what
+   the server does between them. Caption styles are the product's own renders. Lime marks the
+   headline, the primary links and the brand mark only. Assets: docs/design/LANDING.md. */
 
 .landing { min-height: 100vh; overflow-x: clip; background: var(--bg); color: var(--text); }
 .shell { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
 
 /* Nav */
 .nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 76px; border-bottom: 1px solid var(--border); }
-.navLinks { display: flex; gap: 4px; }
+.navLinks { display: flex; gap: 2px; }
 .navLinks a, .footer nav a {
   display: inline-flex;
   align-items: center;
@@ -38,23 +40,24 @@
 }
 .navCta:hover { border-color: var(--text); background: var(--surface-2); }
 
-/* Links inside running text: the text colour, underlined like "Lihat cara kerja". */
-.stage figcaption a, .exampleNote a, .credits a {
+/* Links inside running text: the text colour, underlined like "Lihat contohnya". */
+.exampleNote a, .credits a {
   color: var(--text);
   text-decoration: underline;
   text-decoration-color: var(--border-strong);
   text-underline-offset: 4px;
   transition: text-decoration-color var(--dur-1) var(--ease-out);
 }
-.stage figcaption a:hover, .exampleNote a:hover, .credits a:hover { text-decoration-color: var(--text); }
+.exampleNote a:hover, .credits a:hover { text-decoration-color: var(--text); }
 
-/* Hero */
-.hero { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.2fr); gap: 64px; align-items: center; padding: 88px 0 96px; }
-.heroCopy h1 { margin: 0 0 28px; font: 700 clamp(52px, 6.4vw, 92px)/.92 var(--font); letter-spacing: -.06em; text-wrap: balance; }
-.heroCopy h1 em, .final h2 em { font-style: normal; }
-.heroCopy h1 em { color: var(--accent); }
-.heroCopy > p { max-width: 560px; margin: 0; color: var(--text-muted); font-size: 18px; line-height: 1.6; }
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 36px; }
+/* Hero: the headline takes the wide column, the explanation and the actions sit low beside it. */
+.hero { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, .7fr); gap: 32px 56px; align-items: end; padding: 72px 0 48px; }
+.hero h1 { margin: 0; font: 700 clamp(52px, 6.4vw, 96px)/.9 var(--font); letter-spacing: -.06em; text-wrap: balance; }
+.hero h1 em, .final h2 em { font-style: normal; }
+.hero h1 em { color: var(--accent); }
+.heroCopy { display: grid; gap: 28px; padding-bottom: 8px; }
+.heroCopy > p { max-width: 460px; margin: 0; color: var(--text-muted); font-size: 17px; line-height: 1.6; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
 .primary {
   display: inline-flex;
   align-items: center;
@@ -82,34 +85,61 @@
 }
 .secondary:hover { text-decoration-color: var(--text); }
 
-/* The real Hasil panel, tilted like a screen on a desk; it straightens on hover. */
-.stage { min-width: 0; margin: 0; }
-.window {
-  overflow: hidden;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xl);
-  background: var(--bg);
-  transform: perspective(1400px) rotateY(-4deg) rotateX(2deg);
-  transition: transform calc(var(--dur-3) * 2) var(--ease-out);
-}
-.stage:hover .window { transform: none; }
-.window img, .beforeFrame img, .afterFrame video, .editorShot img { display: block; width: 100%; height: auto; }
-.stage figcaption { margin-top: 14px; color: var(--text-muted); font-size: 13px; text-align: right; }
-
-/* Shared section heading */
-.sectionHead { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 24px 64px; align-items: end; }
-.sectionHead h2, .privacy h2, .featuresTitle { margin: 0; font: 700 clamp(34px, 4.2vw, 56px)/1.02 var(--font); letter-spacing: -.045em; text-wrap: balance; }
-.sectionHead p { margin: 0; color: var(--text-muted); font-size: 16px; line-height: 1.6; }
-
 /* Contoh: the 16:9 frame and the 9:16 clip made from it, at the same height on wide screens
-   (columns 256:81 are 16/9 against 9/16), so the reframing reads at a glance. */
-.example { padding: 96px 0; border-top: 1px solid var(--border); }
-.compare { display: grid; grid-template-columns: minmax(0, 256fr) minmax(220px, 81fr); gap: 24px; align-items: start; margin-top: 48px; }
+   (columns 256:81 are 16/9 against 9/16), with the arrow between them. */
+.example { padding: 0 0 96px; }
+.exampleHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 32px; padding-top: 28px; border-top: 1px solid var(--border); }
+.exampleHead h2 { margin: 0; font: 700 20px/1.3 var(--font); letter-spacing: -.01em; }
+.exampleHead p { max-width: 560px; margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.55; }
+.stage { display: grid; grid-template-columns: minmax(0, 256fr) 56px minmax(200px, 81fr); gap: 0 16px; align-items: start; margin-top: 28px; }
 .before, .after { min-width: 0; margin: 0; }
-.beforeFrame, .afterFrame { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); }
-.compareBar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; margin-top: 12px; }
-.compareBar strong { grid-column: 1; font: 600 15px/1.3 var(--font); }
-.compareBar span { grid-column: 1; color: var(--text-muted); font-size: 14px; line-height: 1.4; }
+.beforeFrame, .phone { position: relative; overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+.beforeFrame { border-radius: var(--radius-l); }
+.phone { border-color: var(--border-strong); border-radius: var(--radius-xl); animation: rise-in 600ms var(--ease-out) 700ms both; }
+.beforeFrame img, .phone video, .shot img { display: block; width: 100%; height: auto; }
+
+/* The 9:16 window: full frame height, 81/256 of its width, left edge at 23.4 % where the clip's
+   picture starts (measured on sesudah.webp against sebelum.webp). Outside it the frame dims. */
+.crop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 23.4%;
+  width: 31.64%;
+  border: 2px solid var(--text);
+  border-radius: var(--radius-s);
+  box-shadow: 0 0 0 100vmax var(--shadow);
+  animation: crop-follow 1400ms var(--ease-in-out) 400ms both;
+}
+.crop b {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font: 700 12px/1.2 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+/* From the middle of the frame (Potong tengah) to the figure (Ikuti wajah): 34.2 % → 23.4 %. */
+@keyframes crop-follow { from { transform: translateX(34.1%); } }
+
+/* The film's 10:58 as a bar; the marker sits at 8:09 (489 of 658 seconds, 74.3 %). */
+.track { position: relative; height: 34px; margin-top: 12px; }
+.track::before { content: ""; position: absolute; top: 15px; left: 0; right: 0; height: 4px; border-radius: var(--radius-pill); background: var(--surface-3); }
+.marker { position: absolute; top: 6px; left: 74.3%; width: 2px; height: 22px; border-radius: 1px; background: var(--text); animation: marker-in var(--dur-3) var(--ease-out) 200ms both; }
+.marker b { position: absolute; top: -2px; left: 8px; color: var(--text); font: 600 12px/1 var(--font); font-variant-numeric: tabular-nums; }
+@keyframes marker-in { from { opacity: 0; transform: translateY(-6px); } }
+
+/* The arrow from the window to the clip, drawn once. */
+.flow { position: relative; align-self: center; height: 2px; margin-top: -40px; background: var(--border-strong); transform-origin: left center; animation: flow-draw 500ms var(--ease-out) 1300ms both; }
+.flow::after { content: ""; position: absolute; top: -5px; right: 0; width: 10px; height: 10px; border-top: 2px solid var(--border-strong); border-right: 2px solid var(--border-strong); transform: rotate(45deg); }
+@keyframes flow-draw { from { transform: scaleX(0); } }
+
+.stageBar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; margin-top: 12px; }
+.stageBar strong { grid-column: 1; font: 600 15px/1.3 var(--font); }
+.stageBar span { grid-column: 1; color: var(--text-muted); font-size: 14px; line-height: 1.4; }
 .pause {
   grid-column: 2;
   grid-row: 1 / span 2;
@@ -125,49 +155,72 @@
   transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .pause:hover { border-color: var(--text); background: var(--surface-2); }
-.exampleNote { max-width: 760px; margin: 28px 0 0; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+.exampleNote { max-width: 760px; margin: 24px 0 0; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
 
-/* Cara kerja */
+/* Shared section heading */
+.sectionHead { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 20px 64px; align-items: end; }
+.sectionHead h2, .privacy h2, .featuresTitle { margin: 0; font: 700 clamp(34px, 4.2vw, 56px)/1.02 var(--font); letter-spacing: -.045em; text-wrap: balance; }
+.sectionHead p { margin: 0; color: var(--text-muted); font-size: 16px; line-height: 1.6; }
+
+/* Cara kerja: two lanes over five columns. Anda's steps sit in the top lane, Potongin's in the
+   bottom one, so the eye reads across and down the way a job runs. */
 .process { padding: 96px 0; border-top: 1px solid var(--border); }
-.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 24px; margin: 64px 0 0; padding: 0; border-top: 1px solid var(--border-strong); list-style: none; }
-.steps li { display: grid; align-content: start; gap: 8px; padding-top: 22px; }
-.steps b { color: var(--text-muted); font: 600 14px var(--font); font-variant-numeric: tabular-nums; }
-.steps strong { font: 600 19px/1.3 var(--font); }
-.steps p { margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.55; }
+.lanes { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: auto auto; gap: 16px 12px; margin: 56px 0 0; padding: 0; list-style: none; }
+.lanes li { display: grid; align-content: start; gap: 8px; padding: 16px 16px 18px; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); }
+.lanes li:nth-child(1) { grid-column: 1; }
+.lanes li:nth-child(2) { grid-column: 2; }
+.lanes li:nth-child(3) { grid-column: 3; }
+.lanes li:nth-child(4) { grid-column: 4; }
+.lanes li:nth-child(5) { grid-column: 5; }
+.lanes li[data-actor="anda"] { grid-row: 1; border-color: var(--border-strong); }
+.lanes li[data-actor="potongin"] { grid-row: 2; }
+.lanes strong { font: 600 17px/1.3 var(--font); }
+.lanes p { margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.55; }
+/* The actor's mark: the brand's lime square for the server, an outline for the person. */
+.actor { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font: 600 12px/1.4 var(--font); }
+.actor::before { content: ""; width: 10px; height: 10px; border: 2px solid var(--text-muted); border-radius: 3px; }
+.lanes li[data-actor="potongin"] .actor::before { border-color: var(--accent); background: var(--accent); }
 
-/* Fitur: one strip of four equal parts (none of the automatic features outranks the others),
-   then the editor in its own row, the one feature with a screen of its own. */
+/* Gaya: the six caption packs as rendered, then the four ways a picture fills the frame. */
+.looks { padding: 0 0 96px; }
+.styleList { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 20px; margin: 48px 0 0; padding: 0; list-style: none; }
+.styleList li { display: grid; align-content: start; gap: 6px; }
+.styleList img { width: 100%; height: auto; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius-m); transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out); }
+.styleList li:hover img { border-color: var(--border-strong); transform: translateY(-2px); }
+.styleList strong { font: 600 16px/1.3 var(--font); }
+.styleList span { color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+.layoutRow { display: grid; grid-template-columns: minmax(0, .4fr) minmax(0, 1.6fr); gap: 20px 40px; align-items: start; margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--border); }
+.layoutRow h3 { margin: 0; font: 700 24px/1.2 var(--font); letter-spacing: -.02em; }
+.layoutList { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; margin: 0; padding: 0; list-style: none; }
+.layoutList li { display: grid; align-content: start; gap: 6px; }
+.layoutList strong { font: 600 15px/1.3 var(--font); }
+.layoutList > li > span:last-child { color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+
+/* A 9:16 frame drawn per layout: the landscape picture, the blur around it, the face, the split. */
+.frame { position: relative; display: block; width: 44px; height: 78px; margin-bottom: 8px; overflow: hidden; border: 2px solid var(--text-muted); border-radius: 8px; background: var(--surface-3); }
+.frame i { position: absolute; display: block; }
+.fit-blur { background: repeating-linear-gradient(135deg, var(--surface-3) 0 4px, var(--border) 4px 8px); }
+.fit-blur i:first-child { left: 0; right: 0; top: 26px; height: 22px; background: var(--border-strong); }
+.face-track i:first-child { left: 13px; top: 18px; width: 14px; height: 18px; border-radius: 50%; background: var(--border-strong); box-shadow: 0 22px 0 6px var(--border-strong); }
+.center-crop i:first-child { inset: 0 8px; background: var(--border-strong); }
+.split i:first-child { left: 0; right: 0; top: 0; height: 32%; background: var(--border-strong); }
+.split i:last-child { left: 0; right: 0; top: calc(32% + 3px); bottom: 0; background: var(--border); }
+
+/* Fitur: the two features with a screen of their own, each beside its real screenshot, then the
+   smaller ones as one list. */
 .features { padding: 0 0 112px; }
 .featuresTitle { margin-bottom: 40px; }
-.featureRow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--border); }
-.featureRow article { display: grid; align-content: start; gap: 12px; padding: 28px; background: var(--surface); }
-.featureRow h3, .editorCopy h3 { margin: 0; font: 700 21px/1.25 var(--font); letter-spacing: -.02em; }
-.featureRow p, .editorCopy p { margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.6; }
-
-/* Small drawings of each feature: a hook card over a frame, keyword chips, caption lines and a
-   9:16 window over a 16:9 frame. */
-.glyph { position: relative; height: 112px; margin-bottom: 12px; overflow: hidden; border-radius: var(--radius-l); background: var(--bg); }
-.glyph i { position: absolute; display: block; }
-.hook i:nth-child(1) { left: 50%; top: 14px; width: 54px; height: 86px; border: 2px solid var(--border-strong); border-radius: 10px; transform: translateX(-50%); }
-.hook i:nth-child(2) { left: calc(50% - 44px); top: 26px; width: 88px; height: 16px; border-radius: 5px; background: var(--text); }
-.hook i:nth-child(3) { left: calc(50% - 20px); top: 76px; width: 40px; height: 8px; border-radius: 4px; background: var(--warning); }
-.focus i { top: 44px; height: 26px; border: 1px solid var(--info-border); border-radius: var(--radius-pill); background: var(--info-bg); }
-.focus i:nth-child(1) { left: 10%; width: 28%; }
-.focus i:nth-child(2) { left: 42%; width: 34%; }
-.focus i:nth-child(3) { left: 80%; width: 12%; border-color: var(--border); background: var(--surface-2); }
-.caption i { left: 24px; height: 8px; border-radius: 4px; background: var(--border-strong); }
-.caption i:nth-child(1) { top: 30px; right: 24px; background: var(--text); }
-.caption i:nth-child(2) { top: 52px; right: 64px; }
-.caption i:nth-child(3) { top: 74px; right: 120px; background: var(--info); }
-.layout i:nth-child(1) { left: 50%; top: 22px; width: 120px; height: 68px; border: 2px solid var(--border-strong); border-radius: 8px; transform: translateX(-50%); }
-.layout i:nth-child(2) { left: calc(50% - 30px); top: 22px; width: 40px; height: 68px; border: 2px solid var(--text); border-radius: 6px; }
-.layout i:nth-child(3) { left: calc(50% - 18px); top: 36px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-muted); }
-
-.editorRow { display: grid; grid-template-columns: minmax(0, .75fr) minmax(0, 1.75fr); gap: 40px; align-items: center; margin-top: 24px; padding: 28px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); }
-.editorCopy { display: grid; align-content: start; gap: 12px; }
-.editorCopy h3 { font-size: 28px; }
-.editorCopy .editorNote { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text); font: 600 14px/1.5 var(--font); }
-.editorShot { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--bg); }
+.showcase { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.6fr); gap: 40px; align-items: center; padding: 28px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); }
+.showcase + .showcase { margin-top: 20px; }
+.showcaseCopy { display: grid; align-content: start; gap: 12px; }
+.showcaseCopy h3 { margin: 0; font: 700 26px/1.2 var(--font); letter-spacing: -.02em; }
+.showcaseCopy p { margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.6; }
+.showcaseCopy .editorNote { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text); font: 600 14px/1.5 var(--font); }
+.shot { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--bg); }
+.extras { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; margin: 40px 0 0; }
+.extras div { display: grid; gap: 4px; padding: 18px 0; border-top: 1px solid var(--border); }
+.extras dt { font: 600 16px/1.35 var(--font); }
+.extras dd { margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.55; }
 
 /* Privasi */
 .privacy { padding: 96px 0; border-block: 1px solid var(--border); background: var(--surface); }
@@ -190,38 +243,49 @@
 .footer .credits { flex: 1 1 100%; max-width: 860px; font-size: 13px; line-height: 1.6; }
 .credits a { white-space: nowrap; }
 
+/* Tablets and small laptops: the hero stacks, the stage keeps its row, lanes and lists use fewer
+   columns. */
 @media (max-width: 1000px) {
-  .hero { grid-template-columns: minmax(0, 1fr); gap: 56px; padding: 64px 0 80px; }
-  .stage { max-width: 720px; }
-  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .featureRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .featureRow article { padding: 22px; }
-  .editorRow { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 22px; }
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 28px; padding: 56px 0 40px; }
+  .heroCopy > p { max-width: 620px; }
+  .lanes { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; }
+  .lanes li:nth-child(n) { grid-column: auto; grid-row: auto; }
+  .styleList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .layoutRow { grid-template-columns: minmax(0, 1fr); }
+  .layoutList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .showcase { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 22px; }
   .privacyInner { gap: 32px 48px; }
 }
+/* Phones: one column everywhere; the clip sits under its frame and the arrow points down. */
 @media (max-width: 760px) {
   .shell { width: min(100% - 32px, 1180px); }
   .navLinks { display: none; }
-  .hero { gap: 44px; padding: 48px 0 64px; }
-  .heroCopy h1 { font-size: clamp(44px, 13vw, 56px); }
+  .hero { padding: 40px 0 32px; }
+  .hero h1 { font-size: clamp(44px, 13.5vw, 64px); }
   .heroCopy > p { font-size: 16px; }
-  .window { transform: none; }
-  .stage figcaption { text-align: left; }
-  .example { padding: 64px 0; }
-  .compare { grid-template-columns: minmax(0, 1fr); gap: 32px; margin-top: 32px; }
-  .after { width: min(100%, 300px); }
+  .example { padding-bottom: 64px; }
+  .stage { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .flow { justify-self: center; width: 2px; height: 36px; margin: 8px 0 12px; transform-origin: center top; animation-name: flow-down; }
+  .flow::after { top: auto; right: -4px; bottom: 0; transform: rotate(135deg); }
+  .after { width: min(100%, 300px); justify-self: center; }
   .process { padding: 64px 0; }
   .sectionHead { grid-template-columns: minmax(0, 1fr); }
-  .steps { grid-template-columns: minmax(0, 1fr); margin-top: 40px; gap: 0; }
-  .steps li { padding: 18px 0; border-bottom: 1px solid var(--border); }
+  .lanes { grid-template-columns: minmax(0, 1fr); margin-top: 32px; gap: 10px; }
+  .looks { padding-bottom: 64px; }
+  .styleList { margin-top: 32px; gap: 24px 14px; }
+  .layoutList { gap: 18px 14px; }
   .features { padding-bottom: 72px; }
   .featuresTitle { margin-bottom: 28px; }
-  .featureRow { grid-template-columns: minmax(0, 1fr); }
-  .editorCopy h3 { font-size: 24px; }
+  .showcaseCopy h3 { font-size: 23px; }
+  .extras { grid-template-columns: minmax(0, 1fr); }
   .privacy { padding: 64px 0; }
   .privacyInner { grid-template-columns: minmax(0, 1fr); }
   .final { padding: 80px 0; }
   .footer { align-items: flex-start; flex-direction: column; }
   .footer nav { margin-inline: -12px; }
   .footer .credits { flex: none; }
+}
+@keyframes flow-down { from { transform: scaleY(0); } }
+@media (max-width: 420px) {
+  .styleList { grid-template-columns: minmax(0, 1fr); }
 }

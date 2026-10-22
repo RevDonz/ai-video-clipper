@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
-// The job badge in the shared header (components/JobBadge.jsx, docs/operations/PROGRES_JOB.md).
+// The job badge in the shared sidebar (components/JobBadge.jsx, docs/operations/PROGRES_JOB.md).
 // The job list and the one job are faked inside the browser (page.route), so nothing on the server
 // changes; only the login is real. /bantuan is used because the page reads no job data itself.
 
@@ -29,12 +29,12 @@ async function fakeJobs(page, jobs) {
   return server;
 }
 
-const badge = (page) => page.locator(".appHeader .jobBadge");
-const live = (page) => page.locator('.appHeader [aria-live="polite"]');
+const badge = (page) => page.locator(".appSide .jobBadge");
+const live = (page) => page.locator('.appSide [aria-live="polite"]');
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 const jobsChanged = (page) => page.evaluate(() => window.dispatchEvent(new Event("potongin:jobs-changed")));
 
-test.describe("Job badge in the header (faked job API)", () => {
+test.describe("Job badge in the sidebar (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
   test("a running job: a link with its percentage, read on its own, then its outcome announced", async ({ page }) => {
@@ -83,7 +83,7 @@ test.describe("Job badge in the header (faked job API)", () => {
     await expect.poll(() => server.requests.filter((path) => path === "/api/jobs").length).toBeGreaterThan(0);
     await expect(badge(page)).toHaveCount(0);
     await expect(live(page)).toHaveText("");
-    await expect(page.locator(".appHeader .brandName")).toBeVisible();
+    await expect(page.locator(".appSide .brandName")).toBeVisible();
   });
 
   test("a hidden tab sends nothing; showing it again reads the list at once", async ({ page }) => {
@@ -119,17 +119,18 @@ test.describe("Job badge in the header (faked job API)", () => {
 test.describe("Job badge on a phone (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
-  test("at 360 px the short form fits the brand row as a 44 px target; at 390 px the full text shows", async ({ page }) => {
+  test("at 360 px the short form fits the top bar as a 44 px target; at 390 px the full text shows", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 760 });
     await fakeJobs(page, [running(42)]);
     await login(page, "/bantuan");
     const link = page.getByRole("link", { name: "1 berjalan · 42%" });
     await expect(link).toBeVisible();
-    const [box, help] = await Promise.all([link.boundingBox(), page.getByRole("link", { name: "Bantuan", exact: true }).boundingBox()]);
+    const menu = page.getByRole("button", { name: "Menu", exact: true });
+    const [box, toggle] = await Promise.all([link.boundingBox(), menu.boundingBox()]);
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.width).toBeGreaterThanOrEqual(44);
-    expect(Math.abs(box.y - help.y), "same row as Bantuan").toBeLessThan(2);
-    expect(box.x + box.width).toBeLessThanOrEqual(help.x);
+    expect(Math.abs(box.y - toggle.y), "same row as Menu").toBeLessThan(2);
+    expect(box.x + box.width).toBeLessThanOrEqual(toggle.x);
     expect(await link.evaluate((element) => getComputedStyle(element, "::after").content)).toContain("42%");
     expect(await overflow(page)).toBeLessThanOrEqual(0);
 

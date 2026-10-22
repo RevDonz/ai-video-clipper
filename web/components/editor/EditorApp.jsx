@@ -17,10 +17,12 @@
 // `subscribeFrame(fn)` and `frame()` so that DOM can follow playback outside React (§6.2).
 //
 // Two views of this one editor (docs/plans/2026-10-02-editor-mode-cepat.md §1, §4): Mode Cepat
-// (cards beside the stage, the scrubber below) and Mode Lengkap (rail and panel, transport and
-// timeline). The shell's children keep one order, top bar, side region, stage region, bottom
-// region, and only the side and bottom children change with the view, so a switch never remounts
-// the canvas, the player, the store or the export flow.
+// (cards beside the stage, the scrubber below) and Mode Lengkap (the tools rail on the left, the
+// stage in the middle, the open tool's panel on the right as its inspector, transport and
+// timeline below). The shell's children keep one order, top bar, side regions, stage region,
+// bottom region, and only the side and bottom children change with the view, so a switch never
+// remounts the canvas, the player, the store or the export flow. In Lengkap the panel follows the
+// rail in the DOM, so Tab goes from a tab to its panel, then to the stage.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { createApplyAll } from "../../lib/editor/apply-all.mjs";
@@ -507,7 +509,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
 
   // A Cepat card or link opens the panel that does the same work in Lengkap (no preference write).
   // The control that was pressed leaves with Mode Cepat, so focus goes to the opened panel's rail
-  // tab: the next Tab is the panel itself.
+  // tab: the next Tab is the panel itself (it follows the rail in the DOM, on the right on screen).
   const [railFocus, setRailFocus] = useState(0);
   const showLengkap = useCallback((nextPanel) => {
     openingCardRef.current = null;
@@ -577,16 +579,20 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
             onCardChange={onCardChange} />
         </aside>
       ) : (
-        <aside key="panels" className={styles.panels} data-slot="panels" aria-label="Panel editor">
-          <Rail panels={panels} value={panel.id} onChange={setPanelId} />
-          <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
-            {/* The panel's name as the level-2 heading its sections (h3) sit under (QG-A11Y heading order). */}
-            <h2 className={styles.visuallyHidden}>{panel.label}</h2>
-            <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
-              <Panel {...panelProps} />
-            </Suspense>
-          </div>
-        </aside>
+        [
+          <nav key="rail" className={styles.toolRail} data-slot="rail" aria-label="Alat editor">
+            <Rail panels={panels} value={panel.id} onChange={setPanelId} />
+          </nav>,
+          <aside key="panels" className={styles.panels} data-slot="panels" aria-label="Panel editor">
+            <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
+              {/* The panel's name as the level-2 heading its sections (h3) sit under (QG-A11Y heading order). */}
+              <h2 className={styles.visuallyHidden}>{panel.label}</h2>
+              <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
+                <Panel {...panelProps} />
+              </Suspense>
+            </div>
+          </aside>,
+        ]
       )}
 
       <main key="stage" className={styles.stageRegion} data-slot="stage">

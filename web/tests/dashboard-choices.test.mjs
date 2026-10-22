@@ -1,5 +1,6 @@
 // The dashboard's job options (app/dashboard/page.jsx): duration presets inside the job API's
-// limits, the one-line summary of the folded options, and the last choices kept per browser.
+// limits, the essentials shown open, the three labelled folds with their summaries, and the last
+// choices kept per browser (folds included).
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -10,11 +11,15 @@ import {
   DEFAULT_CHOICES,
   DURATION_PRESETS,
   LAYOUT_CHOICES,
+  OPTION_SECTIONS,
   VIDEO_LANGUAGE_CHOICES,
   choicesSummary,
   normalizeChoices,
   readStoredChoices,
+  sectionOfField,
+  sectionSummary,
   withDuration,
+  withSection,
   writeStoredChoices,
 } from "../lib/dashboard-choices.mjs";
 import { jobFormProblems, videoFileProblem } from "../lib/dashboard-view.mjs";
@@ -49,7 +54,7 @@ test("today's form defaults are the defaults: Otomatis is 20 to 60 seconds, Indo
   assert.deepEqual(DEFAULT_CHOICES, {
     limit: "3", duration: "auto", minDuration: "20", maxDuration: "60", renderMode: "fit-blur",
     captionStyle: "karaoke", captionPosition: "bottom", captionSize: "medium", ratio: "9:16", resolution: "720p",
-    coldOpen: true, hookOverlay: true, videoLanguage: "id", optionsOpen: false,
+    coldOpen: true, hookOverlay: true, videoLanguage: "id", openSections: [],
   });
   assert.deepEqual(normalizeChoices(undefined), DEFAULT_CHOICES);
 });
@@ -90,26 +95,33 @@ test("stored choices are read back field by field; anything unknown falls back t
   const stored = {
     limit: 7, duration: "custom", minDuration: "25", maxDuration: 45, renderMode: "center-crop", captionStyle: "sorot",
     captionPosition: "top", captionSize: "small", ratio: "1:1", resolution: "1080p", coldOpen: false, hookOverlay: true,
-    videoLanguage: "en", optionsOpen: true,
+    videoLanguage: "en", openSections: ["format", "look"],
   };
   const storage = memoryStorage({ [CHOICES_KEY]: JSON.stringify(stored) });
   assert.deepEqual(readStoredChoices(storage), {
     limit: "7", duration: "custom", minDuration: "25", maxDuration: "45", renderMode: "center-crop", captionStyle: "sorot",
     captionPosition: "top", captionSize: "small", ratio: "1:1", resolution: "1080p", coldOpen: false, hookOverlay: true,
-    videoLanguage: "en", optionsOpen: true,
+    videoLanguage: "en", openSections: ["look", "format"],
   });
   // A preset always carries its own range, whatever was stored next to it.
   assert.deepEqual(normalizeChoices({ duration: "short", minDuration: "100", maxDuration: "120" }), withDuration(DEFAULT_CHOICES, "short"));
   for (const bad of [
     { limit: 11 }, { limit: "2.5" }, { limit: "" }, { duration: "forever" }, { renderMode: "split" }, { captionStyle: "neon" },
     { captionPosition: "atas" }, { captionSize: 1200 }, { ratio: "16:9" }, { resolution: "4K" },
-    { coldOpen: "false" }, { hookOverlay: 1 }, { videoLanguage: "fr" }, { optionsOpen: "yes" },
+    { coldOpen: "false" }, { hookOverlay: 1 }, { videoLanguage: "fr" },
     { duration: "custom", minDuration: "4", maxDuration: "60" }, { duration: "custom", minDuration: "61", maxDuration: "60" },
     { duration: "custom", minDuration: "20", maxDuration: "181" }, { duration: "custom", minDuration: "abc", maxDuration: "60" },
   ]) {
     const key = Object.keys(bad).find((name) => !["minDuration", "maxDuration"].includes(name)) || "duration";
     assert.equal(normalizeChoices({ ...DEFAULT_CHOICES, ...bad })[key], DEFAULT_CHOICES[key], JSON.stringify(bad));
   }
+  for (const bad of [{ openSections: "look" }, { openSections: ["nope", 3, null] }, { openSections: { look: true } }, { optionsOpen: "yes" }]) {
+    assert.deepEqual(normalizeChoices({ ...DEFAULT_CHOICES, ...bad }).openSections, [], JSON.stringify(bad));
+  }
+  assert.deepEqual(normalizeChoices({ openSections: ["look", "look", "moments"] }).openSections, ["look", "moments"], "each fold once");
+  // A browser that kept the old single fold open sees all three open.
+  assert.deepEqual(normalizeChoices({ optionsOpen: true }).openSections, ["look", "moments", "format"]);
+  assert.equal("optionsOpen" in normalizeChoices({ optionsOpen: true }), false, "the old key is not carried on");
   for (const raw of [null, "", "not json", "[]", "42", '"text"', "null"]) {
     assert.deepEqual(readStoredChoices(memoryStorage(raw === null ? {} : { [CHOICES_KEY]: raw })), DEFAULT_CHOICES, String(raw));
   }
@@ -128,7 +140,7 @@ test("blocked or missing storage never breaks the page: defaults are read and wr
 
 test("only the choices are written: never the link, the file or the focus", () => {
   const storage = memoryStorage();
-  const choices = { ...withDuration(DEFAULT_CHOICES, "medium"), limit: "4", videoLanguage: "auto", optionsOpen: true };
+  const choices = { ...withDuration(DEFAULT_CHOICES, "medium"), limit: "4", videoLanguage: "auto", openSections: ["moments"] };
   assert.equal(writeStoredChoices(storage, {
     ...choices, youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", video: { name: "rahasia.mp4" }, focusTerms: ["jomok"], focusNote: "catatan",
   }), true);
@@ -155,4 +167,50 @@ test("an empty source asks for a link or a file; a dropped file must be a video 
   const accepted = /const VIDEO_EXTENSIONS = new Set\(\[([^\]]+)\]\)/.exec(route)[1].match(/\.\w+/g);
   for (const extension of accepted) assert.equal(videoFileProblem({ name: `x${extension}` }), null, extension);
   assert.equal(videoFileProblem({ name: "x.avi" }) !== null, !accepted.includes(".avi"));
+});
+
+// --- The essentials and the three folds -----------------------------------------------------
+
+test("three labelled folds hold the less used options; the essentials stay open", () => {
+  assert.deepEqual(OPTION_SECTIONS.map((section) => [section.id, section.title]), [
+    ["look", "Subtitle dan hook"],
+    ["moments", "Arahkan pilihan momen"],
+    ["format", "Bahasa dan resolusi"],
+  ]);
+  // Fields checked before a job is sent, and where each one lives.
+  for (const field of ["youtubeUrl", "video", "subtitle", "limit", "minDuration", "maxDuration"]) assert.equal(sectionOfField(field), null, field);
+  assert.equal(sectionOfField("timeRanges"), "moments");
+  assert.equal(sectionOfField("focus"), "moments");
+  assert.equal(sectionOfField("nope"), null);
+});
+
+test("a fold opens and closes on its own and is remembered with the other choices", () => {
+  const opened = withSection(DEFAULT_CHOICES, "moments", true);
+  assert.deepEqual(opened.openSections, ["moments"]);
+  assert.deepEqual(DEFAULT_CHOICES.openSections, [], "the defaults are never changed");
+  const both = withSection(opened, "look", true);
+  assert.deepEqual(both.openSections, ["look", "moments"], "kept in display order");
+  assert.equal(withSection(both, "look", true), both, "opening an open fold changes nothing");
+  assert.deepEqual(withSection(both, "look", false).openSections, ["moments"]);
+  assert.equal(withSection(both, "nope", true), both);
+  const storage = memoryStorage();
+  writeStoredChoices(storage, both);
+  assert.deepEqual(readStoredChoices(storage).openSections, ["look", "moments"]);
+});
+
+test("each closed fold says what is chosen inside it, so nothing hides a default", () => {
+  assert.equal(sectionSummary("look", DEFAULT_CHOICES), "Karaoke · Bawah, Sedang · Kalimat terkuat dulu · Teks hook");
+  assert.equal(
+    sectionSummary("look", { ...DEFAULT_CHOICES, captionStyle: "sorot", captionPosition: "top", captionSize: "large", coldOpen: false, hookOverlay: false }),
+    "Sorot · Atas, Besar · Tanpa kalimat pembuka · Tanpa teks hook",
+  );
+  // The legacy engine draws no spot or size, so the summary does not name one.
+  assert.equal(sectionSummary("look", DEFAULT_CHOICES, { engine: "legacy" }), "Karaoke · Kalimat terkuat dulu · Teks hook");
+  assert.equal(sectionSummary("moments", DEFAULT_CHOICES), "Otomatis");
+  assert.equal(sectionSummary("moments", DEFAULT_CHOICES, { focusTerms: 2, ranges: 1, note: true }), "2 kata kunci · 1 rentang waktu · ada catatan");
+  assert.equal(sectionSummary("moments", DEFAULT_CHOICES, { focusTerms: 1 }), "1 kata kunci");
+  assert.equal(sectionSummary("format", DEFAULT_CHOICES), "Bahasa Indonesia · 720p");
+  assert.equal(sectionSummary("format", { ...DEFAULT_CHOICES, videoLanguage: "auto", resolution: "1080p" }), "Deteksi bahasa · 1080p");
+  assert.equal(sectionSummary("nope", DEFAULT_CHOICES), "");
+  for (const section of OPTION_SECTIONS) assert.doesNotMatch(sectionSummary(section.id, DEFAULT_CHOICES), /—|undefined|null/);
 });

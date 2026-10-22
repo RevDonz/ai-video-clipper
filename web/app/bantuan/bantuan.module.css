@@ -1,29 +1,99 @@
 /* Bantuan (/bantuan): reference text in one reading column, like /licenses. The search box is
    the focal point; the entry it opens (the address's #code) lifts onto a surface with the light
-   edge active choices use elsewhere (docs/design/TOKENS.md: not lime). Entries are split by
-   hairlines, not cards: they are text to read, not objects to act on. Tokens from
+   edge active choices use elsewhere (docs/design/TOKENS.md: not lime). The guide comes first,
+   then the error reference. Topics and entries are split by hairlines, not cards: they are text
+   to read, not objects to act on. The heading is the shared .pageHead. Tokens from
    app/globals.css. */
 
 .page {
   max-width: 820px;
-  padding: 32px 0 72px;
-}
-
-.head h1 {
-  margin: 0;
-  font: 700 clamp(28px, 3.4vw, 38px)/1.1 var(--font);
-  letter-spacing: -.02em;
-}
-.head p {
-  margin: 10px 0 0;
-  color: var(--text-muted);
-  font-size: 16px;
-  line-height: 1.6;
+  padding: 0 0 72px;
 }
 
 .search {
-  margin-top: 24px;
   padding: 16px;
+}
+
+/* Panduan: one topic per part of the product, steps or terms, then the topic's page. */
+.guide {
+  margin-top: 40px;
+}
+.guide > h2, .referenceTitle {
+  margin: 0;
+  scroll-margin-top: 16px;
+  font: 700 26px/1.2 var(--font);
+  letter-spacing: -.02em;
+}
+.referenceTitle {
+  margin-top: 56px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+.topics {
+  display: grid;
+  margin-top: 8px;
+}
+.topic {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 16px;
+}
+.topic h3 {
+  margin: 0;
+  font: 600 18px/1.35 var(--font);
+}
+.topicIntro {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.guideSteps {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-left: 22px;
+  line-height: 1.6;
+}
+.terms {
+  display: grid;
+  margin: 10px 0 0;
+}
+.terms .row {
+  grid-template-columns: 176px minmax(0, 1fr);
+}
+.keys {
+  width: 100%;
+  margin-top: 14px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.keys caption {
+  padding-bottom: 8px;
+  color: var(--text-muted);
+  text-align: left;
+}
+.keys th {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: left;
+}
+.keys td {
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.keys kbd {
+  display: inline-block;
+  min-width: 24px;
+  padding: 1px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 600 13px/1.5 var(--font);
+  text-align: center;
 }
 .search label {
   display: block;
@@ -184,8 +254,8 @@
 }
 
 @media (max-width: 640px) {
-  .page {
-    padding-top: 20px;
+  .terms .row {
+    grid-template-columns: minmax(0, 1fr);
   }
   .group {
     margin-top: 32px;

@@ -2,21 +2,22 @@
    tokens on `.tokens` (editor.module.css); this file holds the rules. */
 
 /* ---------- Frame ----------
-   One grid with named areas per view. The children keep one order (top bar, side region, stage
-   region, bottom region), so a view switch never moves the stage.
-   - Mode Lengkap: the rail and the panel share the side region (the rail is its first column),
-     the stage fills the rest, the transport row and the timeline make the bottom region.
-   - Mode Cepat: the stage on the left, the cards on the right, the 96 px bottom bar below. */
+   One grid with named areas per view. The children keep one order (top bar, side regions, stage
+   region, bottom region), so a view switch never remounts the stage.
+   - Mode Lengkap: the tools rail on the left, the stage in the middle, the open tool's panel on
+     the right as its inspector; the transport row and the timeline make the bottom region.
+   - Mode Cepat: the stage on the left, the cards on the right, the 96 px bottom bar below.
+   In both views the settings sit on the right of the picture. */
 
 .shell {
   --ed-bottom-region: calc(var(--ed-controls-height) + var(--ed-timeline-height));
   display: grid;
   grid-template-areas:
     "top top top"
-    "rail side stage"
+    "rail stage side"
     "bottom bottom bottom";
   grid-template-rows: var(--ed-topbar-height) minmax(0, 1fr) var(--ed-bottom-region);
-  grid-template-columns: var(--ed-rail-width) var(--ed-panel-width) minmax(0, 1fr);
+  grid-template-columns: var(--ed-rail-width) minmax(0, 1fr) var(--ed-panel-width);
   height: 100vh;
   min-width: var(--ed-min-width);
   overflow: hidden;
@@ -383,16 +384,22 @@
   border-color: var(--accent-hover);
 }
 
-/* ---------- Mode Lengkap: rail and panel ---------- */
+/* ---------- Mode Lengkap: tools rail and inspector ---------- */
+
+/* The rail draws its own column (rail/rail.module.css); this landmark only places it. */
+.toolRail {
+  grid-area: rail;
+  display: flex;
+  min-height: 0;
+}
 
 .panels {
-  grid-row: side;
-  grid-column: rail-start / side-end;
-  display: grid;
-  grid-template-columns: var(--ed-rail-width) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   min-height: 0;
-  border-right: 1px solid var(--border);
+  border-left: 1px solid var(--border);
   background: var(--surface);
 }
 
@@ -436,6 +443,7 @@
 }
 
 .tabPanel {
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow: auto;

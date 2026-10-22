@@ -6,7 +6,8 @@ import Brand from "../components/Brand.jsx";
 import "./globals.css";
 import "./status-page.css";
 
-// Replaces the root layout when it fails, so it brings its own document, font and header.
+// Replaces the root layout when it fails, so it brings its own document, font and a bar with the
+// brand only (the sidebar needs the app around it).
 const dmSans = DM_Sans({ subsets: ["latin"], axes: ["opsz"], variable: "--font-dm-sans", display: "swap" });
 
 export default function GlobalError({ reset }) {
@@ -15,15 +16,15 @@ export default function GlobalError({ reset }) {
       <body>
         <title>Gagal dimuat · Potongin</title>
         <main className="statusPage">
-          <header className="appHeader">
-            <div className="appHeaderInner shell"><Brand /></div>
+          <header className="statusBar">
+            <div className="shell"><Brand /></div>
           </header>
           <section className="statusBody shell" role="alert" aria-labelledby="status-title">
             <h1 id="status-title">Potongin gagal dimuat</h1>
             <p>Coba lagi. Kalau tetap gagal, muat ulang halaman.</p>
             <div className="statusActions">
               <button type="button" className="btn primary" onClick={() => reset()}>Coba lagi</button>
-              <a className="btn" href="/dashboard">Buka Buat Klip</a>
+              <a className="btn" href="/dashboard">Buka Buat klip</a>
             </div>
           </section>
         </main>

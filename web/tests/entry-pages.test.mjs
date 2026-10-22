@@ -50,7 +50,7 @@ test("every landing anchor points at a section that exists, and the CTAs reach t
 test("the landing covers Tata letak and the editor, with the editor's screen limit said plainly", async () => {
   const source = await read("app/page.jsx");
   const text = visibleText(source);
-  assert.match(text, /"Tata letak"/);
+  assert.match(text, /"Tata letak"|>Tata letak</);
   assert.match(text, /Ikuti wajah/);
   assert.match(text, /Layar terbagi|layar terbagi/);
   assert.match(text, /"Editor"|>Editor</);

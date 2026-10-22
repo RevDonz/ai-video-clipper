@@ -1,28 +1,9 @@
 /* Project history (/projects). Tokens from app/globals.css; building blocks (.btn, .notice,
    .segmented, .pulse) stay global. */
 
+/* The page heading is the shared .pageHead (app/globals.css). */
 .page {
-  padding: 32px 0 64px;
-}
-
-.head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px 24px;
-  margin-bottom: 24px;
-}
-.head h1 {
-  margin: 0;
-  font: 700 clamp(28px, 3.4vw, 38px)/1.1 var(--font);
-  letter-spacing: -.02em;
-}
-.head p {
-  margin: 8px 0 0;
-  color: var(--text-muted);
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
+  padding: 0 0 64px;
 }
 
 /* Proyek | Klip: the two views of the history, sized to their words. */
@@ -254,12 +235,6 @@
   }
 }
 @media (max-width: 600px) {
-  .page {
-    padding-top: 20px;
-  }
-  .head > a {
-    flex: 1 1 100%;
-  }
   .views {
     width: auto;
   }

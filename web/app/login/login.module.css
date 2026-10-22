@@ -1,6 +1,6 @@
-/* Masuk: the form on the left, a phone showing what a finished clip looks like on the right
-   (hidden below 850px, where the form is the whole page). The phone repeats the landing's
-   clip motif: hook text on top, a karaoke caption with the spoken word lit. */
+/* Masuk: the form on the left, a phone with a real finished clip on the right (hidden below
+   850px, where the form is the whole page): the landing's Sesudah poster, hook text on top and
+   the karaoke caption with the spoken word lit. */
 
 .page { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); min-height: 100vh; min-height: 100dvh; background: var(--bg); }
 
@@ -34,23 +34,18 @@
 
 .visual { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 48px; overflow: hidden; border-left: 1px solid var(--border); background: var(--surface); text-align: center; }
 .phone {
-  position: relative;
-  width: 188px;
+  width: 220px;
   aspect-ratio: 9 / 16;
   margin-bottom: 24px;
   overflow: hidden;
   border: 1px solid var(--border-strong);
   border-radius: 26px;
-  background: linear-gradient(180deg, var(--surface-3), var(--surface-2) 70%);
+  background: var(--surface-3);
   transform: rotate(3deg);
   transition: transform var(--dur-3) var(--ease-out);
 }
 .visual:hover .phone { transform: rotate(0deg); }
-.hookText { position: absolute; top: 34px; left: 16px; right: 16px; padding: 6px 8px; border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: 700 13px/1.25 var(--font); }
-/* A person, drawn as head and shoulders. */
-.person { position: absolute; left: 50%; top: 112px; width: 56px; height: 56px; border-radius: 50%; background: var(--border-strong); transform: translateX(-50%); box-shadow: 0 70px 0 22px var(--border-strong); }
-.caption { position: absolute; left: 12px; right: 12px; bottom: 46px; margin: 0; padding: 6px 8px; border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: 700 12px/1.3 var(--font); }
-.caption mark { background: transparent; color: var(--warning); }
+.phone img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .visualTitle { max-width: 520px; margin: 0; font: 700 clamp(26px, 3vw, 38px)/1.12 var(--font); letter-spacing: -.02em; text-wrap: balance; }
 .visualNote { margin: 0; color: var(--text-muted); font-size: 15px; }
 

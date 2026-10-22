@@ -214,9 +214,9 @@ test("any other missing page offers Riwayat first and a new clip second", () => 
   }
 });
 
-test("the 404 page is Indonesian, carries the shared header and its own title", async () => {
+test("the 404 page is Indonesian, carries the shared sidebar and its own title", async () => {
   const page = await read("app/not-found.jsx");
-  assert.match(page, /<AppHeader \/>/);
+  assert.match(page, /<AppShell className="statusPage">/);
   assert.match(page, /title: "Halaman tidak ditemukan"/);
   assert.match(page, /<h1[^>]*>Halaman tidak ditemukan<\/h1>/);
   assert.match(page, /<NotFoundActions \/>/);
@@ -230,12 +230,12 @@ test("the 404 page is Indonesian, carries the shared header and its own title", 
   assert.match(actions, /notFoundLinks\(pathname\)/);
 });
 
-test("the error page is a client boundary that retries and keeps the header", async () => {
+test("the error page is a client boundary that retries and keeps the sidebar", async () => {
   const page = await read("app/error.jsx");
   assert.match(page, /^"use client";/);
   assert.match(page, /export default function \w+\(\{ reset \}\)/);
   assert.match(page, /onClick=\{\(\) => reset\(\)\}/);
-  assert.match(page, /<AppHeader current=\{pathname\} \/>/);
+  assert.match(page, /<AppShell current=\{pathname\} className="statusPage">/);
   assert.match(page, />Coba lagi</);
   assert.doesNotMatch(page, /error\.(message|stack|digest)/, "technical detail stays in the server log");
 });

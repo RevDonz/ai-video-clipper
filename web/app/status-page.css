@@ -2,6 +2,8 @@
    Colours, radii and motion come from the tokens in globals.css. */
 
 .statusPage { min-height: 100vh; min-height: 100dvh; }
+.statusBar { display: flex; align-items: center; min-height: 64px; border-bottom: 1px solid var(--border); }
+.statusBar .shell { display: flex; align-items: center; }
 .statusBody { padding: 72px 0 96px; }
 .statusCode {
   margin: 0 0 10px;

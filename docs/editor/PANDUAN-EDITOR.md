@@ -168,8 +168,9 @@ bilah.
 
 ### Mode Lengkap
 
-**Rel panel (kiri).** Enam ikon bernama: Transkrip, Teks, Cold open, Tata letak, Logo, Musik. Dengan
-keyboard: ↑/↓ pindah panel, Home/End ke ujung.
+**Rel alat (kiri) dan panel (kanan).** Enam ikon bernama di kiri: Transkrip, Teks, Cold open, Tata
+letak, Logo, Musik. Panel alat yang dipilih terbuka di kanan pratinjau, timeline tetap di bawah.
+Dengan keyboard: ↑/↓ pindah panel, Home/End ke ujung, Tab dari ikon langsung masuk ke panelnya.
 
 **Transkrip.** Klik kata untuk memilih, Shift+klik untuk rentang. **Ctrl+klik** (⌘+klik di Mac)
 menandai kata sebagai kata kunci, atau membatalkannya, tanpa mengubah pilihan. Begitu ada pilihan, **bilah aksi**

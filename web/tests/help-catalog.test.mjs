@@ -60,7 +60,7 @@ test("a bot check and an age gate point to the YouTube cookies in Pengaturan", (
   assert.equal(bot.action.href, "/settings");
   assert.match(bot.steps[0], /cookies YouTube di Pengaturan/);
   assert.ok(bot.steps.some((step) => /akun Google terpisah/.test(step)), "a separate Google account");
-  assert.ok(bot.steps.some((step) => /Unggah file/.test(step)), "uploading the file stays an option");
+  assert.ok(bot.steps.some((step) => /[Uu]nggah file videonya/.test(step)), "uploading the file stays an option");
   assert.ok(helpEntry("download_age_restricted").steps.some((step) => /cookies YouTube/.test(step)));
   for (const entry of HELP_ENTRIES) {
     for (const text of [entry.cause, ...entry.steps]) assert.doesNotMatch(text, /belum mendukung cookies/i, entry.id);

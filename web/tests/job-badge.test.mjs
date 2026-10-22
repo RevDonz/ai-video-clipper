@@ -276,10 +276,11 @@ test("pages tell the badge when they change a job", () => {
 
 // --- The component and the pages that use it ----------------------------------------------------
 
-test("the header puts the badge beside the brand, before the menu", async () => {
-  const header = await read("components/AppHeader.jsx");
-  assert.match(header, /import JobBadge from "\.\/JobBadge\.jsx";/);
-  assert.match(header, /<div className="appHeaderLead">\s*<Brand \/>\s*<JobBadge \/>\s*<\/div>\s*<nav /);
+test("the sidebar puts the badge right after the brand, before the menu", async () => {
+  const shell = await read("components/AppShell.jsx");
+  assert.match(shell, /import JobBadge from "\.\/JobBadge\.jsx";/);
+  assert.match(shell, /<div className="appBar">\s*<Brand \/>\s*<JobBadge \/>\s*<button\b/);
+  assert.ok(shell.indexOf("<JobBadge />") < shell.indexOf("<nav "), "the badge comes before the menu");
 });
 
 test("the badge is a real link; only a separate polite region announces", async () => {
@@ -296,7 +297,7 @@ test("the badge is a real link; only a separate polite region announces", async 
   assert.doesNotMatch(source, /AbortController|\.abort\(/);
 });
 
-test("the brand keeps its name in its own span, so the header can fold it", async () => {
+test("the brand keeps its name in its own span, so the top bar can fold it", async () => {
   const brand = await read("components/Brand.jsx");
   assert.match(brand, /<span aria-hidden="true">P<\/span>\s*<span className="brandName">Potongin AI<\/span>/);
 });
@@ -321,20 +322,19 @@ function cssBlock(css, header) {
   throw new Error(`unclosed ${header}`);
 }
 
-test("the header folds at 850 px, where the badge gets 44 px targets and the short text below 384 px", async () => {
+test("below 1024 px the badge is a 44 px target in the top bar; the name folds, then the text", async () => {
   const css = await read("app/globals.css");
-  assert.doesNotMatch(css, /@media \(max-width: 720px\) \{\s*\.appHeaderInner/, "the old fold point is gone");
-  const fold = cssBlock(css, "@media (max-width: 850px) {\n  .appHeaderInner");
-  assert.match(fold, /\.appNav \{ order: 3; width: 100%; \}/);
-  assert.match(fold, /\.jobBadge[^{]*\{[^}]*min-height: 44px/);
-  assert.match(fold, /\.jobBadge \{[^}]*min-width: 44px/);
-  const narrow = cssBlock(css, "@media (max-width: 359px) {");
-  assert.match(narrow, /^\s*\.appHeaderLead \.brandName \{/m, "only the app header folds the name; the landing and login pages keep it");
-  assert.doesNotMatch(css, /^\s*\.brandName \{/m, "no rule hides the brand name outside the app header");
+  assert.doesNotMatch(css, /\.appHeader/, "the old header rules are gone");
+  const fold = cssBlock(css, "@media (max-width: 1023px) {\n  .appFrame");
+  assert.match(fold, /\.appBar \.jobBadge \{ min-height: 44px; \}/);
+  const narrow = cssBlock(css, "@media (max-width: 479px) {");
+  assert.match(narrow, /^\s*\.appBar:has\(\.jobBadge\) \.brandName \{/m, "only the app bar folds the name; the landing and login pages keep it");
+  assert.doesNotMatch(css, /^\s*\.brandName \{/m, "no rule hides the brand name outside the app bar");
   const short = cssBlock(css, "@media (max-width: 383px) {");
   assert.match(short, /\.jobBadgeText \{[^}]*clip: rect\(0 0 0 0\)/);
   assert.match(short, /\.jobBadge::after \{ content: attr\(data-short\); content: attr\(data-short\) \/ ""; \}/);
   const badge = /\.jobBadge \{([^}]*)\}/.exec(css)[1];
+  assert.match(badge, /min-width: 0/);
   assert.match(badge, /font-variant-numeric: tabular-nums/);
   assert.match(badge, /white-space: nowrap/);
   assert.match(badge, /animation: fade-in var\(--dur-2\)/);

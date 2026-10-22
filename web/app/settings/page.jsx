@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import AppHeader from "../../components/AppHeader.jsx";
+import AppShell from "../../components/AppShell.jsx";
 import DefaultLogoCard from "./DefaultLogoCard.jsx";
 import DefaultWatermarkCard from "./DefaultWatermarkCard.jsx";
 import TranscriptionCard from "./TranscriptionCard.jsx";
@@ -29,6 +29,16 @@ import {
 import { llmStatusView } from "../../lib/selection-v3-view.mjs";
 import { systemInfoRows } from "../../lib/system-info-view.mjs";
 import "./settings.css";
+
+// The page's parts by task, in page order: what picks the moments, what writes the words, how
+// every clip looks by default, what YouTube downloads need, and the server itself.
+const SETTINGS_SECTIONS = Object.freeze([
+  { id: "ai", label: "AI pemilih momen" },
+  { id: "transkripsi", label: "Transkripsi" },
+  { id: "tampilan", label: "Logo dan watermark" },
+  { id: "youtube", label: "Unduhan YouTube" },
+  { id: "sistem", label: "Tentang sistem" },
+]);
 
 const SESSION_TEXT = "Sesi login berakhir. Muat ulang halaman untuk masuk lagi.";
 const REASONING_LABELS = {
@@ -748,17 +758,21 @@ export default function SettingsPage() {
   else if (loaded?.fileError) sourceText = "tidak terbaca";
 
   return (
-    <main className="settingsPage">
-      <AppHeader current="/settings" />
+    <AppShell current="/settings" className="settingsPage">
 
-      <section className="settingsHero shell">
-        <h1>Pengaturan</h1>
-        <p>AI, transkripsi, logo, watermark, dan cookies YouTube. Job berikutnya langsung memakai yang tersimpan di sini.</p>
-      </section>
+      <header className="shell pageHead">
+        <div>
+          <h1>Pengaturan</h1>
+          <p>Berlaku untuk job berikutnya. AI disimpan lewat bilah di bawah; bagian lain punya tombol simpan sendiri.</p>
+        </div>
+      </header>
+      <nav className="settingsIndex shell" aria-label="Bagian pengaturan">
+        {SETTINGS_SECTIONS.map((section) => <a key={section.id} href={`#${section.id}`}>{section.label}</a>)}
+      </nav>
 
-      {loadState === "loading" && <div className="shell"><div className="panel settingsState" role="status">Memuat pengaturan AI…</div></div>}
+      {loadState === "loading" && <div id="ai" className="shell"><div className="panel settingsState" role="status">Memuat pengaturan AI…</div></div>}
       {loadState === "error" && (
-        <div className="shell">
+        <div id="ai" className="shell">
           <div className="panel settingsState" role="alert">
             <p>{notice?.text || "Pengaturan AI tidak bisa dimuat."}</p>
             <button type="button" className="btn primary" onClick={load}>Coba lagi</button>
@@ -767,7 +781,7 @@ export default function SettingsPage() {
       )}
 
       {loadState === "ready" && (
-        <div className="settingsLayout shell">
+        <div id="ai" className="settingsLayout shell">
           <div className="settingsTop">
             <section className="panel settingsCard" aria-labelledby="ai-status-title">
               <div className="settingsCardHead"><h2 id="ai-status-title">Status AI</h2><p>Yang dipakai job berikutnya.</p></div>
@@ -861,11 +875,11 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="settingsAbout shell"><TranscriptionCard /></div>
-      <div className="settingsAbout shell"><DefaultLogoCard /></div>
+      <div id="transkripsi" className="settingsAbout shell"><TranscriptionCard /></div>
+      <div id="tampilan" className="settingsAbout shell"><DefaultLogoCard /></div>
       <div className="settingsAbout shell"><DefaultWatermarkCard /></div>
-      <div className="settingsAbout shell"><YoutubeCookiesCard /></div>
-      <div className="settingsAbout shell"><SystemInfo /></div>
+      <div id="youtube" className="settingsAbout shell"><YoutubeCookiesCard /></div>
+      <div id="sistem" className="settingsAbout shell"><SystemInfo /></div>
 
       {loadState === "ready" && (
         <div className={`settingsSaveBar${dirty ? " dirty" : ""}`} role="region" aria-label="Simpan pengaturan AI">
@@ -886,6 +900,6 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-    </main>
+    </AppShell>
   );
 }

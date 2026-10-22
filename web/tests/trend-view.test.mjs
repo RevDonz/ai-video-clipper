@@ -737,9 +737,9 @@ test("the trends UI never renders HTML, never uses browser dialogs, and hardens 
   for (const anchor of examples) assert.match(anchor, /rel="noopener noreferrer nofollow"/);
 });
 
-test("the dashboard header links to Konteks Tren", async () => {
+test("the dashboard's sidebar links to Konteks Tren", async () => {
   const dashboard = await readFile(path.join(WEB, "app", "dashboard", "page.jsx"), "utf8");
-  assert.match(dashboard, /<AppHeader current="\/dashboard" \/>/);
+  assert.match(dashboard, /<AppShell current="\/dashboard">/);
   const { navItems } = await import("../lib/app-nav.mjs");
   assert.ok(navItems("/dashboard").some((item) => item.href === "/trends" && item.label === "Konteks Tren"));
 });

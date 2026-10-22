@@ -15,15 +15,15 @@ export const HELP_PATH = "/bantuan";
 export const MAX_HELP_QUERY = 4000;
 
 export const HELP_GROUPS = Object.freeze([
-  Object.freeze({ id: "unduhan", title: "Unduhan YouTube", intro: "Server gagal mengambil video dari link YouTube. Pesannya muncul di Buat Klip dan di halaman proyek." }),
+  Object.freeze({ id: "unduhan", title: "Unduhan YouTube", intro: "Server gagal mengambil video dari link YouTube. Pesannya muncul di Buat klip dan di halaman proyek." }),
   Object.freeze({ id: "penyimpanan", title: "Penyimpanan server", intro: "Server menolak job baru, atau menghentikannya, karena ruang penyimpanan." }),
   Object.freeze({ id: "ai", title: "AI pemilih momen", intro: "Penyedia AI di Pengaturan gagal dipakai. Job tetap jalan: momen dipilih dengan heuristik lokal." }),
 ]);
 
-const BUAT_KLIP = Object.freeze({ href: "/dashboard", label: "Buka Buat Klip" });
+const BUAT_KLIP = Object.freeze({ href: "/dashboard", label: "Buka Buat klip" });
 const RIWAYAT = Object.freeze({ href: "/projects", label: "Buka Riwayat" });
 const PENGATURAN = Object.freeze({ href: "/settings", label: "Buka Pengaturan" });
-const UPLOAD = "Unggah file videonya langsung lewat Unggah file di Buat Klip.";
+const UPLOAD = "Unggah file videonya langsung lewat Pilih file di Buat klip.";
 const TEST_AGAIN = "Simpan, lalu jalankan Tes koneksi.";
 
 function download(code, fields) {
@@ -104,7 +104,7 @@ const ENTRIES = [
     steps: [
       "Buka link-nya di browser dan pastikan videonya bisa diputar.",
       "Buat ulang proyeknya.",
-      "Kalau gagal lagi, tempel Detail teknis (Buat Klip) atau Pesan dari server (halaman proyek) ke kolom cari di halaman ini.",
+      "Kalau gagal lagi, tempel Detail teknis (Buat klip) atau Pesan dari server (halaman proyek) ke kolom cari di halaman ini.",
     ],
   }),
 
@@ -113,7 +113,7 @@ const ENTRIES = [
     cause: "Proyek yang tersimpan sudah memakai seluruh kuota penyimpanan job. Potongin tidak pernah menghapus proyek sendiri, jadi job baru ditolak sampai ada ruang.",
     steps: [
       "Unduh klip yang masih dibutuhkan, lalu hapus proyek yang tidak dipakai lagi di Riwayat. Penghapusan ini permanen.",
-      "Tekan Periksa lagi di Buat Klip, lalu buat ulang proyeknya.",
+      "Tekan Periksa lagi di Buat klip, lalu buat ulang proyeknya.",
       "Pemilik server: naikkan JOBS_STORAGE_QUOTA_BYTES atau perbesar volume penyimpanan.",
     ],
     fragments: ["penyimpanan server tidak cukup", "kuota penyimpanan", "storage quota exhausted"],
@@ -123,7 +123,7 @@ const ENTRIES = [
     cause: "Ruang kosong di disk server turun di bawah batas aman. Disk itu juga bisa terisi oleh hal lain di server, bukan hanya proyek Potongin.",
     steps: [
       "Hapus proyek yang tidak dipakai lagi di Riwayat.",
-      "Pemilik server: kosongkan disk (misalnya cache build Docker dan image lama) atau perbesar volume, lalu tekan Periksa lagi di Buat Klip.",
+      "Pemilik server: kosongkan disk (misalnya cache build Docker dan image lama) atau perbesar volume, lalu tekan Periksa lagi di Buat klip.",
     ],
     fragments: ["storage free space", "ruang kosong penyimpanan"],
   }),
@@ -131,7 +131,7 @@ const ENTRIES = [
     title: "Status penyimpanan tidak bisa diperiksa",
     cause: "Server gagal menghitung pemakaian penyimpanan, misalnya karena pemindaian folder job melewati batas waktu atau catatan reservasinya hilang. Job baru ditolak supaya disk tidak penuh tanpa ketahuan.",
     steps: [
-      "Tunggu sebentar, tekan Periksa lagi di Buat Klip, lalu coba lagi.",
+      "Tunggu sebentar, tekan Periksa lagi di Buat klip, lalu coba lagi.",
       "Pemilik server: kalau terus terjadi, periksa log worker. Folder job harus berada di satu mount.",
     ],
     codes: ["storage_admission_unavailable", "storage_admission_lost"],
@@ -264,7 +264,7 @@ const ENTRIES = [
     title: "AI tidak menemukan momen yang valid",
     cause: "AI menjawab, tetapi tidak satu pun momennya muat di batas durasi klip setelah dirapikan ke batas kalimat.",
     steps: [
-      "Longgarkan durasi minimum dan maksimum klip di Buat Klip.",
+      "Longgarkan durasi minimum dan maksimum klip di Buat klip.",
       "Periksa videonya: video dengan sedikit ucapan memberi sedikit bahan untuk AI.",
     ],
     fragments: ["tidak memberi satu pun momen", "tidak ada momen llm"],

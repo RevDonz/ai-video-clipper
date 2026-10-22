@@ -52,14 +52,14 @@ async function fakeDashboardApi(page, { llm = ACTIVE_AI } = {}) {
 }
 
 // The dashboard is prerendered: typing before hydration would be lost. The AI status line only
-// shows the faked status after React hydrated and fetched it. The focus field sits in the folded
-// options, so they are opened (a fresh browser context starts folded).
+// shows the faked status after React hydrated and fetched it. The focus field sits in the
+// "Arahkan pilihan momen" fold, so it is opened (a fresh browser context starts folded).
 async function openDashboard(page, statusText = "AI aktif: uji") {
   await login(page, "/dashboard");
   await expect(page.getByText(statusText, { exact: true })).toBeVisible();
-  const options = page.getByRole("button", { name: /^Pengaturan klip/ });
-  await options.click();
-  await expect(options).toHaveAttribute("aria-expanded", "true");
+  const moments = page.getByRole("button", { name: /^Arahkan pilihan momen/ });
+  await moments.click();
+  await expect(moments).toHaveAttribute("aria-expanded", "true");
 }
 
 const chipTexts = (page) => page.getByRole("list", { name: "Kata kunci fokus" }).locator("li > span");

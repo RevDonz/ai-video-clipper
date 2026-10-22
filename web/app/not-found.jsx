@@ -1,4 +1,4 @@
-import AppHeader from "../components/AppHeader.jsx";
+import AppShell from "../components/AppShell.jsx";
 import NotFoundActions from "../components/NotFoundActions.jsx";
 import "./status-page.css";
 
@@ -8,14 +8,13 @@ export const metadata = {
 
 export default function NotFound() {
   return (
-    <main className="statusPage">
-      <AppHeader />
+    <AppShell className="statusPage">
       <section className="statusBody shell" aria-labelledby="status-title">
         <p className="statusCode">404</p>
         <h1 id="status-title">Halaman tidak ditemukan</h1>
         <p>Alamatnya salah, atau halamannya sudah tidak ada.</p>
         <NotFoundActions />
       </section>
-    </main>
+    </AppShell>
   );
 }

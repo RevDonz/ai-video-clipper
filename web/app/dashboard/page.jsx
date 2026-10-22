@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import AppHeader from "../../components/AppHeader.jsx";
+import AppShell from "../../components/AppShell.jsx";
 import CancelJob from "../../components/CancelJob.jsx";
 import StageSummary from "../../components/StageSummary.jsx";
 import { PACK_IMAGES, imageSrc } from "../../components/editor/panels/pack-images.js";
@@ -32,6 +32,7 @@ import {
   DEFAULT_CHOICES,
   DURATION_PRESETS,
   LAYOUT_CHOICES,
+  OPTION_SECTIONS,
   RATIO_CHOICES,
   RESOLUTION_CHOICES,
   VIDEO_LANGUAGE_CHOICES,
@@ -41,7 +42,10 @@ import {
   normalizeChoices,
   outputSizeOf,
   readStoredChoices,
+  sectionOfField,
+  sectionSummary,
   withDuration,
+  withSection,
   writeStoredChoices,
 } from "../../lib/dashboard-choices.mjs";
 import {
@@ -71,15 +75,36 @@ import focusStyles from "./focus.module.css";
 import lookStyles from "./look.module.css";
 import LookPreview from "./LookPreview.jsx";
 
-// Fields in the order the page checks them; the first invalid one gets focus.
+// Fields in the order the page checks them; the first invalid one gets focus (its fold opens first).
 const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", subtitle: "subtitle-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration", timeRanges: "time-ranges" };
-// These sit in the source rows; the others are inside the folded options.
-const SOURCE_FIELDS = new Set(["youtubeUrl", "video", "subtitle"]);
+const SECTION_TITLES = Object.fromEntries(OPTION_SECTIONS.map((section) => [section.id, section.title]));
 
 const draggingFiles = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
 
 function FieldError({ id, message }) {
   return message ? <p id={id} className={styles.fieldError}>{message}</p> : null;
+}
+
+/**
+ * One of the three folds under the essentials: a heading button that names the fold and, while it
+ * is closed, what is chosen inside it. The content is hidden, not unmounted, so typed focus terms
+ * and ranges survive a close.
+ */
+function Fold({ id, summary, open, onToggle, children }) {
+  return (
+    <div className={styles.fold}>
+      <h2 className={styles.foldHeading}>
+        <button type="button" className={styles.optionsToggle} aria-expanded={open} aria-controls={`${id}-options`} onClick={onToggle}>
+          <span>
+            <strong>{SECTION_TITLES[id]}</strong>
+            <span>{summary}</span>
+          </span>
+          <i aria-hidden="true" className={styles.chevron} />
+        </button>
+      </h2>
+      <div id={`${id}-options`} className={styles.options} hidden={!open}>{children}</div>
+    </div>
+  );
 }
 
 /**
@@ -235,7 +260,7 @@ export default function DashboardPage() {
   const [dragging, setDragging] = useState(false);
   // The last choices come back after hydration (the page is prerendered with the defaults).
   const [choices, setChoices] = useState(DEFAULT_CHOICES);
-  const { limit, duration, minDuration, maxDuration, renderMode, ratio, resolution, coldOpen, hookOverlay, videoLanguage, optionsOpen } = choices;
+  const { limit, duration, minDuration, maxDuration, renderMode, ratio, resolution, coldOpen, hookOverlay, videoLanguage, openSections } = choices;
   const [focusTerms, setFocusTerms] = useState([]);
   const [focusDraft, setFocusDraft] = useState("");
   const [focusNote, setFocusNote] = useState("");
@@ -311,14 +336,17 @@ export default function DashboardPage() {
     writeStoredChoices(browserStorage(), next);
   }
 
-  /** Focuses a field once it is on screen; a field inside the folded options opens them first. */
-  function focusField(id, { inOptions = true } = {}) {
-    if (!inOptions || optionsOpen) {
+  const sectionOpen = (id) => openSections.includes(id);
+  const toggleSection = (id) => updateChoices(withSection(choices, id, !sectionOpen(id)));
+
+  /** Focuses a field once it is on screen; a field inside a closed fold opens that fold first. */
+  function focusField(id, section = null) {
+    if (!section || sectionOpen(section)) {
       document.getElementById(id)?.focus();
       return;
     }
     pendingFocus.current = id;
-    updateChoices({ optionsOpen: true });
+    updateChoices(withSection(choices, section, true));
   }
 
   const chooseVideo = useCallback((file) => {
@@ -462,7 +490,7 @@ export default function DashboardPage() {
     setProblems(found);
     const firstInvalid = Object.keys(FIELD_IDS).find((name) => found[name]);
     if (firstInvalid) {
-      focusField(FIELD_IDS[firstInvalid], { inOptions: !SOURCE_FIELDS.has(firstInvalid) });
+      focusField(FIELD_IDS[firstInvalid], sectionOfField(firstInvalid));
       return;
     }
     const focus = focusFormFields({ terms: focusTerms, pending: focusDraft, note: focusNote });
@@ -470,7 +498,7 @@ export default function DashboardPage() {
     setFocusDraft(focus.pending);
     if (!focus.fields) {
       setFocusError(focus.error);
-      focusField("focus-terms-input");
+      focusField("focus-terms-input", sectionOfField("focus"));
       return;
     }
     setSubmitting(true);
@@ -514,7 +542,7 @@ export default function DashboardPage() {
       notifyJobsChanged();
       setMessage({ tone: "ok", text: "Job dibuat. Progresnya tampil di panel Hasil." });
       // On one column the Hasil panel sits below the form: bring the new job into view.
-      if (window.matchMedia("(max-width: 900px)").matches) {
+      if (window.matchMedia("(max-width: 1179px)").matches) {
         const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         resultsRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
       }
@@ -554,17 +582,22 @@ export default function DashboardPage() {
   }
 
   const describedBy = (name, extra) => [extra, problems[name] ? `${FIELD_IDS[name]}-error` : null].filter(Boolean).join(" ") || undefined;
-  const summary = choicesSummary({ ...choices, captionStyle, captionPosition, captionSize }, { focusTerms: focusTerms.length, ranges: typedRangeCount(timeRanges) });
+  const rangeCount = typedRangeCount(timeRanges);
+  const summary = choicesSummary({ ...choices, captionStyle, captionPosition, captionSize }, { focusTerms: focusTerms.length, ranges: rangeCount });
+  const foldSummary = (id) => sectionSummary(id, { ...choices, captionStyle, captionPosition, captionSize }, {
+    engine: renderEngine, focusTerms: focusTerms.length, ranges: rangeCount, note: Boolean(normalizeFocusText(focusNote)),
+  });
   const look = lookPreview(choices, { editor: editorOn, engine: renderEngine });
 
   return (
-    <main>
-      <AppHeader current="/dashboard" />
+    <AppShell current="/dashboard">
 
-      <div className={`shell ${styles.head}`}>
-        <h1>Buat klip</h1>
-        <p>Satu video panjang jadi klip 9:16 atau 1:1 dengan subtitle, teks hook, dan caption.</p>
-      </div>
+      <header className="shell pageHead">
+        <div>
+          <h1>Buat klip</h1>
+          <p>Tempel link YouTube atau pilih video, cek jumlah dan durasinya, lalu tekan Buat klip.</p>
+        </div>
+      </header>
 
       {storageView && storage.warning && (
         <div className={`shell ${styles.banner} ${storage.unavailable ? styles.bannerWarning : styles.bannerDanger}`} role="alert">
@@ -616,7 +649,7 @@ export default function DashboardPage() {
                 />
                 {video ? "Ganti file" : "Pilih file"}
               </label>
-              <button type="submit" className={styles.submit} disabled={submitting || storageBlocked}>{submitting ? "Membuat job…" : "Buat klip"}</button>
+              <button type="submit" className={styles.submit} disabled={submitting || storageBlocked} aria-describedby="job-summary">{submitting ? "Membuat job…" : "Buat klip"}</button>
             </div>
             <FieldError id="youtube-url-error" message={problems.youtubeUrl} />
             <FieldError id="video-file-error" message={problems.video} />
@@ -649,65 +682,178 @@ export default function DashboardPage() {
             {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}{message.help && " "}{message.help && <a className={styles.messageLink} href={message.help}>Cara memperbaiki</a>}</p>}
           </div>
 
+          <p id="job-summary" className="visuallyHidden">Job berikutnya: {summary}</p>
           <p className={`${styles.aiStatus} ${styles[ai.tone] || ""}`} role="status">
             <i aria-hidden="true" />
             <span>{ai.text}</span>
             <a href="/settings">Atur AI</a>
           </p>
 
-          <button type="button" className={styles.optionsToggle} aria-expanded={optionsOpen} aria-controls="job-options" onClick={() => updateChoices({ optionsOpen: !optionsOpen })}>
-            <span>
-              <strong>Pengaturan klip</strong>
-              <span>{summary}</span>
-            </span>
-            <i aria-hidden="true" className={styles.chevron} />
-          </button>
-
-          <div id="job-options" className={styles.options} hidden={!optionsOpen}>
-            <section className={styles.section} aria-labelledby="clips-title">
-              <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
+          <section className={`${styles.section} ${styles.basics}`} aria-labelledby="clips-title">
+            <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
+            <div className={styles.basicsRow}>
               <div className={`${styles.field} ${styles.limitField}`}>
                 <label htmlFor="clip-limit">Jumlah klip</label>
                 <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min={CLIP_LIMITS.count.min} max={CLIP_LIMITS.count.max} step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); clearProblem("timeRanges"); }} />
                 <FieldError id="clip-limit-error" message={problems.limit} />
               </div>
-              <fieldset className={styles.group}>
-                <legend className={styles.groupTitle}>Durasi klip</legend>
+              <fieldset className={`${styles.group} ${styles.ratioGroup}`} aria-describedby="format-help">
+                <legend className={styles.groupTitle}>Rasio</legend>
                 <div className={styles.pills}>
-                  {DURATION_PRESETS.map((preset) => (
-                    <label key={preset.id} className={`${styles.pill} ${duration === preset.id ? styles.selected : ""}`}>
-                      <input type="radio" name="duration" value={preset.id} checked={duration === preset.id} onChange={() => { updateChoices(withDuration(choices, preset.id)); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
-                      <strong>{preset.name}</strong>
-                      <small>{preset.id === "custom" ? "Isi detiknya" : `${preset.min}–${preset.max} detik`}</small>
+                  {RATIO_CHOICES.map((entry) => (
+                    <label key={entry.id} className={`${styles.pill} ${ratio === entry.id ? styles.selected : ""}`}>
+                      <input type="radio" name="ratio" value={entry.id} checked={ratio === entry.id} onChange={() => updateChoices({ ratio: entry.id })} />
+                      <strong>{entry.name}</strong>
+                      <small>{entry.tall ? "TikTok, Reels, Shorts" : "Feed"}</small>
                     </label>
                   ))}
                 </div>
-                {duration === "custom" && (
-                  <div className={styles.numbers}>
-                    <div className={styles.field}>
-                      <label htmlFor="min-duration">Durasi minimum</label>
-                      <div className={styles.unit}>
-                        <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
-                        <span aria-hidden="true">detik</span>
-                      </div>
-                      <FieldError id="min-duration-error" message={problems.minDuration} />
+              </fieldset>
+            </div>
+            <fieldset className={styles.group}>
+              <legend className={styles.groupTitle}>Durasi klip</legend>
+              <div className={styles.pills}>
+                {DURATION_PRESETS.map((preset) => (
+                  <label key={preset.id} className={`${styles.pill} ${duration === preset.id ? styles.selected : ""}`}>
+                    <input type="radio" name="duration" value={preset.id} checked={duration === preset.id} onChange={() => { updateChoices(withDuration(choices, preset.id)); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
+                    <strong>{preset.name}</strong>
+                    <small>{preset.id === "custom" ? "Isi detiknya" : `${preset.min}–${preset.max} detik`}</small>
+                  </label>
+                ))}
+              </div>
+              {duration === "custom" && (
+                <div className={styles.numbers}>
+                  <div className={styles.field}>
+                    <label htmlFor="min-duration">Durasi minimum</label>
+                    <div className={styles.unit}>
+                      <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
+                      <span aria-hidden="true">detik</span>
                     </div>
-                    <div className={styles.field}>
-                      <label htmlFor="max-duration">Durasi maksimum</label>
-                      <div className={styles.unit}>
-                        <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
-                        <span aria-hidden="true">detik</span>
-                      </div>
-                      <FieldError id="max-duration-error" message={problems.maxDuration} />
+                    <FieldError id="min-duration-error" message={problems.minDuration} />
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="max-duration">Durasi maksimum</label>
+                    <div className={styles.unit}>
+                      <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
+                      <span aria-hidden="true">detik</span>
                     </div>
-                    <p id="duration-unit" className="visuallyHidden">Dalam detik, {CLIP_LIMITS.seconds.min} sampai {CLIP_LIMITS.seconds.max}.</p>
+                    <FieldError id="max-duration-error" message={problems.maxDuration} />
+                  </div>
+                  <p id="duration-unit" className="visuallyHidden">Dalam detik, {CLIP_LIMITS.seconds.min} sampai {CLIP_LIMITS.seconds.max}.</p>
+                </div>
+              )}
+            </fieldset>
+            <fieldset className={styles.group}>
+              <legend className={styles.groupTitle}>Layout</legend>
+              <div className={`${styles.choices} ${styles.layouts} ${ratio === "1:1" ? styles.squareFrames : ""}`}>
+                {LAYOUT_CHOICES.map((layout) => (
+                  <label key={layout.id} className={`${styles.choice} ${renderMode === layout.id ? styles.selected : ""}`}>
+                    <input type="radio" name="renderMode" value={layout.id} checked={renderMode === layout.id} onChange={() => updateChoices({ renderMode: layout.id })} />
+                    <span className={`${styles.frame} ${styles[layout.id]}`} aria-hidden="true"><i /></span>
+                    <span className={styles.choiceText}><strong>{layout.name}</strong><small>{layout.description}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <p id="format-help" className={styles.help}>9:16 untuk TikTok, Reels dan Shorts, 1:1 untuk feed. Layout lain, seperti layar terbagi, diatur per klip di editor.</p>
+          </section>
+
+          <Fold id="look" summary={foldSummary("look")} open={sectionOpen("look")} onToggle={() => toggleSection("look")}>
+            <div className={lookStyles.look}>
+              <LookPreview look={look} />
+              <div className={lookStyles.controls}>
+                <fieldset className={styles.group} aria-describedby={look.note ? "caption-style-help" : undefined}>
+                  <legend className={styles.groupTitle}>Gaya subtitle</legend>
+                  <div className={`${styles.choices} ${lookStyles.styles}`}>
+                    {offered.styles.map((style) => (
+                      <label key={style.id} className={`${styles.choice} ${styles.compact} ${lookStyles.style} ${captionStyle === style.id ? styles.selected : ""}`}>
+                        <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => updateChoices({ captionStyle: style.id })} />
+                        <img className={lookStyles.thumb} src={imageSrc(PACK_IMAGES[style.id])} width={160} height={40} alt="" draggable={false} />
+                        <span className={styles.choiceText}><strong>{style.name}</strong><small>{style.description}</small></span>
+                      </label>
+                    ))}
+                  </div>
+                  {look.note && <p id="caption-style-help" className={styles.help}>{look.note}</p>}
+                </fieldset>
+                {(offered.positions || offered.sizes) && (
+                  <div className={lookStyles.spots}>
+                    {offered.positions && (
+                      <fieldset className={styles.group}>
+                        <legend className={styles.groupTitle}>Posisi subtitle</legend>
+                        <div className={`${styles.pills} ${lookStyles.spotPills}`}>
+                          {offered.positions.map((spot) => (
+                            <label key={spot.id} className={`${styles.pill} ${captionPosition === spot.id ? styles.selected : ""}`}>
+                              <input type="radio" name="captionPosition" value={spot.id} checked={captionPosition === spot.id} onChange={() => updateChoices({ captionPosition: spot.id })} />
+                              <strong>{spot.name}</strong>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                    )}
+                    {offered.sizes && (
+                      <fieldset className={styles.group}>
+                        <legend className={styles.groupTitle}>Ukuran subtitle</legend>
+                        <div className={`${styles.pills} ${lookStyles.spotPills}`}>
+                          {offered.sizes.map((size) => (
+                            <label key={size.id} className={`${styles.pill} ${captionSize === size.id ? styles.selected : ""}`}>
+                              <input type="radio" name="captionSize" value={size.id} checked={captionSize === size.id} onChange={() => updateChoices({ captionSize: size.id })} />
+                              <strong>{size.name}</strong>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                    )}
                   </div>
                 )}
-              </fieldset>
-            </section>
+                <div className={styles.toggles}>
+                  <label className={styles.toggle}>
+                    <input type="checkbox" checked={coldOpen} onChange={(event) => updateChoices({ coldOpen: event.target.checked })} />
+                    <span className={styles.choiceText}><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal.</small></span>
+                  </label>
+                  <label className={styles.toggle}>
+                    <input type="checkbox" checked={hookOverlay} onChange={(event) => updateChoices({ hookOverlay: event.target.checked })} />
+                    <span className={styles.choiceText}><strong>Teks hook di 4 detik pertama</strong><small>Kalimat pemancing singkat di bagian atas layar.</small></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </Fold>
 
-            <fieldset className={styles.section} aria-describedby="language-help">
-              <legend className={styles.sectionTitle}>Bahasa video</legend>
+          <Fold id="moments" summary={foldSummary("moments")} open={sectionOpen("moments")} onToggle={() => toggleSection("moments")}>
+            <FocusField
+              terms={focusTerms}
+              draft={focusDraft}
+              note={focusNote}
+              error={focusError}
+              aiMode={aiMode}
+              onTermsChange={setFocusTerms}
+              onDraftChange={setFocusDraft}
+              onNoteChange={setFocusNote}
+              onErrorChange={setFocusError}
+            />
+            <div className={styles.field}>
+              <label htmlFor="time-ranges">Rentang waktu (opsional)</label>
+              <textarea
+                id="time-ranges"
+                className={`${styles.input} ${styles.ranges}`}
+                rows={2}
+                value={timeRanges}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="contoh: 10.30-12.05, 1:02:10-1:03:00"
+                aria-invalid={problems.timeRanges ? "true" : undefined}
+                aria-describedby={describedBy("timeRanges", "time-ranges-help")}
+                onChange={(event) => { setTimeRanges(event.target.value); clearProblem("timeRanges"); }}
+              />
+              <p id="time-ranges-help" className={styles.help}>Tiap rentang jadi satu klip apa adanya; sisa slot diisi momen terbaik lain. Pisahkan dengan koma atau baris baru, {CLIP_LIMITS.seconds.min}–{CLIP_LIMITS.seconds.max} detik per rentang.</p>
+              <FieldError id="time-ranges-error" message={problems.timeRanges} />
+            </div>
+            <p className={styles.help}>Tren yang aktif di <a className={styles.inlineLink} href="/trends">Konteks Tren</a> ikut dipakai kalau transkrip menyebutnya.</p>
+          </Fold>
+
+          <Fold id="format" summary={foldSummary("format")} open={sectionOpen("format")} onToggle={() => toggleSection("format")}>
+            <fieldset className={styles.group} aria-describedby="language-help">
+              <legend className={styles.groupTitle}>Bahasa video</legend>
               <div className={styles.pills}>
                 {VIDEO_LANGUAGE_CHOICES.map((language) => (
                   <label key={language.id} className={`${styles.pill} ${videoLanguage === language.id ? styles.selected : ""}`}>
@@ -718,143 +864,19 @@ export default function DashboardPage() {
               </div>
               <p id="language-help" className={styles.help}>Bahasa yang diucapkan di video, untuk transkrip dan subtitle.</p>
             </fieldset>
-
-            <fieldset className={styles.section} aria-describedby="format-help">
-              <legend className={styles.sectionTitle}>Format video</legend>
-              <div className={styles.formats}>
-                <fieldset className={styles.group}>
-                  <legend className={styles.groupTitle}>Rasio</legend>
-                  <div className={styles.pills}>
-                    {RATIO_CHOICES.map((entry) => (
-                      <label key={entry.id} className={`${styles.pill} ${ratio === entry.id ? styles.selected : ""}`}>
-                        <input type="radio" name="ratio" value={entry.id} checked={ratio === entry.id} onChange={() => updateChoices({ ratio: entry.id })} />
-                        <strong>{entry.name}</strong>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                <fieldset className={styles.group}>
-                  <legend className={styles.groupTitle}>Resolusi</legend>
-                  <div className={styles.pills}>
-                    {RESOLUTION_CHOICES.map((entry) => (
-                      <label key={entry.id} className={`${styles.pill} ${resolution === entry.id ? styles.selected : ""}`}>
-                        <input type="radio" name="resolution" value={entry.id} checked={resolution === entry.id} onChange={() => updateChoices({ resolution: entry.id })} />
-                        <strong>{entry.name}</strong>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              </div>
-              <p id="format-help" className={styles.help}>9:16 untuk TikTok, Reels dan Shorts, 1:1 untuk feed. 1080p lebih tajam, tapi render lebih lama dan file lebih besar.</p>
-            </fieldset>
-
-            <fieldset className={styles.section}>
-              <legend className={styles.sectionTitle}>Layout</legend>
-              <div className={`${styles.choices} ${ratio === "1:1" ? styles.squareFrames : ""}`}>
-                {LAYOUT_CHOICES.map((layout) => (
-                  <label key={layout.id} className={`${styles.choice} ${renderMode === layout.id ? styles.selected : ""}`}>
-                    <input type="radio" name="renderMode" value={layout.id} checked={renderMode === layout.id} onChange={() => updateChoices({ renderMode: layout.id })} />
-                    <span className={`${styles.frame} ${styles[layout.id]}`} aria-hidden="true"><i /></span>
-                    <span className={styles.choiceText}><strong>{layout.name}</strong><small>{layout.description}</small></span>
+            <fieldset className={styles.group} aria-describedby="resolution-help">
+              <legend className={styles.groupTitle}>Resolusi</legend>
+              <div className={styles.pills}>
+                {RESOLUTION_CHOICES.map((entry) => (
+                  <label key={entry.id} className={`${styles.pill} ${resolution === entry.id ? styles.selected : ""}`}>
+                    <input type="radio" name="resolution" value={entry.id} checked={resolution === entry.id} onChange={() => updateChoices({ resolution: entry.id })} />
+                    <strong>{entry.name}</strong>
                   </label>
                 ))}
               </div>
+              <p id="resolution-help" className={styles.help}>1080p lebih tajam, tapi render lebih lama dan file lebih besar.</p>
             </fieldset>
-
-            <section className={styles.section} aria-labelledby="look-title">
-              <h2 id="look-title" className={styles.sectionTitle}>Tampilan klip</h2>
-              <div className={lookStyles.look}>
-                <LookPreview look={look} />
-                <div className={lookStyles.controls}>
-                  <fieldset className={styles.group} aria-describedby={look.note ? "caption-style-help" : undefined}>
-                    <legend className={styles.groupTitle}>Gaya subtitle</legend>
-                    <div className={`${styles.choices} ${lookStyles.styles}`}>
-                      {offered.styles.map((style) => (
-                        <label key={style.id} className={`${styles.choice} ${styles.compact} ${lookStyles.style} ${captionStyle === style.id ? styles.selected : ""}`}>
-                          <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => updateChoices({ captionStyle: style.id })} />
-                          <img className={lookStyles.thumb} src={imageSrc(PACK_IMAGES[style.id])} width={160} height={40} alt="" draggable={false} />
-                          <span className={styles.choiceText}><strong>{style.name}</strong><small>{style.description}</small></span>
-                        </label>
-                      ))}
-                    </div>
-                    {look.note && <p id="caption-style-help" className={styles.help}>{look.note}</p>}
-                  </fieldset>
-                  {(offered.positions || offered.sizes) && (
-                    <div className={lookStyles.spots}>
-                      {offered.positions && (
-                        <fieldset className={styles.group}>
-                          <legend className={styles.groupTitle}>Posisi subtitle</legend>
-                          <div className={`${styles.pills} ${lookStyles.spotPills}`}>
-                            {offered.positions.map((spot) => (
-                              <label key={spot.id} className={`${styles.pill} ${captionPosition === spot.id ? styles.selected : ""}`}>
-                                <input type="radio" name="captionPosition" value={spot.id} checked={captionPosition === spot.id} onChange={() => updateChoices({ captionPosition: spot.id })} />
-                                <strong>{spot.name}</strong>
-                              </label>
-                            ))}
-                          </div>
-                        </fieldset>
-                      )}
-                      {offered.sizes && (
-                        <fieldset className={styles.group}>
-                          <legend className={styles.groupTitle}>Ukuran subtitle</legend>
-                          <div className={`${styles.pills} ${lookStyles.spotPills}`}>
-                            {offered.sizes.map((size) => (
-                              <label key={size.id} className={`${styles.pill} ${captionSize === size.id ? styles.selected : ""}`}>
-                                <input type="radio" name="captionSize" value={size.id} checked={captionSize === size.id} onChange={() => updateChoices({ captionSize: size.id })} />
-                                <strong>{size.name}</strong>
-                              </label>
-                            ))}
-                          </div>
-                        </fieldset>
-                      )}
-                    </div>
-                  )}
-                  <div className={styles.toggles}>
-                    <label className={styles.toggle}>
-                      <input type="checkbox" checked={coldOpen} onChange={(event) => updateChoices({ coldOpen: event.target.checked })} />
-                      <span className={styles.choiceText}><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal.</small></span>
-                    </label>
-                    <label className={styles.toggle}>
-                      <input type="checkbox" checked={hookOverlay} onChange={(event) => updateChoices({ hookOverlay: event.target.checked })} />
-                      <span className={styles.choiceText}><strong>Teks hook di 4 detik pertama</strong><small>Kalimat pemancing singkat di bagian atas layar.</small></span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className={styles.section} aria-labelledby="moments-title">
-              <h2 id="moments-title" className={styles.sectionTitle}>Momen</h2>
-              <div className={styles.field}>
-                <label htmlFor="time-ranges">Rentang waktu (opsional)</label>
-                <textarea
-                  id="time-ranges"
-                  className={`${styles.input} ${styles.ranges}`}
-                  rows={2}
-                  value={timeRanges}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="contoh: 10.30-12.05, 1:02:10-1:03:00"
-                  aria-invalid={problems.timeRanges ? "true" : undefined}
-                  aria-describedby={describedBy("timeRanges", "time-ranges-help")}
-                  onChange={(event) => { setTimeRanges(event.target.value); clearProblem("timeRanges"); }}
-                />
-                <p id="time-ranges-help" className={styles.help}>Tiap rentang jadi satu klip apa adanya; sisa slot diisi momen terbaik lain. Pisahkan dengan koma atau baris baru, {CLIP_LIMITS.seconds.min}–{CLIP_LIMITS.seconds.max} detik per rentang.</p>
-                <FieldError id="time-ranges-error" message={problems.timeRanges} />
-              </div>
-              <FocusField
-                terms={focusTerms}
-                draft={focusDraft}
-                note={focusNote}
-                error={focusError}
-                aiMode={aiMode}
-                onTermsChange={setFocusTerms}
-                onDraftChange={setFocusDraft}
-                onNoteChange={setFocusNote}
-                onErrorChange={setFocusError}
-              />
-            </section>
-          </div>
+          </Fold>
         </form>
 
         <aside ref={resultsRef} className={`panel ${styles.results}`} aria-labelledby="results-title">
@@ -945,6 +967,6 @@ export default function DashboardPage() {
           )}
         </aside>
       </div>
-    </main>
+    </AppShell>
   );
 }

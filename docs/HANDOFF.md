@@ -1,12 +1,15 @@
 # Handoff: status dan cara melanjutkan
 
-Terakhir diperbarui 2026-10-21. Dokumen ini untuk agen atau device mana pun yang melanjutkan.
+Terakhir diperbarui 2026-10-22. Dokumen ini untuk agen atau device mana pun yang melanjutkan.
 Aturan proyek: `AGENTS.md`; arah desain: `DESIGN.md`.
 
-**Menunggu merge pemilik:** satu PR gabungan dari branch `adopsi/gabungan-2026-10-21` (45 paket
-adopsi dalam tiga gelombang, antrean `docs/plans/2026-10-20-lanjutan-sesi.md`). Isinya, keputusan
-yang diambil atas delegasi pemilik dan yang masih menunggu pemilik: §8. PR itu tidak di-merge
-oleh agen.
+**Redesign UX** (sidebar aplikasi, Buat klip dengan lipatan, halaman depan baru, tata letak
+editor, panduan di Bantuan): PR dari branch `feat/ux-redesign-workspace`, merge dengan rebase
+setelah CI dan gerbang e2e hijau. Isi, validasi dan sisa risiko: §9.
+
+**PR gabungan adopsi** (45 paket, antrean `docs/plans/2026-10-20-lanjutan-sesi.md`) sudah masuk ke
+`main` lewat #29 (2026-10-22). Isinya, keputusan atas delegasi pemilik dan yang masih untuk
+pemilik: §8.
 
 ## 1. Sudah live di produksi (`main`)
 
@@ -145,7 +148,7 @@ Menjalankan aplikasi lokal: `web` (Next.js) + `web/scripts/primary-worker.mjs` d
 - Sedikit agen: untuk bagian kecil cukup satu pembangun + satu pemeriksa.
 - Lanjutkan dari commit yang ada; jangan mulai ulang tugas yang sudah punya banyak commit.
 
-## 8. Adopsi 2026-10-21 (PR gabungan, menunggu merge)
+## 8. Adopsi 2026-10-21 (PR gabungan #29, sudah di `main`)
 
 Branch `adopsi/gabungan-2026-10-21`: 45 paket dari `docs/plans/2026-10-20-lanjutan-sesi.md`,
 dibangun per paket di worktree, lalu diintegrasikan dalam tiga gelombang; suite lokal penuh hijau
@@ -226,7 +229,7 @@ komentar PR, dan di `docs/editor/CONTRACTS.md` / `GATES.md`.
 4. Ganti API key LLM dan password server yang pernah tertempel di chat.
 5. Izin "Allow GitHub Actions to create and approve pull requests" (Settings > Actions > General)
    untuk PR yt-dlp mingguan; tanpa izin itu, PR dibuka lewat tautan di Summary run.
-6. Merge PR gabungan (rebase, setelah semua check hijau), lalu pantau deploy.
+6. ~~Merge PR gabungan.~~ Masuk lewat #29 (2026-10-22).
 7. Kalau ingin meninjau ulang: tampilan gaya caption baru (Sinar, Sorot, font aksen), yang disetujui
    lewat delegasi.
 8. ~~Gerbang merah di PR #27 yang butuh keputusan.~~ Diputuskan atas delegasi pemilik
@@ -240,3 +243,98 @@ komentar PR, dan di `docs/editor/CONTRACTS.md` / `GATES.md`.
    karena cek bot YouTube di IP runner.
 9. Perbaikan parity mengubah tampilan sedikit: 2–3 frame awal Fade lebih gelap (isi di atas
    garis), dan watermark tembus pandang lebih gelap di dalam (maks 32 level di 85 %).
+
+## 9. Redesign UX (branch `feat/ux-redesign-workspace`, 2026-10-22)
+
+Permintaan pemilik: tampilan profesional tapi ramah dan mudah dipelajari, rujukan Lokaclip, Social
+Visuals dan editor CapCut. Dibuat dari `main` 4b0ef34. Pemilik memprioritaskan push ke branch
+GitHub dahulu; PR, pemeriksaan berat dan deploy produksi masih menunggu. Merge nantinya dengan
+rebase; deploy otomatis setelah merge. Arah dan polanya: `DESIGN.md` "Pola tata letak".
+
+**Yang berubah**
+- **Sidebar aplikasi** (`web/components/AppShell.jsx`, `lib/app-nav.mjs`, `lib/app-menu.mjs`,
+  `lib/app-icons.mjs`): menggantikan `AppHeader` di semua halaman login, 404, error dan lisensi.
+  Buat klip di atas, grup Kerja dan Sistem, Keluar di bawah, badge job tetap tepat setelah merek.
+  Di bawah 1024 px: bar atas + tombol Menu (laci, Escape/Tutup, fokus kembali, halaman `inert`).
+  Ada skip link "Langsung ke isi". Bilah simpan Pengaturan kini `sticky` di kolom halaman.
+- **Buat klip:** Jumlah klip, Rasio, Durasi, Layout selalu terlihat; tiga lipatan berlabel
+  dengan ringkasan (`OPTION_SECTIONS`, `sectionSummary`, `withSection` di
+  `lib/dashboard-choices.mjs`; `openSections` menggantikan `optionsOpen`, nilai lama `true`
+  membuka ketiganya). Error membuka lipatannya lalu memfokuskan field. Tombol Buat klip punya
+  deskripsi "Job berikutnya: …". Dua kolom mulai 1180 px.
+- **Kepala halaman** seragam (`.pageHead` di `globals.css`): Buat klip, Riwayat, Konteks Tren,
+  Pengaturan (dengan indeks bagian per tugas), Bantuan, Lisensi.
+- **Bantuan:** bagian Panduan (`lib/help-guide.mjs`) sebelum referensi error; teks diambil dari
+  daftar yang dipakai halaman. Satu langkah bantuan diperbaiki: tombolnya "Pilih file", bukan
+  "Unggah file". Penulisan "Buat Klip" diseragamkan menjadi "Buat klip".
+- **Halaman depan:** hero tipografi, contoh sebelum/sesudah tepat di bawahnya dengan satu animasi
+  CSS (jendela 9:16, penanda 8:09, panah, klip), dua jalur cara kerja, galeri render gaya
+  subtitle asli, tata letak, showcase panel Hasil dan editor. Login memakai poster klip asli.
+  `public/landing/editor.webp` diambil ulang dari editor sungguhan dengan tata letak baru (job
+  contoh dari `sesudah.mp4`, dibuat `scripts/editor_fixture/landing_demo.py`; prosedur di
+  `docs/design/LANDING.md` langkah 6). `docs/design/LANDING.md` diperbarui.
+- **Editor (Mode Lengkap):** rel alat kiri (`<nav aria-label="Alat editor">`), pratinjau tengah,
+  panel di kanan, timeline bawah; DOM rel → panel → pratinjau. Mode Cepat tetap. Tooltip di
+  tombol Cepat/Lengkap. `docs/editor/CONTRACTS.md` dan `PANDUAN-EDITOR.md` diperbarui.
+
+**Validasi yang sudah jalan (lokal, ringan)**
+- 46 file tes node yang terkait perubahan (`node --test tests/<file>.test.mjs …`): 697 lulus,
+  0 gagal. Tes struktur lama yang mengunci header atas dan lipatan tunggal diganti dengan
+  pemeriksaan setara untuk sidebar dan lipatan baru (lihat diff `web/tests/`).
+- Parse JSX/JS semua file yang berubah dengan SWC bawaan Next: 38 file OK.
+- Kontras pasangan warna baru dengan `contrast-check.py`: teks ≥ 7,04:1, tepi kontrol ≥ 3,29:1.
+- Pratinjau terisolasi (`next dev` di port lain, data sementara di luar repo, prioritas rendah,
+  editor memakai fakes) + 22 cek klik otomatis: semua lulus (laci, Escape, skip link, lipatan,
+  validasi, satu item aktif di sidebar, tanpa overflow di 390 px, susunan editor). Satu-satunya
+  error konsol: `/api/storage/status` 503 karena penyimpanan tidak dikonfigurasi di pratinjau.
+- `editor.webp` baru: editor mode nyata (bukan fakes) di Google Chrome 1440 × 900 pada job contoh;
+  status "Sesuai hasil akhir", playhead 00:02,0, rel x 0 / pratinjau x 84 / panel x 1120, area
+  pratinjau tidak kosong (simpangan luminans 47), tanpa error konsol atau respons gagal; WebP
+  68 KB. `tests/landing-media`, `entry-pages`, `landing-preview`: 26 lulus. `ruff check` untuk
+  `landing_demo.py`: bersih; skrip itu menghasilkan job yang sama (seed, kata, peaks, dokumen;
+  hanya waktu audit yang beda).
+- Spec editor yang lain diperiksa untuk anggapan "rel di dalam panel" atau "panel di kiri
+  pratinjau": tidak ada selector atau ukuran lain yang terdampak (rel → panel tetap berurutan di
+  DOM, ukuran yang diuji relatif ke panel atau pratinjau). Hanya komentar di
+  `e2e/editor-lengkap.spec.mjs` yang diperbarui.
+- Koreksi pemilik: label dan kontrol Jumlah klip–Rasio disejajarkan dengan jarak label 6 px
+  dan tinggi kontrol 56 px. Pengukuran browser di lebar 768, 1024, 1280 dan 1440 px menunjukkan
+  posisi atas dan tinggi yang sama; di 390 px tersusun vertikal tanpa overflow.
+- Cek tambahan di preview lokal yang tetap berjalan: dashboard, Pengaturan, Bantuan, Riwayat
+  dan Tren HTTP 200 tanpa galat JavaScript atau overflow di desktop/ponsel; penyimpanan
+  terkonfigurasi dan HTTP 200. Editor job demo juga HTTP 200, siap, menampilkan frame video
+  dan status "Sesuai hasil akhir" tanpa galat JavaScript. Ini pemeriksaan ringan, bukan suite
+  browser penuh atau uji render ekspor.
+
+**Pemeriksaan berat di GitHub Actions (belum dijalankan untuk branch ini)**
+- CI PR (`ci-cd.yml`, check wajib "Test and build"): gitleaks atas seluruh riwayat, ruff dan
+  pytest, `npm test`, `npm run build`, validasi image produksi, penjaga toolchain dan parity smoke.
+- Gerbang browser: `editor-gates.yml` `suite=e2e` di HEAD branch, dengan spec yang diubah atau
+  ditambah (`app-shell` baru, `dashboard`, `focus`, `header-badge`, `cancel-job`, `bantuan`,
+  `editor-shell` dengan gerbang tata letak rel 84 px kiri dan panel di kanan pratinjau,
+  `editor-lengkap`, `editor-views`) plus `smoke` dan `read-only`.
+
+**Menjalankan lengkap di lokal (2026-10-22)**
+- Gejala di pratinjau lokal: "Layanan pembuatan job sementara tidak tersedia" (503
+  `job_service_unavailable`). Penyebab: proses web hanya mendapat `JOBS_STORAGE_*`, padahal
+  `POST /api/jobs` juga butuh `MAX_UPLOAD_BYTES` dan `PRIMARY_MAX_ACTIVE_JOBS`,
+  `PRIMARY_WORKER_CONCURRENCY`, `PRIMARY_MAX_ATTEMPTS`, `PRIMARY_LEASE_MS` (README "Run locally");
+  primary worker dan render worker juga tidak jalan. Skrip startnya membuat `APP_SESSION_SECRET`
+  baru setiap start, jadi login dan key AI di Pengaturan hilang tiap restart. Bukan bug di repo.
+- Perbaikan di luar repo: runner lokal menjalankan web, primary worker (1 job sekaligus) dan render
+  worker dengan satu lingkungan seperti `compose.yaml`, rahasia sesi yang tetap, log privat dan PID
+  milik sendiri. `resources/toolchain.json` lokal dibuat (gitignored, PANDUAN-EDITOR §4 langkah 2).
+- Smoke: unggahan 11 detik + `.srt` lewat API biasa: job diambil primary worker, selesai, klip
+  edit-v2 720 × 1280; satu ekspor editor selesai lewat render worker.
+- Ekstra dari lockfile dipasang (`uv sync --frozen --inexact --extra transcribe --extra vision
+  --extra web`, tanpa menghapus paket atau mengubah lock): faster-whisper 1.2.1, yt-dlp
+  2026.08.19, opencv-python-headless 4.14. Model Whisper `small` (bawaan `WHISPER_MODEL`) sudah
+  di cache. Dicek: semua import, `yt-dlp --version`, model `small` termuat offline, YuNet (model
+  di `resources/models/`, sha256 cocok) menemukan wajah di frame klip contoh. Belum dicek: akurasi
+  transkripsi (tidak ada contoh suara di repo; klip contoh tanpa audio) dan unduhan YouTube
+  sungguhan (butuh internet, bisa terkena cek bot).
+
+**Catatan untuk pemilik**
+- Tata letak editor berubah sebelum uji U1–U8 (§4): uji dengan stopwatch sebaiknya memakai tata
+  letak yang akan dirilis.
+- Buat klip di sidebar sengaja tombol netral, bukan lime: lime tetap satu aksi utama per layar.

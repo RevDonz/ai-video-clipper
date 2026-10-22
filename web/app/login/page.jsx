@@ -1,4 +1,5 @@
 import Brand from "../../components/Brand.jsx";
+import { LANDING_MEDIA } from "../../lib/landing-media.mjs";
 import { loginErrorMessage, safeNextPath } from "../../lib/login-view.mjs";
 import styles from "./login.module.css";
 
@@ -9,6 +10,8 @@ export default async function LoginPage({ searchParams }) {
   const params = await searchParams;
   const error = loginErrorMessage(params?.error);
   const next = safeNextPath(params?.next);
+  // The landing's real clip poster: one of the files the proxy serves without a session.
+  const poster = LANDING_MEDIA.sesudah;
   return (
     <main className={styles.page}>
       <section className={styles.card} aria-labelledby="login-title">
@@ -28,12 +31,10 @@ export default async function LoginPage({ searchParams }) {
       </section>
       <aside className={styles.visual} aria-hidden="true">
         <div className={styles.phone}>
-          <b className={styles.hookText}>Jangan tunggu sempurna</b>
-          <i className={styles.person} />
-          <p className={styles.caption}>mulai aja <mark>dulu</mark> dari yang kecil</p>
+          <img src={poster.poster} width={poster.width} height={poster.height} alt="" />
         </div>
         <p className={styles.visualTitle}>Video panjang jadi klip yang layak ditonton.</p>
-        <p className={styles.visualNote}>Diproses di server Anda sendiri.</p>
+        <p className={styles.visualNote}>Contoh klip dari film terbuka Elephants Dream. Diproses di server Anda sendiri.</p>
       </aside>
     </main>
   );

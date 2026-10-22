@@ -3,14 +3,6 @@
    .chip, .panel and .segmented. Every class here is prefixed "tr" so nothing leaks. */
 
 .trendsPage { padding-bottom: 88px; }
-.trHero { padding: 44px 0 28px; }
-.trHero h1 {
-  margin: 0 0 10px;
-  font: 700 clamp(30px, 4vw, 46px)/1.08 var(--font);
-  letter-spacing: -.02em;
-}
-.trHero p { max-width: 700px; margin: 0; color: var(--text-muted); font-size: 16px; line-height: 1.6; }
-.trHero b { color: var(--text); font-weight: 600; }
 .trLayout { display: grid; gap: 16px; }
 .trCard { min-width: 0; padding: 24px; }
 .trCardHead { margin-bottom: 16px; }
@@ -357,8 +349,6 @@
   .trAgentIntro { display: grid; }
 }
 @media (max-width: 620px) {
-  .trHero { padding: 28px 0 20px; }
-  .trHero p { font-size: 15px; }
   .trCard { padding: 18px; }
   .trFields, .trFilters { grid-template-columns: 1fr; }
   .trStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }

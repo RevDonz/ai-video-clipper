@@ -1949,7 +1949,10 @@ changes: every plan sha and golden is unchanged.
 - The shell is one grid with named areas (`top`, `side`, `stage`, `bottom`, plus `rail` in
   Lengkap). Its children come in a fixed order: TopBar, side, `StageRegion`, bottom. The stage
   keeps its element, parent and key in both views, so a switch never remounts the canvas or calls
-  `createPlayer` again.
+  `createPlayer` again. Since the workspace redesign (branch `feat/ux-redesign-workspace`) Lengkap
+  places `rail` left, `stage` centre and `side` (the panel, `data-slot="panels"`) right; the rail is
+  its own `<nav aria-label="Alat editor">` (`data-slot="rail"`) and comes before the panel in the
+  DOM, so Tab still goes from a tab to its panel. Cepat keeps the stage left and the cards right.
 - The props bundle (`state`, `getState`, `dispatch`, `player`, `api`, `previewClient`,
   `uploadAsset`, `uploadsEnabled`, `llmEnabled` (§5.35), `notify`, `readOnly`) is built once and
   spread onto `<Panel>` and `<QuickPanel>` alike; cards also get `frameBus` and `showLengkap(panelId)`. `getState` is the
