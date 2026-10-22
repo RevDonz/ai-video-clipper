@@ -1,13 +1,12 @@
 /* Buat klip: one form on the left, the job's progress and clips on the right (stacked below
-   900px). Tokens and building blocks (.panel, .btn) come from app/globals.css.
+   1180 px, where the sidebar leaves too little room for two columns). Tokens and building
+   blocks (.panel, .btn) come from app/globals.css.
    The form opens with the one decision made every time, the video and Buat klip in one row;
-   the options the owner rarely changes fold under a summary of what is chosen.
-   RHYTHM 1: every option section has the same shape, title then controls, split by a hairline.
+   the essentials (jumlah, rasio, durasi, layout) stay open under it, and the options changed
+   less often sit in three labelled folds, each naming what is chosen inside it.
+   RHYTHM 1: every group has the same shape, title then controls.
    Lime appears once, on the submit button; selected options use the light edge instead. */
 
-.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 20px; padding: 28px 0 20px; }
-.head h1 { margin: 0; font: 700 clamp(26px, 3vw, 34px)/1.15 var(--font); letter-spacing: -.02em; }
-.head p { margin: 0; color: var(--text-muted); font-size: 15px; }
 
 .banner {
   display: flex;
@@ -34,6 +33,7 @@
 
 /* Form */
 .form {
+  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
@@ -91,7 +91,28 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .subtitleRow .pick:not(.pickInvalid) { border-color: var(--border); }
 .languageNotice { margin: 12px 0 0; font-size: 13px; }
 
-/* The folded options: one button carries the summary of what the next job will use. */
+/* The essentials: Jumlah klip beside Rasio, then Durasi and the three layouts. */
+.basics { gap: 18px; margin-top: 16px; padding-bottom: 8px; }
+.basicsRow { display: flex; flex-wrap: wrap; align-items: start; gap: 12px 20px; }
+.basicsRow > .limitField { flex: 0 1 140px; }
+.basicsRow > .ratioGroup { flex: 1 1 260px; gap: 0; }
+.ratioGroup > .groupTitle { margin-bottom: 6px; }
+.basicsRow .input, .ratioGroup .pill { min-height: 56px; }
+/* The layouts as three tiles: the drawing on top, its name and what it does below. */
+.layouts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.layouts .choice { position: relative; grid-template-columns: minmax(0, 1fr); align-items: start; align-content: start; gap: 10px; padding: 14px; }
+.layouts .choice input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.layouts .frame { margin: 0; }
+@container (max-width: 520px) {
+  .layouts { grid-template-columns: minmax(0, 1fr); }
+  .layouts .choice { grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 12px; }
+}
+.inlineLink { font-weight: 600; text-underline-offset: 3px; }
+
+/* The three folds: each heading button carries the fold's name and what is chosen inside it. */
+.fold { display: grid; margin-top: 8px; }
+.fold:first-of-type { margin-top: 12px; }
+.foldHeading { margin: 0; font: inherit; }
 .optionsToggle {
   display: flex;
   align-items: center;
@@ -99,7 +120,6 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
   gap: 12px;
   width: 100%;
   min-height: 56px;
-  margin-top: 14px;
   padding: 10px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-l);
@@ -124,10 +144,9 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
   transition: transform var(--dur-2) var(--ease-out);
 }
 .optionsToggle[aria-expanded="true"] .chevron { margin: 4px 4px 0; transform: rotate(-135deg); }
-.options { display: grid; grid-template-columns: minmax(0, 1fr); animation: rise-in var(--dur-3) var(--ease-out); }
+.options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 18px 2px 14px; animation: rise-in var(--dur-3) var(--ease-out); }
 /* The class sets display, so the hidden attribute needs its own rule. */
 .options[hidden] { display: none; }
-.options > .section:first-child { margin-top: 4px; }
 
 .field { display: grid; gap: 6px; min-width: 0; align-content: start; }
 .field > label { color: var(--text); font: 600 13px/1.3 var(--font); }
@@ -139,6 +158,7 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .ranges { display: block; min-height: 72px; resize: vertical; line-height: 1.45; }
 
 .limitField { max-width: 160px; }
+.limitField .input { max-width: 140px; }
 .numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 4px; animation: rise-in var(--dur-2) var(--ease-out); }
 .unit { position: relative; }
 .unit .input { padding-right: 58px; }
@@ -190,8 +210,6 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .choiceText strong { font: 600 14px/1.3 var(--font); }
 .choiceText small { color: var(--text-muted); font-size: 13px; line-height: 1.45; }
 
-/* Rasio and Resolusi side by side where both rows of two pills fit, else stacked. */
-.formats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; }
 
 /* A 9:16 frame showing how the landscape picture sits in it (1:1 when that ratio is chosen). */
 .frame { position: relative; display: block; width: 26px; height: 40px; margin: auto; overflow: hidden; border: 2px solid var(--text-muted); border-radius: 6px; background: var(--surface-3); }
@@ -358,13 +376,13 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .history button b.status_completed { color: var(--success); }
 .history button b.status_failed { color: var(--danger); }
 
-@media (max-width: 900px) {
+/* With the sidebar beside it the page column is 232 px narrower: two columns from 1180 px only.
+   (app/dashboard/page.jsx scrolls to Hasil below the same width.) */
+@media (max-width: 1179px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .results { position: static; }
 }
 @media (max-width: 560px) {
-  .head { padding: 20px 0 16px; }
-  .head p { font-size: 14px; }
   .banner { flex-direction: column; align-items: stretch; }
   .banner > .bannerActions > :global(.btn) { flex: 1 1 auto; }
   .form { padding: 16px 16px 20px; }

@@ -1,39 +1,101 @@
-// The dark design foundation (DESIGN.md): one shared header for every signed-in page,
-// the colour tokens in app/globals.css and their record in docs/design/TOKENS.md.
+// The dark design foundation (DESIGN.md): one shared sidebar for every signed-in page (a
+// "Menu" drawer below 1024 px), the colour tokens in app/globals.css and their record in
+// docs/design/TOKENS.md.
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { APP_LINKS, navItems } from "../lib/app-nav.mjs";
+import { APP_ICONS } from "../lib/app-icons.mjs";
+import { INITIAL_MENU, MENU_BREAKPOINT_PX, MENU_QUERY, menuButtonView, menuReducer } from "../lib/app-menu.mjs";
+import { APP_LINKS, NAV_GROUPS, PRIMARY_LINK, navGroups, navItems } from "../lib/app-nav.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const read = (relative) => readFile(path.join(WEB, relative), "utf8");
 
 // --- Navigation data ------------------------------------------------------------------------
 
-test("the header offers the four signed-in destinations in a fixed order", () => {
-  assert.deepEqual(APP_LINKS.map((link) => [link.href, link.label]), [
-    ["/dashboard", "Buat Klip"],
-    ["/projects", "Riwayat"],
-    ["/trends", "Konteks Tren"],
-    ["/settings", "Pengaturan"],
+test("the sidebar starts with Buat klip, then groups the work pages and the system pages", () => {
+  assert.deepEqual([PRIMARY_LINK.href, PRIMARY_LINK.label], ["/dashboard", "Buat klip"]);
+  assert.deepEqual(NAV_GROUPS.map((group) => [group.label, group.links.map((entry) => [entry.href, entry.label])]), [
+    ["Kerja", [["/projects", "Riwayat"], ["/trends", "Konteks Tren"]]],
+    ["Sistem", [["/settings", "Pengaturan"], ["/bantuan", "Bantuan"]]],
   ]);
+  assert.deepEqual(APP_LINKS.map((entry) => entry.href), ["/dashboard", "/projects", "/trends", "/settings", "/bantuan"]);
 });
 
-test("navItems marks exactly the page the user is on, including pages under it", () => {
+test("every destination is a real page and has an icon drawn for it", async () => {
+  for (const entry of APP_LINKS) {
+    await access(path.join(WEB, "app", entry.href.slice(1), "page.jsx"));
+    assert.ok(APP_ICONS[entry.icon], `${entry.href}: icon ${entry.icon}`);
+  }
+  for (const name of ["logout", "menu", "close"]) assert.ok(APP_ICONS[name], name);
+  for (const [name, parts] of Object.entries(APP_ICONS)) {
+    assert.ok(parts.length > 0, name);
+    for (const part of parts) assert.match(part.d, /^M[\d.\s,a-zA-Z-]+$/, `${name}: a path`);
+  }
+});
+
+test("navItems and navGroups mark exactly the page the user is on, including pages under it", () => {
   const current = (pathname) => navItems(pathname).filter((item) => item.current).map((item) => item.href);
   assert.deepEqual(current("/dashboard"), ["/dashboard"]);
   assert.deepEqual(current("/trends"), ["/trends"]);
+  assert.deepEqual(current("/bantuan"), ["/bantuan"]);
   assert.deepEqual(current("/projects/job-123"), ["/projects"]);
   assert.deepEqual(current("/projectsx"), []);
   assert.deepEqual(current("/login"), []);
   assert.deepEqual(current(undefined), []);
   assert.equal(navItems("/settings").length, APP_LINKS.length);
+  const drawn = navGroups("/projects/job-123");
+  assert.equal(drawn.primary.current, false);
+  assert.deepEqual(drawn.groups.flatMap((group) => group.links.filter((entry) => entry.current).map((entry) => entry.href)), ["/projects"]);
+  assert.equal(navGroups("/dashboard").primary.current, true);
+  assert.equal(navGroups(null).groups.flatMap((group) => group.links).some((entry) => entry.current), false);
 });
 
-// --- Shared header markup -------------------------------------------------------------------
+// --- The phone and tablet drawer ------------------------------------------------------------
+
+test("the Menu button opens the drawer and closes it again, giving focus back", () => {
+  const open = menuReducer(INITIAL_MENU, { type: "toggle" });
+  assert.deepEqual(open, { open: true, returnFocus: false });
+  assert.deepEqual(menuReducer(open, { type: "toggle" }), { open: false, returnFocus: true });
+  assert.deepEqual(INITIAL_MENU, { open: false, returnFocus: false }, "the start state is never changed");
+});
+
+test("Escape, the close button and the dimmed page close it with focus back on Menu", () => {
+  const open = menuReducer(INITIAL_MENU, { type: "toggle" });
+  for (const type of ["escape", "close"]) {
+    assert.deepEqual(menuReducer(open, { type }), { open: false, returnFocus: true }, type);
+    assert.equal(menuReducer(INITIAL_MENU, { type }), INITIAL_MENU, `${type} on a closed menu changes nothing`);
+  }
+});
+
+test("following a link or widening the window closes it without moving focus", () => {
+  const open = menuReducer(INITIAL_MENU, { type: "toggle" });
+  for (const type of ["navigate", "wide"]) {
+    assert.deepEqual(menuReducer(open, { type }), { open: false, returnFocus: false }, type);
+    assert.equal(menuReducer(INITIAL_MENU, { type }), INITIAL_MENU);
+  }
+  assert.equal(menuReducer(open, { type: "nope" }), open);
+  assert.equal(menuReducer(open, undefined), open);
+});
+
+test("the Menu button names what it does next", () => {
+  assert.deepEqual(menuButtonView(INITIAL_MENU), { label: "Menu", icon: "menu", expanded: false });
+  assert.deepEqual(menuButtonView({ open: true }), { label: "Tutup", icon: "close", expanded: true });
+  for (const view of [menuButtonView(INITIAL_MENU), menuButtonView({ open: true })]) assert.ok(APP_ICONS[view.icon]);
+});
+
+test("the drawer's breakpoint is the one the stylesheet folds the sidebar at", async () => {
+  assert.equal(MENU_BREAKPOINT_PX, 1024);
+  assert.equal(MENU_QUERY, "(max-width: 1023px)");
+  const css = await read("app/globals.css");
+  assert.match(css, /@media \(max-width: 1023px\) \{\n  \.appFrame/);
+  assert.match(css, /@media \(min-width: 1024px\) \{\n  \.appFrame/);
+});
+
+// --- Shared sidebar markup ------------------------------------------------------------------
 
 const SIGNED_IN_PAGES = [
   ["app/dashboard/page.jsx", "/dashboard"],
@@ -44,30 +106,52 @@ const SIGNED_IN_PAGES = [
   ["app/bantuan/page.jsx", "/bantuan"],
 ];
 
-test("every signed-in page renders the shared header instead of its own nav", async () => {
+test("every signed-in page renders inside the shared shell instead of its own nav", async () => {
   for (const [file, current] of SIGNED_IN_PAGES) {
     const source = await read(file);
-    assert.match(source, new RegExp(`<AppHeader current="${current}" />`), file);
-    assert.doesNotMatch(source, /className="nav[ "]|className="navLinks"|className="navActions"/, file);
+    assert.match(source, new RegExp(`<AppShell current="${current}"`), file);
+    assert.match(source, /import AppShell from "(\.\.\/)+components\/AppShell\.jsx";/, file);
+    assert.doesNotMatch(source, /<main\b/, `${file}: the shell owns <main>`);
+    assert.doesNotMatch(source, /className="nav[ "]|className="navLinks"|className="navActions"|AppHeader/, file);
     assert.doesNotMatch(source, /action="\/api\/auth\/logout"/, `${file} keeps its own logout form`);
   }
+  await assert.rejects(access(path.join(WEB, "components", "AppHeader.jsx")), "the old top header is gone");
 });
 
-test("the shared header has one labelled nav, marks the current page and keeps logout", async () => {
-  const header = await read("components/AppHeader.jsx");
-  assert.match(header, /navItems\(current\)/);
-  assert.equal(header.match(/<nav\b/g)?.length, 1, "exactly one navigation landmark");
-  assert.match(header, /<nav [^>]*aria-label="[^"]+"/);
-  assert.match(header, /aria-current=\{item\.current \? "page" : undefined\}/);
-  assert.match(header, /<form [^>]*method="post" action="\/api\/auth\/logout"/);
-  assert.match(header, /<Brand \/>/);
+test("the shell has one labelled nav, marks the current page and keeps logout", async () => {
+  const shell = await read("components/AppShell.jsx");
+  assert.match(shell, /^"use client";/);
+  assert.match(shell, /navGroups\(current\)/);
+  assert.equal(shell.match(/<nav\b/g)?.length, 1, "exactly one navigation landmark");
+  assert.match(shell, /<nav [^>]*aria-label="Menu utama"/);
+  assert.match(shell, /aria-current=\{(entry|item|link)\.current \? "page" : undefined\}/);
+  assert.match(shell, /<form [^>]*method="post" action="\/api\/auth\/logout"/);
+  assert.match(shell, /<Brand \/>\s*<JobBadge \/>/, "the badge sits right after the brand");
+  // Landmarks: the sidebar is the banner, the page is <main id="konten"> with a skip link to it.
+  assert.match(shell, /<a className="skipLink" href="#konten">/);
+  assert.match(shell, /<main id="konten"/);
 });
 
-test("the shared header and brand carry no version wording and no invented status", async () => {
-  const sources = await Promise.all(["components/AppHeader.jsx", "components/Brand.jsx", "lib/app-nav.mjs"].map(read));
+test("the Menu drawer is a labelled toggle that Escape closes and that gives focus back", async () => {
+  const shell = await read("components/AppShell.jsx");
+  assert.match(shell, /aria-controls="app-menu"/);
+  assert.match(shell, /aria-expanded=\{button\.expanded\}/);
+  assert.match(shell, /id="app-menu"/);
+  assert.match(shell, /\{button\.label\}/, "the button shows its word, not only an icon");
+  assert.match(shell, /event\.key === "Escape"/);
+  assert.match(shell, /matchMedia\(MENU_QUERY\)/);
+  assert.match(shell, /type: "wide"/);
+  assert.match(shell, /toggleRef\.current\?\.focus\(\)/);
+  // While open the page behind it takes no focus or clicks.
+  assert.match(shell, /inert=\{menu\.open \|\| undefined\}/);
+  assert.doesNotMatch(shell, /outline:\s*none/);
+});
+
+test("the shell, sidebar data and brand carry no version wording and no invented status", async () => {
+  const sources = await Promise.all(["components/AppShell.jsx", "components/Brand.jsx", "lib/app-nav.mjs", "lib/app-menu.mjs"].map(read));
   for (const source of sources) {
     assert.doesNotMatch(source, /\bV[1-3]\b|Selection V|\bversi\b|mesin (lama|baru)|Mode lama/i);
-    assert.doesNotMatch(source, /Worker lokal siap/);
+    assert.doesNotMatch(source, /Worker lokal siap|—/);
   }
 });
 
@@ -213,7 +297,7 @@ test("docs/design/TOKENS.md records every colour token with the same hex", async
   for (const name of Object.keys(documented)) assert.ok(tokens[name], `TOKENS.md documents --${name}, which globals.css does not define`);
 });
 
-// Phone checks (360-390 px): the header's links stay one-line and every lone link is a 44 px target.
+// Phone checks (360-390 px): the top bar keeps every target at 44 px and the drawer's links too.
 const cssRule = (css, selector) => {
   const at = css.indexOf(`${selector} {`);
   assert.ok(at >= 0, `a rule for ${selector}`);
@@ -226,11 +310,18 @@ test("the brand link is a 44 px target even when only its letter mark shows", as
   assert.match(cssRule(css, ".brand"), /min-height:\s*44px/);
 });
 
-test("the menu's labels never wrap onto two lines on a 360 px phone", async () => {
+test("the sidebar's links, Buat klip, Keluar and the Menu button are 44 px targets", async () => {
   const css = (await read("app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.match(cssRule(css, ".appNav a"), /white-space:\s*nowrap/);
-  const narrow = /@media \(max-width: 383px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-  assert.match(narrow, /\.appNav a \{[^}]*padding:\s*6px 4px/, "less side padding where four labels share 360 px");
+  for (const selector of [".appNavLink", ".appCreate", ".appLogout button", ".appMenuToggle"]) {
+    assert.match(cssRule(css, selector), /min-height:\s*44px/, selector);
+  }
+  assert.match(cssRule(css, ".appNavLink"), /white-space:\s*nowrap/, "a label never wraps under its icon");
+  assert.match(cssRule(css, ".skipLink:focus"), /clip:\s*auto|position:\s*fixed/);
+  // The closed drawer is gone for everyone (not only visually) until Menu opens it.
+  const narrow = /@media \(max-width: 1023px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+  assert.match(narrow, /\.appFrame:not\(\[data-menu-open\]\) \.appMenu \{ display: none; \}/);
+  assert.match(narrow, /\.appMenu \{[^}]*overflow-y: auto/);
+  assert.match(narrow, /\.appScrim \{/);
 });
 
 test("the editor's state page links back to the project with a 44 px target", async () => {

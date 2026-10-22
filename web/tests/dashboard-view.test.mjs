@@ -220,7 +220,7 @@ test("the dashboard is one form for the current method", async () => {
   for (const field of ["renderMode", "limit", "minDuration", "maxDuration", "coldOpen", "hookOverlay", "captionStyle", "videoLanguage"]) {
     assert.match(source, new RegExp(`data\\.set\\("${field}"`), field);
   }
-  for (const text of ["Link video", "Pilih file", "Pengaturan klip", "Jumlah klip", "Durasi klip", "Durasi minimum", "Durasi maksimum", "Bahasa video", "Layout", "Gaya subtitle", "Buka dengan kalimat terkuat", "Teks hook di 4 detik pertama", "Cari momen tentang… (opsional)"]) {
+  for (const text of ["Link video", "Pilih file", "Jumlah klip", "Durasi klip", "Durasi minimum", "Durasi maksimum", "Bahasa video", "Layout", "Gaya subtitle", "Buka dengan kalimat terkuat", "Teks hook di 4 detik pertama", "Cari momen tentang… (opsional)"]) {
     assert.ok(source.includes(text), text);
   }
   // The focus fields are sent only through focusFormFields: an empty focus sends nothing.
@@ -244,16 +244,38 @@ test("the dashboard's radio groups and toggles are real form controls", async ()
   assert.match(source, /id="video-file"[^>]*type="file"/);
 });
 
-test("link, file and Buat klip come first; the other options fold under a one-line summary", async () => {
+test("link, file and Buat klip come first; the essentials stay open; the rest fold under labelled headings", async () => {
   const source = await read("app/dashboard/page.jsx");
   const form = /<form [^>]*onSubmit=\{submit\}[^>]*>([\s\S]*?)<\/form>/.exec(source)[1];
   const at = (pattern) => form.search(pattern);
   assert.ok(at(/id="youtube-url"/) >= 0 && at(/type="submit"/) > at(/id="youtube-url"/), "link field, then Buat klip");
-  assert.ok(at(/aria-controls="job-options"/) > at(/type="submit"/), "the fold comes after Buat klip");
-  assert.ok(at(/id="job-options"/) > at(/aria-controls="job-options"/));
-  assert.match(form, /aria-expanded=\{optionsOpen\}/);
-  assert.match(form, /id="job-options"[^>]*hidden=\{!optionsOpen\}/, "folded, not unmounted: typed focus terms survive");
+  // Jumlah, Rasio, Durasi and Layout are on screen before any fold.
+  const firstFold = at(/<Fold /);
+  for (const pattern of [/id="clip-limit"/, /name="ratio"/, /name="duration"/, /name="renderMode"/]) {
+    assert.ok(at(pattern) > at(/type="submit"/) && at(pattern) < firstFold, String(pattern));
+  }
+  // Then the three folds, in order, each holding its own options.
+  const folds = ["look", "moments", "format"].map((id) => at(new RegExp(`<Fold id="${id}"`)));
+  assert.deepEqual([...folds].sort((a, b) => a - b), folds);
+  assert.equal(folds[0], firstFold);
+  const inFold = (pattern, index) => at(pattern) > folds[index] && (index === 2 || at(pattern) < folds[index + 1]);
+  for (const pattern of [/name="captionStyle"/, /name="captionPosition"/, /checked=\{coldOpen\}/, /checked=\{hookOverlay\}/, /<LookPreview /]) assert.ok(inFold(pattern, 0), String(pattern));
+  for (const pattern of [/<FocusField\b/, /id="time-ranges"/]) assert.ok(inFold(pattern, 1), String(pattern));
+  for (const pattern of [/name="videoLanguage"/, /name="resolution"/]) assert.ok(inFold(pattern, 2), String(pattern));
+  // A fold is a heading button that says what is inside; its content is hidden, not unmounted,
+  // so typed focus terms survive a close.
+  const fold = source.slice(source.indexOf("function Fold("), source.indexOf("function FocusField"));
+  assert.match(fold, /<h2 [^>]*>\s*<button type="button"[^>]*aria-expanded=\{open\} aria-controls=\{`\$\{id\}-options`\}/);
+  assert.match(fold, /<div id=\{`\$\{id\}-options`\}[^>]*hidden=\{!open\}>/);
+  assert.match(fold, /\{summary\}/);
+  assert.match(source, /sectionSummary\(id, /);
+  // Every choice the job will use is read with Buat klip, which comes before the folds.
   assert.match(source, /choicesSummary\(/);
+  assert.match(form, /type="submit"[^>]*aria-describedby="job-summary"/);
+  assert.match(form, /<p id="job-summary" className="visuallyHidden">Job berikutnya: \{summary\}<\/p>/);
+  // The first invalid field opens the fold it sits in, then takes the focus.
+  assert.match(source, /focusField\(FIELD_IDS\[firstInvalid\], sectionOfField\(firstInvalid\)\)/);
+  assert.match(source, /focusField\("focus-terms-input", sectionOfField\("focus"\)\)/);
   // Choices are read after hydration and written through the guarded helpers only.
   assert.match(source, /readStoredChoices\(browserStorage\(\)\)/);
   assert.match(source, /writeStoredChoices\(browserStorage\(\), /);

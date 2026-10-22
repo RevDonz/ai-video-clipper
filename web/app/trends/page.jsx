@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import AppHeader from "../../components/AppHeader.jsx";
+import AppShell from "../../components/AppShell.jsx";
 import TrendAgentPanel from "../../components/trends/TrendAgentPanel.jsx";
 import TrendItemCard from "../../components/trends/TrendItemCard.jsx";
 import TrendManualForm from "../../components/trends/TrendManualForm.jsx";
@@ -162,17 +162,17 @@ export default function TrendsPage() {
   const lastIngestRelative = relativeTime(lastIngestAt, now);
 
   return (
-    <main className="trendsPage">
-      <AppHeader current="/trends" />
+    <AppShell current="/trends" className="trendsPage">
 
-      <section className="trHero shell">
-        <h1>Konteks Tren</h1>
-        <p>
-          Topik, orang, jokes, meme, sound, dan hashtag yang sedang ramai, dari agen Anda atau ditambah manual.
-          Dipakai untuk judul, hook, deskripsi, dan hashtag klip. Momen yang <b>benar-benar menyebut</b> tren di
-          transkripnya naik sedikit; momen bagus tanpa tren tetap menang.
-        </p>
-      </section>
+      <header className="shell pageHead">
+        <div>
+          <h1>Konteks Tren</h1>
+          <p>
+            Topik, orang, jokes, dan hashtag yang sedang ramai, dari agen Anda atau ditambah manual. Dipakai untuk
+            judul, hook, dan hashtag klip kalau transkripnya <b>benar-benar menyebut</b> trennya.
+          </p>
+        </div>
+      </header>
 
       {notice && (
         <div className="shell">
@@ -305,6 +305,6 @@ export default function TrendsPage() {
           </section>
         </div>
       )}
-    </main>
+    </AppShell>
   );
 }

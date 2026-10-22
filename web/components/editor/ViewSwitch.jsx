@@ -9,9 +9,10 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import styles from "./shell.module.css";
 
+// `hint`: what each view shows, for the pointer's tooltip (the radios keep their short names).
 const OPTIONS = Object.freeze([
-  Object.freeze({ id: "cepat", label: "Cepat", spoken: "Tampilan Cepat" }),
-  Object.freeze({ id: "lengkap", label: "Lengkap", spoken: "Tampilan Lengkap" }),
+  Object.freeze({ id: "cepat", label: "Cepat", spoken: "Tampilan Cepat", hint: "Kartu pengaturan di samping pratinjau" }),
+  Object.freeze({ id: "lengkap", label: "Lengkap", spoken: "Tampilan Lengkap", hint: "Alat di kiri, panel di kanan, timeline di bawah" }),
 ]);
 
 export default function ViewSwitch({ view, onChange }) {
@@ -27,7 +28,7 @@ export default function ViewSwitch({ view, onChange }) {
     <div className={styles.viewSwitchWrap}>
       <div role="radiogroup" aria-label="Tampilan editor" className={styles.viewSwitch} data-view-switch="">
         {OPTIONS.map((option) => (
-          <label key={option.id} className={styles.viewOption}>
+          <label key={option.id} className={styles.viewOption} title={option.hint}>
             <input
               type="radio"
               className={styles.viewRadio}

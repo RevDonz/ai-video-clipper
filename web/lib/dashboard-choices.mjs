@@ -1,5 +1,6 @@
 // The job options on the dashboard (app/dashboard/page.jsx): what is offered, the defaults, the
-// one-line summary shown while the options are folded, and the last choices kept per browser.
+// three folds that hold the less used options with the summary each shows while closed, and the
+// last choices kept per browser (which folds are open included).
 // Client-safe and DOM-free: the storage is passed in, and every access is guarded, so blocked
 // storage only means today's defaults. The video link, the file, the time ranges and the focus
 // are never stored.
@@ -103,8 +104,70 @@ export const DEFAULT_CHOICES = Object.freeze({
   coldOpen: true,
   hookOverlay: true,
   videoLanguage: "id",
-  optionsOpen: false,
+  openSections: Object.freeze([]),
 });
+
+// The folds under the essentials (jumlah, durasi, rasio, layout), in display order.
+export const OPTION_SECTIONS = Object.freeze([
+  Object.freeze({ id: "look", title: "Subtitle dan hook" }),
+  Object.freeze({ id: "moments", title: "Arahkan pilihan momen" }),
+  Object.freeze({ id: "format", title: "Bahasa dan resolusi" }),
+]);
+const SECTION_IDS = OPTION_SECTIONS.map((section) => section.id);
+
+// The checked fields that sit inside a fold; the others are always on screen.
+const FIELD_SECTIONS = Object.freeze({ timeRanges: "moments", focus: "moments" });
+
+/** The fold holding a checked field ("timeRanges", "focus"), or null when the field is always shown. */
+export function sectionOfField(name) {
+  return Object.hasOwn(FIELD_SECTIONS, name) ? FIELD_SECTIONS[name] : null;
+}
+
+function openSectionsOf(value) {
+  // The single fold this page had before kept everything; a browser that left it open sees all three.
+  if (!Array.isArray(value.openSections)) return value.optionsOpen === true ? [...SECTION_IDS] : [];
+  return SECTION_IDS.filter((id) => value.openSections.includes(id));
+}
+
+/** `choices` with fold `id` open or closed (display order kept); unknown folds change nothing. */
+export function withSection(choices, id, open) {
+  if (!SECTION_IDS.includes(id)) return choices;
+  const current = Array.isArray(choices.openSections) ? choices.openSections : [];
+  if (current.includes(id) === Boolean(open)) return choices;
+  return { ...choices, openSections: SECTION_IDS.filter((entry) => (entry === id ? open : current.includes(entry))) };
+}
+
+/**
+ * The line a closed fold shows: "Karaoke · Bawah, Sedang · Kalimat terkuat dulu · Teks hook",
+ * "2 kata kunci · 1 rentang waktu" (or "Otomatis"), "Bahasa Indonesia · 720p".
+ */
+export function sectionSummary(id, choices, { engine, focusTerms = 0, ranges = 0, note = false } = {}) {
+  if (id === "look") {
+    const look = lookChoices(engine);
+    const parts = [byId(look.styles, choices.captionStyle)?.name ?? byId(look.styles, DEFAULT_CHOICES.captionStyle).name];
+    if (look.positions && look.sizes) {
+      const spot = byId(look.positions, choices.captionPosition) ?? byId(look.positions, DEFAULT_CHOICES.captionPosition);
+      const size = byId(look.sizes, choices.captionSize) ?? byId(look.sizes, DEFAULT_CHOICES.captionSize);
+      parts.push(`${spot.name}, ${size.name}`);
+    }
+    parts.push(choices.coldOpen === false ? "Tanpa kalimat pembuka" : "Kalimat terkuat dulu");
+    parts.push(choices.hookOverlay === false ? "Tanpa teks hook" : "Teks hook");
+    return parts.join(" · ");
+  }
+  if (id === "moments") {
+    const parts = [];
+    if (focusTerms > 0) parts.push(`${focusTerms} kata kunci`);
+    if (ranges > 0) parts.push(`${ranges} rentang waktu`);
+    if (note) parts.push("ada catatan");
+    return parts.length ? parts.join(" · ") : "Otomatis";
+  }
+  if (id === "format") {
+    const language = byId(VIDEO_LANGUAGE_CHOICES, choices.videoLanguage) ?? byId(VIDEO_LANGUAGE_CHOICES, DEFAULT_CHOICES.videoLanguage);
+    const resolution = byId(RESOLUTION_CHOICES, choices.resolution) ?? byId(RESOLUTION_CHOICES, DEFAULT_CHOICES.resolution);
+    return `${language.summary} · ${resolution.name}`;
+  }
+  return "";
+}
 
 const byId = (list, id) => list.find((entry) => entry.id === id) || null;
 const presetOf = (id) => byId(DURATION_PRESETS, id);
@@ -153,7 +216,7 @@ export function normalizeChoices(raw, { engine } = {}) {
     coldOpen: flag("coldOpen"),
     hookOverlay: flag("hookOverlay"),
     videoLanguage: pick(VIDEO_LANGUAGE_CHOICES, value.videoLanguage, DEFAULT_CHOICES.videoLanguage),
-    optionsOpen: flag("optionsOpen"),
+    openSections: openSectionsOf(value),
   };
   if (value.duration === "custom") {
     const range = customRange(value.minDuration, value.maxDuration);
@@ -163,8 +226,9 @@ export function normalizeChoices(raw, { engine } = {}) {
 }
 
 /**
- * "3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia"; values being typed
- * are left out, and so are 9:16 and 720p (what every clip had before they could be chosen).
+ * "3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia": every choice the
+ * next job uses, read with Buat klip (which comes before the options). Values being typed are
+ * left out, and so are 9:16 and 720p (what every clip had before they could be chosen).
  */
 export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   const parts = [];

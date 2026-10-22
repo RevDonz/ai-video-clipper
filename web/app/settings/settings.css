@@ -2,17 +2,27 @@
    (docs/design/TOKENS.md); buttons, chips, notices and panels are the shared .btn, .chip,
    .notice and .panel. Every class here belongs to this page only. */
 
-/* The fixed save bar must never cover the field that has focus. */
+/* The floating save bar must never cover the field that has focus. */
 html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 
-.settingsPage { padding-bottom: 140px; }
-.settingsHero { padding: 44px 0 28px; }
-.settingsHero h1 {
-  margin: 0 0 10px;
-  font: 700 clamp(30px, 4vw, 46px)/1.08 var(--font);
-  letter-spacing: -.02em;
+.settingsPage { padding-bottom: 16px; }
+/* The parts of the page by task, as jump links under the heading. */
+.settingsIndex { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+.settingsIndex a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: 500 14px/1.2 var(--font);
+  text-decoration: none;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
-.settingsHero p { max-width: 640px; margin: 0; color: var(--text-muted); font-size: 16px; line-height: 1.6; }
+.settingsIndex a:hover { border-color: var(--border-strong); background: var(--surface-2); color: var(--text); }
+.settingsLayout, .settingsAbout { scroll-margin-top: 16px; }
 
 .settingsLayout { display: grid; gap: 16px; }
 .settingsTop { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 16px; align-items: start; }
@@ -387,19 +397,19 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 .transcriptionKey small a { color: var(--info); font-weight: 600; text-decoration: none; white-space: nowrap; }
 .transcriptionKey small a:hover { text-decoration: underline; }
 
-/* Save bar: it floats over the scrolling form, so it is the page's one raised surface.
+/* Save bar: it floats over the scrolling form, so it is the page's one raised surface. It sticks
+   to the bottom of the page column (not the window), so it never covers the sidebar.
    The border brightens and the lime Simpan wakes up only when there is something to save. */
 .settingsSaveBar {
-  position: fixed;
+  position: sticky;
   z-index: 20;
-  left: 50%;
   bottom: 14px;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   width: min(1180px, calc(100% - 48px));
+  margin: 24px auto 0;
   padding: 12px 12px 12px 18px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-l);
@@ -434,9 +444,8 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 }
 @media (max-width: 620px) {
   html:has(.settingsSaveBar) { scroll-padding-bottom: 190px; }
-  .settingsPage { padding-bottom: 180px; }
-  .settingsHero { padding: 28px 0 20px; }
-  .settingsHero p { font-size: 15px; }
+  .settingsPage { padding-bottom: 8px; }
+  .settingsIndex a { flex: 1 1 auto; justify-content: center; min-height: 44px; }
   .settingsCard { padding: 18px; }
   .providerCard { padding: 14px; }
   .providerHead { grid-template-columns: 36px minmax(0, 1fr); gap: 12px; }
@@ -453,7 +462,7 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
   .inlineRow { flex-wrap: wrap; }
   .inlineRow input { flex-basis: 100%; }
   .inlineRow .btn { flex: 1; }
-  .settingsSaveBar { bottom: 8px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: calc(100% - 16px); padding: 12px; }
+  .settingsSaveBar { bottom: 8px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: calc(100% - 16px); margin-top: 16px; padding: 12px; }
   .keyState { padding: 8px; }
   .keyState > span { flex-basis: 100%; padding-left: 4px; }
   .keyState .btn { flex: 1; }

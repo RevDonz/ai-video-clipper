@@ -69,7 +69,11 @@ async function openDashboard(page) {
   await expect(page.getByText("AI aktif: uji", { exact: true })).toBeVisible();
 }
 
-const optionsButton = (page) => page.getByRole("button", { name: /^Pengaturan klip/ });
+// The three folds under the essentials; each heading button names its fold, then what is chosen.
+const fold = (page, title) => page.getByRole("button", { name: new RegExp(`^${title}`) });
+const lookFold = (page) => fold(page, "Subtitle dan hook");
+const momentsFold = (page) => fold(page, "Arahkan pilihan momen");
+const formatFold = (page) => fold(page, "Bahasa dan resolusi");
 const submitButton = (page) => page.getByRole("button", { name: "Buat klip", exact: true });
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 const choose = (page, text) => page.getByText(text, { exact: true }).click();
@@ -84,39 +88,51 @@ async function submitJob(page, posts) {
 test.describe("Dashboard form (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
-  test("the link and Buat klip share the top row; the other options fold under a summary", async ({ page }) => {
+  test("the link and Buat klip share the top row; the essentials are open; the rest fold under summaries", async ({ page }) => {
     await fakeDashboardApi(page);
     await openDashboard(page);
     const link = await page.getByLabel("Link video").boundingBox();
     const submit = await submitButton(page).boundingBox();
     expect(Math.abs((link.y + link.height / 2) - (submit.y + submit.height / 2))).toBeLessThan(4);
-    await expect(optionsButton(page)).toHaveAttribute("aria-expanded", "false");
-    await expect(optionsButton(page)).toContainText("3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia");
-    await expect(page.getByLabel("Jumlah klip")).toBeHidden();
-
-    await optionsButton(page).click();
-    await expect(optionsButton(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(submitButton(page)).toHaveAccessibleDescription("Job berikutnya: 3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia");
+    // Jumlah, Rasio, Durasi and Layout need no click.
     await expect(page.getByLabel("Jumlah klip")).toBeVisible();
     await expect(page.getByRole("radio", { name: /^Otomatis/ })).toBeChecked();
-    await expect(page.getByRole("radio", { name: "Indonesia", exact: true })).toBeChecked();
+    await expect(page.getByRole("group", { name: "Rasio" }).getByRole("radio", { name: /^9:16/ })).toBeChecked();
+    await expect(page.getByRole("radio", { name: /^Latar blur/ })).toBeChecked();
     // Fixed ranges need no number fields; "Atur sendiri" brings them.
     await expect(page.getByLabel("Durasi minimum")).toHaveCount(0);
+    for (const [button, summary] of [
+      [lookFold(page), "Karaoke · Bawah, Sedang · Kalimat terkuat dulu · Teks hook"],
+      [momentsFold(page), "Otomatis"],
+      [formatFold(page), "Bahasa Indonesia · 720p"],
+    ]) {
+      await expect(button).toHaveAttribute("aria-expanded", "false");
+      await expect(button).toContainText(summary);
+    }
+    await expect(page.getByLabel("Rentang waktu (opsional)")).toBeHidden();
+    await formatFold(page).click();
+    await expect(formatFold(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("radio", { name: "Indonesia", exact: true })).toBeChecked();
   });
 
-  test("presets and the video language reach the job; the choices come back, the link does not", async ({ page }) => {
+  test("presets and the video language reach the job; the choices and open folds come back, the link does not", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await optionsButton(page).click();
     await page.getByLabel("Jumlah klip").fill("5");
     await choose(page, "Pendek");
+    await formatFold(page).click();
     await choose(page, "Inggris");
     await page.getByLabel("Link video").fill(LINK);
     expect(await submitJob(page, posts)).toMatchObject({ limit: "5", minDuration: "15", maxDuration: "30", videoLanguage: "en", youtubeUrl: LINK });
 
     await page.reload();
     await expect(page.getByText("AI aktif: uji", { exact: true })).toBeVisible();
-    await expect(optionsButton(page)).toContainText("5 klip · Pendek 15–30 detik · Latar blur · Karaoke · Bahasa Inggris");
-    await expect(optionsButton(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByLabel("Jumlah klip")).toHaveValue("5");
+    await expect(page.getByRole("radio", { name: /^Pendek/ })).toBeChecked();
+    await expect(formatFold(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(formatFold(page)).toContainText("Bahasa Inggris · 720p");
+    await expect(lookFold(page)).toHaveAttribute("aria-expanded", "false");
     await expect(page.getByLabel("Link video")).toHaveValue("");
     const stored = await page.evaluate((key) => window.localStorage.getItem(key), CHOICES_KEY);
     expect(stored).not.toContain("youtu");
@@ -140,15 +156,17 @@ test.describe("Dashboard form (faked job API)", () => {
   test("time ranges are checked before anything is sent and reach the job as typed", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await optionsButton(page).click();
     await page.getByLabel("Jumlah klip").fill("2");
+    await momentsFold(page).click();
     const ranges = page.getByLabel("Rentang waktu (opsional)");
     await ranges.fill("10.30-12.05, 1:00-1:30, 2:00-2:30");
-    await expect(optionsButton(page)).toContainText("2 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia · 3 rentang waktu");
-    await optionsButton(page).click();
+    await expect(momentsFold(page)).toContainText("3 rentang waktu");
+    await momentsFold(page).click();
+    await expect(ranges).toBeHidden();
     await page.getByLabel("Link video").fill(LINK);
     await submitButton(page).click();
-    // The folded options open again on the field, with the reason under it; nothing is sent.
+    // The fold opens again on the field, with the reason under it; nothing is sent.
+    await expect(momentsFold(page)).toHaveAttribute("aria-expanded", "true");
     await expect(ranges).toBeFocused();
     await expect(ranges).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByText("Ada 3 rentang waktu, tetapi jumlah klip 2. Naikkan jumlah klip atau kurangi rentang.", { exact: true })).toBeVisible();
@@ -164,17 +182,22 @@ test.describe("Dashboard form (faked job API)", () => {
     expect(stored).not.toContain("10.30");
   });
 
-  test("a problem inside the folded options opens them and focuses the field", async ({ page }) => {
+  test("a problem in an open field takes the focus; one inside a closed fold opens it first", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await optionsButton(page).click();
     await page.getByLabel("Jumlah klip").fill("12");
-    await optionsButton(page).click();
-    await expect(page.getByLabel("Jumlah klip")).toBeHidden();
     await page.getByLabel("Link video").fill(LINK);
     await submitButton(page).click();
     await expect(page.getByLabel("Jumlah klip")).toBeFocused();
     await expect(page.getByText("Isi 1 sampai 10 klip.")).toBeVisible();
+    await page.getByLabel("Jumlah klip").fill("3");
+
+    await momentsFold(page).click();
+    await page.getByLabel("Rentang waktu (opsional)").fill("besok");
+    await momentsFold(page).click();
+    await submitButton(page).click();
+    await expect(page.getByLabel("Rentang waktu (opsional)")).toBeFocused();
+    await expect(page.getByText("“besok” tidak dikenali. Contoh: 10.30-12.05 atau 1:02:10-1:03:00.")).toBeVisible();
     expect(posts).toHaveLength(0);
   });
 
@@ -190,9 +213,10 @@ test.describe("Dashboard form (faked job API)", () => {
     }, CHOICES_KEY);
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await expect(optionsButton(page)).toContainText("3 klip · Otomatis 20–60 detik");
-    await optionsButton(page).click();
+    await expect(page.getByLabel("Jumlah klip")).toHaveValue("3");
+    await expect(page.getByRole("radio", { name: /^Otomatis/ })).toBeChecked();
     await choose(page, "Panjang");
+    await formatFold(page).click();
     await choose(page, "Deteksi otomatis");
     await page.getByLabel("Link video").fill(LINK);
     expect(await submitJob(page, posts)).toMatchObject({ limit: "3", minDuration: "60", maxDuration: "90", videoLanguage: "auto" });
@@ -290,7 +314,7 @@ test.describe("Dashboard form (faked job API)", () => {
   test("the 9:16 preview follows the layout, the subtitle style and the hook switch", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await optionsButton(page).click();
+    await lookFold(page).click();
     const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
     await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Latar blur, subtitle Karaoke di bawah, teks hook di atas.");
     await expect(preview).toHaveAttribute("data-layout", "fit");
@@ -298,7 +322,7 @@ test.describe("Dashboard form (faked job API)", () => {
     // Without the editor the note names no Edit klip.
     await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toBeVisible();
     // Every pack's thumbnail is a real image.
-    expect(await page.evaluate(() => [...document.querySelectorAll("#job-options img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true, true, true, true, true]);
+    expect(await page.evaluate(() => [...document.querySelectorAll("#look-options img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true, true, true, true, true]);
 
     await choose(page, "Klasik");
     await expect(preview).toHaveAttribute("data-pack", "classic");
@@ -314,18 +338,21 @@ test.describe("Dashboard form (faked job API)", () => {
   test("Rasio and Resolusi reach the job as its output size; 1:1 previews square without the TikTok zone (CONTRACTS 5.54)", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await optionsButton(page).click();
-    const format = page.getByRole("group", { name: "Format video" });
-    await expect(format.getByRole("radio", { name: "9:16" })).toBeChecked();
-    await expect(format.getByRole("radio", { name: "720p" })).toBeChecked();
-    await format.getByText("1:1", { exact: true }).click();
-    await format.getByText("1080p", { exact: true }).click();
+    const ratio = page.getByRole("group", { name: "Rasio" });
+    await expect(ratio.getByRole("radio", { name: /^9:16/ })).toBeChecked();
+    await formatFold(page).click();
+    const resolution = page.getByRole("group", { name: "Resolusi" });
+    await expect(resolution.getByRole("radio", { name: "720p" })).toBeChecked();
+    await ratio.getByText("1:1", { exact: true }).click();
+    await resolution.getByText("1080p", { exact: true }).click();
+    await lookFold(page).click();
     const preview = page.getByRole("img", { name: /^Pratinjau klip 1:1/ });
     await expect(preview).toHaveAttribute("data-ratio", "1:1");
     await expect(page.getByText("Area tombol TikTok", { exact: true })).toHaveCount(0);
     const box = await preview.boundingBox();
     expect(Math.abs(box.width - box.height)).toBeLessThan(2);
-    await expect(optionsButton(page)).toContainText("1:1 · 1080p");
+    await expect(formatFold(page)).toContainText("Bahasa Indonesia · 1080p");
+    await expect(submitButton(page)).toHaveAccessibleDescription(/1:1 · 1080p/);
     await page.getByLabel("Link video").fill(LINK);
     expect(await submitJob(page, posts)).toMatchObject({ outputSize: "1080x1080" });
     expect(await overflow(page)).toBeLessThanOrEqual(0);
@@ -334,7 +361,7 @@ test.describe("Dashboard form (faked job API)", () => {
   test("with the editor on, the note says Edit klip changes the subtitle per clip", async ({ page }) => {
     await fakeDashboardApi(page, { editor: true });
     await openDashboard(page);
-    await optionsButton(page).click();
+    await lookFold(page).click();
     await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok. Per klip bisa diubah lagi lewat Edit klip.", { exact: true })).toBeVisible();
     await expect(page.getByRole("group", { name: "Gaya subtitle" })).toHaveAccessibleDescription(/Edit klip/);
   });
@@ -342,7 +369,7 @@ test.describe("Dashboard form (faked job API)", () => {
   test("every pack, Atas/Tengah/Bawah and the size reach the job and the preview (CONTRACTS 5.48)", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await optionsButton(page).click();
+    await lookFold(page).click();
     const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
     const spot = page.getByRole("group", { name: "Posisi subtitle" });
     const size = page.getByRole("group", { name: "Ukuran subtitle" });
@@ -357,20 +384,21 @@ test.describe("Dashboard form (faked job API)", () => {
     await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Latar blur, subtitle Sorot besar di atas, teks hook di atas.");
     // Away from the bottom the subtitle is clear of the TikTok buttons, so that note goes.
     await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toHaveCount(0);
-    await expect(optionsButton(page)).toContainText("Sorot · subtitle atas · subtitle besar");
+    await expect(lookFold(page)).toContainText("Sorot · Atas, Besar");
     await page.getByLabel("Link video").fill(LINK);
     expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "sorot", captionPosition: "top", captionSize: "large" });
 
     // The choice comes back on the next visit.
     await page.reload();
     await expect(page.getByText("AI aktif: uji", { exact: true })).toBeVisible();
-    await expect(optionsButton(page)).toContainText("Sorot · subtitle atas · subtitle besar");
+    await expect(lookFold(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(lookFold(page)).toContainText("Sorot · Atas, Besar");
   });
 
   test("with the legacy engine (rollback) only Karaoke and Klasik at the bottom are offered and sent", async ({ page }) => {
     const posts = await fakeDashboardApi(page, { renderEngine: "legacy" });
     await openDashboard(page);
-    await optionsButton(page).click();
+    await lookFold(page).click();
     const styles = page.getByRole("group", { name: "Gaya subtitle" }).getByRole("radio");
     await expect(styles).toHaveCount(2);
     await expect(page.getByRole("group", { name: "Posisi subtitle" })).toHaveCount(0);
@@ -390,12 +418,12 @@ test.describe("Dashboard form (faked job API)", () => {
     await fakeDashboardApi(page);
     await openDashboard(page);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
-    await optionsButton(page).click();
     await choose(page, "Atur sendiri");
+    for (const button of [lookFold(page), momentsFold(page), formatFold(page)]) await button.click();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
-    // The controls this form adds: the source row, the fold, the presets and the number fields.
+    // The controls this form adds: the source row, the folds, the presets, tiles and number fields.
     const small = await page.evaluate(() => [...document.querySelectorAll(
-      "#youtube-url, label:has(> #video-file), form[aria-label=\"Buat klip\"] button[type=submit], [aria-controls=job-options], #job-options label:has(> input[type=radio]), #job-options input[type=number]",
+      "#youtube-url, label:has(> #video-file), form[aria-label=\"Buat klip\"] button[type=submit], [aria-controls$=\"-options\"], form[aria-label=\"Buat klip\"] label:has(> input[type=radio]), form[aria-label=\"Buat klip\"] input[type=number]",
     )].filter((element) => element.getClientRects().length > 0).map((element) => {
       const box = element.getBoundingClientRect();
       return { control: element.id || element.textContent.trim().slice(0, 30), width: Math.round(box.width), height: Math.round(box.height) };

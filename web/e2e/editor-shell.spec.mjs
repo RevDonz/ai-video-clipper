@@ -914,14 +914,20 @@ for (const viewport of [{ width: 1920, height: 1080, panel: 380, timeline: 240 }
   test(`layout at ${viewport.width}×${viewport.height}: every region visible, nothing hidden`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openEditor(page);
-    const boxes = await page.evaluate(() => Object.fromEntries(["topBar", "panels", "stage", "transport", "timeline"].map((slot) => {
+    const boxes = await page.evaluate(() => Object.fromEntries(["topBar", "rail", "panels", "stage", "transport", "timeline"].map((slot) => {
       const rect = document.querySelector(`[data-slot="${slot}"]`).getBoundingClientRect();
       return [slot, { x: rect.x, y: rect.y, w: rect.width, h: rect.height }];
     })));
-    // Mode Cepat spec §5.1, §6.1, §6.3: a 64 px top bar, the 84 px rail beside the panel, the 56 px
-    // transport row above the timeline.
+    // Mode Cepat spec §5.1, §6.1, §6.3: a 64 px top bar, the 84 px rail, the 56 px transport row
+    // above the timeline. The tools rail sits on the left, the stage in the middle and the open
+    // tool's panel on the right, at its own width.
     expect(boxes.topBar.h).toBe(64);
-    expect(boxes.panels.w).toBe(84 + viewport.panel);
+    expect(boxes.rail.w).toBe(84);
+    expect(boxes.panels.w).toBe(viewport.panel);
+    expect(boxes.rail.x).toBe(0);
+    expect(boxes.stage.x).toBeGreaterThanOrEqual(boxes.rail.x + boxes.rail.w - 0.5);
+    expect(boxes.panels.x).toBeGreaterThanOrEqual(boxes.stage.x + boxes.stage.w - 0.5);
+    expect(boxes.panels.x + boxes.panels.w).toBeLessThanOrEqual(viewport.width + 0.5);
     expect(boxes.transport.h).toBe(56);
     expect(boxes.timeline.h).toBe(viewport.timeline);
     for (const box of Object.values(boxes)) {

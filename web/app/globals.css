@@ -234,7 +234,7 @@ body {
 .eyebrow { color: var(--text-muted); font: 600 12px/1.4 var(--font); letter-spacing: .06em; }
 .visuallyHidden { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-/* Shell and shared header (components/AppHeader.jsx, components/Brand.jsx) */
+/* Shell and shared sidebar (components/AppShell.jsx, components/Brand.jsx) */
 .shell { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
 
 .brand {
@@ -262,41 +262,102 @@ body {
 }
 .brand:hover > span[aria-hidden="true"] { transform: rotate(-7deg); }
 
-.appHeader { border-bottom: 1px solid var(--border); background: var(--bg); }
-.appHeaderInner { display: flex; align-items: center; gap: 20px; min-height: 64px; }
-/* The brand and the job badge share the left. The badge fills room the menu leaves free, so it
-   appears and changes without moving anything else; when room runs out it gives way first. */
-.appHeaderLead { display: flex; flex: 1 1 0; align-items: center; gap: 12px; min-width: 0; }
-.appHeaderLead > .brand, .appNav, .appHelp, .appLogout { flex-shrink: 0; }
-.appNav {
-  display: flex;
-  gap: 2px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-l);
-  background: var(--surface);
+/* Hidden until a keyboard user tabs to it, then the first thing on screen. */
+.skipLink { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skipLink:focus {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 60;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 12px 16px;
+  overflow: visible;
+  clip: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-3);
+  color: var(--text);
+  font: 600 14px/1.2 var(--font);
+  text-decoration: none;
 }
-.appNav a {
+
+/* The sidebar's parts, the same in the column and in the drawer. Buat klip is the strong neutral
+   button: lime stays on the page's own main action (docs/design/TOKENS.md, one lime per screen).
+   The current page gets the light edge active choices use everywhere. */
+.appNav { display: flex; flex-direction: column; gap: 20px; }
+.appCreate {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 6px 14px;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  font: 700 15px/1.2 var(--font);
+  text-decoration: none;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.appCreate:hover { background: var(--surface-3); border-color: var(--text-muted); }
+.appCreate:active { transform: translateY(1px); }
+.appCreate[aria-current="page"] { background: var(--surface-3); border-color: var(--text); }
+.appNavGroup { display: grid; gap: 4px; }
+.appNavLabel { margin: 0; padding: 0 12px; color: var(--text-muted); font: 600 12px/1.4 var(--font); }
+.appNavGroup ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.appNavLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
   border-radius: var(--radius-m);
   color: var(--text-muted);
   font: 500 14px/1.2 var(--font);
-  text-align: center;
   text-decoration: none;
   white-space: nowrap;
   transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
-.appNav a:hover { background: var(--surface-2); color: var(--text); }
-.appNav a[aria-current="page"] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.appNavLink:hover { background: var(--surface-2); color: var(--text); }
+.appNavLink[aria-current="page"] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.appCreate svg, .appNavLink svg, .appLogout svg, .appMenuToggle svg { flex: none; }
 .appLogout { margin: 0; }
-.appLogout .btn { min-height: 36px; padding: 6px 12px; }
-/* The help page is reached from error messages; the header keeps only a quiet link to it. */
-.appHelp { min-height: 36px; padding: 6px 12px; }
-.appHelp[aria-current="page"] { color: var(--text); }
+.appLogout button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-muted);
+  font: 500 14px/1.2 var(--font);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.appLogout button:hover { background: var(--surface-2); color: var(--text); }
+.appMenuToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  font: 600 14px/1.2 var(--font);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+.appMenuToggle:hover { background: var(--surface-3); }
+.appMenuToggle[aria-expanded="true"] { background: var(--surface-3); }
 
 /* Job badge (components/JobBadge.jsx): lime marks a running job, as on the progress bars. */
 .jobBadge {
@@ -304,6 +365,7 @@ body {
   align-items: center;
   gap: 7px;
   min-width: 0;
+  max-width: 100%;
   min-height: 32px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -333,34 +395,90 @@ footer {
   font-size: 13px;
 }
 
+/* From 1024 px the sidebar is a fixed column beside the page; it scrolls on its own when the
+   window is short. Keluar sits at its foot. */
+@media (min-width: 1024px) {
+  .appFrame {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    align-items: start;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .appSide {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    height: 100vh;
+    height: 100dvh;
+    padding: 18px 14px 16px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .appBar { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .appMenuToggle, .appScrim { display: none; }
+  .appMenu { display: flex; flex: 1 1 auto; flex-direction: column; justify-content: space-between; gap: 24px; }
+  .appSide .jobBadge { min-height: 36px; }
+}
+
+/* Below 1024 px: a compact top bar with the brand, the badge and Menu; Menu opens the sidebar as
+   a drawer under the bar, over a dimmed page that no longer scrolls. */
+@media (max-width: 1023px) {
+  .appFrame { min-height: 100vh; min-height: 100dvh; }
+  .appSide { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .appBar { display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 8px 16px; }
+  .appBar .jobBadge { min-height: 44px; }
+  .appFrame:not([data-menu-open]) .appMenu { display: none; }
+  .appFrame:not([data-menu-open]) .appScrim { display: none; }
+  .appMenu {
+    position: fixed;
+    top: 61px;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: min(320px, 100%);
+    padding: 16px 16px 24px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    animation: drawer-in var(--dur-3) var(--ease-out);
+  }
+  .appScrim { position: fixed; inset: 61px 0 0; z-index: 29; background: var(--shadow); animation: fade-in var(--dur-2) var(--ease-out); }
+  html:has(.appFrame[data-menu-open]) { overflow: hidden; }
+}
+@keyframes drawer-in { from { opacity: 0; transform: translateX(-16px); } }
 @media (max-width: 850px) {
   .shell { width: min(100% - 32px, 760px); }
 }
-/* From 850 px down the menu takes its own row: beside the brand it squeezed its labels onto two
-   lines below 800 px, and the badge would not fit. */
-@media (max-width: 850px) {
-  .appHeaderInner { flex-wrap: wrap; gap: 8px 12px; padding: 8px 0 12px; }
-  .appHeaderLead { gap: 8px; }
-  .appNav { order: 3; width: 100%; }
-  .appNav a { flex: 1 1 auto; min-height: 44px; padding: 6px 8px; font-size: 13px; }
-  .appLogout .btn, .appHelp, .jobBadge { min-height: 44px; }
-  .jobBadge { min-width: 44px; justify-content: center; }
+/* Where the brand name, the full badge and Menu do not all fit, the badge keeps the room and the
+   name stays for screen readers. */
+@media (max-width: 479px) {
+  .appBar:has(.jobBadge) .brandName { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 }
-/* Where the brand name and the badge do not both fit, the badge keeps the room and the name stays
-   for screen readers. Under 360 px the name never fits beside Bantuan and Keluar. */
-@media (max-width: 481px), (min-width: 851px) and (max-width: 939px) {
-  .appHeaderLead:has(.jobBadge) .brandName { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-}
-@media (max-width: 359px) {
-  .appHeaderLead .brandName { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-}
-/* Below 384 px the badge shows its short form ("42%", "8 klip"); the full text stays its name.
-   The four menu labels keep one line each by giving up side padding (at 360 px "Buat Klip" and
-   "Konteks Tren" broke onto two lines). */
+/* Below 384 px the badge shows its short form ("42%", "8 klip"); the full text stays its name. */
 @media (max-width: 383px) {
-  .appNav a { padding: 6px 4px; }
+  .appBar { padding-inline: 12px; }
   .jobBadgeText { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .jobBadge::after { content: attr(data-short); content: attr(data-short) / ""; }
+}
+
+/* The heading every signed-in page opens with: what the page is for in one line under its name,
+   and the page's own action (if it has one) on the right. Same size and spacing on every page. */
+.pageHead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; padding: 32px 0 24px; }
+.pageHead > div { display: grid; gap: 8px; min-width: 0; }
+.pageHead h1 { margin: 0; font: 700 clamp(28px, 3.2vw, 38px)/1.1 var(--font); letter-spacing: -.02em; text-wrap: balance; }
+.pageHead p { max-width: 640px; margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.55; }
+.pageHead p b { color: var(--text); font-weight: 600; }
+.pageHeadActions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 620px) {
+  .pageHead { padding: 22px 0 18px; }
+  .pageHeadActions, .pageHeadActions > .btn { flex: 1 1 auto; }
 }
 
 /* Shared by signed-in pages (the dashboard's own styles are in app/dashboard/dashboard.module.css) */

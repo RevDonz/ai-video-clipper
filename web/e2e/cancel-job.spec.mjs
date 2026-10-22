@@ -94,7 +94,7 @@ test.describe("Batalkan a running job (faked job API)", () => {
     await expect(page.getByRole("heading", { name: "Transkripsi audio 40%" })).toHaveCount(0);
     await expect(page.getByText("Proses dibatalkan", { exact: true })).toBeFocused();
     await expect(page.getByText("Dibatalkan", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Buat ulang di Buat Klip" })).toHaveAttribute("href", "/dashboard");
+    await expect(page.getByRole("link", { name: "Buat ulang di Buat klip" })).toHaveAttribute("href", "/dashboard");
   });
 
   test("at 360 px the confirmation fits, its buttons are 44 px targets and nothing scrolls sideways", async ({ page }) => {

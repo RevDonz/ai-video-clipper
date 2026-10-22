@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import AppHeader from "../../components/AppHeader.jsx";
+import AppShell from "../../components/AppShell.jsx";
 import ClipLibrary from "../../components/ClipLibrary.jsx";
 import { historyOffersEdit } from "../../lib/clip-entry-view.mjs";
 import { browserStorage, readHistoryView, writeHistoryView } from "../../lib/clip-library-view.mjs";
@@ -188,15 +188,14 @@ export default function ProjectsPage() {
   const title = view === "clips" ? "Riwayat klip" : view === "projects" ? "Riwayat proyek" : "Riwayat";
 
   return (
-    <main>
-      <AppHeader current="/projects" />
+    <AppShell current="/projects">
       <div className={`shell ${styles.page}`}>
-        <header className={styles.head}>
+        <header className="pageHead">
           <div>
             <h1>{title}</h1>
-            {summary && <p>{summary}</p>}
+            <p>Semua proyek dan klipnya. Cari, tonton, unduh, edit, atau hapus.{summary && <> <b>{summary}</b></>}</p>
           </div>
-          <a className="btn primary" href="/dashboard">Buat klip baru</a>
+          <div className="pageHeadActions"><a className="btn primary" href="/dashboard">Buat klip baru</a></div>
         </header>
 
         <div className={`segmented ${styles.views}`} role="group" aria-label="Tampilan riwayat">
@@ -238,7 +237,7 @@ export default function ProjectsPage() {
             {loaded && jobs.length === 0 && (
               <div className={styles.state}>
                 <strong>Belum ada proyek</strong>
-                <p>Proyek yang kamu buat di Buat Klip muncul di sini, lengkap dengan klipnya.</p>
+                <p>Proyek yang Anda buat di Buat klip muncul di sini, lengkap dengan klipnya.</p>
               </div>
             )}
             {loaded && jobs.length > 0 && visible.length === 0 && (
@@ -268,6 +267,6 @@ export default function ProjectsPage() {
           </>
         )}
       </div>
-    </main>
+    </AppShell>
   );
 }

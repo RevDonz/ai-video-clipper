@@ -1,4 +1,4 @@
-import AppHeader from "../../components/AppHeader.jsx";
+import AppShell from "../../components/AppShell.jsx";
 import { FONTS, FREETYPE_CREDIT, JASSUB, MEDIABUNNY, WEB } from "./notices.mjs";
 import styles from "./licenses.module.css";
 
@@ -26,15 +26,16 @@ function Row({ label, children }) {
 
 export default function LicensesPage() {
   return (
-    <main>
-      <AppHeader />
+    <AppShell>
       <div className={`shell ${styles.page}`}>
-        <header className={styles.head}>
-          <h1>Lisensi pihak ketiga</h1>
-          <p>
-            Potongin memakai perangkat lunak dan font dari pihak lain. Di sini tercantum lisensinya, versi
-            persisnya, dan tempat kode sumbernya.
-          </p>
+        <header className="pageHead">
+          <div>
+            <h1>Lisensi pihak ketiga</h1>
+            <p>
+              Potongin memakai perangkat lunak dan font dari pihak lain. Di sini tercantum lisensinya, versi
+              persisnya, dan tempat kode sumbernya.
+            </p>
+          </div>
         </header>
 
         <section className={styles.block} aria-labelledby="jassub">
@@ -129,6 +130,6 @@ export default function LicensesPage() {
           </ul>
         </section>
       </div>
-    </main>
+    </AppShell>
   );
 }

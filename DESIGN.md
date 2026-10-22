@@ -40,6 +40,29 @@ Halus dan hidup: transisi lembut dan mikro-interaksi kecil (hover, pindah tab, c
 "Tersimpan"), tanpa berlebihan. Pengguna dengan `prefers-reduced-motion` tidak mendapat animasi
 yang tidak perlu.
 
+## Pola tata letak
+
+Permintaan pemilik 2026-10-22: tampilan profesional tapi ramah, mudah dipelajari, dengan rujukan
+Lokaclip, Social Visuals dan editor CapCut (sebagai rujukan, bukan untuk ditiru). Diterapkan di
+branch `feat/ux-redesign-workspace`:
+
+- **Navigasi aplikasi:** sidebar kiri di semua halaman yang butuh login (Buat klip di atas, lalu
+  Kerja: Riwayat, Konteks Tren; Sistem: Pengaturan, Bantuan; Keluar di bawah). Di bawah 1024 px
+  menjadi bar atas dengan tombol **Menu** berlabel yang membuka laci (Escape dan Tutup menutup,
+  fokus kembali ke tombol). Buat klip di sidebar memakai tombol netral yang kuat; lime tetap untuk
+  satu aksi utama halaman. Halaman depan, login dan editor tidak memakai sidebar.
+- **Kepala halaman:** setiap halaman dibuka dengan judul, satu kalimat fungsi halaman, dan aksi
+  halaman di kanan (kelas `.pageHead`), dengan ukuran dan jarak yang sama.
+- **Buat klip:** sumber dan tombol Buat klip di baris pertama; Jumlah klip, Rasio, Durasi dan
+  Layout selalu terlihat; pilihan lain dilipat di tiga lipatan berlabel (Subtitle dan hook,
+  Arahkan pilihan momen, Bahasa dan resolusi), masing-masing menampilkan ringkasan pilihannya.
+- **Editor:** di Mode Lengkap rel alat di kiri, pratinjau di tengah, panel alat di kanan,
+  timeline di bawah. Mode Cepat: pratinjau di kiri, kartu di kanan. Tangkapan editor di halaman
+  depan memperlihatkan tata letak ini.
+- **Halaman depan:** judul besar lalu langsung contoh nyata sebelum/sesudah. Satu momen gerak
+  yang menjelaskan (jendela 9:16 bergeser ke subjek, penanda menit, panah, klip muncul), lalu
+  diam; dengan `prefers-reduced-motion` langsung tampil di keadaan akhir.
+
 ## Di luar dokumen ini
 
 Tampilan klip video (caption, teks hook) adalah gaya konten dan diatur oleh paket caption, bukan

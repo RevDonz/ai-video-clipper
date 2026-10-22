@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 
-import AppHeader from "../../../components/AppHeader.jsx";
+import AppShell from "../../../components/AppShell.jsx";
 import CancelJob from "../../../components/CancelJob.jsx";
 import { PosterText, PosterThumb, posterFrame } from "../../../components/ClipPoster.jsx";
 import ClipText from "../../../components/ClipText.jsx";
@@ -584,7 +584,7 @@ function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote,
           <strong id="cancelled-title" tabIndex={-1}>Proses dibatalkan</strong>
           <span>Proses dihentikan sebelum klip selesai.</span>
           <span className={styles.noticeLinks}>
-            <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat Klip</a>
+            <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat klip</a>
           </span>
         </div>
       )}
@@ -598,7 +598,7 @@ function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote,
           {serverError && <span className={styles.errorDetail}>Pesan dari server: {serverError}</span>}
           <span className={styles.noticeLinks}>
             {help && <a className={styles.noticeLink} href={help}>Cara memperbaiki</a>}
-            <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat Klip</a>
+            <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat klip</a>
           </span>
         </div>
       )}
@@ -748,8 +748,7 @@ export default function ProjectPage({ params, searchParams }) {
   };
 
   return (
-    <main>
-      <AppHeader current="/projects" />
+    <AppShell current="/projects">
       {loading && (
         <section className={`shell ${styles.state}`} role="status" aria-live="polite">
           <span className="pulse" aria-hidden="true" />
@@ -779,6 +778,6 @@ export default function ProjectPage({ params, searchParams }) {
           onEntriesChanged={reloadEntries}
         />
       )}
-    </main>
+    </AppShell>
   );
 }
