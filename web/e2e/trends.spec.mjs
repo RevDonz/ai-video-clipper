@@ -320,12 +320,14 @@ test.describe("Konteks Tren at 390 px", () => {
     await page.keyboard.press("Escape");
     await expect(target.getByRole("button", { name: "Hapus" })).toBeFocused();
 
-    // The dashboard header gained a link. Its own status calls (storage, LLM)
+    // The dashboard's app menu links here. Its own status calls (storage, LLM)
     // depend on the deployment, so it is checked in a second tab that the
     // diagnostics fixture does not watch.
     const dashboard = await context.newPage();
     await dashboard.goto("/dashboard");
-    const link = dashboard.getByRole("navigation").getByRole("link", { name: "Konteks Tren" });
+    // Below 1024 px the app links sit in the Menu drawer.
+    await dashboard.getByRole("button", { name: "Menu", exact: true }).click();
+    const link = dashboard.getByRole("navigation", { name: "Menu utama" }).getByRole("link", { name: "Konteks Tren" });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute("href", "/trends");
     expect(await dashboard.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
