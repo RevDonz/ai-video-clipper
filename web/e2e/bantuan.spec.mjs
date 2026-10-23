@@ -104,8 +104,16 @@ test.describe("Bantuan at 390 px", () => {
     await page.getByLabel("Pesan error").focus();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Cari" })).toBeFocused();
+    // The Panduan topics come before the error groups.
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("link", { name: /^Unduhan YouTube/ })).toBeFocused();
+    await expect(page.getByRole("navigation", { name: "Topik panduan" }).getByRole("link", { name: "Membuat klip pertama" })).toBeFocused();
+    const group = page.getByRole("navigation", { name: "Kelompok bantuan" }).getByRole("link", { name: /^Unduhan YouTube/ });
+    let reached = false;
+    for (let step = 0; step < 60 && !reached; step += 1) {
+      await page.keyboard.press("Tab");
+      reached = await group.evaluate((element) => element === document.activeElement);
+    }
+    expect(reached).toBe(true);
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/#grup-unduhan$/);
     await page.goto("/bantuan#llm_context_length");
