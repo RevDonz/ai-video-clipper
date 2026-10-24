@@ -14,10 +14,10 @@ Semua angka diukur di GitHub Actions, di dalam image produksi (`editor-gates.yml
 
 | Hal | Keputusan | Dasar |
 |---|---|---|
-| Kick | **Go tanpa `curl_cffi`**, flag `POTONGIN_FETCH_KICK` tetap `off` (Q11) | 5 dari 5 halaman Kick (3 VOD, 2 klip) terbaca tanpa `curl_cffi`, manifest HLS menjawab 200. Media tidak diunduh (bukan konten berlisensi terbuka). |
-| bgutil | **No-go untuk sekarang**: plugin dan service `pot-provider` tidak dipasang di FETCH-M6 | 20 dari 20 percobaan kena cek bot, dengan atau tanpa bgutil. Server bgutil jalan, tapi YouTube menolak sebelum token PO diminta (0 token). |
-| Range-only | **No-go** (FETCH-M9 tetap dilewati, Q11) | Gerbang §B11 butir 1 gagal saat transkripsi Whisper (median −6%), hanya lolos dengan subtitle YouTube di host non-YouTube yang lajunya sangat bervariasi. Butir 3 (jawaban pemilik) belum ada. |
-| Codec audio-first | **Format yang sama dengan `ba` hari ini** (biasanya Opus 251), dibatasi ke audio bahasa asli; bukan AAC | Ganti codec mengubah pilihan klip: dengan Whisper hanya 7/25 (AAC) dan 9/25 (Opus) klip yang tetap sama. Batas ≤ 200 ms hanya pasti kalau analisis dan mp4 akhir memakai file audio yang sama. |
+| Kick | **Bersyarat**: metadata dan manifest jalan tanpa `curl_cffi`; unduhan media belum terbukti. Flag `POTONGIN_FETCH_KICK` tetap `off` (Q11) | 5 dari 5 halaman Kick (3 VOD, 2 klip) terbaca tanpa `curl_cffi`, manifest HLS menjawab 200. Media tidak diunduh (bukan konten berlisensi terbuka), jadi syarat §B8 "unduhan berhasil di CI tanpa `curl_cffi`" belum terpenuhi. FETCH-M5 baru dihitung go setelah satu unduhan Kick berhasil (uji pemilik atau uji produksi). |
+| bgutil | **Tidak bisa disimpulkan dari CI**. Default Q11 berlaku: bgutil opt-in, mati (§B7.4) | 20 dari 20 percobaan kena cek bot di ketiga cara, 0 token PO. Server bgutil tidak pernah dimintai token: YouTube menolak IP runner sebelum langkah itu. Cara "dengan proxy" tidak diukur. Pemilik yang memutuskan kalau bgutil mau dibuang dari FETCH-M6. |
+| Range-only | **No-go** (FETCH-M9 tetap dilewati, Q11) | Gerbang §B11 butir 1 gagal saat transkripsi Whisper (median −6%), hanya lolos tipis dengan subtitle (median +42%) di host non-YouTube yang lajunya sangat bervariasi. Butir 3 (jawaban pemilik) belum ada. |
+| Codec audio-first | **Format yang sama dengan `ba` hari ini** (biasanya Opus 251), dibatasi ke audio bahasa asli; bukan AAC. Diputuskan atas delegasi pemilik, perlu ditinjau pemilik | Ganti codec mengubah pilihan klip: dengan Whisper hanya 7/25 (AAC) dan 9/25 (Opus) klip yang tetap sama. Batas ≤ 200 ms hanya pasti kalau analisis dan mp4 akhir memakai file audio yang sama. Ini disimpulkan dari file uji, bukan diukur di YouTube. |
 | Proxy lewat file config (§B7.3) | **Dikonfirmasi** | Proxy dipakai (4 tunnel), tidak pernah muncul di `/proc/*/cmdline` atau `/proc/*/environ` selama 303 pemindaian. Kontrol `--proxy` di argv langsung ketahuan. |
 | Nama extractor | `youtube`, `twitch:vod`, `twitch:clips`, `kick:vod`, `kick:clips` | `yt-dlp --list-extractors` versi pin 2026.08.19. |
 | Cap cache 4 GiB (Q6) | **Tetap default**, diusulkan ulang ke pemilik untuk 1080p | 720p muat 6 sampai 28 jam sumber; satu sumber 1080p 4 jam bisa lebih dari 4 GiB. Ukuran YouTube tidak terukur dari runner. |
@@ -47,13 +47,19 @@ Semua angka diukur di GitHub Actions, di dalam image produksi (`editor-gates.yml
   domain publik menurut API instance itu. Daftar video yang dipakai ada di hasil mentah.
 - Sumber uji sintetis untuk A/V: warna hitam dengan kilatan putih satu frame dan bunyi 20 ms
   setiap 2 detik (dibuat FFmpeg), disajikan lokal sebagai HLS dan DASH.
-- Kick: metadata VOD dan klip dari kanal publik besar. Tidak ada byte media yang diunduh.
+- Kick: metadata VOD dan klip dari kanal publik besar. Nama kanal diberikan saat run
+  (`--kick-channels`) dan tidak disimpan di repo atau di hasil (kanal ditulis `kanal-1`, `kanal-2`).
+  Tidak ada byte media yang diunduh.
 
 Tidak ada cookie, proxy berbayar, atau kunci LLM. Seleksi memakai heuristik V3 saja (CI tidak
 punya kunci LLM gratis), jadi waktu LLM tidak termasuk di angka waktu sampai seleksi. Whisper
 memakai model `small` (default produksi), CPU 4 inti.
 
 ## M0-1 · Audio asli vs audio unduhan (codec)
+
+**Status: sebagian.** Yang dibandingkan adalah audio file sumber dengan encode ulang AAC dan Opus
+lokal, bukan dengan `ba` YouTube atau trek bahasa asli YouTube. Waktu unduh per varian (§B12)
+tidak terukur, karena YouTube menolak runner; yang ada hanya ukuran file.
 
 Lima talk video.blender.org (10 menit pertama tiap talk), run
 [40104912904](https://github.com/RevDonz/ai-video-clipper/actions/runs/40104912904). Pembanding
@@ -83,12 +89,15 @@ yang berbeda hanya timeline audio (jeda, tingkat suara) dari file itu.
   Opus 16/25. Asli di sini AAC, jadi AAC wajar lebih dekat; di YouTube audio aslinya tidak diketahui.
 - Ukuran 10 menit: AAC 9,6 sampai 10,0 MB, Opus 7,9 sampai 9,2 MB (sekitar 15% lebih kecil).
 
-**Keputusan:** audio-first mengunduh **format yang sama dengan yang dipilih `ba` hari ini**
+**Keputusan (atas delegasi pemilik, perlu ditinjau pemilik):** audio-first mengunduh **format
+yang sama dengan yang dipilih `ba` hari ini**
 (biasanya Opus 251), dengan syarat bahasa asli dari §B4 butir 5. Alasannya gate FETCH-M3 ("klip
 sama, batas ≤ 200 ms dibanding audio `ba` lama"): pengukuran ini menunjukkan gate itu hanya bisa
 lolos kalau audionya file yang sama, bukan sekadar codec yang mirip. Merge ke mp4 tetap tanpa
 transcode (FFmpeg menyalin Opus ke mp4, seperti unduhan `bv*+ba` hari ini). Bandingan `ba` vs audio
 asli di YouTube sendiri (trek dubbing, varian DRC) tidak bisa diukur dari runner karena cek bot.
+Ini menyimpang dari default rancangan §B4 butir 5 (AAC), dan alasannya ditarik dari uji "file yang
+sama", bukan dari pengukuran di YouTube.
 
 ## M0-2 · Waktu sampai seleksi
 
@@ -146,10 +155,14 @@ IP runner per run.
   PyPI `bgutil-ytdlp-pot-provider==2.0.2`, argumen
   `--extractor-args "youtubepot-bgutilhttp:base_url=<url>"`. Server native butuh Node ≥ 22.
 
-**Keputusan: no-go untuk sekarang.** Server produksi juga di IP datacenter, dan bukti yang ada
-menunjukkan bgutil tidak membantu di sana tanpa cookie. FETCH-M6 dibangun tanpa bgutil (bagian
-proxy tetap). Ditinjau ulang kalau produksi mulai sering mendapat `download_bot_check` padahal
-cookie terpasang.
+Skrip memberi label `no_token` untuk hasil ini, bukan `no_effect`: bgutil tidak pernah sampai
+diuji, karena tidak ada satu pun permintaan token.
+
+**Keputusan: tidak bisa disimpulkan dari CI; default Q11 tetap.** bgutil opt-in dan mati, seperti
+§B7.4 (profil `pot`, `POTONGIN_POT_PROVIDER_URL` kosong). FETCH-M6 tetap membangun bagian bgutil
+sesuai rencana, dengan digest image, paket dan argumen extractor di atas. Pengukuran yang bisa
+memutuskan butuh IP yang tidak langsung kena cek bot (proxy atau server produksi), jadi butuh
+pemilik. Pemilik yang memutuskan kalau bgutil mau dibuang.
 
 ## M0-4 · Proxy lewat file config
 
@@ -181,9 +194,13 @@ Run: [40104994075](https://github.com/RevDonz/ai-video-clipper/actions/runs/4010
 Kick (`/api/v2/channels/<kanal>/videos` dan `/clips`) juga menjawab dari urllib biasa. Tanpa
 `curl_cffi`, yt-dlp hanya memberi peringatan bahwa ia mencoba meniru browser, lalu lanjut.
 
-**Keputusan: go tanpa `curl_cffi`.** FETCH-M5 boleh dibangun tanpa dependensi baru. Flag tetap
-`off` (Q11). Media tidak diunduh di sini, jadi FETCH-M5 menguji unduhan lewat fixture, dan satu link
-Kick dicoba di produksi sebelum flag dinyalakan. Cloudflare Kick bisa berubah; `ytdlp_smoke.py`
+Skrip memberi label `metadata_ok_without_curl_cffi`: yang terbukti hanya metadata dan manifest.
+
+**Keputusan: bersyarat.** Metadata dan manifest jalan tanpa `curl_cffi`, jadi FETCH-M5 boleh
+dibangun tanpa dependensi baru, dengan unduhan diuji lewat fixture. Unduhan media Kick belum
+terbukti, karena VOD Kick tidak berlisensi terbuka dan tidak diunduh di CI. FETCH-M5 baru dihitung
+go setelah satu unduhan Kick berhasil tanpa `curl_cffi`, dicoba pemilik atau di uji produksi,
+sebelum flag dinyalakan. Flag tetap `off` (Q11). Cloudflare Kick bisa berubah; `ytdlp_smoke.py`
 (FETCH-M8) sebaiknya ikut memeriksa satu VOD Kick (preflight saja).
 
 ## M0-6 · Range-only
@@ -206,21 +223,25 @@ unduhan penuh 84,9 dtk; potongan 60 dtk 5,4 sampai 12,6 dtk dengan `-c copy`, 38
 dengan `--force-keyframes-at-cuts` (encode ulang).
 
 **Gerbang §B11** (5 klip × median potongan 6,0 dtk, berurutan, dibanding audio-first + video
-paralel; render sama di kedua sisi):
+paralel; kedua sisi memuat unduh audio, transkripsi, timeline audio dan seleksi; render sama di
+kedua sisi):
 
 | Sumber ≥ 40 menit | Dengan Whisper | Dengan subtitle |
 |---|---|---|
-| 60 menit | −8% | +78% |
-| 99 menit | −4% | +23% |
-| **Median** | **−6%** | **+51%** |
+| 60 menit | −8% | +77% |
+| 99 menit | −4% | +7% |
+| **Median** | **−6%** | **+42%** |
+
+Contoh 99 menit dengan subtitle: range-only 4,25 + 7,41 + 0,21 + 30 = 41,9 dtk, audio-first
+max(11,9; 44,85) = 44,85 dtk.
 
 A/V ≤ 1 frame: 80/80 (100%). Run range:
 [40103795306](https://github.com/RevDonz/ai-video-clipper/actions/runs/40103795306).
 
 **Keputusan: no-go, FETCH-M9 tetap dilewati.** Dengan Whisper, range-only lebih lambat, karena video
-penuh sudah selesai saat transkripsi selesai. Dengan subtitle, angkanya lolos 40%, tapi hanya di host
-non-YouTube dengan laju unduhan yang naik-turun 8 kali lipat, dan sangat bergantung pada laju itu (78%
-saat lambat, 23% saat cepat). Butir 3 gerbang (koeksistensi pemilihan ulang, editor ±60 dtk, identitas
+penuh sudah selesai saat transkripsi selesai. Dengan subtitle, mediannya lolos tipis (42% lawan
+batas 40%), tapi hanya dari dua sumber di host non-YouTube dengan laju unduhan yang naik-turun 8 kali
+lipat, dan sangat bergantung pada laju itu (77% saat lambat, 7% saat cepat). Butir 3 gerbang (koeksistensi pemilihan ulang, editor ±60 dtk, identitas
 `clip_id`) butuh jawaban pemilik. Kalau pemilik ingin meninjau ulang, ukur laju unduhan YouTube di
 produksi dulu.
 
@@ -267,6 +288,13 @@ pertimbangkan 8 GiB kalau resolusi 1080p sering dipakai.
 3. Memutuskan `yt-dlp-ejs` (dependensi baru, lewat extra `yt-dlp[default]`) agar tantangan JS
    YouTube bisa dipecahkan setelah Node 24.
 4. Memutuskan cap cache 1080p (tetap 4 GiB atau 8 GiB).
+5. Range-only: menjawab butir 3 gerbang §B11 (pemilihan ulang, editor ±60 dtk, identitas
+   `clip_id`) kalau mau ditinjau ulang.
+6. Kick: mencoba satu unduhan Kick tanpa `curl_cffi` (uji pemilik atau di produksi) sebelum
+   FETCH-M5 dihitung go dan sebelum `POTONGIN_FETCH_KICK` dinyalakan.
+7. bgutil: memutuskan apakah bgutil dibuang dari FETCH-M6. Sampai ada keputusan, default Q11
+   berlaku (opt-in, mati). Kalau mau diukur, butuh proxy atau server produksi.
+8. Meninjau pilihan codec audio-first (Opus/format `ba`, bukan AAC dari §B4 butir 5).
 
 ## Run yang dipakai
 
@@ -279,7 +307,10 @@ pertimbangkan 8 GiB kalau resolusi 1080p sering dipakai.
 | `timing` 600 | [40103797198](https://github.com/RevDonz/ai-video-clipper/actions/runs/40103797198) | `333b530e` |
 | `timing` 1800, 3600, 7200 | [40104278162](https://github.com/RevDonz/ai-video-clipper/actions/runs/40104278162), [40104280298](https://github.com/RevDonz/ai-video-clipper/actions/runs/40104280298), [40104282869](https://github.com/RevDonz/ai-video-clipper/actions/runs/40104282869) | `cbfd9339` |
 
-Kode fase `range` dan `timing` tidak berubah setelah commit run-nya. Run lain di branch ini adalah
+Kode fase `range` dan `timing` tidak berubah setelah commit run-nya. Setelah run `kick`, fase itu
+hanya berubah di sumber nama kanal (argumen, bukan konstanta di skrip) dan kunci `api` di hasil
+(`kanal-1/…` menggantikan nama kanal); kunci di hasil mentah yang di-commit diganti dengan cara yang
+sama. `report-2026-10-24.json` dihitung ulang setelah rumus §B11 memasukkan timeline audio. Run lain di branch ini adalah
 percobaan yang diganti: `audio` [40104275687](https://github.com/RevDonz/ai-video-clipper/actions/runs/40104275687)
 gagal mengunduh karena meminta 360p (talk hanya punya 720p ke atas); `youtube`
 [40103793226](https://github.com/RevDonz/ai-video-clipper/actions/runs/40103793226) belum bisa
@@ -289,8 +320,10 @@ membangun server bgutil.
 
 ```
 gh workflow run editor-gates.yml -f ref=<branch> -f suite=command \
-  -f command='python scripts/fetch/m0_measure.py --out /out/unduhan-m0.json --only env,extractors,sizes,proxy,kick'
+  -f command='python scripts/fetch/m0_measure.py --out /out/unduhan-m0.json --only env,extractors,sizes,proxy,kick --kick-channels <kanal>,<kanal>'
 ```
+
+Tanpa `--kick-channels` (atau `POTONGIN_M0_KICK_CHANNELS`) fase `kick` mencatat `not_measured`.
 
 Fase lain: `--only youtube`, `--only audio`, `--only range`, `--only timing --target 600|1800|3600|7200`
 (satu run per target, karena Whisper lama). Gabungkan hasil run dengan
