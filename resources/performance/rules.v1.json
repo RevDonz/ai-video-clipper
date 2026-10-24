@@ -1,0 +1,14 @@
+{
+  "rulesId": "rules.v1",
+  "dimensions": ["archetype", "durationBucket", "hookForm"],
+  "archetype": ["curiosity_gap","controversial_claim","confession","insider_secret","story_twist",
+                "number_proof","conflict","humor","relatable_pain","emotional","practical_tip","other"],
+  "durationBuckets": [[0,20,"0-20"],[20,30,"20-30"],[30,45,"30-45"],[45,60,"45-60"],[60,null,"60+"]],
+  "hookForm": {
+    "order": ["none","question","number","quote","statement"],
+    "quoteOpeners": ["\"", "“", "'", "‘", "«"]
+  },
+  "minPosts": 20, "minGroup": 5, "minAccountPosts": 5, "shrinkK": 5,
+  "liftFull": 0.25, "capPerDimension": 0.2, "capTotal": 0.4,
+  "windowDays": 180, "staleDays": 14, "editFarOverlap": 0.8
+}
