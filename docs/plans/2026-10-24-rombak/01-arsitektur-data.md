@@ -149,7 +149,7 @@ yang sama (`st_dev` sama). Karena itu ketiganya ada di `clipper_data`, bukan di 
 | `primary-worker` (`scripts/primary-worker.mjs`) | rw | rw | ya | rw | tidak (menunggu versi) | `/control/settings` |
 | `social-worker` (`web/scripts/social-worker.mjs` (baru) → `/app/scripts/social-worker.mjs`) | hanya `/data/social` (subpath, rw) | rw | ya | rw | tidak (menunggu versi) | `/control/settings` |
 | `render-worker` (Python) | rw | **tidak** | **tidak** | **tidak** | — | tidak ada |
-| `scripts/render-storage-admission.mjs` (dijalankan render-worker) | rw | tidak | tidak | tidak | — | tidak ada |
+| `web/scripts/render-storage-admission.mjs` → `/app/scripts/render-storage-admission.mjs` (dijalankan render-worker) | rw | tidak | tidak | tidak | — | tidak ada |
 | Proses Python anak (pipeline, editor api, preview, yt-dlp, ffmpeg) di app/primary | rw | ter-mount di container induk | **dibuang dari env anak** | **tidak** | — | tidak ada |
 | `pot-provider` | tidak | tidak | tidak | tidak | — | — |
 
@@ -1260,6 +1260,7 @@ Drill restore masuk drill lama→baru→lama Fase 6 (MU-M9) dan `web/tests/db-ba
 | `.github/workflows/ytdlp-update.yml:57` | `node-version: "20"` | `"24"` |
 | `web/package.json` | tanpa `engines` | `"engines": {"node": ">=24 <25"}` |
 | `src/ai_clipper/edit_v2/toolchain.py` (stamp, ditulis Dockerfile:74-76) | `--base-image node:20…` | otomatis berubah karena `--base-image "${NODE_IMAGE}"` |
+| `docs/editor/evidence/toolchain/record.json` | `base_image` `node:20-bookworm-slim@sha256:2cf067cf…` | dicap ulang lewat `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`; isi artifact `toolchain-evidence` disalin ke repo dan di-commit di PR MU-M0 (`docs/editor/OPERASIONAL.md` §3). Tanpa itu job `toolchain-guard` gagal. |
 
 Alasan tambahan: Node 20 sudah EOL (April 2026). `node:sqlite` (DatabaseSync) adalah dasar kontrak
 guard sinkron (§2.3). Cadangan bila Q2 dibatalkan: `better-sqlite3` (API sinkron yang sama).
@@ -1282,17 +1283,21 @@ tercatat di stamp, jadi **semua** plate key dan render key berubah satu kali.
 
 MU-M0 memverifikasi di image Node 24 yang dipin apakah `import "node:sqlite"` mencetak
 `ExperimentalWarning`. Aturan apa pun hasilnya:
-- Proses yang stderr-nya di-parse proses lain (`scripts/render-storage-admission.mjs`, dipanggil
-  render-worker lewat `RENDER_STORAGE_CLI`) **tidak boleh** mengimpor `web/lib/db/*` — dijaga
+- Proses yang stderr-nya di-parse proses lain (`web/scripts/render-storage-admission.mjs`, di
+  image `/app/scripts/…`, dipanggil render-worker lewat `RENDER_STORAGE_CLI`) **tidak boleh**
+  mengimpor `web/lib/db/*` — dijaga
   `web/tests/sqlite-import-boundary.test.mjs` (baru, graf impor statis).
 - Bila peringatan muncul: `NODE_OPTIONS=--disable-warning=ExperimentalWarning` hanya di service
   `app`, `primary-worker`, `social-worker`, dan **dibuang** dari env anak (§1.3).
-- Tes: spawn `node -e 'import("./lib/db/index.mjs")'` dengan env compose → stderr kosong.
+- Tes Fase 0 (`web/tests/node-sqlite-stderr.test.mjs`, baru): spawn `node -e 'import("node:sqlite")'`
+  dengan env compose → stderr kosong. `web/lib/db/` belum ada di Fase 0; varian
+  `node -e 'import("./lib/db/index.mjs")'` ditambahkan ke tes yang sama di Fase 4.
 
 ### 8.4 Kriteria selesai MU-M0
 
 - `ci-cd` dan `editor-gates` (`suite=full`) hijau di Node 24, bukti toolchain P-TIME/P-TXT/P-ENC/
-  P-COLOR/P-RT dijalankan ulang, **ambang tidak diubah**.
+  P-COLOR/P-RT dijalankan ulang lewat `ci-cd.yml -f suite=toolchain` dan `record.json` barunya
+  di-commit (§8.1), **ambang tidak diubah**.
 - Laporan invalidasi di PR (dan ringkasannya di `docs/editor/OPERASIONAL.md` §3 "Toolchain render
   yang dikunci"): jumlah byte `*/preview/plates` sebelum/sesudah di volume fixture CI; perkiraan
   lonjakan produksi = total byte plate dari job yang dibuka 30 hari terakhir, dibandingkan ruang
@@ -1378,6 +1383,7 @@ migrasi), jadi `HEALTHCHECK --start-period` di `Dockerfile` (baris 92, hari ini 
 | `tests/test_deploy_guard.py` (ada, diperluas) | backup sebelum `up -d`; `DB_BACKUP=` tercetak; verifikasi mount `/control`; rollback compose baru + image lama | 4, 6 |
 | `web/tests/job-ownership.test.mjs` (baru) | `ownerId`/`fairnessKey` saat create; `effectiveOwnerId` untuk job lama; `serializePublicJob` membuang keduanya; rumus `fairnessKey` stabil | 5 |
 | `tests/test_render_worker_fairness.py` (baru) | §6.2 | 6 |
+| `web/tests/node-sqlite-stderr.test.mjs` (baru) | §8.3: `import "node:sqlite"` dengan env compose → stderr kosong (Fase 0); varian `web/lib/db/index.mjs` (Fase 4) | 0, 4 |
 | `web/tests/sqlite-import-boundary.test.mjs` (baru) | §8.3 | 0/4 |
 | `web/tests/env-example.test.mjs` (ada, diperluas) | `POTONGIN_DB_PATH`, `POTONGIN_SETTINGS_SECRET` (wajib), `E2E_SMOKE_*`, `SOCIAL_PIN_KEEP_DAYS` di `.env.example` | 4+ |
 
