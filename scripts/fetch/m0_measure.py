@@ -55,6 +55,7 @@ import sys
 import tarfile
 import threading
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
@@ -640,7 +641,9 @@ class Context:
 
 
 def phase_env(ctx: Context) -> dict[str, Any]:
-    header = run([ctx.ytdlp, "-v", "--js-runtimes", "node", "--list-extractors"], timeout=120)
+    # The debug header comes before any extraction, so a bot-checked URL still prints it.
+    header = run([ctx.ytdlp, "-v", "--js-runtimes", "node", "--simulate", "--no-playlist",
+                  YOUTUBE_PROBE], timeout=120)
     js = debug_value(header.stderr, "JS runtimes")
     lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
     ffmpeg = run(["ffmpeg", "-version"], timeout=30).stdout.splitlines()
@@ -1167,7 +1170,7 @@ def phase_proxy(ctx: Context) -> dict[str, Any]:
     proxy.start()
     proxy_url = f"http://m0user:{marker}@127.0.0.1:{proxy.port}"
     config = write_proxy_config(ctx.work / "attempt" / ".fetch" / "ytdlp.conf", proxy_url)
-    talks = pick_talks(peertube_videos(1), 1, 60, 1200, "en")
+    talks = pick_talks(peertube_videos(), 1, 60, 1200, "en")
     target = f"{PEERTUBE}/videos/watch/{talks[0]['uuid']}" if talks else YOUTUBE_PROBE
     out = ctx.work / "proxy"
     env = child_env(os.environ)
@@ -1217,12 +1220,35 @@ def _kick_api(path: str, python: str | None) -> tuple[Any, str]:
         return None, "not json"
 
 
+def _playlist_status(info: Mapping[str, Any], py: str | None) -> str | None:
+    """HTTP status of the first HLS playlist (a text manifest, never a media segment)."""
+    url = next((item.get("url") for item in info.get("formats") or []
+                if str(item.get("protocol", "")).startswith("m3u8") and item.get("url")), None)
+    if not isinstance(url, str) or not url.startswith("https://"):
+        return None
+    if py is not None:
+        code = ("import sys\nfrom curl_cffi import requests\n"
+                "print(requests.get(sys.argv[1],impersonate='chrome',timeout=30).status_code)")
+        result = run([py, "-c", code, url], timeout=60)
+        return result.stdout.strip() or f"failed {result.returncode}"
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 potongin-m0"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:  # https only, checked
+            response.read(256 * 1024)
+            return str(response.status)
+    except urllib.error.HTTPError as error:
+        return str(error.code)
+    except OSError as error:
+        return type(error).__name__
+
+
 def phase_kick(ctx: Context) -> dict[str, Any]:
     locked = smoke.locked_version((ROOT / "uv.lock").read_text(encoding="utf-8"))
     cffi_bin = ctx.tools.venv("cffi", [f"yt-dlp=={locked}", f"curl_cffi=={PINS['curl_cffi']}"])
     python = str(cffi_bin / "python") if cffi_bin else None
     api: dict[str, Any] = {}
-    urls: list[str] = []
+    vods: list[str] = []
+    clip_pages: list[str] = []
     for channel in KICK_CHANNELS:
         for client, py in (("urllib", None), ("curl_cffi", python)):
             if client == "curl_cffi" and py is None:
@@ -1230,12 +1256,14 @@ def phase_kick(ctx: Context) -> dict[str, Any]:
             videos, videos_status = _kick_api(f"v2/channels/{channel}/videos", py)
             clips, clips_status = _kick_api(f"v2/channels/{channel}/clips", py)
             api[f"{channel}/{client}"] = {"videos": videos_status, "clips": clips_status}
-            if len(urls) < 5:
-                found = kick_urls(channel, videos, clips, 3)
-                urls.extend(url for url in found if url not in urls)
-        if len(urls) >= 5:
+            for url in kick_urls(channel, videos, clips, 50):
+                pool = clip_pages if "/clips/" in url else vods
+                if url not in pool and sum(1 for item in pool if f"/{channel}/" in item) < 2:
+                    pool.append(url)
+        if len(vods) >= 3 and len(clip_pages) >= 2:
             break
-    urls = urls[:5]
+    # Three VODs and two clips when both exist, five pages in all.
+    urls = (vods[:3] + clip_pages[:2] + vods[3:] + clip_pages[2:])[:5]
     arms = {"without_curl_cffi": ctx.ytdlp,
             "with_curl_cffi": str(cffi_bin / "yt-dlp") if cffi_bin else None}
     result: dict[str, Any] = {"api": api, "urls": len(urls), "media": "not downloaded",
@@ -1250,15 +1278,20 @@ def phase_kick(ctx: Context) -> dict[str, Any]:
                        url], timeout=180)
             ok = res.returncode == 0 and bool(res.stdout.strip())
             formats = 0
+            playlist = None
             if ok:
                 try:
-                    formats = len(json.loads(res.stdout).get("formats") or [])
+                    info = json.loads(res.stdout)
+                    formats = len(info.get("formats") or [])
+                    playlist = _playlist_status(
+                        info, py=python if name == "with_curl_cffi" else None)
                 except json.JSONDecodeError:
                     ok = False
             outcome = "ok" if ok and formats else download_outcome(
                 res.returncode if not ok else 1, res.stderr, False)
             items.append({"kind": "clip" if "/clips/" in url else "vod", "outcome": outcome,
                           "formats": formats, "seconds": round(res.seconds, 2),
+                          "playlist": playlist,
                           "impersonation_warning": "attempting impersonation" in res.stderr,
                           "line": next((line[:200] for line in reversed(res.stderr.splitlines())
                                         if line.startswith("ERROR:")), None)})
@@ -1298,7 +1331,7 @@ def measure(args: argparse.Namespace) -> int:
     ctx = Context(args)
     out = Path(args.out)
     run_info = {"phases": phases, "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "github_run": os.environ.get("GITHUB_RUN_ID"), "pins": PINS}
+                "pins": PINS}
     result: dict[str, Any] = {"schema": SCHEMA, "runs": [run_info], "phases": {}}
     for name in phases:
         log(f"phase {name}")
