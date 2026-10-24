@@ -205,7 +205,7 @@ dijalankan di GitHub Actions (`gh workflow run editor-gates.yml -f ref=<branch> 
 
 ### 9.3 G0 (kerja pemilik, sebelum Fase 0)
 
-- [ ] PR `feat/ux-redesign-workspace` di-merge ke `main`.
+- [x] PR `feat/ux-redesign-workspace` di-merge ke `main` (#30).
 - [ ] PR docs-only "amandemen G0" disetujui. PR ini mengubah:
   - `DESIGN.md`: editor satu tata letak, kata status, bagian Bahasa;
   - `AGENTS.md`: copy dari katalog, protokol clean-room, migrasi aditif;
@@ -222,7 +222,7 @@ dijalankan di GitHub Actions (`gh workflow run editor-gates.yml -f ref=<branch> 
 
 | Milestone | Hari | Isi |
 |---|---|---|
-| MU-M0 Node 24 | 2,5 | Pin `node:24-bookworm-slim@sha256`, CI ke Node 24, `engines`, stamp toolchain, aturan stderr `node:sqlite` (01 §8) |
+| MU-M0 Node 24 | 2,5 | Pin `node:24-bookworm-slim@sha256`, CI ke Node 24, `engines`, stamp toolchain (`ci-cd.yml -f suite=toolchain` + `record.json` di-commit), aturan stderr `node:sqlite` (01 §8) |
 | FB-M0 | 2 | Bekukan `resources/performance/rules.v1.json`; minta contoh CSV ke pemilik |
 | SOS-M0 | 3 | `docs/operations/SOSMED.md`: verifikasi semua angka **[V]** platform beserta sumber resmi |
 | FETCH-M0 | 3 | `docs/evaluation/UNDUHAN_M0.md`: ukur audio-first, bgutil, proxy, Kick; go/no-go |
@@ -231,11 +231,15 @@ dijalankan di GitHub Actions (`gh workflow run editor-gates.yml -f ref=<branch> 
 
 Fase 0 selesai bila:
 
-- CI hijau di Node 24 dan `run_all.sh toolchain` lolos tanpa melonggarkan ambang;
+- `ci-cd.yml` dan `editor-gates.yml suite=full` hijau di Node 24, dan `run_all.sh toolchain`
+  (lewat `ci-cd.yml -f suite=toolchain`) lolos tanpa melonggarkan ambang, dengan `record.json`
+  baru di-commit;
+- invalidasi plate/render key tercatat dan R10 terbukti (klip tanpa edit tidak dirender ulang);
 - stderr pipeline bersih dari peringatan `node:sqlite`;
 - go/no-go FETCH-M0 tertulis;
 - baseline reframe dilaporkan;
-- PR kontrak di-merge.
+- PR kontrak di-merge (termasuk persetujuan pemilik untuk `fairnessKey`, §11 #1);
+- disk produksi diukur dan dicatat (baseline 81%).
 
 ## 10. Aturan clean-room
 
@@ -264,8 +268,8 @@ butuh jawaban atau tindakan pemilik. Yang lain diputuskan lewat pengukuran atau 
 
 | # | Isu | Dokumen | Diputuskan di |
 |---|---|---|---|
-| 1 | Penyimpangan lokasi `fairnessKey` (di `job.json`, bukan render request) perlu disetujui | 01 §6.2, §12 | PR kontrak Fase 0 |
-| 2 | Apakah `node:sqlite` mencetak peringatan di stderr Node 24 terpin | 01 §8.3, 08 Fase 0 | MU-M0 |
+| 1 | Penyimpangan lokasi `fairnessKey` (di `job.json`, bukan render request) perlu disetujui | 01 §6.2, §12 | **Pemilik**, di PR kontrak Fase 0 |
+| 2 | Apakah `node:sqlite` mencetak peringatan di stderr Node 24 terpin (Fase 0 menguji `import "node:sqlite"` polos; varian `web/lib/db/index.mjs` di Fase 4) | 01 §8.3, 08 Fase 0 | MU-M0 |
 | 3 | Rate limit login/undangan/reset in-memory; butuh tabel bila `app` lebih dari satu replika | 01 §12, 02 §17 | Saat app diskalakan |
 | 4 | Biaya 20 unit AI per job masih tebakan | 01 §12, 02 §17 | MU-M4, sebelum cap menyala |
 | 5 | Docker Engine VM produksi ≥ 26 untuk `volume.subpath`; bila kurang, mount `/data` penuh butuh persetujuan **pemilik** | 01 §12, 08 §11 | Sebelum R1 (Fase 6) |
@@ -298,7 +302,7 @@ butuh jawaban atau tindakan pemilik. Yang lain diputuskan lewat pengukuran atau 
 | 32 | Kuota storage default kosong; satu-satunya rem disk = admission ruang global | 08 §11 | **Pemilik**, setelah jumlah user diketahui |
 | 33 | Transkrip gold benchmark tidak ada di git | 08 §11 | **Pemilik** menyediakan artefak, sebelum Fase 2 M5 |
 
-**Jumlah: 33 isu terbuka**, 8 di antaranya menunggu pemilik: #5, #7, #10, #16, #17, #28, #32, #33.
+**Jumlah: 33 isu terbuka**, 9 di antaranya menunggu pemilik: #1, #5, #7, #10, #16, #17, #28, #32, #33.
 Isu clean-room (dulu #34) sudah diputuskan: lihat §clean-room dan 09 §1.
 
 ## 12. Lampiran
