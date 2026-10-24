@@ -100,7 +100,7 @@ jobs:
         if: ${{ !cancelled() && (inputs.suite == 'full' || inputs.suite == 'e2e' || inputs.suite == 'player') }}
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: web/package-lock.json
 

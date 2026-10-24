@@ -54,7 +54,7 @@ jobs:
         # yt-dlp runs YouTube's player JavaScript with Node (--js-runtimes node), as in the image.
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Bump yt-dlp in uv.lock
         id: bump
