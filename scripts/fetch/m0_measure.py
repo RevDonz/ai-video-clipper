@@ -93,7 +93,8 @@ PEERTUBE = "https://video.blender.org"
 OPEN_LICENCES = frozenset({1, 2, 7})
 TIMING_TARGETS = (600, 1800, 3600, 7200)
 
-KICK_CHANNELS = ("xqc", "adinross", "amouranth", "trainwreckstv")
+# Kick channels to sample, comma-separated; kept out of the repository and out of the result.
+KICK_CHANNELS_ENV = "POTONGIN_M0_KICK_CHANNELS"
 
 _UUID = re.compile(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}")
 _CLIP_ID = re.compile(r"clip_[A-Za-z0-9_-]{1,100}")
@@ -287,12 +288,14 @@ def bytes_per_hour(size: int | None, seconds: float | None) -> int | None:
     return round(size * 3600 / seconds)
 
 
-def range_only_saving(t_audio: float, t_transcribe: float, t_select: float, t_video: float,
-                      t_ranges: float) -> float:
+def range_only_saving(t_audio: float, t_transcribe: float, t_timeline: float, t_select: float,
+                      t_video: float, t_ranges: float) -> float:
     """§B11 gate 1: clips-ready time saved by range-only against audio-first with the video in
-    parallel (render time is the same on both sides and left out)."""
-    audio_first = max(t_audio + t_transcribe + t_select, t_video)
-    range_only = t_audio + t_transcribe + t_select + t_ranges
+    parallel. Both paths run the audio-only timeline pass before selection; render time is the
+    same on both sides and left out."""
+    to_selection = t_audio + t_transcribe + t_timeline + t_select
+    audio_first = max(to_selection, t_video)
+    range_only = to_selection + t_ranges
     return 1 - range_only / audio_first
 
 
@@ -317,17 +320,31 @@ def range_report(timing_sources: Sequence[Mapping[str, Any]], cut_seconds: Seque
         if not video or not seconds or cut is None or float(video["duration"]) < 2400:
             continue
         ranges = clips * cut
-        audio = seconds["audio_download_simulated"]
+        audio, timeline = seconds["audio_download_simulated"], seconds["timeline_audio_only"]
         rows.append({
             "duration": video["duration"], "ranges_seconds": ranges,
-            "whisper": range_only_saving(audio, seconds["transcribe"], seconds["select"],
-                                         seconds["video_download"], ranges),
-            "captions": range_only_saving(audio, 0, seconds["select"],
+            "whisper": range_only_saving(audio, seconds["transcribe"], timeline,
+                                         seconds["select"], seconds["video_download"], ranges),
+            "captions": range_only_saving(audio, 0, timeline, seconds["select"],
                                           seconds["video_download"], ranges),
         })
     return {"cut_median_seconds": cut, "clips": clips, "sources": rows,
             "gate_whisper": range_gate([row["whisper"] for row in rows], offsets_frames),
             "gate_captions": range_gate([row["captions"] for row in rows], offsets_frames)}
+
+
+def kick_channels(value: str | None) -> tuple[str, ...]:
+    """Channel slugs from a comma-separated list; anything that is not a plain slug is refused."""
+    names = tuple(item.strip() for item in (value or "").split(",") if item.strip())
+    for name in names:
+        if not _SLUG.fullmatch(name):
+            raise ValueError(f"not a Kick channel slug: {name[:40]!r}")
+    return names
+
+
+def kick_api_key(index: int, client: str) -> str:
+    """Result key for one channel's API answer; the channel is numbered, not named."""
+    return f"kanal-{index + 1}/{client}"
 
 
 def kick_decision(without: Sequence[str], with_cffi: Sequence[str]) -> str:
@@ -1317,13 +1334,17 @@ def phase_kick(ctx: Context) -> dict[str, Any]:
     api: dict[str, Any] = {}
     vods: list[str] = []
     clip_pages: list[str] = []
-    for channel in KICK_CHANNELS:
+    channels = kick_channels(ctx.args.kick_channels or os.environ.get(KICK_CHANNELS_ENV))
+    if not channels:
+        return {"decision": "not_measured",
+                "error": f"no channels: pass --kick-channels or set {KICK_CHANNELS_ENV}"}
+    for index, channel in enumerate(channels):
         for client, py in (("urllib", None), ("curl_cffi", python)):
             if client == "curl_cffi" and py is None:
                 continue
             videos, videos_status = _kick_api(f"v2/channels/{channel}/videos", py)
             clips, clips_status = _kick_api(f"v2/channels/{channel}/clips", py)
-            api[f"{channel}/{client}"] = {"videos": videos_status, "clips": clips_status}
+            api[kick_api_key(index, client)] = {"videos": videos_status, "clips": clips_status}
             for url in kick_urls(channel, videos, clips, 50):
                 pool = clip_pages if "/clips/" in url else vods
                 if url not in pool and sum(1 for item in pool if f"/{channel}/" in item) < 2:
@@ -1465,6 +1486,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--whisper-model", default="small")
     parser.add_argument("--windows", type=int, default=20, help="range: pieces per package")
     parser.add_argument("--sync-seconds", type=int, default=900, help="range: test source")
+    parser.add_argument("--kick-channels", default="",
+                        help=f"kick: channel slugs, comma-separated (or {KICK_CHANNELS_ENV})")
     return measure(parser.parse_args(argv))
 
 

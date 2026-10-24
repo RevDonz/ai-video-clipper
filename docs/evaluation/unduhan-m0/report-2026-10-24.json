@@ -7,23 +7,23 @@
       {
         "duration": 3596,
         "ranges_seconds": 30.0,
-        "whisper": -0.0841514726507715,
-        "captions": 0.7835731925402367
+        "whisper": -0.08340747330960863,
+        "captions": 0.7700332112748021
       },
       {
         "duration": 5937,
         "ranges_seconds": 30.0,
-        "whisper": -0.041921690282552104,
-        "captions": 0.2316610925306578
+        "whisper": -0.04149205427160707,
+        "captions": 0.06644370122630983
       }
     ],
     "gate_whisper": {
-      "median_saving": -0.0630365814666618,
+      "median_saving": -0.06244976379060785,
       "av_within_one_frame": 1.0,
       "pass": false
     },
     "gate_captions": {
-      "median_saving": 0.5076171425354472,
+      "median_saving": 0.41823845625055595,
       "av_within_one_frame": 1.0,
       "pass": true
     }

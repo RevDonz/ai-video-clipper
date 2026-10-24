@@ -277,19 +277,19 @@
     },
     "kick": {
       "api": {
-        "xqc/urllib": {
+        "kanal-1/urllib": {
           "videos": "ok",
           "clips": "ok"
         },
-        "xqc/curl_cffi": {
+        "kanal-1/curl_cffi": {
           "videos": "ok",
           "clips": "ok"
         },
-        "adinross/urllib": {
+        "kanal-2/urllib": {
           "videos": "ok",
           "clips": "ok"
         },
-        "adinross/curl_cffi": {
+        "kanal-2/curl_cffi": {
           "videos": "ok",
           "clips": "ok"
         }

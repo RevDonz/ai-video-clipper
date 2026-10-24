@@ -223,11 +223,12 @@ def test_bytes_per_hour(m0):
 
 
 def test_range_only_saving_compares_with_audio_first_and_parallel_video(m0):
-    # audio-first: max(audio 20 + transcribe 300 + select 5, video 200) = 325
-    # range-only: 20 + 300 + 5 + ranges 30 = 355, so it is slower here
-    assert m0.range_only_saving(20, 300, 5, 200, 30) == pytest.approx(1 - 355 / 325)
-    # captions instead of Whisper: max(25, 200) = 200 vs 25 + 30 = 55
-    assert m0.range_only_saving(20, 0, 5, 200, 30) == pytest.approx(1 - 55 / 200)
+    # Both paths run the audio-only timeline pass (4 s) before selection.
+    # audio-first: max(audio 20 + transcribe 300 + timeline 4 + select 5, video 200) = 329
+    # range-only: 20 + 300 + 4 + 5 + ranges 30 = 359, so it is slower here
+    assert m0.range_only_saving(20, 300, 4, 5, 200, 30) == pytest.approx(1 - 359 / 329)
+    # captions instead of Whisper: max(29, 200) = 200 vs 29 + 30 = 59
+    assert m0.range_only_saving(20, 0, 4, 5, 200, 30) == pytest.approx(1 - 59 / 200)
 
 
 def test_range_gate_needs_both_numbers(m0):
@@ -238,10 +239,11 @@ def test_range_gate_needs_both_numbers(m0):
     assert gate["pass"] is False and gate["median_saving"] is None
 
 
-def timing_source(duration, video, audio, transcribe, select=0.1):
+def timing_source(duration, video, audio, transcribe, select=0.1, timeline=7.0):
     return {"video": {"duration": duration},
             "seconds": {"video_download": video, "audio_download_simulated": audio,
-                        "transcribe": transcribe, "select": select}}
+                        "transcribe": transcribe, "timeline_audio_only": timeline,
+                        "select": select}}
 
 
 def test_range_report_counts_only_long_sources(m0):
@@ -252,10 +254,23 @@ def test_range_report_counts_only_long_sources(m0):
     first = report["sources"][0]
     # 5 clips at the median cut time (6.0 s), one after the other
     assert first["ranges_seconds"] == pytest.approx(30.0)
-    assert first["whisper"] == pytest.approx(m0.range_only_saving(8, 800, 0.1, 85, 30.0))
-    assert first["captions"] == pytest.approx(m0.range_only_saving(8, 0, 0.1, 85, 30.0))
+    assert first["whisper"] == pytest.approx(m0.range_only_saving(8, 800, 7.0, 0.1, 85, 30.0))
+    assert first["captions"] == pytest.approx(m0.range_only_saving(8, 0, 7.0, 0.1, 85, 30.0))
     assert report["gate_whisper"]["pass"] is False
     assert report["gate_captions"]["av_within_one_frame"] == 1.0
+
+
+def test_kick_channels_come_from_the_caller(m0):
+    assert m0.kick_channels(" alpha, beta_2 ,,gamma-3 ") == ("alpha", "beta_2", "gamma-3")
+    assert m0.kick_channels("") == ()
+    assert m0.kick_channels(None) == ()
+    with pytest.raises(ValueError):
+        m0.kick_channels("ok,../etc")
+
+
+def test_kick_api_keys_do_not_name_the_channel(m0):
+    assert m0.kick_api_key(0, "urllib") == "kanal-1/urllib"
+    assert m0.kick_api_key(2, "curl_cffi") == "kanal-3/curl_cffi"
 
 
 def test_kick_decision(m0):
