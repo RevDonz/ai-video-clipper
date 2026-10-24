@@ -75,7 +75,7 @@ def test_the_bump_uses_the_ci_toolchain():
     assert python == ["3.11"]
     node = [step["with"]["node-version"] for step in _steps("bump")
             if step.get("uses", "").startswith("actions/setup-node")]
-    assert node == ["20"], "yt-dlp runs YouTube's player JavaScript with Node, as in the image"
+    assert node == ["24"], "yt-dlp runs YouTube's player JavaScript with Node, as in the image"
 
 
 def test_actions_are_the_versions_the_other_workflows_use():
