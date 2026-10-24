@@ -91,6 +91,21 @@ def test_agreement_counts_frames_with_the_same_mode(harness):
     assert harness.agreement(window, label, label) == (100, 100)
 
 
+def test_saved_predictions_are_scored_against_a_label(harness):
+    prediction = {"id": "rf-01", "fps": [30, 1], "window_sf": [1800, 5400], "sample_frames": 22,
+                  "camera_plan_cuts_sf": [2010, 3100], "scene_cuts_sf": [2000, 3001, 4000],
+                  "seconds": {"camera_plan": 4.2, "scene_pass": 1.1}}
+    label = _entry()
+    row = harness.score_today(prediction, label)
+    assert row["cuts"] == 2
+    assert row["camera_plan_cuts"] == {"found": 2, "frame": [0, 2, 2], "sample": [1, 1, 1]}
+    assert row["scene_cuts"] == {"found": 3, "frame": [2, 1, 0], "sample": [2, 1, 0]}
+    assert row["agreement_camera"] == 200 + 2400  # frames of the two camera shots
+    assert row["agreement_fit_blur"] == 1000
+    with pytest.raises(harness.LabelError):
+        harness.score_today({**prediction, "window_sf": [1801, 5401]}, label)
+
+
 # --- labels --------------------------------------------------------------------------------------
 
 
