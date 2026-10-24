@@ -97,7 +97,7 @@ Angka = hari-dev satu developer (08 §5). "‖" = jalur paralel yang bisa dikerj
 
 | Fase | Isi singkat | Hari-dev | Kalender kumulatif (≈ 20 hari-dev/bulan) |
 |---|---|---|---|
-| G0 | Gerbang pemilik: merge PR UX, amandemen dokumen, daftar app platform | 0 (kalender) | — |
+| G0 | Gerbang pemilik: amandemen dokumen, daftar app platform | 0 (kalender) | — |
 | 0 | Runtime Node 24, kontrak, pengukuran | 15,5 | ≈ 0,8 bulan |
 | 1 | Fondasi UI + i18n + shell + pemilih bahasa | 20,5–23,5 | ≈ 1,8–2,0 |
 | 2 | Buat klip, Detail proyek, kode error/progres | 25,5–27,5 | ≈ 3,1–3,3 |
