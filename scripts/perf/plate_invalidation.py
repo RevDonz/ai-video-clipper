@@ -10,7 +10,9 @@ edit-v2 compiler), every clip's plate cells for its whole seed document are enco
 image's FFmpeg under the plate key of the old toolchain (``--old-base``), then again under the
 key of the toolchain this ``Dockerfile`` pins. The six rendering packages and the Debian
 snapshot are the same on both sides, only ``base_image`` changes, so the report also says
-whether both sets have the same bytes. Numbers only go to ``--out``.
+whether both sets have the same bytes. Then the old cells are aged past ``CACHE_IDLE_MS``
+(nobody opened them since the bump) and ``janitor.clean_job`` runs on the job; the
+after-janitor figure is what is left on disk. Numbers only go to ``--out``.
 
 Usage::
 
@@ -24,8 +26,10 @@ import argparse
 import copy
 import importlib.util
 import json
+import os
 import shutil
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +40,7 @@ for entry in (ROOT / "src", ROOT / "scripts" / "parity"):
 
 import toolchain_guard as tg
 
-from ai_clipper.edit_v2 import plates, store
+from ai_clipper.edit_v2 import janitor, plates, store
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.plan import Resources
@@ -60,6 +64,22 @@ def _plate_bytes(clips: list[Path]) -> int:
     return total
 
 
+def age_unused(path: Path, *, now_ms: int) -> None:
+    """Set a cell's mtime and atime one day past the janitor's idle limit."""
+    then = (now_ms - janitor.CACHE_IDLE_MS - janitor.DAY_MS) / 1000
+    os.utime(path, (then, then))
+
+
+def janitor_pass(job_dir: Path, clips: list[Path], old_cells: list[Path], *,
+                 now_ms: int) -> dict[str, int]:
+    """Age ``old_cells``, run the janitor on the job; plate bytes left and what it removed."""
+    for path in old_cells:
+        age_unused(path, now_ms=now_ms)
+    report = janitor.clean_job(job_dir, now_ms=now_ms)
+    return {"plates_bytes": _plate_bytes(clips), "cache_files": report["cache_files"],
+            "cache_bytes": report["cache_bytes"]}
+
+
 def measure(work: Path, *, old_base: str) -> dict[str, Any]:
     new_doc = tg.derive_toolchain((ROOT / "Dockerfile").read_text(encoding="utf-8"))
     old_doc = copy.deepcopy(new_doc)
@@ -77,6 +97,7 @@ def measure(work: Path, *, old_base: str) -> dict[str, Any]:
     resources = Resources(RESOURCES_DIR)
     rows = []
     stages: dict[str, int] = {}
+    old_cells: list[Path] = []
     for side in ("old", "new"):
         for clip in clips:
             doc, _etag, _is_seed = store.get(clip)
@@ -89,11 +110,15 @@ def measure(work: Path, *, old_base: str) -> dict[str, Any]:
             directory = clip / "preview" / "plates"
             directory.mkdir(parents=True, exist_ok=True)
             for k, data in built.items():
-                (directory / plates.cell_name(key, k)).write_bytes(data)
+                path = directory / plates.cell_name(key, k)
+                path.write_bytes(data)
+                if side == "old":
+                    old_cells.append(path)
             rows.append({"side": side, "clip_id": clip.name, "layout": doc["layout"]["default"]["mode"],
                          "plate_key16": key[:16], "cells": len(cells),
                          "bytes": sum(len(data) for data in built.values())})
         stages[side] = _plate_bytes(clips)
+    cleaned = janitor_pass(job_dir, clips, old_cells, now_ms=int(time.time() * 1000))
     old_bytes = sum(row["bytes"] for row in rows if row["side"] == "old")
     new_bytes = sum(row["bytes"] for row in rows if row["side"] == "new")
     return {
@@ -106,7 +131,8 @@ def measure(work: Path, *, old_base: str) -> dict[str, Any]:
                             for row_old, row_new in zip(rows[:len(clips)], rows[len(clips):])),
         "same_bytes_per_cell_set": old_bytes == new_bytes,
         "plates_bytes": {"before": stages["old"], "after_reopen": stages["new"],
-                         "after_janitor": stages["new"] - stages["old"]},
+                         "after_janitor": cleaned["plates_bytes"]},
+        "janitor": {"cache_files": cleaned["cache_files"], "cache_bytes": cleaned["cache_bytes"]},
         "clips": rows,
     }
 
