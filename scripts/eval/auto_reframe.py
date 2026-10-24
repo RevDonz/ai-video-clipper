@@ -58,6 +58,9 @@ WINDOW_MS = 120_000
 OUTPUT = (720, 1280)
 FETCH_MAX_HEIGHT = 720  # Potongin downloads are at most 720p
 USER_AGENT = "PotonginEval/1 (open-licence reframe evaluation) ffmpeg"
+FETCH_ATTEMPTS = 5
+FETCH_PAUSE_S = 10  # between windows
+FETCH_BACKOFF_S = 30  # times the attempt number; the media hosts rate-limit shared CI addresses
 CATEGORIES = ("single_speaker", "two_person", "panel", "screen", "gameplay_broll")
 COMPOSITION = {"single_speaker": 10, "two_person": 10, "panel": 8, "screen": 6,
                "gameplay_broll": 6}
@@ -386,11 +389,25 @@ def _tool(name: str) -> str:
     return path
 
 
+def _network(command: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
+    """Run an FFmpeg tool that reads a URL, retrying with a growing pause when it fails."""
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout,
+                                check=False)
+        if result.returncode == 0 or attempt == FETCH_ATTEMPTS:
+            return result
+        print(f"  retry {attempt}: {result.stderr.strip()[-160:]}", flush=True)
+        time.sleep(FETCH_BACKOFF_S * attempt)
+    raise AssertionError("unreachable")
+
+
 def _probe(url: str) -> dict[str, Any]:
-    out = subprocess.run(
+    out = _network(
         [_tool("ffprobe"), "-v", "error", "-user_agent", USER_AGENT, "-select_streams", "v:0",
          "-show_entries", "stream=r_frame_rate,avg_frame_rate,width,height", "-of", "json", url],
-        capture_output=True, text=True, timeout=300, check=True)
+        timeout=300)
+    if out.returncode != 0:
+        raise RuntimeError(f"ffprobe: {out.stderr.strip()[-300:]}")
     stream = json.loads(out.stdout)["streams"][0]
 
     def rate(text: str) -> tuple[int, int]:
@@ -427,7 +444,7 @@ def fetch_window(cache: Path, window: Mapping[str, Any], source: Mapping[str, An
                "-frames:v", str(end - first), "-c:v", "libx264", "-preset", "veryfast",
                "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-shortest",
                "-y", str(partial)]
-    result = subprocess.run(command, capture_output=True, text=True, timeout=1800, check=False)
+    result = _network(command, timeout=1800)
     if result.returncode != 0:
         partial.unlink(missing_ok=True)
         raise RuntimeError(f"{window['id']}: {result.stderr.strip()[-300:]}")
@@ -814,7 +831,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         failed = 0
         for window in windows:
             try:
+                cached = window_path(args.cache, window).with_suffix(".json").exists()
                 info = fetch_window(args.cache, window, sources[window["source_id"]])
+                if not cached:
+                    time.sleep(FETCH_PAUSE_S)
                 print(f"{window['id']}: {info['frames']} frames at {info['fps']}", flush=True)
             except (RuntimeError, subprocess.SubprocessError, KeyError, ValueError) as exc:
                 failed += 1
