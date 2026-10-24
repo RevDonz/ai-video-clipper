@@ -203,6 +203,31 @@ Cara mengganti kunci (misalnya pembaruan keamanan Debian):
 4. Catat perubahan dan angkanya di `docs/editor/GATES.md` ("Snapshot bumps"). Setiap kunci render
    berubah; revisi 0 tetap file klip otomatis karena isinya sama (R10).
 
+**Image dasar Node 24 (MU-M0, 2026-10-24).** Image dasar pindah dari `node:20-bookworm-slim` ke
+`node:24-bookworm-slim` (Node 24.22.1). Snapshot Debian dan enam paket render tetap, tetapi
+`base_image` ikut tercatat di `toolchain.json`, jadi sha toolchain berubah (`4fefb754…85f0` →
+`e3cce632…5fd8`) dan **semua** plate key dan render key berubah satu kali. Bukti P-TIME, P-TXT,
+P-ENC, P-COLOR, P-RT dan R10 lolos dengan ambang yang sama (run CI 40102817012).
+
+- Sel plate lama di `preview/plates/` tidak terpakai lagi. Klip yang dibuka membangun selnya
+  lagi dengan kunci baru. Sel lama dihapus janitor setelah 30 hari tidak dipakai, atau lebih
+  cepat oleh batas cache pratinjau 1 GiB per job.
+- Job fixture CI (`main`, 3 klip, sumber 1280×720, 19 sel per klip): plate 1.915.482 byte
+  sebelum, 3.830.964 byte setelah ketiga klip dibuka lagi, 1.915.482 byte setelah janitor. Sel
+  baru sama persis bytenya dengan sel lama. Alat ukur `scripts/perf/plate_invalidation.py`,
+  hasilnya `docs/editor/evidence/MU-M0/plate-invalidation.json`.
+- Klip yang belum diedit tetap mengekspor file otomatisnya (R10, `reused="auto_file"`, hard
+  link, tanpa encode). Ekspor yang sudah selesai tetap bisa diunduh; ekspor baru dari klip yang
+  diedit dirender ulang sekali.
+- Lonjakan di produksi paling banyak sebesar total plate job yang dibuka dalam 30 hari terakhir.
+  Sebelum deploy, ukur angka itu dan bandingkan dengan ruang kosong dikurangi
+  `JOBS_STORAGE_MIN_FREE_BYTES`:
+
+  ```sh
+  docker exec ai-video-clipper sh -c 'find /data/jobs -path "*/preview/plates/*" -type f -mtime -30 -printf "%s\n" | awk "{s+=\$1} END {print s+0}"'
+  docker exec ai-video-clipper df -B1 /data/jobs
+  ```
+
 Mengganti JASSUB sama caranya, ditambah memperbarui `web/app/licenses/notices.mjs` dan
 `web/public/licenses/` (tes `web/tests/licenses.test.mjs` gagal kalau versi atau teks lisensinya
 tidak cocok dengan paket yang terpasang).
@@ -213,7 +238,7 @@ Semua pekerjaan berat jalan di GitHub Actions, tidak di PC pemilik. Workflow `ci
 
 | Kapan | Job | Isi |
 |---|---|---|
-| Setiap PR ke `main` dan setiap push ke `main` | Test and build | ruff, pytest (Python 3.11), `npm test` (Node 20), `npm run build`, build image, cek toolchain image, cek Compose |
+| Setiap PR ke `main` dan setiap push ke `main` | Test and build | ruff, pytest (Python 3.11), `npm test` (Node 24), `npm run build`, build image, cek toolchain image, cek Compose |
 | | Toolchain evidence guard | §3 di atas (beberapa detik) |
 | | Parity (smoke) | Di dalam image produksi commit itu: P-TIME sisi FFmpeg (lima frame rate), referensi P-TXT untuk subset (4 paket × 40 karakter, hook, glyph cadangan), P-FRAME 940 frame (dua sumber barcode, 20 potongan dan cold open masing-masing; rencana minta ≥ 300), G-DET, P-AUD server dan R10. Lalu Chrome for Testing 147.0.7727.15 menjalankan harness teks terhadap aplikasi dari image yang sama: P-TIME sisi JASSUB dan P-TXT. ± 10 menit |
 | Setiap malam pukul 01.30 WIB (cabang `main`) | Parity (nightly) | Semua isi smoke dalam ukuran penuh: P-FRAME ≥ 2.000 frame, P-PLATE, G1/G2, G-DET, PF-RENDER, matriks P-TXT lengkap dengan P-ENC dan P-COLOR, P-RT dan R10 pada tiga job, gerbang audio (duck, G3, G3b, G-CLICK, P-AUD), probe glyph, golden ASS, lalu gerbang lewat aplikasi (P-FRAME dan P-PLATE per tata letak, ganti tata letak, P-AUD dan PF-AUDIO lewat lane pratinjau). Artifact: `parity-full` (bukti JSON, log, `perf.json` laporan performa) dan `toolchain-evidence` (bukti bercap, siap di-commit) |

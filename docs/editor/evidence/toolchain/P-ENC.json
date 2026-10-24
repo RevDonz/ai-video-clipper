@@ -20,6 +20,12 @@
       "ssim_all": 0.9907806009389675,
       "ssim_text": 0.9889667652582161
     },
+    "bold-blur-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911834869565219,
+      "ssim_text": 0.9931150086956524
+    },
     "bold-dejavu-10": {
       "gate": false,
       "pass": true,
@@ -37,6 +43,24 @@
       "pass": true,
       "ssim_all": 0.9906215962441317,
       "ssim_text": 0.9888839342723008
+    },
+    "bold-fade-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911654347826089,
+      "ssim_text": 0.9919107913043479
+    },
+    "bold-kunci-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9909648173913044,
+      "ssim_text": 0.9886061304347824
+    },
+    "bold-pop-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911256695652176,
+      "ssim_text": 0.9927854347826086
     },
     "box-10": {
       "gate": true,
@@ -56,6 +80,12 @@
       "ssim_all": 0.9909347887323947,
       "ssim_text": 0.9890288450704229
     },
+    "box-blur-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911562695652172,
+      "ssim_text": 0.9918375304347822
+    },
     "box-dejavu-10": {
       "gate": false,
       "pass": true,
@@ -73,6 +103,12 @@
       "pass": true,
       "ssim_all": 0.9909211079812206,
       "ssim_text": 0.986879521126761
+    },
+    "box-fade-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911402869565222,
+      "ssim_text": 0.9898899565217394
     },
     "box-pbox-10": {
       "gate": false,
@@ -92,6 +128,12 @@
       "ssim_all": 0.9907612676056334,
       "ssim_text": 0.987163995305165
     },
+    "box-pop-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911175739130439,
+      "ssim_text": 0.990321495652174
+    },
     "classic-10": {
       "gate": true,
       "pass": true,
@@ -110,6 +152,24 @@
       "ssim_all": 0.991311638497653,
       "ssim_text": 0.9943357183098593
     },
+    "classic-blur-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9913886869565219,
+      "ssim_text": 0.9931454956521738
+    },
+    "classic-fade-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9913774434782606,
+      "ssim_text": 0.9911432869565221
+    },
+    "classic-pop-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9914177913043482,
+      "ssim_text": 0.9920703130434784
+    },
     "fallback": {
       "gate": true,
       "pass": true,
@@ -122,49 +182,187 @@
       "ssim_all": 0.9901659733333332,
       "ssim_text": 0.9873081400000001
     },
+    "hook-blok": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9902650666666675,
+      "ssim_text": 0.9864051333333335
+    },
+    "hook-kicker": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9902392400000002,
+      "ssim_text": 0.9879384399999996
+    },
+    "hook-kotak": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9901837066666672,
+      "ssim_text": 0.9891820733333335
+    },
     "karaoke-10": {
       "gate": true,
       "pass": true,
-      "ssim_all": 0.9917533555555557,
-      "ssim_text": 0.989859888888889
+      "ssim_all": 0.9917885111111109,
+      "ssim_text": 0.9908964666666665
     },
     "karaoke-40": {
       "gate": true,
       "pass": true,
-      "ssim_all": 0.9911160521739127,
-      "ssim_text": 0.987663582608696
+      "ssim_all": 0.9911719652173913,
+      "ssim_text": 0.9885036869565218
     },
     "karaoke-90": {
       "gate": true,
       "pass": true,
-      "ssim_all": 0.9907587605633813,
-      "ssim_text": 0.9880426572769954
+      "ssim_all": 0.9908337793427233,
+      "ssim_text": 0.9888117746478878
+    },
+    "karaoke-blur-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911091391304346,
+      "ssim_text": 0.9903618869565219
+    },
+    "karaoke-fade-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911135478260867,
+      "ssim_text": 0.9876436260869565
+    },
+    "karaoke-kunci-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9908377391304349,
+      "ssim_text": 0.9897818347826091
+    },
+    "karaoke-pop-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911115565217391,
+      "ssim_text": 0.9881886782608696
     },
     "pcolor": {
       "gate": false,
       "pass": true,
       "ssim_all": 0.9974037111111115,
       "ssim_text": 0.9899951555555554
+    },
+    "sinar-10": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9918422222222221,
+      "ssim_text": 0.9941041777777777
+    },
+    "sinar-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9914274956521738,
+      "ssim_text": 0.9937085826086957
+    },
+    "sinar-90": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9912729483568077,
+      "ssim_text": 0.9931015774647893
+    },
+    "sinar-blur-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9914224956521742,
+      "ssim_text": 0.9937902000000001
+    },
+    "sinar-fade-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9914207739130436,
+      "ssim_text": 0.9937453739130435
+    },
+    "sinar-kunci-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9913285999999997,
+      "ssim_text": 0.9932395043478259
+    },
+    "sinar-pop-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9914002347826085,
+      "ssim_text": 0.9936514782608694
+    },
+    "sorot-10": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9916244444444442,
+      "ssim_text": 0.9874399555555556
+    },
+    "sorot-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911459999999997,
+      "ssim_text": 0.9878541826086956
+    },
+    "sorot-90": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9910113615023473,
+      "ssim_text": 0.9866580798122064
+    },
+    "sorot-blur-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911918956521738,
+      "ssim_text": 0.9908288347826091
+    },
+    "sorot-fade-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911712521739131,
+      "ssim_text": 0.988162521739131
+    },
+    "sorot-pop-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911584000000002,
+      "ssim_text": 0.988265469565218
+    },
+    "watermark-bottom_right": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9918238000000001,
+      "ssim_text": 0.9948510333333331
+    },
+    "watermark-middle_left": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9919754333333332,
+      "ssim_text": 0.9865620333333338
+    },
+    "watermark-top_center": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9919194,
+      "ssim_text": 0.9957584
     }
   },
   "domain": "yuv444p",
   "failures": [],
   "format": "gbrp",
   "gate": "P-ENC",
-  "mean_ssim_all": 0.9910456692126911,
-  "mean_ssim_text": 0.9899302144535841,
+  "mean_ssim_all": 0.9911102140906615,
+  "mean_ssim_text": 0.9904426013107591,
   "min_ssim_all": 0.9901659733333332,
-  "min_ssim_text": 0.9868170333333334,
+  "min_ssim_text": 0.9864051333333335,
   "pass": true,
   "stamp": {
-    "commit": "56b33430f770ba637287ca66ef62d6254f9287ec",
+    "commit": "e635d5d68fda967dc2fbd2acd7e4fd4c4d7ac00b",
     "jassub": {
       "integrity": "sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==",
       "version": "2.5.16"
     },
-    "run": "36899253661",
+    "run": "40102817012",
     "schema": "potongin.evidence-stamp/1",
-    "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+    "toolchain_sha256": "e3cce632fb3dc73fc68f58496f7bc0e981ccfdeff6d7182650f34a1768025fd8"
   },
   "thresholds": {
     "ssim_all": 0.99,

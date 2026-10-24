@@ -6,11 +6,11 @@ cell once: opening a clip builds its cells again under the new key, and the old 
 until the janitor drops them (30 days unused, or the job's 1 GiB preview cap).
 
 On the synthetic ``main`` job of ``scripts/editor_fixture/make_job.py`` (rendered with the
-edit-v2 compiler), every clip's plate cells for its whole seed document are encoded once with
-this image's FFmpeg and written under the plate key of the old toolchain (``--old-base``) and
-of the toolchain this ``Dockerfile`` pins. A cell's bytes do not depend on the key: the six
-rendering packages and the Debian snapshot are the same on both sides, only ``base_image``
-changes. Numbers only go to ``--out``.
+edit-v2 compiler), every clip's plate cells for its whole seed document are encoded with this
+image's FFmpeg under the plate key of the old toolchain (``--old-base``), then again under the
+key of the toolchain this ``Dockerfile`` pins. The six rendering packages and the Debian
+snapshot are the same on both sides, only ``base_image`` changes, so the report also says
+whether both sets have the same bytes. Numbers only go to ``--out``.
 
 Usage::
 
