@@ -236,6 +236,20 @@ def test_the_test_split_runs_once_and_only_on_purpose(harness, tmp_path):
         harness.check_test_lock(lock, confirm=True)
 
 
+def test_the_label_page_lists_the_fetched_windows(harness, tmp_path):
+    windows = [_window(id="rf-01"), _window(id="rf-02", source_id="s2")]
+    (tmp_path / "windows").mkdir()
+    info = {"id": "rf-01", "fps": [30, 1], "window_sf": [1800, 5400], "frames": 3600}
+    (tmp_path / "windows" / "rf-01.json").write_text(json.dumps(info), encoding="utf-8")
+    page = harness.label_page(windows[:1], "test", tmp_path)
+    assert '"id": "rf-01"' in page and "rf-02" not in page
+    assert (tmp_path / "windows" / "rf-01.mp4").resolve().as_uri() in page
+    assert harness.LABELS_SCHEMA in page
+    assert "<\\/" not in page.split("const DATA = ", 1)[0]
+    with pytest.raises(FileNotFoundError):
+        harness.label_page(windows, "test", tmp_path)
+
+
 # --- the committed set ---------------------------------------------------------------------------
 
 
