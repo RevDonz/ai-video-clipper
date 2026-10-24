@@ -233,6 +233,26 @@ def agreement(window: Sequence[int], predicted: tuple[Sequence[int], Sequence[st
     return same, window[1] - window[0]
 
 
+def today_modes(no_face_ms: Sequence[Sequence[int]], fps: Sequence[int], window_sf: Sequence[int]
+                ) -> tuple[list[int], list[str]]:
+    """Today's camera mode as ``(cuts_sf, modes)``: ``camera``, with the plan's ``no_face``
+    spans (ms from the window start) centred, since the seed writes ``no_face: "center"``
+    (§5.40). A span covers the frames ``layouts.no_face_frames`` gives it."""
+    num, den = fps
+    first, end = window_sf
+    scale = 1000 * den
+    spans = [(s * num, e * num) for s, e in no_face_ms]
+    centred = [any(k * scale < e and (k + 1) * scale > s for s, e in spans)
+               for k in range(end - first)]
+    cuts: list[int] = []
+    modes = ["fill_center" if centred and centred[0] else "camera"]
+    for k in range(1, len(centred)):
+        if centred[k] != centred[k - 1]:
+            cuts.append(first + k)
+            modes.append("fill_center" if centred[k] else "camera")
+    return cuts, modes
+
+
 # --- labels and the registry ---------------------------------------------------------------------
 
 _LABEL_KEYS = {"id", "fps", "window_sf", "cuts_sf", "modes", "note"}
@@ -616,6 +636,16 @@ def contact_sheets(path: Path, info: Mapping[str, Any], out: Path, *, with_candi
     return {"candidates": len(found), "sheets": sheets}
 
 
+# The page's export, kept apart so a test can run it in Node: a window the labeller did not
+# mark done goes out unlabelled (null), which check_labels refuses outside a placeholder file.
+EXPORT_JS = """function exportLabels(data, state) {
+  return {schema: data.schema, split: data.split, labelled_by: "owner", windows: data.windows.map(w => {
+    const s = state[w.id], done = Boolean(s && s.done);
+    return {id: w.id, fps: w.fps, window_sf: w.window_sf,
+      cuts_sf: done ? s.cuts.map(k => w.window_sf[0] + k) : null, modes: done ? s.modes : null};
+  })};
+}"""
+
 _PAGE = """<!doctype html>
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Label reframe</title>
@@ -634,9 +664,11 @@ table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--li
 padding:6px;text-align:left}code{color:var(--accent)}
 </style></head><body><main>
 <h1>Label reframe</h1>
-<p>Pilih jendela, tandai frame pertama tiap shot baru, lalu pilih mode tiap shot.
+<p>Pilih jendela, tandai frame pertama tiap shot baru, pilih mode tiap shot, lalu centang
+Selesai. Jendela yang belum dicentang diunduh tanpa label.
 Tombol: ← → 1 frame, Shift 10 frame, C tandai cut.</p>
 <div class="row"><select id="pick" aria-label="Jendela"></select>
+<label><input type="checkbox" id="done"> Selesai</label>
 <span id="where" aria-live="polite"></span></div>
 <video id="video" controls preload="auto"></video>
 <div class="row"><button id="back">← 1 frame</button><button id="next">1 frame →</button>
@@ -647,6 +679,7 @@ Tombol: ← → 1 frame, Shift 10 frame, C tandai cut.</p>
 <span id="status" aria-live="polite"></span></div>
 </main><script>
 const DATA = __DATA__;
+__EXPORT__
 const MODES = ["camera","fill_center","fit_blur","split"];
 const KEY = "reframe-labels-" + DATA.split;
 let state = {};
@@ -654,10 +687,12 @@ try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { state
 const video = document.getElementById("video"), pick = document.getElementById("pick");
 let current = null;
 for (const w of DATA.windows) {
-  const o = document.createElement("option"); o.value = w.id; o.textContent = w.id + " · " + w.category;
-  pick.append(o);
-  if (!state[w.id]) state[w.id] = {cuts: [], modes: ["camera"]};
+  const o = document.createElement("option"); o.value = w.id; pick.append(o);
+  if (!state[w.id]) state[w.id] = {cuts: [], modes: ["camera"], done: false};
 }
+const done = document.getElementById("done");
+function names() { for (const o of pick.options) { const w = DATA.windows.find(x => x.id === o.value);
+  o.textContent = (state[w.id].done ? "✓ " : "") + w.id + " · " + w.category; } }
 function win() { return DATA.windows.find(w => w.id === pick.value); }
 function frame() { const w = win(); return Math.floor(video.currentTime * w.fps[0] / w.fps[1] + 1e-3); }
 function seek(k) { const w = win(); k = Math.max(0, Math.min(w.frames - 1, k));
@@ -687,14 +722,15 @@ function mark() {
   const i = s.cuts.filter(c => c < k).length;
   s.cuts.splice(i, 0, k); s.modes.splice(i + 1, 0, s.modes[i]); keep(); draw();
 }
-function show() { const w = win(); video.src = w.src; draw(); }
+function show() { const w = win(); video.src = w.src; done.checked = Boolean(state[w.id].done); draw(); }
+done.onchange = () => { state[win().id].done = done.checked; keep(); names(); };
 video.addEventListener("timeupdate", () => { const w = win(), k = frame();
   document.getElementById("where").textContent = "frame " + k + " · sf " + (w.window_sf[0] + k); });
 document.getElementById("back").onclick = () => seek(frame() - 1);
 document.getElementById("next").onclick = () => seek(frame() + 1);
 document.getElementById("cut").onclick = mark;
 document.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "SELECT") return;
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
   const step = e.shiftKey ? 10 : 1;
   if (e.key === "ArrowLeft") { e.preventDefault(); seek(frame() - step); }
   if (e.key === "ArrowRight") { e.preventDefault(); seek(frame() + step); }
@@ -702,15 +738,15 @@ document.addEventListener("keydown", (e) => {
 });
 pick.onchange = show;
 document.getElementById("save").onclick = () => {
-  const out = {schema: DATA.schema, split: DATA.split, labelled_by: "owner", windows: DATA.windows.map(w => ({
-    id: w.id, fps: w.fps, window_sf: w.window_sf,
-    cuts_sf: state[w.id].cuts.map(k => w.window_sf[0] + k), modes: state[w.id].modes}))};
+  const out = exportLabels(DATA, state);
+  const left = out.windows.filter(w => w.cuts_sf === null).length;
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1) + "\\n"], {type: "application/json"}));
   a.download = "labels." + DATA.split + ".json"; a.click();
-  document.getElementById("status").textContent = "Tersimpan ke unduhan.";
+  document.getElementById("status").textContent = left
+    ? "Tersimpan ke unduhan. " + left + " jendela belum selesai." : "Tersimpan ke unduhan. Semua selesai.";
 };
-show();
+names(); show();
 </script></body></html>
 """
 
@@ -724,7 +760,7 @@ def label_page(selected: Sequence[Mapping[str, Any]], split: str, cache: Path) -
                         "window_sf": info["window_sf"], "frames": info["frames"],
                         "src": window_path(cache, window).resolve().as_uri()})
     data = json.dumps({"schema": LABELS_SCHEMA, "split": split, "windows": windows})
-    return _PAGE.replace("__DATA__", data.replace("</", "<\\/"))
+    return _PAGE.replace("__EXPORT__", EXPORT_JS).replace("__DATA__", data.replace("</", "<\\/"))
 
 
 # --- measuring today's camera mode ---------------------------------------------------------------
@@ -772,7 +808,8 @@ def predict_today(path: Path, info: Mapping[str, Any]) -> dict[str, Any]:
 
 def score_today(prediction: Mapping[str, Any], label: Mapping[str, Any]) -> dict[str, Any]:
     """One window's row: cut matches within one grid frame and within one camera sample, and
-    the frames that today's single mode (``camera``, or the default ``fit_blur``) gets right."""
+    the frames that one mode everywhere (``camera``, or the default ``fit_blur``) gets right,
+    and those today's camera mode gets right (``camera`` with ``no_face`` runs centred)."""
     if (list(prediction["window_sf"]) != list(label["window_sf"])
             or list(prediction["fps"]) != list(label["fps"])):
         raise LabelError(f"{label['id']}: the measured window is not the labelled one")
@@ -789,6 +826,8 @@ def score_today(prediction: Mapping[str, Any], label: Mapping[str, Any]) -> dict
     labelled = (truth, label["modes"])
     for mode in ("camera", "fit_blur"):
         row[f"agreement_{mode}"] = agreement(window, ([], [mode]), labelled)[0]
+    row["agreement_today"] = agreement(
+        window, today_modes(prediction["no_face_ms"], label["fps"], window), labelled)[0]
     row["label_frames"] = {mode: agreement(window, ([], [mode]), labelled)[0] for mode in MODES}
     return row
 
@@ -799,14 +838,32 @@ def summarise(rows: Sequence[Mapping[str, Any]], categories: Mapping[str, str]) 
         return {**{k: round(v, 4) for k, v in cut_scores(tp, fp, fn).items()},
                 "tp": tp, "fp": fp, "fn": fn}
 
+    def per_window(subset: Sequence[Mapping[str, Any]], name: str) -> dict[str, Any]:
+        """Mean precision over windows with a found cut, mean recall over windows with a
+        labelled cut: one window with many cuts cannot carry the pooled score alone."""
+        precision = [r[name]["frame"][0] / (r[name]["frame"][0] + r[name]["frame"][1])
+                     for r in subset if r[name]["frame"][0] + r[name]["frame"][1]]
+        recall = [r[name]["frame"][0] / r["cuts"] for r in subset if r["cuts"]]
+        return {"precision": round(sum(precision) / len(precision), 4) if precision else None,
+                "recall": round(sum(recall) / len(recall), 4) if recall else None,
+                "windows_with_cuts": len(recall)}
+
     def block(subset: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         frames = sum(r["frames"] for r in subset)
+        cuts = sum(r["cuts"] for r in subset)
+        top = max(subset, key=lambda r: r["cuts"], default=None)
         return {
-            "windows": len(subset), "cuts": sum(r["cuts"] for r in subset),
+            "windows": len(subset), "cuts": cuts,
+            "most_cuts": {"id": top["id"], "cuts": top["cuts"],
+                          "share": round(top["cuts"] / cuts, 4)} if top and cuts else None,
             "camera_plan_cuts": scores(subset, "camera_plan_cuts", "frame"),
             "camera_plan_cuts_within_sample": scores(subset, "camera_plan_cuts", "sample"),
+            "camera_plan_cuts_per_window": per_window(subset, "camera_plan_cuts"),
             "scene_cuts": scores(subset, "scene_cuts", "frame"),
             "scene_cuts_within_sample": scores(subset, "scene_cuts", "sample"),
+            "scene_cuts_per_window": per_window(subset, "scene_cuts"),
+            "agreement_today": round(sum(r["agreement_today"] for r in subset) / frames, 4)
+            if frames else None,
             "agreement_camera": round(sum(r["agreement_camera"] for r in subset) / frames, 4)
             if frames else None,
             "agreement_fit_blur": round(sum(r["agreement_fit_blur"] for r in subset) / frames, 4)
