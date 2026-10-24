@@ -75,7 +75,7 @@ Kalau ragu antara `camera` dan `fill_center`, pilih `camera`.
 ## Metrik
 
 - **Cut:** presisi, recall dan F1 dengan toleransi ±1 frame grid. Pasangan cut prediksi–label dibuat
-  satu-satu (pasangan terdekat dulu); cut tanpa pasangan dihitung salah. Dijumlahkan di semua
+  satu-satu dengan jumlah pasangan terbanyak; cut tanpa pasangan dihitung salah. Dijumlahkan di semua
   jendela split sebelum dibagi.
 - **Agreement mode:** porsi frame jendela yang modenya sama dengan label, dijumlahkan di semua
   jendela.
