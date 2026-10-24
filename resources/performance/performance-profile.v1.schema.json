@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "performance-profile.v1",
+  "title": "Snapshot profil performa v1 (<job>/analysis/performance-profile.json)",
+  "description": "Ditulis primary-worker (preparePerformanceProfile), dibaca engine lewat --performance-profile. Tanpa id pengguna, id posting, URL, atau angka mentah. Nilai boost = round2, > 0, <= capPerDimension rules.v1. Rincian: docs/operations/PERFORMA.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "rulesId", "horizon", "posts", "boosts"],
+  "properties": {
+    "version": { "type": "string", "const": "performance-profile-v1" },
+    "rulesId": { "type": "string", "const": "rules.v1" },
+    "horizon": { "type": "string", "enum": ["1d", "7d", "30d"] },
+    "posts": { "type": "integer", "minimum": 20 },
+    "boosts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archetype", "durationBucket", "hookForm"],
+      "properties": {
+        "archetype": {
+          "type": "object",
+          "propertyNames": {
+            "enum": ["curiosity_gap", "controversial_claim", "confession", "insider_secret", "story_twist",
+                     "number_proof", "conflict", "humor", "relatable_pain", "emotional", "practical_tip", "other"]
+          },
+          "additionalProperties": { "type": "number", "exclusiveMinimum": 0, "maximum": 0.2 }
+        },
+        "durationBucket": {
+          "type": "object",
+          "propertyNames": { "enum": ["0-20", "20-30", "30-45", "45-60", "60+"] },
+          "additionalProperties": { "type": "number", "exclusiveMinimum": 0, "maximum": 0.2 }
+        },
+        "hookForm": {
+          "type": "object",
+          "propertyNames": { "enum": ["none", "question", "number", "quote", "statement"] },
+          "additionalProperties": { "type": "number", "exclusiveMinimum": 0, "maximum": 0.2 }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": "performance-profile-v1",
+      "rulesId": "rules.v1",
+      "horizon": "7d",
+      "posts": 34,
+      "boosts": {
+        "archetype": { "humor": 0.2, "practical_tip": 0.08 },
+        "durationBucket": { "20-30": 0.12 },
+        "hookForm": { "question": 0.05 }
+      }
+    },
+    {
+      "version": "performance-profile-v1",
+      "rulesId": "rules.v1",
+      "horizon": "7d",
+      "posts": 20,
+      "boosts": { "archetype": {}, "durationBucket": {}, "hookForm": {} }
+    }
+  ]
+}
