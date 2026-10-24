@@ -1,0 +1,18 @@
+{
+  "registryId": "post-registry.v1",
+  "rulesId": "rules.v1",
+  "providers": ["youtube", "tiktok", "instagram"],
+  "postOrigins": ["publish", "csv", "manual", "agent"],
+  "clipKinds": ["pipeline", "derived"],
+  "editClasses": ["none", "light", "far", "unknown"],
+  "excludedReasons": ["edited_far", "derived", "manual_exclude"],
+  "postErrorCodes": ["social_processing_rejected", "social_remote_missing"],
+  "snapshotSources": ["api", "csv", "manual", "agent"],
+  "horizons": ["1d", "7d", "30d"],
+  "horizonQualities": ["exact", "interpolated", "missing"],
+  "selectionKeys": {
+    "keys": ["rulesId", "archetype", "durationBucket", "hookForm"],
+    "maxBytes": 1024
+  },
+  "uniqueExternal": ["owner_id", "provider", "external_id"]
+}
