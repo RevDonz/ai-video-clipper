@@ -23,6 +23,22 @@ Harness: `scripts/eval/auto_reframe.py`. Sumber dan jendela: `docs/evaluation/TR
 - **Test split dikunci.** Hanya dijalankan sekali, di RF-M4. Harness menolak menjalankannya tanpa
   `--confirm-once` dan menolak kalau `docs/evaluation/auto-reframe/test-run.json` sudah ada.
 
+### Set yang tercapai (2026-10-24)
+
+- Semua sumber dari Wikimedia Commons, berlisensi CC BY 3.0/4.0, CC0, atau domain publik
+  (karya pemerintah AS: NASA, VOA, Gedung Putih, HHS, Marinir AS). Lisensi dicek dari templat
+  lisensi di halaman berkas Commons. 15 sumber masih berstatus "license review needed" di
+  Commons (lisensi diklaim pengunggah, belum dicek peninjau Commons); kolom
+  `commons_license_review` di registry mencatatnya.
+- 51 kandidat dicari, 7 kandidat terpanjang yang berlebih per kategori dibuang sebelum diunduh.
+  Dari 44 sisanya, lembar ringkas (satu ubin per detik) dilihat sebelum split: 2 jendela dibuang
+  karena isinya satu gambar diam tanpa orang (`rf-18`, `rf-22`), 4 jendela pindah kategori
+  (`rf-25` → gameplay/b-roll, `rf-27` dan `rf-35` → satu pembicara, `rf-33` → layar).
+- **42 jendela**: 12 satu pembicara, 8 podcast dua orang, 6 panel, 8 layar/slide, 8
+  gameplay/b-roll. Target 10/10/8/6/6 tidak tercapai untuk podcast dua orang dan panel: sumber dua
+  orang dan panel yang berlisensi terbuka dan bisa diunduh lebih sedikit.
+- Split seed `20261024`: dev 21, test 21 (per kategori 6/6, 4/4, 3/3, 4/4, 4/4).
+
 ## Label
 
 Satu entri per jendela:
@@ -49,6 +65,13 @@ Satu entri per jendela:
 | Kilat, lampu blitz, satu-dua frame putih | bukan cut |
 | Grafis, teks, logo, lower third yang muncul di atas gambar yang sama | bukan cut |
 | Kamera menggeser, zoom, atau objek lewat di depan kamera | bukan cut |
+| Rekaman layar: pindah halaman, dialog, menu, gulir di aplikasi yang sama | bukan cut |
+| Ganti slide penuh (gambar lama diganti seluruhnya) | cut |
+| Kotak webcam kecil muncul atau hilang di atas slide | bukan cut (overlay) |
+| Sudut sama, cahaya berubah tiba-tiba dan bertahan | cut |
+| Animasi datar: elemen bergerak di komposisi yang sama | bukan cut; ganti komposisi utuh = cut |
+
+Lima baris terakhir ditambahkan 2026-10-25 saat melabeli dev, sebelum ada label test.
 
 ### Mode yang benar per shot
 
@@ -120,7 +143,36 @@ evidence tambahan, lalu dibuat test split **baru** dari jendela baru. Semua itu 
 
 ## Baseline hari ini (dev split)
 
-Belum dijalankan. Diisi dari run CI setelah label dev selesai.
+Prediksi diukur di GitHub Actions tanpa membaca label (`--predict`, run
+[40116487099](https://github.com/RevDonz/ai-video-clipper/actions/runs/40116487099), image produksi,
+OpenCV 4.14.0), lalu dinilai dengan label dev (`--score`). Hasil lengkap:
+`docs/evaluation/auto-reframe/baseline-dev-2026-10-25.json`.
+
+Mode hari ini = Ikuti wajah di semua frame. Sumber cut hari ini: flag cut camera plan (sampel
+0,75 detik) dan potongan adegan FFmpeg pipeline (`scene > 0,3`).
+
+| Ukuran (21 jendela, 95 cut) | Hasil |
+|---|---|
+| Cut camera plan, ±1 frame | P 0,051 · R 0,074 · F1 0,060 |
+| Cut camera plan, ±1 sampel (±0,75 detik) | P 0,377 · R 0,547 |
+| Potongan adegan FFmpeg, ±1 frame | P 0,981 · R 0,547 · F1 0,703 |
+| Agreement mode, Ikuti wajah di semua frame | 21,0% |
+| Agreement mode, Latar blur di semua frame (default Buat klip) | 63,1% |
+| Porsi frame label | camera 21,0% · fill_center 10,5% · fit_blur 63,1% · split 5,3% |
+| Waktu camera plan per jendela 120 detik (CI) | rata-rata 3,75 detik, maks 5,16 detik |
+
+Per kategori, recall potongan adegan FFmpeg: satu pembicara 0,10 (wipe dan fade tidak terdeteksi),
+dua orang 1,00, panel 1,00, layar 0 (3 cut slide terlewat, 1 dialog salah dihitung), gameplay/b-roll
+0,63. Agreement Ikuti wajah tertinggi di satu pembicara (58,2%) dan 0% di layar.
+
+Artinya untuk RF-M1: flag cut camera plan tidak bisa jadi batas shot (resolusinya satu sampel),
+potongan adegan FFmpeg presisinya sudah tinggi tapi recall-nya jauh di bawah gerbang 0,90.
+
+Batasan label dev: kandidat cut diambil dari dua ukuran perbedaan gambar, jadi cut yang tidak
+mengubah gambar secara mencolok bisa terlewat oleh kandidat dan oleh pelabel; ubin per detik dipakai
+untuk menutup celah itu. `rf-49` (game showcase dengan banyak menu kabur) adalah label paling tidak
+pasti. `rf-17` berisi satu gambar sampul diam; jendela ini terlewat saat penyaringan sebelum split
+dan tetap dipakai (label `fit_blur`) supaya split tidak berubah setelah lembar dev dilihat.
 
 ## Menjalankan
 
@@ -131,8 +183,9 @@ uv run python scripts/eval/auto_reframe.py --fetch --split dev --cache ~/.cache/
 uv run python scripts/eval/auto_reframe.py --sheets --split dev --cache ~/.cache/potongin-reframe --out lembar/
 # halaman bantu label (pemilik, test split)
 uv run python scripts/eval/auto_reframe.py --label --split test --cache ~/.cache/potongin-reframe --out label-test.html
-# baseline camera hari ini di dev split
-uv run python scripts/eval/auto_reframe.py --split dev --cache ~/.cache/potongin-reframe --out hasil.json
+# baseline camera hari ini di dev split: ukur (tanpa label), lalu nilai
+uv run python scripts/eval/auto_reframe.py --predict --split dev --cache ~/.cache/potongin-reframe --out prediksi.json
+uv run python scripts/eval/auto_reframe.py --score prediksi.json --split dev --cache ~/.cache/potongin-reframe --out hasil.json
 ```
 
 Di GitHub Actions: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=command -f
