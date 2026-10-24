@@ -24,6 +24,10 @@
     "after_reopen": 3830964,
     "after_janitor": 1915482
   },
+  "janitor": {
+    "cache_files": 57,
+    "cache_bytes": 1915482
+  },
   "clips": [
     {
       "side": "old",
