@@ -11,6 +11,7 @@ import dataclasses
 import importlib
 import inspect
 import json
+import re
 import sys
 import unicodedata
 from pathlib import Path
@@ -532,6 +533,15 @@ def test_contracts_document_lists_every_frozen_name():
         assert f"class {name}" in text, name
     for heading in ("Appendix A", "§3", "§4.2", "§4.3", "T1.0 resolutions"):
         assert heading in text
+
+
+def test_contracts_part5_sections_are_numbered_in_order():
+    # Other plans cite Part 5 by number (§5.59–§5.65 are allocated by the 2026-10-24 plan), so a
+    # gap, a duplicate or a renumbered section breaks those references.
+    text = CONTRACTS.read_text(encoding="utf-8")
+    numbers = [int(match) for match in re.findall(r"^## 5\.(\d+) ", text, flags=re.MULTILINE)]
+    assert numbers == list(range(1, len(numbers) + 1))
+    assert len(numbers) >= 65
 
 
 # --- document fixtures -----------------------------------------------------------------------
