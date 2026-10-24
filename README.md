@@ -40,7 +40,7 @@ app needs HTTPS. The trend endpoint for the owner's agent checks its own `ptk_` 
 ## Run locally
 
 Requirements: Linux or macOS with `ffmpeg` and `ffprobe` on `PATH`, Python 3.11+, `uv` and
-Node.js 20. The first transcription downloads a faster-whisper model. No API key is needed:
+Node.js 24. The first transcription downloads a faster-whisper model. No API key is needed:
 without LLM keys the local heuristic picks the moments.
 
 ```bash
