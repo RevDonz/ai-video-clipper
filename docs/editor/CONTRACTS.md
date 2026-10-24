@@ -4359,3 +4359,731 @@ the seed on disk carries the trims, `output_seconds`, `_no_face_ms`), `tests/tes
 (the switch reaches `AutoOptions`, the manifest length), `web/tests/editor-cleanup.test.mjs`
 (`ApplyCleanup` of the same items gives exactly the committed removals; Rapikan counts them
 applied; RestoreRemoval), `web/tests/editor-w3-wiring.test.mjs` (compose and `.env.example`).
+
+## 5.59 Multi-user: job owner and fair queues (2026-10-24, waits for the owner)
+
+The 2026-10-24 overhaul plan `docs/plans/2026-10-24-rombak/` ("rombak"; on the branch
+`docs/rombak-spec` until it lands on `main`) allocates §5.59–§5.65 in its Fase 0 contract PR;
+§5.66–§5.69 are allocated later by its Fase 10 contract PR (rombak 06 §11.1). These sections are
+**contracts only**: none of the code they name exists yet. Each is binding on the PR that builds
+it; where a section and its owner document in the plan differ, the owner document wins and this
+file is corrected in the same PR. Names are Potongin's own (clean-room, rombak 09 §1).
+
+Owner: rombak 01 §1.3–§1.4 and §6 (fields, deviation), 02 §7.3–§7.4 and §10 (ownership, fairness).
+Built in Fase 4–6 (MU-M1 … MU-M9). DDL: rombak 01 §4.1 only.
+
+**Waits for the owner.** The fairness key lives in `job.json`, not in the render request as the
+roadmap (§2.2-C) wrote: render-request-v3 is checked as an exact key set on both sides
+(`set(value) != _V3_FIELDS`, `src/ai_clipper/render_queue.py:548`; `KEYS`,
+`web/lib/clip-renders.mjs:57`), so a new request key would make a rollback image refuse every new
+request. This deviation (rombak 01 §6.2, §12 item 1; 00 §11 #1) needs the owner's approval before
+this contract is merged.
+
+### `job.json` (additive; `queue.version` stays 1)
+
+| Field | Shape | Written by | Rule |
+|---|---|---|---|
+| `ownerId` | UUID v4 (`users.id`) | `POST /api/jobs`, `failedAdmissionRecord` (owner from a v3 reservation; a v2 reservation writes no owner), an ingest agent that creates a job | Set at creation; changed only by an admin transfer under the queue lock (audit `job.transferred`) |
+| `fairnessKey` | `^fk1_[0-9a-f]{16}$` | the same writers, and the transfer | `"fk1_" + hex(HMAC-SHA256(K_fair, ownerId))[0:16]`, `K_fair = HKDF-SHA256(POTONGIN_SETTINGS_SECRET, salt "potongin", info "fairness-v1")` |
+| `queue.firstClaimedAt` | ISO UTC ms | `web/lib/primary-job-queue.mjs` | Written on the first claim, kept until a terminal status; an old image drops it when it rewrites `queue` (fairness only, never correctness) |
+| `limits.maxSourceSeconds` | integer > 0 | `POST /api/jobs` (Fase 6) | The owner's effective source limit at creation (rombak 02 §11.2); a job without it uses the global env |
+
+- No `job.json` is rewritten at boot. `effectiveOwnerId(job, bootstrapOwnerId)`
+  (`web/lib/job-ownership.mjs`) = `job.ownerId` when it is a UUID string, else the bootstrap
+  owner (`meta.bootstrap_owner_id`). The optional `web/scripts/multiuser-migrate.mjs
+  --dry-run|--apply` fills both fields for terminal jobs under the queue lock.
+- `serializePublicJob` (`web/lib/jobs.mjs`) drops `ownerId` and `fairnessKey` from every answer.
+- Python never reads `ownerId`, never opens the DB and never computes the HMAC; it sees only the
+  opaque `fairnessKey` and cache paths built from it (§5.64).
+
+### Ownership on the routes
+
+- `readOwnedJob(jobsRoot, id, principal)` throws `JobOwnershipNotFound` for a bad id, a missing or
+  unreadable `job.json` (`O_NOFOLLOW`, regular file) and a job whose effective owner is not the
+  principal. Admins are not excepted: an admin acts on other people's jobs only through the
+  audited transfer, delete and cancel routes (rombak 02 §9.5).
+- "Missing" and "someone else's" answer one identical 404: status, body byte for byte and every
+  header but `date`, with no Python spawned (rombak 02 §0 rule 1, §7.4). Each route keeps the
+  404 builder it uses today and gains `code`/`messageId` additively (§5.65); new routes use the
+  presets `job`, `edit` and `web` of rombak 02 §7.4.
+- Lists are filtered by owner: `GET /api/jobs`, `GET /api/clips`, the member storage status and
+  `listJobClips`.
+
+### Primary queue (`claimNextJob({…, policy})`)
+
+The queue module stays DB-free; the policy is injected. No policy = today's FIFO by `createdAt`.
+The multi-user primary-worker passes the fair policy (rombak 02 §10.3): drop jobs whose owner is
+disabled (held `owner_disabled`) and owners already at `max_running_jobs`; per owner
+`lastServedAt` = the latest `queue.firstClaimedAt` among its non-terminal jobs (none = −∞); the
+owner with the smallest value goes first (ties: the oldest job), FIFO within the owner.
+`GET /api/jobs/[id]` adds `queue.position` (1-based, by the fair policy) and `queue.etaSeconds`
+(`null` below 5 finished samples).
+
+Admission reservations `.primary-reservations/<id>.json` gain `version: 3` =
+`RESERVATION_V2_KEYS + ["ownerId"]` in two releases: R1 reads v1, v2 and v3 and still writes v2;
+R2 writes v3. A rollback to before R1 is forbidden while a v3 reservation is alive (at most
+`RESERVATION_STALE_MS`, 60 minutes).
+
+### Render-worker (`src/ai_clipper/render_worker.py run_one`)
+
+Today `run_one` takes the first job by name (`_job_directories`). It becomes:
+
+```
+candidates = jobs that have analysis/render-requests/ (the check run_one makes today)
+key(job)   = job.json fairnessKey when it matches ^fk1_[0-9a-f]{16}$, else "legacy"
+             (job.json read with a 2 MiB bound, as render_queue.py reads it; any read error → "legacy")
+pick the key with the smallest last_served[key] (never served = 0; ties → key order);
+within a key: job-name order, claim_next(job) as today; None → next job, then next key
+last_served[key] = time.monotonic() on a successful claim (in memory; a restart resets it)
+```
+
+The render request file and its protocol do not change.
+
+### Isolation
+
+- Only `app`, `primary-worker` and `social-worker` mount `/control` and receive
+  `POTONGIN_DB_PATH`; the render-worker and `pot-provider` get neither (rombak 01 §1.3). Checked
+  on `compose.yaml` mounts and env by `web/tests/deploy-env-contract.test.mjs`.
+- Child processes (`run-job.mjs`, `python-cli.mjs`, `editor-ai.mjs`, `clip-text-api.mjs`) never
+  receive `POTONGIN_DB_PATH`, `POTONGIN_SETTINGS_SECRET`, `APP_SESSION_SECRET` or `NODE_OPTIONS`
+  (`web/tests/security-child-env.test.mjs`, extended).
+- Python in the `app` and `primary-worker` containers can physically see `/control`. The guarantee
+  is the env rule above plus a static check, `tests/test_control_plane_isolation.py`: no
+  `import sqlite3`, `"/control"`, `POTONGIN_DB_PATH` or `potongin.sqlite` under
+  `src/ai_clipper/`. It is not a mount boundary.
+- A module whose stderr a parent parses (`web/scripts/render-storage-admission.mjs`) never imports
+  `web/lib/db/*` (rombak 01 §8.3, `web/tests/sqlite-import-boundary.test.mjs`).
+
+### Rollback
+
+An image without multi-user ignores the DB, `ownerId`, `fairnessKey` and `queue.firstClaimedAt`;
+every job is visible to the `APP_*` login again. DB migrations are additive only (rombak 01 §3.2).
+
+### Gates
+
+`tests/test_render_worker_fairness.py` (A has 10 requests, B one later: the second claim is B; no
+key and a malformed key are `legacy`; name order within a key), `web/tests/job-ownership.test.mjs`
+(effective owner, serializer drops both fields, `fairnessKeyFor` vectors),
+`web/tests/primary-job-queue.test.mjs` (fair policy, v3 reservations both ways), the
+`ownership-matrix` and `route-guard-coverage` gates of rombak 02 §13.
+
+## 5.60 Posting to social platforms: publish runs (2026-10-24)
+
+Contract only; no code exists. Owner: rombak 03 §2–§12 (behaviour, states, API, error codes);
+DDL in rombak 01 §4.3 (`0003-social-base`) and §4.5 (`0005-posts`). Built in Fase 6 (SOS-M1, the
+tables and the worker, feature off) and Fase 8 (SOS-M2 … M6). UI words: **Terbitkan** (action),
+**Terbit** (state); screens rombak 05 §5, §6.5–§6.7.
+
+### Flag and process
+
+- `POTONGIN_SOCIAL` = `off` (default) | `admin` | `on` (app, social-worker). `off`, or `admin` for a
+  member: every `/api/social/**` route and `/api/jobs/:id/clips/:clipId/posts` answer the identical
+  404 of their family (§5.59), the nav entry is hidden, the worker only heartbeats; data stays.
+- Only `social-worker` (`web/scripts/social-worker.mjs`) uploads and refreshes tokens. `app` starts
+  OAuth, exchanges the code once in the callback, revokes on disconnect and reads the DB. No
+  network I/O inside a SQLite transaction: short claim/CAS, network, short CAS.
+- The worker mounts `/control` and only the `social` subpath of `clipper_data` (`/data/social`);
+  its env is an allowlist (`NODE_ENV`, `TZ`, `POTONGIN_DB_PATH`, `POTONGIN_SETTINGS_SECRET`,
+  `POTONGIN_SETTINGS_DIR`, `POTONGIN_PUBLIC_URL`, `POTONGIN_SOCIAL`, `SOCIAL_*`). It never
+  migrates; `requireSchema` retries for 60 s, then exits 78.
+- Two releases (rombak 03 §12.2): R0 ships the worker in the image without a compose service; R1
+  adds the service. An image older than R0 under an R1 compose runs `--scale social-worker=0`.
+
+### Tables (clean-room names)
+
+`social_connections` (one row per connected account; disconnect deletes the row),
+`oauth_pending` (state, PKCE verifier box, 10 minutes), `social_quota` (unit ledger per
+provider, bucket, window, purpose), `publish_runs` (one upload to one account), and `posts`
+(§5.61). Enum values are frozen JS constants in their owner modules (`RUN_STATES`, `RUN_HOLDS`,
+`CONNECTION_STATUSES` in `web/lib/social/store.mjs`), not SQL `CHECK … IN`.
+
+### Provider interface (`web/lib/social/providers/<id>.mjs`)
+
+One pure module per platform (`youtube`, `tiktok`, `instagram`), registered in `registry.mjs`;
+all I/O through an injected `http`, `now` injected, no DB. Members: `id`, `scopes`, `pkce`,
+`authorizeUrl`, `exchangeCode`, `refresh`, `revoke`, `describe`, `limits`, `validate` (pure, used
+by app and worker), `begin`, `send`, `finish`, `poll`, `reconcile`, `readPostStats`, `statsCost`,
+`statsBatch`. Every member throws a `SocialError {code, class, retryAfterMs?, detail?}` only. The
+JSDoc of rombak 03 §5.1 is the shape, pinned by `web/tests/social-provider-contract.test.mjs`.
+TikTok uses `FILE_UPLOAD` only; Instagram uses the resumable upload, with the public media URL
+(`GET /api/social/media/:token`) only as the fallback SOS-M0 allows. Platform numbers marked [V]
+in rombak 03 are working values until `docs/operations/SOSMED.md` cites the official source; the
+code constants follow SOSMED.md.
+
+### Run states (`publish_runs.state`)
+
+`scheduled` → `claimed` → `uploading` → `processing` → `published`, plus the terminal `failed`,
+`cancelled` and `maybe_sent`. The legal transitions are exactly T1–T12 of rombak 03 §6.1; each is
+one `UPDATE … WHERE id=? AND state IN (…) [AND fence=? AND lease_token=?]` checking
+`changes === 1`, anything else throws `IllegalTransition`. `hold` ∈ `reauth` | `quota` | `rate`.
+
+- Claim: one run per free slot (`SOCIAL_UPLOAD_CONCURRENCY`, 1–4, default 2), at most one
+  `claimed|uploading` run per connection, lease 120 s renewed every 30 s and after every chunk,
+  `fence + 1` per claim. A failed renewal stops work on that run at once. A run taken over from
+  an expired lease goes through `reconcile`, never `begin`.
+- `checkpoint_json` = `{phase: none|session|sent|committed, bytesSent, remoteId?, claimedAt,
+  limitsSeen?, cancelRequested?}`, written by CAS after every step and chunk. Upload session URLs
+  are never in it: they live sealed in `publish_runs.upload_box` (purpose `oauth-token`, AAD
+  `run:<runId>\0upload`) and are never sent to a client.
+- Classes: retryable (backoff 1, 5, 15, 60, 180 minutes ±20 %; the fifth failure is
+  `social_attempts_exhausted`), deferred (`attempts` unchanged, `hold` set, longer than 7 days
+  after `scheduled_at` → `social_deferred_too_long`), reauth (`hold='reauth'`; over 7 days →
+  `social_reauth_expired`), permanent, unknown outcome (`maybe_sent`, never retried by itself).
+- Exactly once: the remote id or session is stored before the first byte, `reconcile` runs before
+  any step is repeated, and `maybe_sent` is the answer when it cannot be sure. `begin` is never
+  called twice for a run whose checkpoint is `sent` or `committed`.
+
+### Idempotency, media, deletion
+
+- `POST /api/social/posts` requires `Idempotency-Key` (UUID v4). The same key with the same
+  canonical body (`request_sha256`) answers the existing runs (200); with another body 409
+  `social_idempotency_conflict`. Keys never expire.
+- The media is always a completed export: `media = {kind: "export", renderId}` (default: the
+  clip's newest completed export). No completed export → 409 `social_media_unavailable` with
+  `params.needsExport = true`; the drawer exports through the existing renders route and retries
+  with the same key. `app` pins the file at `/data/social/media/<runId>.mp4` (hard link; `EXDEV`
+  → copy + fsync), reads its duration from `moov/mvhd` in JS (no ffprobe in `app`). The worker
+  sweeps pins: 1 hour after `published`, `SOCIAL_PIN_KEEP_DAYS` (default 7) for `failed`,
+  `cancelled` and `maybe_sent`; only `<uuid>.mp4` names inside `realpath(/data/social/media)`.
+- Deleting a job calls `cancelRunsForJob(ownerId, jobId)` before `requestJobDeletion` (scheduled
+  runs → `cancelled`, running ones get `cancelRequested`); deleting a derived clip calls
+  `cancelRunsForClip`. Published `posts` stay.
+- Tokens are sealed per user (`sealing.mjs` v2, purpose `oauth-token`, rombak 02 §9.2) and never
+  appear in an answer, a log, an error, `job.json` or argv; `web/lib/social/redact.mjs` filters
+  them. A changed `POTONGIN_SETTINGS_SECRET` makes connections `reauth_required`.
+
+### API and errors
+
+Routes, bodies and the `Run` shape: rombak 03 §9.1 (`/api/social/providers`, `connect`,
+`callback`, `connections`, `posts`, `cancel`, `retry`, `mark-published`, `meta/deauthorize`,
+`meta/data-deletion`, `media/:token`; `/api/settings/social-apps` for the admin). Guards:
+`secureRoute` of rombak 02 §7.2, mutation rate limit 30/min per user. Error codes are the
+`social_*` list of rombak 03 §8, flat shape of §5.65 with `messageId = "social.<code>"`. A run's
+error is `{code, messageId, params?}` from `error_code` + `error_params_json`; `error_detail`
+(redacted platform text) never reaches a member.
+
+### Gates
+
+`web/tests/social-store.test.mjs` (T1–T12 and every illegal pair, claim, fence, lease),
+`social-provider-contract`, `social-scheduler`, `social-tokens`, `social-media`, `social-caps`,
+`social-redact`, `social-fake-origin-gate` (`SOCIAL_FAKE_ORIGIN` refused in a production-shaped
+env), `social-job-delete`, `social-routes`, `web/tests/social-crash-matrix.test.mjs` on
+`web/tests/support/fake-social-platform.mjs`, the `POTONGIN_SOCIAL=off` drill and
+`web/e2e/social-publish.spec.mjs` (rombak 03 §12.3, §16).
+
+## 5.61 Post registry and metric snapshots (2026-10-24)
+
+Contract only; no code exists. Owner: rombak 03 §4.2, §10.4–§10.6, §13.2–§13.3, §14; DDL in
+rombak 01 §4.5 (`posts`) and §4.7 (`metric_*`). Built in Fase 8 (SOS-M3a, the registry) and Fase 9
+(FB-M1 …, metrics).
+
+### The registry (`posts`, `web/lib/post-registry.mjs`)
+
+One row = one clip posted once to one platform account, shared by publishing (§5.60) and
+performance feedback (§5.62). `createPost` is the only writer.
+
+- `origin` ∈ `publish` | `csv` | `manual` | `agent` (`POST_ORIGINS`). A `publish` row is created
+  in the same transaction that makes its run `published` (or "Sudah terbit" from `maybe_sent`):
+  one run → at most one post (`post_id UNIQUE`). A failed run leaves no post; "Coba lagi" is a new
+  run. `agent` never creates a post, it only adds snapshots to an existing one.
+- `clip_kind` ∈ `pipeline` | `derived`. A derived clip is recognised from its `listJobClips` entry
+  (`entry.derived !== null`), never from the shape of its id; it is stored with
+  `selection_keys_json = NULL` and `excluded_reason = 'derived'`.
+- `selection_keys_json` = `selectionKeysFor(clip, rules)` (§5.62) from the engine's fields, not
+  the user's edited text; `NULL` when excluded. `excluded_reason` ∈ `derived` | `edited_far` |
+  `manual_exclude` | NULL.
+- `packaging_json` = `snapshotClipPackaging(job, clip, source)` at posting time (title, hook text,
+  description, hashtags, archetype, source span, layout); `posted_features_json` is for Analitik
+  only and never enters a profile.
+- `edit_class` ∈ `none` | `light` | `far` | `unknown` (`EDIT_CLASSES`), computed when posting by
+  a new owner-agnostic Python op `edit_distance` (`src/ai_clipper/edit_v2/edit_distance.py`,
+  stdlib; dispatched through `edit_v2.api`): `none` when the export was `completed_by='seed'` or
+  the document equals its seed; `far` when the kept source overlap with the seed is below
+  `editFarOverlap` (0.8) or the normalised hook changed; else `light`; a failed or timed-out op
+  (10 s) is `unknown`. `csv` and `manual` are always `unknown`.
+- `error_code` on a post: `social_processing_rejected` (YouTube rejected after publishing; the run
+  stays `published`) or `social_remote_missing` (3 failed metric reads).
+- Disconnecting an account sets `posts.connection_id` to NULL; the post stays.
+
+### Snapshots (`metric_snapshots`, `web/lib/performance-store.mjs`)
+
+- Append-only. `source` ∈ `api` | `csv` | `manual` | `agent` (`SNAPSHOT_SOURCES`). The only updates
+  are the YouTube collapse below and soft delete (`deleted_at`), enforced by the triggers of rombak
+  01 §4.7.
+- Refresh (`web/lib/metrics-refresh.mjs`, social-worker maintenance loop, every 10 minutes): due
+  intervals by post age 6 h (< 48 h), 24 h (2–8 d), 72 h (8–35 d), 7 d (35–90 d), then stopped;
+  calls are budgeted through `social_quota` before each batch (`statsCost`, `statsBatch`). An id
+  missing 3 times stops its refresh and marks the post `social_remote_missing`.
+- YouTube collapse (pending the SOS-M0 policy check): raw API values not refreshed for 30 days
+  become `aggregate_json = {"relViews": …}` with the numbers set to NULL and `collapsed_at` set.
+  If derived aggregates are not allowed, the step becomes a hard delete with no schema change.
+  CSV, manual and agent snapshots are never removed automatically. Disconnecting an account
+  hard-deletes its `api` snapshots and their horizons.
+- Horizons (`metric_horizons`, `h` ∈ `1d` | `7d` | `30d`): `exact` (a snapshot in
+  `[T, T + 0.25·h]`), `interpolated` (linear between snapshots at most `h` apart), else `missing`.
+  `rel_views` = views ÷ the median of the same horizon over the same account (at least 5 posts,
+  else NULL). Horizons are a cache: deleted when a snapshot arrives, rebuilt lazily, fully
+  rebuildable (`rebuildHorizons(ownerId)`).
+
+### Import and manual entry
+
+CSV import (≤ 2 MiB, ≤ 5000 rows, UTF-8, `,` or `;`) previews into `metric_imports` and
+`metric_import_rows`, matches rows to the user's posts by `(provider, external_id)` then by
+normalised URL, lets the user pair or skip the rest, and commits in one transaction. The template
+header is `platform,url,external_id,posted_at,captured_at,views,likes,comments,shares,saves`
+(`resources/performance/template.csv`); platform export profiles
+(`resources/performance/csv-profiles.v1.json`) wait for the owner's sample files. Numbers are
+integers ≥ 0; decimals and abbreviations are a row problem (`performance_metric_invalid`).
+
+### Privacy
+
+Every query filters `owner_id = ?` (`web/tests/db-owner-scope.test.mjs`); an admin sees only their
+own data. API routes: rombak 03 §9.2–§9.3 (`/api/analytics/**`, `/api/posts/**`,
+`/api/performance/**`); error codes `performance_*` (rombak 03 §8, §14.4).
+
+### Gates
+
+`web/tests/post-registry.test.mjs` (`createPost`, NULL keys for derived and edited-far clips,
+unique external id), `social-derived-clip`, `metrics-refresh` (tiers, batching, budget, an id
+missing 3 times), `metric-horizons` (exact, interpolated, missing, account median, rebuild),
+`metrics-csv` (delimiters, BOM, numbers, dates, duplicates, size), `analytics-view`,
+`performance-routes`, `tests/test_edit_distance.py`, `db-owner-scope` (rombak 03 §16).
+
+## 5.62 Performance profile and the selection tie-breaker (2026-10-24)
+
+Contract only; no code exists. Owner: rombak 03 §13 (rules, profile, injection) and §3 (flags);
+the tables it reads are §5.61, DDL in rombak 01 §4.3, §4.5 and §4.7 (not repeated here). The rules
+file is frozen in Fase 0 (FB-M0); the rest is Fase 9 (FB-M1 … M6).
+
+### Flags
+
+`POTONGIN_PERFORMANCE` = `off` (default) | `on` (app, primary-worker): `off` answers the
+performance routes with the identical 404, writes no profile and passes no profile to Python.
+`POTONGIN_PERF_MIN_POSTS` (integer ≥ 20, default 20; lower refuses to start; a change needs a
+re-gate) and `POTONGIN_PERF_HORIZON` (`7d` default, `1d`, `30d`). The per-user switch is
+`users.perf_use_in_selection` (default 0; UI "Pakai di pemilihan klip").
+
+### `resources/performance/rules.v1.json`
+
+`rulesId: "rules.v1"`; dimensions `archetype`, `durationBucket`, `hookForm`; the archetype list
+equals `ARCHETYPES` in `src/ai_clipper/selection_types.py` as a set (`ARCHETYPES` is a frozenset;
+the file's order is the only order); duration buckets `[0,20)`, `[20,30)`, `[30,45)`, `[45,60)`,
+`[60,∞)` on `sourceEnd − sourceStart` without the cold open; `hookForm` decided in the order
+`none` (empty), `question` (contains `?`), `number` (contains `\p{Nd}`), `quote` (starts with one of
+the `quoteOpeners`), else `statement`; `minPosts 20`, `minGroup 5`, `minAccountPosts 5`,
+`shrinkK 5`, `liftFull 0.25`, `capPerDimension 0.2`, `capTotal 0.4`, `windowDays 180`,
+`staleDays 14`, `editFarOverlap 0.8`. The caps are in Selection V3's 0–10 rank scale (the trend
+boost is 0.3 on the same scale). Changing any value is a new `rulesId`.
+
+Selection keys are computed twice with one table of cases: JS `selectionKeysFor(clip, rules)`
+(`web/lib/performance-keys.mjs`) and Python `selection_keys_json(archetype, start, end,
+hook_text, rules)` (`src/ai_clipper/performance_profile.py`), both checked against
+`tests/fixtures/performance/keys.json`.
+
+### The profile (`web/lib/performance-profile.mjs`)
+
+Input: the user's posts not deleted, with selection keys, not excluded, posted within
+`windowDays`, with `rel_views` at the configured horizon. Fewer than
+`max(minPosts, POTONGIN_PERF_MIN_POSTS)` → `collecting`, no profile. Otherwise per post
+`l = ln(max(rel_views, 0.01))`; per dimension value with `n ≥ minGroup`: `μ = Σl / (n + shrinkK)`,
+`lift = e^μ − 1`, `boost = round2(capPerDimension × clamp(lift / liftFull, 0, 1))`; only positive
+boosts are written. Stale (every post's newest snapshot older than `staleDays`) keeps the profile
+in use and shows "Data lama". No table: computed deterministically, cached in memory per
+`(owner_id, max(metric_snapshots.id))`.
+
+### The profile snapshot (`<job>/analysis/performance-profile.json`)
+
+```json
+{
+  "version": "performance-profile-v1",
+  "rulesId": "rules.v1",
+  "horizon": "7d",
+  "posts": 34,
+  "boosts": {
+    "archetype": {"humor": 0.2, "practical_tip": 0.08},
+    "durationBucket": {"20-30": 0.12},
+    "hookForm": {"question": 0.05}
+  }
+}
+```
+
+- Written by `preparePerformanceProfile(job)` in `web/scripts/primary-worker.mjs` after
+  `claimNextJob` and before `run-job.mjs` is spawned, only when the flag is `on`, the effective
+  owner's switch is 1 and the state is `ready` or `stale`; otherwise an earlier file is removed.
+  `run-job.mjs` never opens the DB: it only checks that the file exists and then passes
+  `--performance-profile <absolute path>` (the content never goes into argv).
+- No user id, post id, URL or raw number in the file.
+- `performance_profile.load_profile(path)` is strict (exact keys, `rulesId` equals the installed
+  rules, every value `0 ≤ x ≤ capPerDimension`). An invalid file is ignored with the warning
+  `performance_profile_invalid`; the job runs.
+
+### Injection in `selection_v3.py`
+
+- `select_clips_v3(..., performance=None)`; `_Candidate.perf = min(capTotal, Σ boosts)`, filled
+  only with a profile.
+- `_boosted(candidates, value=_trend_boost)` replaces its three uses of `.boost` by `value(…)`;
+  the rule that a candidate never passes one whose own `rank_value` is higher is unchanged.
+  `_ordered(..., value=)` passes `value` to both of its `_boosted` calls; `select_clips_v3` gives
+  `value=_order_boost` (`boost + perf`) only with a profile. `_focus_floors` keeps the trend-only
+  boost.
+- `score`, the five sub-scores, reasons, packaging and the LLM prompt do not change. A selected
+  candidate that moved up because of `perf` gets the reason code `perf_order` (§5.65) and the
+  manifest gets an optional `performance: {rulesId, horizon, posts, moved}` block, written only
+  with a profile. Without a profile the output is byte-identical (`SelectorContext.performance`
+  defaults to None in `src/ai_clipper/benchmark.py`).
+
+### `ProfileStatus` (`GET /api/analytics/feedback`, `GET /api/settings/performance`)
+
+`{state: off|collecting|ready|stale, useInSelection, posts, needed, horizon, excluded:
+{editedFar, derived, noMetrics}, top: [{dimension, key, ratio, n}], updatedAt}`. Turning the
+switch on while `collecting` → 422 `performance_profile_collecting`.
+
+### Gates
+
+`tests/test_performance_profile.py`, `web/tests/performance-profile.test.mjs` (the formulas with
+hand numbers, caps, `collecting` and `stale`), `performance-profile-prepare` (written only when
+the conditions hold, an old file removed), `web/tests/performance-keys-parity.test.mjs` (shared key
+table, archetype set parity with `ARCHETYPES`), `tests/test_selection_v3_performance.py` (no
+profile = identical output; near-ties move only within `[own, own + boost)`; focus floors
+unchanged), the hook-form drift check on the gold episodes (≤ 2 %), the `POTONGIN_PERFORMANCE=off`
+drill (rombak 03 §12.3, §15.2).
+
+## 5.63 Automatic layout: the shot plan and `layout.ranges` (2026-10-24)
+
+Contract only; no code exists. Owner: rombak 04 §A5–§A7 (this section restates its §A6 for the
+document; on a difference 04 wins). Minor-0 amendment: no new `schema_minor`; an older server
+refuses a new document with `unknown_key` or `range_invalid` (§3.8). The PR that ships the
+validator (RF-M2) adds the §3.8 amendment bullet. `RENDER_SEMANTICS` stays 2. Built in Fase 5–7
+(RF-M1 … RF-M6) and Fase 11 (F4b, the per-shot commands). Flag `POTONGIN_AUTO_REFRAME` gates
+creation only (§A8 of rombak 04); a stored `auto` document always renders.
+
+### Shot plan file (`src/ai_clipper/edit_v2/shots.py`, stdlib)
+
+`<clip_dir>/shots.<sha16>.json`: canonical JSON (`source_info.canonical_json`), named from the
+sha256 of its bytes (the pattern of `camera.camera_file_name`), ≤ 256 KiB, ≤ 200 shots.
+
+```json
+{
+  "schema": "potongin.shot-plan/1",
+  "rules_id": "<sha16 of resources/reframe/rules.v1.json>",
+  "source_content_sha256": "<hex>",
+  "camera_sha256": "<hex>",
+  "window_ms": [1203040, 1323040],
+  "fps": {"num": 30000, "den": 1001},
+  "cut_source": "shot_cuts",
+  "cuts_sf": [36101, 36488],
+  "split": null,
+  "shots": [{"in_sf": 36057, "out_sf": 36101, "mode": "camera", "reason": "rf_face", "evidence": {}}],
+  "ranges": [{"in_sf": 36057, "out_sf": 36101, "mode": "camera"}]
+}
+```
+
+- `shots` are the original shot bounds (the editor's shot strip); `ranges` the merged result that
+  is copied into the document. `reason` is a `rf_*` code (`rf_no_face`, `rf_two_speakers`,
+  `rf_group_wide`, `rf_small_face`, `rf_centred`, `rf_face`, `rf_short_merged`); only `rf_no_face`
+  is ever shown ("Tanpa wajah").
+- `split` is null or `{top_pm, top: {zoom_pm}, bottom: {zoom_pm}}` (one per clip); a `split` range
+  carries `split_xy: {top: {x_e5, y_e5}, bottom: {x_e5, y_e5}}`.
+- `shots.read_shot_plan(path)` is strict: a symlink, a name that does not match the content, an
+  unknown key, a wrong type or a bad partition → `AnalysisMissing("analysis_missing",
+  ref="shots")`. Its strictness follows `media_features._strict_object` but is written again in
+  `edit_v2`, which stays stdlib-only.
+- `resources/reframe/rules.v1.json` holds integer thresholds set by the dev-split sweep (rombak
+  04 §A9), never by hand; `rules_id` = 16 hex of the sha256 of its canonical bytes.
+
+### Document paths (amendment of §3.3)
+
+| Path | Value | Rule |
+|---|---|---|
+| `layout.default.mode` | adds `auto` | `auto` requires `layout.ranges` and `base.shots`; `no_face` still applies to `camera` ranges (§5.40) |
+| `layout.ranges` | optional; 1–200 `{in_sf, out_sf, mode, origin, split_xy?}` | V1–V9 below; a non-auto seed never writes it |
+| `base.shots` | `{sha256}` | Required when `default.mode = auto`; names `shots.<sha16>.json`; missing → `analysis_missing` (`ref="shots"`) |
+| `layout.split` | also allowed with `auto` | Required when a `split` range exists; only `top_pm`, `top.zoom_pm`, `bottom.zoom_pm` are used, x/y come from each range's `split_xy` |
+
+### Validation (`doc.py _Validator`)
+
+| # | Rule | Code, path |
+|---|---|---|
+| V1 | `ranges` partition `window_sf = [sf_floor(window_ms[0]), sf_ceil(window_ms[1])]`: first starts at `window_sf[0]`, last ends at `window_sf[1]`, contiguous, no overlap, `in_sf < out_sf` | `range_invalid`, `/layout/ranges/<i>` |
+| V2 | Canonical: no two neighbours with equal `(mode, origin, split_xy)` | `range_invalid`, `/layout/ranges/<i>` |
+| V3 | `mode` ∈ {`camera`, `fill_center`, `fit_blur`}; `split` only with `origin = "auto"` and `AUTO_SPLIT` (new in `edit_v2/__init__.py`, False until the RF-M2 spike passes) | `range_invalid`; `split` while `AUTO_SPLIT` is False → `op_disabled` |
+| V4 | `origin` ∈ {`auto`, `user`} | `range_invalid` |
+| V5 | `default.mode = split` with `ranges` | `range_invalid`, `/layout/ranges` |
+| V6 | `default.mode = auto` without `ranges` | `range_invalid`, `/layout/ranges` |
+| V7 | `default.mode` ∈ {`camera`, `fill_center`, `fit_blur`} with `ranges`: every `origin:"auto"` range has `mode = default.mode` (only user ranges differ) | `range_invalid` |
+| V8 | `layout.keyframes` with `ranges` (default, can be changed: forbidden in v1, F4b included; relaxing it for `camera` ranges is a separate §5.63 amendment) | `range_invalid`, `/layout/keyframes` |
+| V9 | `split_xy` only on `split` ranges; values 0–100000 | `range_invalid` |
+
+`doc.py _ROOT` gains `base.shots = _keys("sha256")` and `layout.ranges`; `_LAYOUT_MODES[0]` gains
+`"auto"`.
+
+### Canonical form and re-analysis (Python and JS, same vectors)
+
+- `canonical_ranges(ranges)` merges equal neighbours; when `default.mode ≠ auto` and every range
+  is `origin:"auto"`, `ranges` is dropped. A document without `ranges` compiles byte-identically
+  to today (graph, plan sha and `plate_key` pinned by `tests/test_edit_v2_compile.py` and
+  `tests/test_edit_v2_plates.py`).
+- `shots.merge_user_ranges(new_auto, old)` (mirror `web/lib/editor/shots.mjs`): start from the
+  new auto partition; for each old `origin:"user"` range in `in_sf` order, clip it to `window_sf`,
+  drop it when empty, else overwrite the partition on `[in_sf, out_sf)` (auto ranges cut at its
+  edges); then `canonical_ranges`. A user range is never overwritten by a new analysis. Vectors:
+  `tests/fixtures/edit_v2/shot-vectors.json` (user range inside a shot, across a new shot bound,
+  outside the new window, a shrinking window).
+
+### Apply-all (§5.53)
+
+`apply_all.copied_part(doc, "layout")` also drops `ranges` (so `split_xy` goes with it);
+`layout.split` is still copied. `with_part` for a source with `default.mode = "auto"`: a target
+whose shot plan is ready gets the auto ranges of its own plan, its old user ranges through
+`merge_user_ranges`, and its own `base.shots`, in one revision. A target without a shot plan is
+not changed yet: the batch record lists it `pending_analysis` (not skipped), the client calls
+`POST …/clips/<target>/prepare {layout: "auto"}` and applies the revision once `shots` is
+`ready`; a pending entry survives a closed tab (`draft-store.mjs`); a failed analysis is recorded
+`failed` with `analysis_missing`.
+
+### Editor commands (`web/lib/editor/commands.mjs`, merge key `layout`)
+
+| Command | Payload | Effect |
+|---|---|---|
+| `SetLayout` (exists) | adds `{mode: "auto"}` | Needs a shot plan; without one the panel starts `prepare` and sends the command when ready |
+| `SetShotMode` | `{in_sf, out_sf, mode}` | That shot becomes an `origin:"user"` range |
+| `ResetShot` | `{in_sf, out_sf}` | The user range there goes back to the shot plan's auto range; none there → no-op |
+| `ResetAllShots` | `{}` | Every user range is removed ("Kembali ke otomatis"); none → no-op |
+
+`[in_sf, out_sf)` must equal one entry of the loaded plan's `shots` exactly (original shot bounds,
+not a merged range); no match, no loaded plan or outside `window_sf` → `CommandRejected("shot_not_found")`.
+A mode outside {`camera`, `fill_center`, `fit_blur`}, or a document with `default.mode = split` →
+`CommandRejected("shot_mode_invalid")`. Every command ends with `canonical_ranges`. Both codes join
+`COMMAND_MESSAGES` (`messageId` `editor.<code>`, §5.65).
+
+### Plan, compiler and keys
+
+- `RenderPlan.layout_ranges` (new property, tuples `(in_sf, out_sf, mode)`, `()` without
+  `layout.ranges`; named so because `_Compiler.layout` already takes piece `ranges`). `plan_sha256`
+  covers it only when it is not empty. `build_plan` uses the camera plan for `camera` and `auto`;
+  `auto` with a `camera` range and no camera plan → `AnalysisMissing(ref="camera")`; the `no_face`
+  warning counts `camera`-range frames only. `RenderPlan.shots_for(sf) -> str` answers the mode at
+  a frame without building a graph.
+- `_Compiler.layout` gets an `auto` branch before the `keyframes` branch that reuses the §5.40
+  fallback chain: one fit-blur chain with per-frame crop and fallback switches, so the number of
+  filter contexts is the same for 1, 8 or 48 ranges. `fill_center` frames are a camera crop at
+  `centre_x`; the RF-M2 spike must show md5-identical frames to the pure `fill_center` chain
+  (P-FRAME) or the compiler adds a y switch, still constant in size. Split ranges only after the
+  spike of rombak 04 §A7.2 passes (`AUTO_SPLIT = True`).
+- `plates.plate_key` gains `shots_sha256` only when `default.mode = auto` or `ranges` exist; every
+  non-auto key is unchanged.
+- Rollback below the release-1 floor: `scripts/ops/auto_layout_downgrade.py --jobs-root <path>
+  [--apply] [--job <uuid>]` writes `fit_blur` revisions without `ranges`, `base.shots` and
+  `split_xy` (`audit.last_command = "Downgrade"`) and sets `options.renderMode` back to
+  `"fit-blur"`; existing automatic files stay.
+
+### Gates
+
+`tests/test_edit_v2_doc.py` (V1–V9 with their paths), `tests/test_edit_v2_shots.py` (decision
+rules, short-shot merge, canonical form, `merge_user_ranges`, shot plan round trip), `tests/test_edit_v2_apply_all.py` (ranges not copied, auto
+source → target ranges, `pending_analysis`), `web/tests/editor-apply-all.test.mjs`, the JS mirror
+of the shot vectors, the non-auto pins in `test_edit_v2_compile.py` and `test_edit_v2_plates.py`,
+`tests/test_auto_layout_downgrade.py`, and the RF-M6 gates P-FRAME, P-PLATE, P-JOIN-B, G-DET,
+PF-RENDER, PF-PIPELINE (rombak 04 §A10).
+
+## 5.64 Link sources and the download cache (2026-10-24)
+
+Contract only; no code exists. Owner: rombak 04 §B1–§B6, §B13 (and 02 §11.4 for the URL rules
+built in MU-M4b). Built in Fase 6 (MU-M4b, YouTube only) and Fase 7 (FETCH-M1 … M10).
+
+### `job.source`
+
+| Shape | Written | Readers |
+|---|---|---|
+| `{type: "youtube", url}` | YouTube, always (this release and every later one) | old and new images |
+| `{type: "link", platform: "twitch"\|"kick", url, mediaId}` | Twitch or Kick only, and only in the release after the one that can read it (R2) | new images |
+| `{type: "upload", name, size}` | unchanged | all |
+
+- A new YouTube job keeps storing the `normalizeYouTubeUrl` result in `source.url`; the canonical
+  URL is used only for yt-dlp argv and `sourceKey`.
+- Every check of `type === "youtube"` on `job.source` in `web/` becomes `isLinkSource(job.source)`
+  or stays with a written reason; `web/tests/source-type-guard.test.mjs` fails on any new match
+  outside its allowlist.
+
+### URL parsing (`web/lib/source-url.mjs`, `src/ai_clipper/fetch/platforms.py`)
+
+`parseSourceUrl(text, {platforms = ["youtube"]})` → `{platform, kind: video|clip|vod, mediaId,
+url, sourceKey}` or `SourceUrlError(code)`; Python `parse_source_url(text, platforms)` has the
+same shape and codes, both read the ≥ 60 cases of `tests/fixtures/fetch/urls.json`. Rules: `https`
+(an `http` URL is upgraded), no userinfo, port empty or 443, exact host match, ≤ 2048 characters,
+no control or space characters. `assertPublicHost` runs in `app` on `POST /api/jobs` and again in
+the worker right before preflight; a private, loopback, link-local, CGNAT, ULA, mapped-private,
+multicast or `0.0.0.0/8` address → `source_private_address`. `sourceKey` = `"<platform>:<mediaId>"`.
+
+### Worker defences
+
+yt-dlp argv always has `--ignore-config`, `--no-playlist`, `--use-extractors <names>`,
+`--max-filesize <MAX_UPLOAD_BYTES>` and `--js-runtimes node`. Extractor names are locked by
+FETCH-M0 against the pinned yt-dlp and pinned in fixtures. The downloaded file passes the same
+probe as an upload (`media_probe`); an audio-only file must have exactly one audio stream and no
+video. The downloader env (`downloaderEnv`) also drops `POTONGIN_DB_PATH`.
+
+### Preflight (`input/.fetch/preflight.json`, 0600)
+
+`yt-dlp … --skip-download --dump-single-json` (45 s, stdout ≤ 8 MiB) parsed by
+`python -m ai_clipper.fetch preflight`. Schema `potongin.fetch-preflight/1` with `platform`,
+`mediaId`, `sourceKey`, `durationMs`, `live`, `availability`, `ageLimit`, `audio {formatId, ext,
+acodec, language, original}`, `video {formatId, height, fps}`, `filesizeApprox`, `language`,
+`decision`, `code`. Decisions in order: live or upcoming → `source_live`; no duration →
+`source_duration_unknown`; longer than `job.limits.maxSourceSeconds` → `source_rejected_duration`;
+Twitch subscriber-only → `download_members_only`. Preflight runs even on a cache hit.
+
+### `job.fetch` (additive, written by the worker, read by the UI)
+
+`{phase: preflight|cache|audio|video|ready|failed, platform, sourceKey, cache:
+off|hit|miss|stored|skipped, scope: umum|user, audioFirst, durationMs, formats {audio, video},
+fallback: null|no_audio_first|av_offset|cache_exdev, readyAt}`. Never a proxy URL, cookie,
+absolute path or raw stderr.
+
+### Audio first: the `source-ready` handshake
+
+With `POTONGIN_FETCH_AUDIO_FIRST=on`, V3 selection, a link source, a cache miss and an audio
+format in the preflight, the worker downloads audio first, then starts the video download (same
+audio format id), YouTube captions and the engine together. The engine gets `--analyze-audio
+<audio> --media-duration <s> --source-ready <abs input/.fetch/source-ready.json>
+--source-wait-timeout <s>`; the worker writes the file atomically (tmp + rename, 0600):
+
+```json
+{"schema": "potongin.source-ready/1", "path": "source.mp4", "durationMs": 3540040,
+ "fps": {"num": 30, "den": 1}, "width": 1280, "height": 720, "audioOffsetMs": 0, "status": "ready"}
+```
+
+or `{"schema": "potongin.source-ready/1", "status": "failed", "code": "download_stalled"}`.
+`fetch.handshake.wait_source_ready(path, timeout_s, poll_s=1.0)` (stdlib) reads it only when it is
+not a symlink and ≤ 4 KiB; `failed` or a timeout raise `SourceUnavailable(code)`. Transcription,
+the audio timeline, selection and packaging run on the audio; the scene pass, source info, words
+artifact, camera and shot plans, seed and render wait for it (stage `fetch_wait_video` after 1 s).
+An A/V offset over one source frame sets `fallback = "av_offset"` and the engine redoes the audio
+stages from `source.mp4`.
+
+### Cache (`/data/cache-unduhan`)
+
+```
+/data/cache-unduhan/
+  umum/<platform>/<mediaId>/<variant>/{entry.json, source.mp4, audio.m4a?}
+  umum/_transkrip/<sourceKeyHash>/<transcriptKey>.json
+  k-<fairnessKey>/…            same layout, one owner's scope (§5.59)
+  .locks/<lockKey>/owner.json
+  .tmp/<random>/
+  .sweep.json
+```
+
+- On the `clipper_data` volume next to `/data/jobs` (hard links need the same `st_dev`), created
+  at runtime by the primary-worker (0700). `<variant>` = `h<H>-a<audioFormatId>-v<videoFormatId>`
+  (`[A-Za-z0-9_-]`, ≤ 64); `<sourceKeyHash>` = 16 hex of sha256(`sourceKey`).
+- `entry.json` (`potongin.media-cache/1`): `sourceKey`, `scope`, `variant`, `files [{name, size}]`,
+  `durationMs`, `createdAt`, `lastUsedAt`, `ytDlp`, `cookies`. Another schema is a miss and is
+  swept.
+- Scope (Q4, default, can be changed): an unauthenticated download of a public video without an
+  age limit goes to `umum`; with cookies, not public or age-limited it goes to
+  `k-<fairnessKey>`. Lookup: the owner's scope, then `umum`.
+- A hit is hard-linked into the attempt's `input/`; the cache is never the only owner of a job's
+  bytes. A miss is downloaded into the job, then linked into `.tmp/<r>/` and renamed into place.
+  `EXDEV` copies and writes no entry (`fallback = "cache_exdev"`).
+- Lock (same protocol in `web/lib/media-cache-lock.mjs` and `src/ai_clipper/fetch/cache.py`):
+  `lockKey` = 16 hex of sha256(`scope\0sourceKey\0variant`) or the `transcriptKey`;
+  `mkdir(.locks/<lockKey>)` then `owner.json {token, pid, host, leaseUntilMs}`, lease 45 s renewed
+  every 10 s; an expired lease is taken over by renaming the lock to `.stale-<token>`.
+- Transcript cache: `transcriptKey` = 16 hex of sha256 of the canonical JSON `{sourceKey,
+  audioFormatId, engine, model, language, wordTimestamps, transcriptSchema}`; the content is the
+  engine's transcript artifact byte for byte plus the header `{schema:
+  "potongin.transcript-cache/1", key}`. Link sources only.
+- `POTONGIN_MEDIA_CACHE` (`off` default), `_BYTES` (4 GiB), `_TTL_DAYS` (3): TTL from
+  `lastUsedAt`, LRU down to 90 % of the cap, writes only above the storage reserves plus
+  `filesizeApprox`. The sweep never follows a symlink, refuses a root that is or contains
+  `JOBS_ROOT`, and re-checks every path's `realpath` before deleting. Cache bytes do not count
+  towards a user's quota.
+- Admin API: `GET /api/admin/cache-unduhan`, `POST /api/admin/cache-unduhan/clear {scope?:
+  all|media|transkrip}` (409 `cache_busy` while a lock is held; audit `cache.cleared`); a member
+  gets the identical 404 of the `web` family.
+
+### Errors
+
+Source codes and their `messageId` (§5.65): `web.source_host_not_allowed`,
+`web.source_rejected_kind`, `web.source_private_address`, `web.source_rejected_duration`,
+`web.source_rejected_format`, `web.source_rejected_codec`, `web.source_platform_off`,
+`download.source_live`, `download.source_duration_unknown`, plus `web.cache_busy`,
+`web.proxy_invalid`, `web.bgutil_unavailable`. Existing `download_*` codes stay.
+
+### Gates
+
+`web/tests/source-url.test.mjs` and `tests/test_fetch_platforms.py` (shared URL fixture),
+`source-type-guard`, `fetch-args`, `fetch-plan`, `tests/test_fetch_probe.py`,
+`tests/test_fetch_handshake.py`, `tests/test_fetch_cache.py` (byte-identical cached transcript),
+`tests/test_pipeline_audio_first.py`, `media-cache`, `media-cache-lock`, `media-cache-routes`
+(rombak 04 §B15).
+
+## 5.65 UI language: message ids on errors, stage and reason codes (2026-10-24)
+
+Contract only; no code exists. Owner: rombak 07 §3, §5, §9.2 and §10. Built in Fase 1 (i18n M0,
+M1) and Fase 2 (M2, M5); the full `stage_code` and `reason_codes` lists are fixed in the M5 PR,
+which amends this section.
+
+### Error bodies (additive)
+
+Every route keeps its shape and gains fields; nothing is removed:
+
+- flat: `{"error": "<Indonesian text>", "code": "<code>", "messageId": "<domain>.<code>", "params"?: {…}}`;
+- nested: `{"error": {"code", "messageId", "params"?, …old fields}}`;
+- a route that answers a bare string today gains the flat shape.
+
+The Indonesian `error` string stays for good: logs, the trend agent (`api/ingest/trends`) and a
+rollback image read it. `params` holds primitives only, at most 8 keys. `messageId` =
+`<domain>.<code>` without an `errors.` prefix; the catalog key is `"errors." + messageId`. A code
+with detail (`glyph_unsupported:U+1F602`) maps to `edit.glyph_unsupported` with
+`params.detail = "U+1F602"`, as Python's `base_code()` splits it. Existing `messageId` values
+never change.
+
+Domains: `web` (`web/lib/error-codes.mjs`), `http` (no known body; key `http.s<status>`),
+`download`, `storage`, `llm` (`ERROR_CODES`, `src/ai_clipper/llm.py`), `edit` (`_MESSAGES`,
+`src/ai_clipper/edit_v2/errors.py`), `editor` (`COMMAND_MESSAGES`, `web/lib/editor/commands.mjs`),
+`editor_ai`, `social` and `performance` (§5.60–§5.62), `account` (rombak 02 §16), `global`
+(`global-error.jsx`). A new code from any plan needs `errors.<messageId>` (and `hints.<messageId>`
+when there is a hint) in every locale and a Help entry; `i18n-error-codes` enforces it.
+
+### Python: codes next to prose
+
+- `pipeline.report(stage, percent, detail, *, code=None, params=None)` writes `stage_code` and
+  `stage_params` beside `detail`; `run-job.mjs` and `primary-job-queue.mjs` add `stageCode` and
+  `stageParams` beside `stageDetail`. A job without them shows `stageDetail` as today.
+- Clip manifests gain `reason_codes` and `warning_codes`, each `[{code, params}]`, beside the
+  existing prose. Reasons written by the LLM are content and are never translated.
+- Python never learns the UI language: no locale env or argv reaches it
+  (`content-language-isolation`). Gold selection output stays identical; manifests only gain
+  fields.
+
+### Locale registry and resolution
+
+`web/lib/i18n/locales.mjs`: `id` (`id-ID`) and `en` (`en-US`), `DEFAULT_LOCALE = "id"`.
+`POTONGIN_LOCALES` (app only; default `id`; `id` is always on). Resolution: `users.locale` (once
+multi-user), the cookie `potongin_locale`, `Accept-Language`, then `id`; a candidate that is not
+enabled is skipped. `proxy.js` reads neither the DB nor the locale. The cookie:
+`potongin_locale=<code>; Path=/; Max-Age=31536000; SameSite=Lax; Secure`, not HttpOnly.
+
+### `POST /api/locale` (`web/app/api/locale/route.js`)
+
+| Aspect | Value |
+|---|---|
+| Method | POST only; anything else 405 with `Allow: POST` |
+| Auth | Public: excluded from the `proxy.js` matcher (`api/locale/?$`); with a valid session it also writes `users.locale` (once multi-user) |
+| Origin | `sameOriginMutation` required |
+| Rate limit | 20/min token bucket keyed on `"locale:" + sha256hex(trusted client IP)`; checked after method and origin, before the body |
+| Body | form (`locale`, optional `next`) or JSON `{locale}`, at most 1 KiB (`Content-Length` over 1 KiB → 413 before reading) |
+| Effect | `Set-Cookie: potongin_locale=…` |
+| Answer | Form: 303 to `next` when `safeNextPath(next) === next`, else a same-origin `Referer` path, else `/`; JSON: 200 `{locale}`; both `Cache-Control: no-store` |
+
+Errors (flat shape): 400 `web.invalid_request`, 400 `web.locale_unsupported`, 403
+`web.csrf_rejected`, 405 `web.method_not_allowed`, 413 `web.request_too_large`, 429
+`web.rate_limited` with `Retry-After`. A form request that fails with 400, 413 or 429 is answered
+303 to its page with `bahasa=gagal`.
+
+### Gates
+
+`i18n-error-codes`, `i18n-catalog`, `i18n-registry`, `i18n-resolve`, `locale-route`,
+`content-language-isolation` (rombak 07 §14); `web/tests/proxy-matcher.test.mjs` gains
+`/api/locale`; existing route and contract tests stay green unchanged.
