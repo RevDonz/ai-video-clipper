@@ -15,7 +15,7 @@ from ai_clipper.edit_v2 import toolchain
 from ai_clipper.edit_v2.plan import Resources, toolchain_sha256
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = "node:20-bookworm-slim@sha256:" + "2c" * 32
+BASE = "node:24-bookworm-slim@sha256:" + "2c" * 32
 SNAPSHOT = "20260924T000000Z"
 # dpkg-query -W output of the reference image (ai-video-clipper:editor-ref), plus a package the
 # toolchain does not track.
@@ -68,8 +68,8 @@ def test_build_records_base_digest_snapshot_and_packages():
                         "apt_snapshot": SNAPSHOT, "packages": PINNED}
 
 
-@pytest.mark.parametrize("base", ["node:20-bookworm-slim", "node@sha256:abc",
-                                  "node:20@sha256:" + "G" * 64, ""])
+@pytest.mark.parametrize("base", ["node:24-bookworm-slim", "node@sha256:abc",
+                                  "node:24@sha256:" + "G" * 64, ""])
 def test_the_base_image_must_be_pinned_by_digest(base):
     with pytest.raises(toolchain.ToolchainError, match="digest"):
         toolchain.build(DPKG, base_image=base, apt_snapshot=SNAPSHOT)
@@ -136,7 +136,7 @@ def test_cli_write_and_check(tmp_path):
                              env=env_path, check=False)
     assert checked.returncode == 0, checked.stderr
     assert json.loads(checked.stdout) == toolchain.read(path)["packages"]
-    bad = subprocess.run([*run, "write", str(path), "--base-image", "node:20"],
+    bad = subprocess.run([*run, "write", str(path), "--base-image", "node:24"],
                          capture_output=True, text=True, env=env_path, check=False)
     assert bad.returncode == 1 and "digest" in bad.stderr
 

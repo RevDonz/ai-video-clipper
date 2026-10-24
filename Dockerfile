@@ -6,7 +6,7 @@
 # rendering packages pinned to exact versions on top. The runner stage records the result in
 # /app/resources/toolchain.json, which is hashed into every render key (plan §5.2 R9).
 # Changing any of these values re-runs P-TIME, P-TXT, P-ENC, P-COLOR and P-RT (plan §10).
-ARG NODE_IMAGE=node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
 ARG DEBIAN_SNAPSHOT=20260924T000000Z
 
 FROM ${NODE_IMAGE} AS web-deps

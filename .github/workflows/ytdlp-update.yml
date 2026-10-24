@@ -20,7 +20,8 @@ jobs:
   bump:
     # Runs the new yt-dlp against YouTube, so it holds a read-only token and no git credentials.
     name: Bump and smoke
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, as ci-cd.yml's test job: the same apt FFmpeg.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -54,7 +55,7 @@ jobs:
         # yt-dlp runs YouTube's player JavaScript with Node (--js-runtimes node), as in the image.
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Bump yt-dlp in uv.lock
         id: bump

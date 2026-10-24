@@ -112,6 +112,18 @@ part of `toolchain.json` (so of every render key). To take Debian security updat
 4. Log the bump here with the numbers. A bump that only changes packages outside the render path
    still re-keys renders; that cost is accepted over a key that could miss an encoder change.
 
+Bumps logged:
+
+- 2026-10-24, base image `node:20-bookworm-slim@sha256:2cf067cf…` → `node:24-bookworm-slim@sha256:55fb5f5a…`
+  (Node 24.22.1, MU-M0); snapshot and the six packages unchanged. `toolchain.json` sha
+  `4fefb754…85f0` → `e3cce632…5fd8`. `ci-cd.yml -f suite=toolchain` run 40102817012, thresholds
+  unchanged: P-TIME FFmpeg 0 mismatches (2,731 boundaries), JASSUB 0 mismatches (231
+  transitions); P-TXT pass (285 frames); P-ENC min SSIM all 0.99017, text 0.98641 (was 0.98682;
+  thresholds 0.99/0.98); P-COLOR worst |mean Δ| 1.654 (≤ 4.0); P-RT pass; R10 every case
+  `auto_file`, hard-linked. Plate cache on the fixture job: 1,915,482 bytes before, 3,830,964
+  after reopening every clip, back to 1,915,482 after `janitor.clean_job` ran with the old cells
+  aged 31 days unused (57 cells removed; `docs/editor/evidence/MU-M0/`, run 40107114611).
+
 ## Patches by the integrator (logged per plan §11.0)
 
 1. `tests/test_edit_v2_timemap.py` (T1.0): import block (ruff I001), requested by every phase-B

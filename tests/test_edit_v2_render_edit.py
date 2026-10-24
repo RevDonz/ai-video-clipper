@@ -46,7 +46,7 @@ from ai_clipper.edit_v2 import (
 )
 from ai_clipper.edit_v2 import doc as doc_module
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
-from ai_clipper.edit_v2.plan import Resources
+from ai_clipper.edit_v2.plan import Resources, toolchain_sha256
 from ai_clipper.edit_v2.transitions import AUTO_COLD_OPEN_JOIN, CUT_JOIN
 from ai_clipper.selection_types import (
     ClipFocus,
@@ -223,11 +223,12 @@ def pcm_md5(path: Path) -> str:
     return hashlib.md5(output).hexdigest()
 
 
-def resources_with_toolchain(tmp_path: Path, snapshot="20260924T000000Z") -> Resources:
-    root = tmp_path / f"resources-{snapshot}"
+def resources_with_toolchain(tmp_path: Path, snapshot="20260924T000000Z",
+                             base_image="node:20-bookworm-slim@sha256:" + "2c" * 32) -> Resources:
+    root = tmp_path / f"resources-{snapshot}-{hashlib.sha256(base_image.encode()).hexdigest()[:8]}"
     shutil.copytree(RESOURCES_DIR, root, ignore=shutil.ignore_patterns("toolchain.json"))
     toolchain.write(root / "toolchain.json", apt_snapshot=snapshot,
-                    base_image="node:20-bookworm-slim@sha256:" + "2c" * 32, dpkg_output=DPKG)
+                    base_image=base_image, dpkg_output=DPKG)
     return Resources(root)
 
 
@@ -615,6 +616,28 @@ def test_the_auto_file_is_exported_whatever_the_toolchain(auto_job, tmp_path):
                                             cancel=threading.Event(), resources=resources)
         assert result.reused == "auto_file"
         assert os.stat(result.output).st_ino == os.stat(job_dir / "output" / "clip-02.mp4").st_ino
+
+
+def test_the_auto_file_is_exported_across_the_node_24_base_image(auto_job, tmp_path):
+    # MU-M0 (rombak 01 §8.2): the new base image changes every render key, and an unedited
+    # clip still exports its auto file, with no encode.
+    job_dir = copy_job(auto_job, tmp_path)
+    entry = auto_job.manifest["clips"][0]
+    directory = clip_dir(job_dir, entry["clip_id"])
+    _seed_doc, etag = store.seed(directory)
+    relative, revision = store.archive_for_render(directory, etag)
+    keys = set()
+    for base in ("node:20-bookworm-slim@sha256:" + "2c" * 32,
+                 "node:24-bookworm-slim@sha256:" + "55" * 32):
+        resources = resources_with_toolchain(tmp_path, base_image=base)
+        keys.add(toolchain_sha256(resources))
+        request = request_for(job_dir, entry["clip_id"], relative, etag, revision,
+                              key=hashlib.sha256(base.encode()).hexdigest())
+        result = render_edit.render_request(job_dir, request, heartbeat=lambda *_: None,
+                                            cancel=threading.Event(), resources=resources)
+        assert result.reused == "auto_file"
+        assert os.stat(result.output).st_ino == os.stat(job_dir / "output" / "clip-01.mp4").st_ino
+    assert len(keys) == 2
 
 
 def test_a_missing_auto_file_renders_with_auto_file_unavailable(auto_job, tmp_path):

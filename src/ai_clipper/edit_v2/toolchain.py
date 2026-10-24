@@ -3,7 +3,7 @@
 The image build writes the file once, after the pinned apt packages are installed::
 
     python -m ai_clipper.edit_v2.toolchain write /app/resources/toolchain.json \\
-        --base-image node:20-bookworm-slim@sha256:<64 hex> --apt-snapshot 20260924T000000Z
+        --base-image node:24-bookworm-slim@sha256:<64 hex> --apt-snapshot 20260924T000000Z
 
 It records ``dpkg-query -W`` for the six packages that decide how text and video are rendered
 (FFmpeg, libass, freetype, harfbuzz, fribidi, fontconfig: the ``ffmpeg -version`` line alone

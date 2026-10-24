@@ -1,0 +1,81 @@
+{
+  "schema": "potongin.plate-invalidation/1",
+  "fixture": {
+    "job": "main",
+    "size": [
+      1280,
+      720
+    ],
+    "clips": 3,
+    "duration_ms": 180000
+  },
+  "toolchain_sha256": {
+    "old": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0",
+    "new": "e3cce632fb3dc73fc68f58496f7bc0e981ccfdeff6d7182650f34a1768025fd8"
+  },
+  "base_image": {
+    "old": "node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0",
+    "new": "node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
+  },
+  "keys_changed": true,
+  "same_bytes_per_cell_set": true,
+  "plates_bytes": {
+    "before": 1915482,
+    "after_reopen": 3830964,
+    "after_janitor": 1915482
+  },
+  "janitor": {
+    "cache_files": 57,
+    "cache_bytes": 1915482
+  },
+  "clips": [
+    {
+      "side": "old",
+      "clip_id": "clip_e81667ba20ed2bcb9995a418",
+      "layout": "fit_blur",
+      "plate_key16": "5b8a35c2d4769472",
+      "cells": 19,
+      "bytes": 636950
+    },
+    {
+      "side": "old",
+      "clip_id": "clip_7ae904c09556ca7a9f9c1b95",
+      "layout": "fit_blur",
+      "plate_key16": "e4da3cc81a4911f4",
+      "cells": 19,
+      "bytes": 640020
+    },
+    {
+      "side": "old",
+      "clip_id": "clip_5594a0bb8fa80be0196a5a0b",
+      "layout": "fit_blur",
+      "plate_key16": "31b5666a7731b936",
+      "cells": 19,
+      "bytes": 638512
+    },
+    {
+      "side": "new",
+      "clip_id": "clip_e81667ba20ed2bcb9995a418",
+      "layout": "fit_blur",
+      "plate_key16": "d280d75c0a05d3db",
+      "cells": 19,
+      "bytes": 636950
+    },
+    {
+      "side": "new",
+      "clip_id": "clip_7ae904c09556ca7a9f9c1b95",
+      "layout": "fit_blur",
+      "plate_key16": "c81f27ed47216092",
+      "cells": 19,
+      "bytes": 640020
+    },
+    {
+      "side": "new",
+      "clip_id": "clip_5594a0bb8fa80be0196a5a0b",
+      "layout": "fit_blur",
+      "plate_key16": "dace94578c8da4ed",
+      "cells": 19,
+      "bytes": 638512
+    }
+  ]
+}

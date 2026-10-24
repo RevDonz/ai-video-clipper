@@ -60,7 +60,8 @@ permissions:
 jobs:
   gates:
     name: ${{ inputs.suite }} @ ${{ inputs.ref }}
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not -latest: suite=full expects the runner's apt FFmpeg 6.1, as ci-cd.yml.
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
       GATE_COMMAND: ${{ inputs.command }}
@@ -100,7 +101,7 @@ jobs:
         if: ${{ !cancelled() && (inputs.suite == 'full' || inputs.suite == 'e2e' || inputs.suite == 'player') }}
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: web/package-lock.json
 

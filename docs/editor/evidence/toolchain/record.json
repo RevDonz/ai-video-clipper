@@ -1,5 +1,5 @@
 {
-  "commit": "56b33430f770ba637287ca66ef62d6254f9287ec",
+  "commit": "e635d5d68fda967dc2fbd2acd7e4fd4c4d7ac00b",
   "gates": {
     "P-COLOR": [
       "docs/editor/evidence/toolchain/P-COLOR.json"
@@ -22,11 +22,11 @@
     "integrity": "sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==",
     "version": "2.5.16"
   },
-  "run": "36899253661",
+  "run": "40102817012",
   "schema": "potongin.toolchain-record/1",
   "toolchain": {
     "apt_snapshot": "20260924T000000Z",
-    "base_image": "node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0",
+    "base_image": "node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205",
     "packages": {
       "ffmpeg": "7:5.1.9-0+deb12u1",
       "fontconfig": "2.14.1-4",
@@ -37,5 +37,5 @@
     },
     "schema": "potongin.toolchain/1"
   },
-  "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+  "toolchain_sha256": "e3cce632fb3dc73fc68f58496f7bc0e981ccfdeff6d7182650f34a1768025fd8"
 }
