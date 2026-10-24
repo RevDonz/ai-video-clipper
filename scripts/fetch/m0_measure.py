@@ -600,9 +600,12 @@ class BgutilServer:
             self.problem = f"source: {type(error).__name__}: {error}"[:300]
             return False
         env = self.tools.path_env()
+        # The image sets NODE_ENV=production, which would skip TypeScript (a dev dependency).
+        env.pop("NODE_ENV", None)
         npm = node.parent / "npm"
         npx = node.parent / "npx"
-        for step in ([str(npm), "ci", "--no-audit", "--no-fund"], [str(npx), "tsc"]):
+        for step in ([str(npm), "ci", "--include=dev", "--no-audit", "--no-fund"],
+                     [str(npx), "--no-install", "tsc"]):
             result = run(step, timeout=900, env=env, cwd=server)
             if result.returncode != 0:
                 self.problem = f"{step[1]}: " + " | ".join(tail(result.stderr or result.stdout, 4))
@@ -735,6 +738,17 @@ def phase_youtube(ctx: Context) -> dict[str, Any]:
                                         "bgutil_server": server.problem or (
                                             "ok" if server_ok else "skipped")},
                               "pins": PINS, "proxy": "not measured: no free proxy allowed"}
+    result["headers"] = {}
+    for name, binary, extra in arms:
+        if binary:
+            header = run([binary, "-v", *extra, "--simulate", "--no-playlist", YOUTUBE_PROBE],
+                         timeout=180, env=env)
+            result["headers"][name] = {
+                key: debug_value(header.stderr, key) for key in (
+                    "yt-dlp version", "JS runtimes", "Optional libraries")} | {
+                "pot_providers": next((line.split(": ", 1)[-1][:200]
+                                       for line in header.stderr.splitlines()
+                                       if "PO Token Providers" in line), None)}
     try:
         order = [(name, binary, extra) for name, binary, extra in arms if binary]
         outcomes: dict[str, list[dict[str, Any]]] = {name: [] for name, _, _ in order}
