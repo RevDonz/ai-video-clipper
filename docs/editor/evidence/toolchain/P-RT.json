@@ -18,32 +18,32 @@
             "linked": 6
           },
           "legacy:changed_toolchain": {
-            "cases": 3,
-            "linked": 3
+            "cases": 6,
+            "linked": 6
           },
           "legacy:seed": {
-            "cases": 3,
-            "linked": 3
+            "cases": 6,
+            "linked": 6
           },
           "legacy:undone_edit": {
-            "cases": 3,
-            "linked": 3
+            "cases": 6,
+            "linked": 6
           }
         },
-        "cases": 27,
+        "cases": 36,
         "environment": {
           "affinity": 4,
           "cpu_count": 4,
           "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
           "loadavg": [
-            3.27,
-            2.74,
-            1.6
+            3.38,
+            3.26,
+            2.21
           ],
           "python": "3.11.2",
           "toolchain_sha256": null
         },
-        "linked": 27,
+        "linked": 36,
         "linked_pct": 100.0,
         "pass": true
       },
@@ -55,9 +55,9 @@
           "cpu_count": 4,
           "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
           "loadavg": [
-            3.66,
-            2.78,
-            1.6
+            3.86,
+            3.34,
+            2.22
           ],
           "python": "3.11.2",
           "toolchain_sha256": null
@@ -85,14 +85,14 @@
     "stack": "ci-production-image-4cpu"
   },
   "stamp": {
-    "commit": "56b33430f770ba637287ca66ef62d6254f9287ec",
+    "commit": "e635d5d68fda967dc2fbd2acd7e4fd4c4d7ac00b",
     "jassub": {
       "integrity": "sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==",
       "version": "2.5.16"
     },
-    "run": "36899253661",
+    "run": "40102817012",
     "schema": "potongin.evidence-stamp/1",
-    "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+    "toolchain_sha256": "e3cce632fb3dc73fc68f58496f7bc0e981ccfdeff6d7182650f34a1768025fd8"
   },
   "task": "T2.1",
   "threshold": {

@@ -1,13 +1,13 @@
 {
-  "aligned_boundaries": 633,
-  "boundaries": 1223,
-  "events": 570,
-  "frames_rendered": 2612,
+  "aligned_boundaries": 1376,
+  "boundaries": 2731,
+  "events": 1291,
+  "frames_rendered": 5854,
   "gate": "P-TIME (FFmpeg side)",
-  "hazard_boundaries": 247,
+  "hazard_boundaries": 467,
   "mismatch_details": [],
   "mismatches": 0,
-  "onsets": 83,
+  "onsets": 149,
   "pass": true,
   "quick": false,
   "rates": {
@@ -57,14 +57,59 @@
         "mismatches": 0,
         "onsets": 0
       },
+      "hook0-blok": {
+        "aligned_boundaries": 8,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kicker": {
+        "aligned_boundaries": 6,
+        "boundaries": 6,
+        "events": 3,
+        "frames_rendered": 12,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kotak": {
+        "aligned_boundaries": 8,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
       "karaoke": {
         "aligned_boundaries": 8,
         "boundaries": 22,
         "events": 7,
-        "frames_rendered": 60,
+        "frames_rendered": 66,
         "hazard_boundaries": 0,
         "mismatches": 0,
         "onsets": 8
+      },
+      "sinar": {
+        "aligned_boundaries": 13,
+        "boundaries": 38,
+        "events": 16,
+        "frames_rendered": 90,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 6
+      },
+      "sorot": {
+        "aligned_boundaries": 20,
+        "boundaries": 100,
+        "events": 50,
+        "frames_rendered": 200,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
       }
     },
     "24000/1001": {
@@ -113,14 +158,59 @@
         "mismatches": 0,
         "onsets": 0
       },
+      "hook0-blok": {
+        "aligned_boundaries": 4,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kicker": {
+        "aligned_boundaries": 3,
+        "boundaries": 6,
+        "events": 3,
+        "frames_rendered": 12,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kotak": {
+        "aligned_boundaries": 4,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
       "karaoke": {
         "aligned_boundaries": 7,
         "boundaries": 55,
         "events": 16,
-        "frames_rendered": 156,
+        "frames_rendered": 174,
         "hazard_boundaries": 8,
         "mismatches": 0,
         "onsets": 23
+      },
+      "sinar": {
+        "aligned_boundaries": 16,
+        "boundaries": 98,
+        "events": 40,
+        "frames_rendered": 240,
+        "hazard_boundaries": 20,
+        "mismatches": 0,
+        "onsets": 18
+      },
+      "sorot": {
+        "aligned_boundaries": 22,
+        "boundaries": 280,
+        "events": 140,
+        "frames_rendered": 560,
+        "hazard_boundaries": 32,
+        "mismatches": 0,
+        "onsets": 0
       }
     },
     "25/1": {
@@ -169,14 +259,59 @@
         "mismatches": 0,
         "onsets": 0
       },
+      "hook0-blok": {
+        "aligned_boundaries": 8,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kicker": {
+        "aligned_boundaries": 6,
+        "boundaries": 6,
+        "events": 3,
+        "frames_rendered": 12,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kotak": {
+        "aligned_boundaries": 8,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
       "karaoke": {
         "aligned_boundaries": 51,
         "boundaries": 51,
         "events": 15,
-        "frames_rendered": 144,
+        "frames_rendered": 160,
         "hazard_boundaries": 11,
         "mismatches": 0,
         "onsets": 21
+      },
+      "sinar": {
+        "aligned_boundaries": 89,
+        "boundaries": 89,
+        "events": 36,
+        "frames_rendered": 220,
+        "hazard_boundaries": 28,
+        "mismatches": 0,
+        "onsets": 17
+      },
+      "sorot": {
+        "aligned_boundaries": 268,
+        "boundaries": 268,
+        "events": 134,
+        "frames_rendered": 536,
+        "hazard_boundaries": 38,
+        "mismatches": 0,
+        "onsets": 0
       }
     },
     "30/1": {
@@ -225,14 +360,59 @@
         "mismatches": 0,
         "onsets": 0
       },
+      "hook0-blok": {
+        "aligned_boundaries": 8,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kicker": {
+        "aligned_boundaries": 6,
+        "boundaries": 6,
+        "events": 3,
+        "frames_rendered": 12,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kotak": {
+        "aligned_boundaries": 8,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
       "karaoke": {
         "aligned_boundaries": 31,
         "boundaries": 51,
         "events": 15,
-        "frames_rendered": 144,
+        "frames_rendered": 160,
         "hazard_boundaries": 18,
         "mismatches": 0,
         "onsets": 21
+      },
+      "sinar": {
+        "aligned_boundaries": 63,
+        "boundaries": 89,
+        "events": 36,
+        "frames_rendered": 220,
+        "hazard_boundaries": 42,
+        "mismatches": 0,
+        "onsets": 17
+      },
+      "sorot": {
+        "aligned_boundaries": 140,
+        "boundaries": 268,
+        "events": 134,
+        "frames_rendered": 536,
+        "hazard_boundaries": 60,
+        "mismatches": 0,
+        "onsets": 0
       }
     },
     "30000/1001": {
@@ -281,26 +461,71 @@
         "mismatches": 0,
         "onsets": 0
       },
+      "hook0-blok": {
+        "aligned_boundaries": 4,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kicker": {
+        "aligned_boundaries": 3,
+        "boundaries": 6,
+        "events": 3,
+        "frames_rendered": 12,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0-kotak": {
+        "aligned_boundaries": 4,
+        "boundaries": 8,
+        "events": 4,
+        "frames_rendered": 16,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
       "karaoke": {
         "aligned_boundaries": 5,
         "boundaries": 26,
         "events": 8,
-        "frames_rendered": 72,
+        "frames_rendered": 80,
         "hazard_boundaries": 0,
         "mismatches": 0,
         "onsets": 10
+      },
+      "sinar": {
+        "aligned_boundaries": 10,
+        "boundaries": 44,
+        "events": 18,
+        "frames_rendered": 108,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 8
+      },
+      "sorot": {
+        "aligned_boundaries": 14,
+        "boundaries": 124,
+        "events": 62,
+        "frames_rendered": 248,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
       }
     }
   },
   "stamp": {
-    "commit": "56b33430f770ba637287ca66ef62d6254f9287ec",
+    "commit": "e635d5d68fda967dc2fbd2acd7e4fd4c4d7ac00b",
     "jassub": {
       "integrity": "sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==",
       "version": "2.5.16"
     },
-    "run": "36899253661",
+    "run": "40102817012",
     "schema": "potongin.evidence-stamp/1",
-    "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+    "toolchain_sha256": "e3cce632fb3dc73fc68f58496f7bc0e981ccfdeff6d7182650f34a1768025fd8"
   },
   "task": "T1.2a",
   "toolchain": {
