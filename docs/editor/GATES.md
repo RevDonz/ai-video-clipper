@@ -121,7 +121,8 @@ Bumps logged:
   transitions); P-TXT pass (285 frames); P-ENC min SSIM all 0.99017, text 0.98641 (was 0.98682;
   thresholds 0.99/0.98); P-COLOR worst |mean Δ| 1.654 (≤ 4.0); P-RT pass; R10 every case
   `auto_file`, hard-linked. Plate cache on the fixture job: 1,915,482 bytes before, 3,830,964
-  after reopening every clip, back to 1,915,482 after the janitor (`docs/editor/evidence/MU-M0/`).
+  after reopening every clip, back to 1,915,482 after `janitor.clean_job` ran with the old cells
+  aged 31 days unused (57 cells removed; `docs/editor/evidence/MU-M0/`, run 40107114611).
 
 ## Patches by the integrator (logged per plan §11.0)
 

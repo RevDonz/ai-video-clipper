@@ -213,18 +213,32 @@ P-ENC, P-COLOR, P-RT dan R10 lolos dengan ambang yang sama (run CI 40102817012).
   lagi dengan kunci baru. Sel lama dihapus janitor setelah 30 hari tidak dipakai, atau lebih
   cepat oleh batas cache pratinjau 1 GiB per job.
 - Job fixture CI (`main`, 3 klip, sumber 1280×720, 19 sel per klip): plate 1.915.482 byte
-  sebelum, 3.830.964 byte setelah ketiga klip dibuka lagi, 1.915.482 byte setelah janitor. Sel
-  baru sama persis bytenya dengan sel lama. Alat ukur `scripts/perf/plate_invalidation.py`,
-  hasilnya `docs/editor/evidence/MU-M0/plate-invalidation.json`.
+  sebelum, 3.830.964 byte setelah ketiga klip dibuka lagi, 1.915.482 byte setelah janitor
+  (sel lama dibuat 31 hari tidak dipakai, lalu `clean_job` dijalankan: 57 sel lama terhapus,
+  1.915.482 byte). Sel baru sama persis bytenya dengan sel
+  lama. Alat ukur `scripts/perf/plate_invalidation.py`, hasilnya
+  `docs/editor/evidence/MU-M0/plate-invalidation.json`.
 - Klip yang belum diedit tetap mengekspor file otomatisnya (R10, `reused="auto_file"`, hard
   link, tanpa encode). Ekspor yang sudah selesai tetap bisa diunduh; ekspor baru dari klip yang
   diedit dirender ulang sekali.
-- Lonjakan di produksi paling banyak sebesar total plate job yang dibuka dalam 30 hari terakhir.
-  Sebelum deploy, ukur angka itu dan bandingkan dengan ruang kosong dikurangi
-  `JOBS_STORAGE_MIN_FREE_BYTES`:
+- `import("node:sqlite")` di image (Node 24.22.1) tidak menulis apa pun ke stderr, jadi
+  `NODE_OPTIONS` tidak perlu diubah. Dicek di run CI 40107114611 bersama
+  `web/tests/node-sqlite-stderr.test.mjs`.
+- Lonjakan di produksi paling banyak sebesar total byte plate dari job yang dibuka dalam 30 hari
+  terakhir. Job dihitung dibuka kalau ada file pratinjau yang dipakai dalam 30 hari, dengan aturan
+  janitor: waktu pakai = mtime atau atime, mana yang lebih baru. Sebelum deploy, ukur angka itu
+  dan bandingkan dengan ruang kosong dikurangi `JOBS_STORAGE_MIN_FREE_BYTES`:
 
   ```sh
-  docker exec ai-video-clipper sh -c 'find /data/jobs -path "*/preview/plates/*" -type f -mtime -30 -printf "%s\n" | awk "{s+=\$1} END {print s+0}"'
+  docker exec ai-video-clipper sh -c '
+    total=0
+    for job in /data/jobs/*/; do
+      if [ -n "$(find "$job" -path "*/preview/*" -type f \( -mtime -30 -o -atime -30 \) -print -quit)" ]; then
+        bytes=$(find "$job" -path "*/preview/plates/*" -type f -printf "%s\n" | awk "{s+=\$1} END {print s+0}")
+        total=$((total + bytes))
+      fi
+    done
+    echo "$total"'
   docker exec ai-video-clipper df -B1 /data/jobs
   ```
 
