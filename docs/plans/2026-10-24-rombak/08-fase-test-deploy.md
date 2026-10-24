@@ -42,7 +42,7 @@ Menghapus Mode Cepat/Lengkap berarti editor hanya punya **satu layout**, bukan l
 
 ### 1.2 Yang tetap butuh tindakan pemilik di G0 walau Q1/Q2/Q9 final
 
-- Merge PR `feat/ux-redesign-workspace` ke `main` (status di `docs/HANDOFF.md` §9).
+- ~~Merge PR `feat/ux-redesign-workspace` ke `main`~~: selesai lewat #30.
 - Menyetujui **teks** amandemen (PR docs-only, §4 G0) — persetujuan arah sudah ada, teks finalnya tetap direview.
 - Mendaftarkan app Google, TikTok, Meta dalam mode testing (kalender 2–6+ minggu).
 
@@ -54,7 +54,7 @@ Menghapus Mode Cepat/Lengkap berarti editor hanya punya **satu layout**, bukan l
 2. **Di PC pemilik hanya tes yang ditargetkan:** `node --test web/tests/<file>`, `uv run pytest tests/<file>`. Suite penuh, image, FFmpeg/parity, Playwright di GitHub Actions:
    - `ci-cd.yml` di setiap PR (termasuk `scripts/parity/run_all.sh smoke`).
    - `gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command|e2e|player` untuk PR yang menyentuh CSS, UI, render, Python engine, atau deploy.
-   - `run_all.sh toolchain` wajib untuk perubahan toolchain (Node 24, pin JASSUB).
+   - `run_all.sh toolchain` wajib untuk perubahan toolchain (Node 24, pin JASSUB): `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`, lalu commit `docs/editor/evidence/toolchain/record.json` dari artifact run itu.
 3. **gitleaks** dengan config `main` sebelum setiap push.
 4. **Migrasi hanya aditif.** Kolom/tabel baru, field JSON baru opsional. "Contract" (menghapus) hanya di rilis terpisah dan dicatat di matriks rollback. Penomoran (`0001`–`0007`, urut merge), lint aditif, dan DDL: `01-arsitektur-data.md` §3–§4; dokumen lain tidak menulis DDL sendiri.
 5. **Expand lalu enable.** Fitur besar masuk di balik flag env default mati (§9.8), dinyalakan di rilis berikutnya.
@@ -90,7 +90,7 @@ Format setiap fase: **Isi** (milestone id, hari-dev, file utama) → **Dependens
 ### G0 · Gerbang (0 hari-dev, kerja pemilik)
 
 **Isi**
-- PR `feat/ux-redesign-workspace` di-merge ke `main`.
+- PR `feat/ux-redesign-workspace` di-merge ke `main` (selesai, #30).
 - PR docs-only "amandemen G0" (ditulis implementer, disetujui pemilik), mengubah:
   - `DESIGN.md`: kepala halaman = judul + aksi tanpa kalimat; sidebar datar dengan item per peran/flag; Buat klip = chip bernilai (menggantikan tiga lipatan); HeroUI v3 di atas token Potongin; dua set kata status (proses, postingan); keadaan terpilih tanpa lime; bagian **Bahasa** (pemilih, slug netral, glosarium); **§Editor** = satu layout, pratinjau dulu, satu panel kanan, Lanjutan terlipat (§1.1), Mode Cepat/Lengkap dihapus (teks persis: `06-editor.md` §18.1; dashboard: `05-ui-dashboard.md` §9.1); label Proyek/Tren/Antre; istilah Terbitkan/Terbit.
   - `AGENTS.md`: baris "UI copy is Indonesian" → copy dari katalog `web/messages/id/` (sumber) dan diterjemahkan ke setiap locale di registry, label pendek di semua bahasa, bahasa konten mengikuti `videoLanguage` (teks amandemen: `07-i18n.md` §17); protokol clean-room (SupoClip boleh dibaca untuk perilaku, dilarang menyalin kode/string/markup/nama; katalog `en` dari katalog `id` + glosarium); migrasi hanya aditif; guard auth wajib sinkron.
@@ -98,7 +98,7 @@ Format setiap fase: **Isi** (milestone id, hari-dev, file utama) → **Dependens
 - Pemilik mulai pendaftaran app Google, TikTok, Meta (mode testing).
 
 **Kriteria terima**
-- [ ] PR UX ada di `main`.
+- [x] PR UX ada di `main` (#30).
 - [ ] PR amandemen G0 di-merge dengan approval pemilik.
 - [ ] Q1, Q2, Q9 tercatat final (§1); Q8 format jam tercatat (default 24 jam).
 - [ ] Tiket pendaftaran app ketiga platform sudah dibuat (tanggal dicatat di `docs/operations/SOSMED.md` saat Fase 0).
@@ -110,7 +110,7 @@ Format setiap fase: **Isi** (milestone id, hari-dev, file utama) → **Dependens
 **Isi**
 | Milestone | Hari | Isi | File |
 |---|---|---|---|
-| MU-M0 Node 24 | 2,5 | Rinci `01-arsitektur-data.md` §8: digest `NODE_IMAGE` `node:24-bookworm-slim@sha256:…` di `Dockerfile:9`; `node-version: "24"` di tiga workflow; `engines` di `web/package.json`; stamp toolchain baru; aturan stderr `node:sqlite` (01 §8.3: modul yang stderr-nya di-parse tidak mengimpor `web/lib/db/*`; bila peringatan muncul, `NODE_OPTIONS=--disable-warning=ExperimentalWarning` hanya di app/primary/social dan dibuang dari env anak). | `Dockerfile`, `web/package.json`, `.github/workflows/{ci-cd,editor-gates,ytdlp-update}.yml`, `scripts/parity/toolchain_guard.py` |
+| MU-M0 Node 24 | 2,5 | Rinci `01-arsitektur-data.md` §8: digest `NODE_IMAGE` `node:24-bookworm-slim@sha256:…` di `Dockerfile:9`; `node-version: "24"` di tiga workflow; `engines` di `web/package.json`; bukti toolchain baru: `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`, lalu isi artifact `toolchain-evidence` disalin ke `docs/editor/evidence/toolchain/` dan `record.json` yang tercap di-commit di PR yang sama (`docs/editor/OPERASIONAL.md` §3); tanpa itu job `toolchain-guard` di `ci-cd.yml` gagal pada pin Node 24; aturan stderr `node:sqlite` (01 §8.3: modul yang stderr-nya di-parse tidak mengimpor `web/lib/db/*`; bila peringatan muncul, `NODE_OPTIONS=--disable-warning=ExperimentalWarning` hanya di app/primary/social dan dibuang dari env anak). | `Dockerfile`, `web/package.json`, `.github/workflows/{ci-cd,editor-gates,ytdlp-update}.yml`, `scripts/parity/toolchain_guard.py`, `docs/editor/evidence/toolchain/record.json` |
 | FB-M0 | 2 | `rules.v1.json` dibekukan (bucket, hookForm, `LIFT_FULL=0.25`, cap); kontrak snapshot v1; kontrak registry posting; minta contoh CSV ke pemilik. | `resources/performance/rules.v1.json` (baru) |
 | SOS-M0 | 3 | Batas platform + kewajiban retensi dengan sumber resmi; `FILE_UPLOAD` TikTok jalur utama; checklist verifikasi domain; pembolehan agregat 30 hari YouTube; cek resumable upload Instagram. | `docs/operations/SOSMED.md` (baru) |
 | FETCH-M0 | 3 | Ukur di CI (`editor-gates.yml suite=command`): audio asli vs `ba` (Opus/AAC), waktu sampai seleksi, bgutil ±proxy, proxy lewat config tidak muncul di `/proc/*/cmdline`, Kick ±curl_cffi, data range-only. Go/no-go tertulis. | `docs/evaluation/UNDUHAN_M0.md` (baru) |
@@ -122,7 +122,7 @@ Skema `layout.ranges` yang dikunci di §5.63 (KA6) **dimiliki `04-reframe-unduha
 **Dependensi:** G0.
 
 **Kriteria terima**
-- [ ] `ci-cd.yml` dan `editor-gates.yml suite=full` hijau di Node 24; `run_all.sh toolchain` lolos P-TIME, P-TXT, P-ENC, P-COLOR, P-RT dengan ambang tidak berubah (§8.3).
+- [ ] `ci-cd.yml` dan `editor-gates.yml suite=full` hijau di Node 24; `run_all.sh toolchain` (lewat `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`) lolos P-TIME, P-TXT, P-ENC, P-COLOR, P-RT dengan ambang tidak berubah (01 §8.4), dan `record.json` tercap dari run itu di-commit.
 - [ ] Invalidasi plate/render key tercatat (01 §8.2, §8.4; ringkasan di `docs/editor/OPERASIONAL.md` §3): byte cache plate sebelum/sesudah diukur di produksi-like volume; klip yang tidak diubah tetap memakai file otomatis R10 (`reused="auto_file"`) tanpa render ulang.
 - [ ] stderr pipeline bersih dari peringatan `node:sqlite`.
 - [ ] `UNDUHAN_M0.md` berisi go/no-go Kick, bgutil, range-only.
@@ -130,7 +130,7 @@ Skema `layout.ranges` yang dikunci di §5.63 (KA6) **dimiliki `04-reframe-unduha
 - [ ] PR kontrak di-merge.
 - [ ] Disk produksi diukur (baseline 81%) dan dicatat di `SOSMED.md`/`UNDUHAN_M0.md` untuk cap cache/pin.
 
-**Tes:** `ci-cd.yml` (Node 24) + `editor-gates.yml -f suite=full` dan `-f suite=image`; `scripts/parity/run_all.sh toolchain` (P-TIME, P-TXT matriks penuh, P-ENC, P-RT, R10) dan stamp baru `scripts/parity/toolchain_guard.py`; diubah `tests/test_edit_v2_toolchain.py` (pin Node 24); baru `web/tests/node-sqlite-stderr.test.mjs` (spawn `import("./lib/db/index.mjs")` dengan env compose → stderr kosong, 01 §8.3) dan `web/tests/sqlite-import-boundary.test.mjs` (01 §8.3); `tests/test_parity_ci_gates.py` tetap hijau tanpa diubah; `scripts/eval/auto_reframe.py --split dev` (baseline camera).
+**Tes:** `ci-cd.yml` (Node 24) + `editor-gates.yml -f suite=full` dan `-f suite=image`; `scripts/parity/run_all.sh toolchain` (P-TIME, P-TXT matriks penuh, P-ENC, P-RT, R10) lewat `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`, lalu `docs/editor/evidence/toolchain/record.json` dari artifact `toolchain-evidence` di-commit (dicek `scripts/parity/toolchain_guard.py check`); diubah `tests/test_edit_v2_toolchain.py` (pin Node 24); baru `web/tests/node-sqlite-stderr.test.mjs` (spawn `node -e 'import("node:sqlite")'` dengan env compose → stderr kosong, 01 §8.3; varian `import("./lib/db/index.mjs")` ditambahkan di Fase 4 saat `web/lib/db/` dibuat) dan `web/tests/sqlite-import-boundary.test.mjs` (01 §8.3); `tests/test_parity_ci_gates.py` tetap hijau tanpa diubah; `scripts/eval/auto_reframe.py --split dev` (baseline camera).
 
 **Pengguna merasakan:** tidak ada (runtime baru). **Rollback:** image sebelumnya (`rollback-<sha>`); plate cache baru boleh dibuang.
 
