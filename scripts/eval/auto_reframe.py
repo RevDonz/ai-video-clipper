@@ -715,9 +715,10 @@ show();
 """
 
 
-def label_page(registry: Mapping[str, Any], split: str, cache: Path) -> str:
+def label_page(selected: Sequence[Mapping[str, Any]], split: str, cache: Path) -> str:
+    """The static label page for ``selected`` registry windows (each must be fetched)."""
     windows = []
-    for window in split_windows(registry, split):
+    for window in selected:
         info = window_info(cache, window)
         windows.append({"id": window["id"], "category": window["category"], "fps": info["fps"],
                         "window_sf": info["window_sf"], "frames": info["frames"],
@@ -927,7 +928,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.label:
         if args.out is None or args.split == "all":
             parser.error("--label needs --out and one split")
-        args.out.write_text(label_page(registry, args.split, args.cache), encoding="utf-8")
+        args.out.write_text(label_page(windows, args.split, args.cache), encoding="utf-8")
         print(f"{args.out}")
         return 0
     if args.split == "test":
