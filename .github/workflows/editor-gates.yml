@@ -60,7 +60,8 @@ permissions:
 jobs:
   gates:
     name: ${{ inputs.suite }} @ ${{ inputs.ref }}
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not -latest: suite=full expects the runner's apt FFmpeg 6.1, as ci-cd.yml.
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
       GATE_COMMAND: ${{ inputs.command }}
