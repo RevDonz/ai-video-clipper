@@ -440,28 +440,6 @@
       "raw_media_committed": false
     },
     {
-      "source_id": "commons-sopa-wiki-podcast-epis-dio-2-mobiliza-o-social-p",
-      "platform": "wikimedia_commons",
-      "title": "Sopa Wiki Podcast - Episódio 2 - Mobilização social pelo conhecimento livre.webm",
-      "url": "https://commons.wikimedia.org/wiki/File:Sopa_Wiki_Podcast_-_Epis%C3%B3dio_2_-_Mobiliza%C3%A7%C3%A3o_social_pelo_conhecimento_livre.webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/Sopa_Wiki_Podcast_-_Epis%C3%B3dio_2_-_Mobiliza%C3%A7%C3%A3o_social_pelo_conhecimento_livre.webm",
-      "original_sha1": "641a3e69a766b5e87d37ba64f10be02aae1e4b09",
-      "author": "Wiki Movimento Brasil",
-      "duration_seconds": 1956.641,
-      "width": 1280,
-      "height": 720,
-      "license": "CC BY 3.0",
-      "license_url": "https://creativecommons.org/licenses/by/3.0",
-      "rights_status": "creative_commons_attribution",
-      "attribution_required": true,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "commons_license_review": "pending",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
       "source_id": "commons-the-css-podcast-088-state-queries",
       "platform": "wikimedia_commons",
       "title": "The CSS-Podcast – 088 – State queries.webm",
@@ -502,28 +480,6 @@
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
       "commons_license_review": "passed",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
-      "source_id": "commons-inside-the-fbi-podcast-top-ten-fugitive-ruja-ign",
-      "platform": "wikimedia_commons",
-      "title": "Inside the FBI Podcast – Top Ten Fugitive Ruja Ignatova.webm",
-      "url": "https://commons.wikimedia.org/wiki/File:Inside_the_FBI_Podcast_%E2%80%93_Top_Ten_Fugitive_Ruja_Ignatova.webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/9/94/Inside_the_FBI_Podcast_%E2%80%93_Top_Ten_Fugitive_Ruja_Ignatova.webm",
-      "original_sha1": "a2fb41d76cead6fa3093985df2eaa07c9c2ee2f2",
-      "author": "Inside the FBI Podcast: Top Ten Fugitive Ruja Ignatova",
-      "duration_seconds": 425.008,
-      "width": 1920,
-      "height": 1080,
-      "license": "Public domain",
-      "license_url": "https://commons.wikimedia.org/wiki/File:Inside_the_FBI_Podcast_%E2%80%93_Top_Ten_Fugitive_Ruja_Ignatova.webm",
-      "rights_status": "public_domain",
-      "attribution_required": false,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -1068,19 +1024,19 @@
       "gameplay_broll": 6
     },
     "composition": {
-      "single_speaker": 10,
-      "two_person": 11,
-      "panel": 9,
-      "screen": 7,
-      "gameplay_broll": 7
+      "single_speaker": 12,
+      "two_person": 8,
+      "panel": 6,
+      "screen": 8,
+      "gameplay_broll": 8
     },
     "start_rule": "seeded whole second between 10% of the source and 90% minus 120 s (auto_reframe.window_start_ms)",
     "split": {
       "seed": 20261024,
       "assigned_at": "2026-10-24",
       "method": "per category, sources shuffled with the seed; first half (rounded down) dev, the rest test (auto_reframe.assign_splits)",
-      "dev": 20,
-      "test": 24,
+      "dev": 21,
+      "test": 21,
       "test_locked": true
     },
     "windows": [
@@ -1091,7 +1047,10 @@
         "start_ms": 845000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          25,
+          1
+        ]
       },
       {
         "id": "rf-02",
@@ -1100,7 +1059,10 @@
         "start_ms": 223000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-03",
@@ -1109,7 +1071,10 @@
         "start_ms": 148000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-04",
@@ -1117,8 +1082,11 @@
         "category": "single_speaker",
         "start_ms": 127000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          24000,
+          1001
+        ]
       },
       {
         "id": "rf-05",
@@ -1126,8 +1094,11 @@
         "category": "single_speaker",
         "start_ms": 25000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
+        "split": "test",
+        "fps": [
+          24000,
+          1001
+        ]
       },
       {
         "id": "rf-06",
@@ -1136,7 +1107,10 @@
         "start_ms": 141000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-07",
@@ -1145,7 +1119,10 @@
         "start_ms": 85000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-09",
@@ -1154,7 +1131,10 @@
         "start_ms": 123000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-10",
@@ -1162,8 +1142,11 @@
         "category": "single_speaker",
         "start_ms": 26000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-11",
@@ -1171,8 +1154,11 @@
         "category": "two_person",
         "start_ms": 504000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
+        "split": "test",
+        "fps": [
+          25,
+          1
+        ]
       },
       {
         "id": "rf-12",
@@ -1180,8 +1166,11 @@
         "category": "two_person",
         "start_ms": 621000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-13",
@@ -1190,7 +1179,10 @@
         "start_ms": 155000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-14",
@@ -1198,8 +1190,11 @@
         "category": "single_speaker",
         "start_ms": 103000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
+        "split": "test",
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-15",
@@ -1207,8 +1202,11 @@
         "category": "two_person",
         "start_ms": 891000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
+        "split": "test",
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-16",
@@ -1217,7 +1215,10 @@
         "start_ms": 315000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-17",
@@ -1226,16 +1227,10 @@
         "start_ms": 399000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
-      },
-      {
-        "id": "rf-18",
-        "source_id": "commons-sopa-wiki-podcast-epis-dio-2-mobiliza-o-social-p",
-        "category": "two_person",
-        "start_ms": 642000,
-        "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-19",
@@ -1244,7 +1239,10 @@
         "start_ms": 330000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-21",
@@ -1252,17 +1250,11 @@
         "category": "panel",
         "start_ms": 657000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
-      },
-      {
-        "id": "rf-22",
-        "source_id": "commons-inside-the-fbi-podcast-top-ten-fugitive-ruja-ign",
-        "category": "two_person",
-        "start_ms": 114000,
-        "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-23",
@@ -1270,8 +1262,11 @@
         "category": "panel",
         "start_ms": 364000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
+        "split": "test",
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-24",
@@ -1280,25 +1275,34 @@
         "start_ms": 918000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-25",
         "source_id": "commons-perseverance-mars-rover-pre-launch-news-conferen",
-        "category": "panel",
+        "category": "gameplay_broll",
         "start_ms": 1232000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-27",
         "source_id": "commons-podcasting-about-wikimedia-in-your-language",
-        "category": "two_person",
+        "category": "single_speaker",
         "start_ms": 424000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-28",
@@ -1307,7 +1311,10 @@
         "start_ms": 2518000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-29",
@@ -1316,7 +1323,10 @@
         "start_ms": 395000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          25,
+          1
+        ]
       },
       {
         "id": "rf-30",
@@ -1325,7 +1335,10 @@
         "start_ms": 254000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-31",
@@ -1333,8 +1346,11 @@
         "category": "screen",
         "start_ms": 1020000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
+        "split": "test",
+        "fps": [
+          24000,
+          1001
+        ]
       },
       {
         "id": "rf-32",
@@ -1343,16 +1359,22 @@
         "start_ms": 2205000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-33",
         "source_id": "commons-age-of-empires-iv-developer-discussion-ugc-megar",
-        "category": "panel",
+        "category": "screen",
         "start_ms": 2521000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-34",
@@ -1360,17 +1382,23 @@
         "category": "screen",
         "start_ms": 243000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          24000,
+          1001
+        ]
       },
       {
         "id": "rf-35",
         "source_id": "commons-ibm-research-live-responsible-ai",
-        "category": "panel",
+        "category": "single_speaker",
         "start_ms": 809000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-36",
@@ -1379,7 +1407,10 @@
         "start_ms": 63000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-37",
@@ -1387,8 +1418,11 @@
         "category": "screen",
         "start_ms": 376000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          25,
+          1
+        ]
       },
       {
         "id": "rf-39",
@@ -1396,8 +1430,11 @@
         "category": "screen",
         "start_ms": 727000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
+        "split": "test",
+        "fps": [
+          25,
+          1
+        ]
       },
       {
         "id": "rf-40",
@@ -1405,8 +1442,11 @@
         "category": "panel",
         "start_ms": 436000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-42",
@@ -1415,7 +1455,10 @@
         "start_ms": 290000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-43",
@@ -1424,7 +1467,10 @@
         "start_ms": 202000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-44",
@@ -1432,8 +1478,11 @@
         "category": "screen",
         "start_ms": 406000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          30000,
+          1001
+        ]
       },
       {
         "id": "rf-45",
@@ -1442,7 +1491,10 @@
         "start_ms": 350000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-46",
@@ -1450,8 +1502,11 @@
         "category": "gameplay_broll",
         "start_ms": 364000,
         "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
+        "split": "test",
+        "fps": [
+          24,
+          1
+        ]
       },
       {
         "id": "rf-47",
@@ -1460,7 +1515,10 @@
         "start_ms": 231000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
+        "fps": [
+          24,
+          1
+        ]
       },
       {
         "id": "rf-49",
@@ -1469,7 +1527,10 @@
         "start_ms": 604000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
+        "fps": [
+          30,
+          1
+        ]
       },
       {
         "id": "rf-51",
@@ -1477,8 +1538,11 @@
         "category": "gameplay_broll",
         "start_ms": 85000,
         "duration_ms": 120000,
-        "split": "test",
-        "fps": null
+        "split": "dev",
+        "fps": [
+          30000,
+          1001
+        ]
       }
     ]
   }
