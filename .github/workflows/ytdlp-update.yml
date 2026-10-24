@@ -20,7 +20,8 @@ jobs:
   bump:
     # Runs the new yt-dlp against YouTube, so it holds a read-only token and no git credentials.
     name: Bump and smoke
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, as ci-cd.yml's test job: the same apt FFmpeg.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read

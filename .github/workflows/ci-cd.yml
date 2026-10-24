@@ -30,7 +30,9 @@ jobs:
   test:
     name: Test and build
     if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'pr')
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not -latest: the suites expect the runner's apt FFmpeg 6.1; -latest moved to
+    # 26.04 (FFmpeg 8.0) and 44 render tests fail there.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Check out source
