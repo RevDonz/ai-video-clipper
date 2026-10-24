@@ -73,6 +73,8 @@ File `<job>/analysis/performance-profile.json`, ditulis `preparePerformanceProfi
   atau angka mentah.
 - `boosts` selalu memuat ketiga dimensi; dimensi tanpa boost = objek kosong.
 - Setiap nilai `0 < x ≤ capPerDimension`, dibulatkan 2 desimal. Boost 0 tidak ditulis.
+  Dok 03 §13.5 butir 1 menulis `0 ≤ x`; skema ini yang berlaku, jadi validator `load_profile`
+  (FB-M2) juga menolak boost 0.
 - `posts ≥ minPosts`. Di bawah itu status `collecting` dan file tidak ditulis (file lama dihapus).
 - Engine menolak file yang tidak cocok skema atau `rulesId`-nya beda dengan aturan terpasang:
   profil diabaikan, warning `performance_profile_invalid`, job tetap jalan.
