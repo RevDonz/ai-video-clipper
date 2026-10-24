@@ -4464,7 +4464,9 @@ every job is visible to the `APP_*` login again. DB migrations are additive only
 `tests/test_render_worker_fairness.py` (A has 10 requests, B one later: the second claim is B; no
 key and a malformed key are `legacy`; name order within a key), `web/tests/job-ownership.test.mjs`
 (effective owner, serializer drops both fields, `fairnessKeyFor` vectors),
-`web/tests/primary-job-queue.test.mjs` (fair policy, v3 reservations both ways), the
+`web/tests/queue-fairness.test.mjs` (fair policy; the existing `primary-job-queue` tests stay
+unchanged), the v3 reservation tests both ways in `web/tests/reservation-v3.test.mjs` (rombak 02
+§13) plus the cases added to `web/tests/primary-job-queue.test.mjs` (rombak 01 §6.3), the
 `ownership-matrix` and `route-guard-coverage` gates of rombak 02 §13.
 
 ## 5.60 Posting to social platforms: publish runs (2026-10-24)
@@ -4721,8 +4723,11 @@ in use and shows "Data lama". No table: computed deterministically, cached in me
 
 - `select_clips_v3(..., performance=None)`; `_Candidate.perf = min(capTotal, Σ boosts)`, filled
   only with a profile.
-- `_boosted(candidates, value=_trend_boost)` replaces its three uses of `.boost` by `value(…)`;
-  the rule that a candidate never passes one whose own `rank_value` is higher is unchanged.
+- `_boosted(candidates, value=_trend_boost)` replaces every use of `.boost` by `value(…)`: all
+  four, the early return (`any(item.boost …)`), the `if item.boost:` guard, `item.rank_value +
+  item.boost` and `above.rank_value + above.boost`. Left on `.boost`, the guard keeps a candidate
+  with `perf > 0` and no trend boost in place, so the profile does nothing without a trend. The
+  rule that a candidate never passes one whose own `rank_value` is higher is unchanged.
   `_ordered(..., value=)` passes `value` to both of its `_boosted` calls; `select_clips_v3` gives
   `value=_order_boost` (`boost + perf`) only with a profile. `_focus_floors` keeps the trend-only
   boost.
