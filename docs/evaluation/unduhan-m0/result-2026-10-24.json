@@ -1,0 +1,2846 @@
+{
+  "schema": "potongin.fetch-m0/1",
+  "runs": [
+    {
+      "phases": [
+        "env",
+        "extractors",
+        "sizes",
+        "proxy",
+        "kick"
+      ],
+      "started": "2026-10-24T15:01:55Z",
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      }
+    },
+    {
+      "phases": [
+        "youtube"
+      ],
+      "started": "2026-10-24T15:00:46Z",
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      }
+    },
+    {
+      "phases": [
+        "audio"
+      ],
+      "started": "2026-10-24T15:00:40Z",
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      }
+    },
+    {
+      "phases": [
+        "range"
+      ],
+      "started": "2026-10-24T14:45:14Z",
+      "github_run": null,
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      }
+    },
+    {
+      "phases": [
+        "timing"
+      ],
+      "started": "2026-10-24T14:45:30Z",
+      "github_run": null,
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      }
+    },
+    {
+      "phases": [
+        "timing"
+      ],
+      "started": "2026-10-24T14:51:41Z",
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      }
+    },
+    {
+      "phases": [
+        "timing"
+      ],
+      "started": "2026-10-24T14:53:36Z",
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      }
+    },
+    {
+      "phases": [
+        "timing"
+      ],
+      "started": "2026-10-24T14:51:59Z",
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      }
+    }
+  ],
+  "phases": {
+    "env": {
+      "yt_dlp": "2026.08.19",
+      "yt_dlp_locked": "2026.8.19",
+      "node": "v20.20.2",
+      "js_runtimes": "node-20.20.2 (unsupported)",
+      "node_runtime": {
+        "name": "node",
+        "version": "20.20.2",
+        "supported": false
+      },
+      "optional_libraries": "certifi-2026.07.22, sqlite3-3.40.1",
+      "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+      "python": "3.11.2",
+      "cpus": 4,
+      "phase_seconds": 2.1
+    },
+    "extractors": {
+      "yt_dlp": "2026.08.19",
+      "names": {
+        "youtube": [
+          "youtube",
+          "youtube:clip",
+          "youtube:consent",
+          "youtube:favorites",
+          "youtube:history",
+          "youtube:music:search_url",
+          "youtube:notif",
+          "youtube:playlist",
+          "youtube:recommended",
+          "youtube:search",
+          "youtube:search_url",
+          "youtube:shorts:pivot:audio",
+          "youtube:subscriptions",
+          "youtube:tab",
+          "youtube:truncated_id",
+          "youtube:truncated_url",
+          "youtube:user",
+          "youtube:watchlater"
+        ],
+        "twitch": [
+          "twitch:clips",
+          "twitch:collection",
+          "twitch:stream",
+          "twitch:videos",
+          "twitch:videos:clips",
+          "twitch:videos:collections",
+          "twitch:vod"
+        ],
+        "kick": [
+          "kick:clips",
+          "kick:live",
+          "kick:vod"
+        ]
+      },
+      "phase_seconds": 0.8
+    },
+    "sizes": {
+      "source": "video.blender.org file sizes (metadata, no download)",
+      "sources": [
+        {
+          "target_seconds": 600,
+          "video": {
+            "uuid": "693102c6-6db5-43ab-93d5-60541a4ae8da",
+            "name": "Interface Overview - Blender Fundamentals",
+            "duration": 601,
+            "licence": "Attribution",
+            "url": "https://video.blender.org/videos/watch/693102c6-6db5-43ab-93d5-60541a4ae8da"
+          },
+          "bytes": {
+            "1080": 41109039,
+            "720": 25409050
+          },
+          "bytes_per_hour": {
+            "1080": 246243828,
+            "720": 152200632
+          }
+        },
+        {
+          "target_seconds": 1800,
+          "video": {
+            "uuid": "298047fd-604d-42c9-a100-6d6babfa00da",
+            "name": "Geometry Nodes Fields: Explained!",
+            "duration": 1797,
+            "licence": "Attribution",
+            "url": "https://video.blender.org/videos/watch/298047fd-604d-42c9-a100-6d6babfa00da"
+          },
+          "bytes": {
+            "1080": 190433777,
+            "720": 145459931
+          },
+          "bytes_per_hour": {
+            "1080": 381503393,
+            "720": 291405538
+          }
+        },
+        {
+          "target_seconds": 3600,
+          "video": {
+            "uuid": "a6a31a95-8333-4506-8ac5-6d67b20686b8",
+            "name": "Developers Ask Me Anything",
+            "duration": 3596,
+            "licence": "Attribution",
+            "url": "https://video.blender.org/videos/watch/a6a31a95-8333-4506-8ac5-6d67b20686b8"
+          },
+          "bytes": {
+            "1080": 1284834808,
+            "720": 652022301
+          },
+          "bytes_per_hour": {
+            "1080": 1286263990,
+            "720": 652747576
+          }
+        },
+        {
+          "target_seconds": 7200,
+          "video": {
+            "uuid": "49cb30e9-59d3-4372-84e4-655c2a094407",
+            "name": "BCON20 - Blender Conference: Together Apart",
+            "duration": 5937,
+            "licence": "Attribution - Share Alike",
+            "url": "https://video.blender.org/videos/watch/49cb30e9-59d3-4372-84e4-655c2a094407"
+          },
+          "bytes": {
+            "720": 1002501009
+          },
+          "bytes_per_hour": {
+            "720": 607883381
+          }
+        }
+      ],
+      "youtube": "not measured: every YouTube request from the runner was bot-checked",
+      "phase_seconds": 15.3
+    },
+    "proxy": {
+      "target": "https://video.blender.org/videos/watch/0312db19-d6fa-40e3-970c-3b383535721e",
+      "config_locations": {
+        "returncode": 0,
+        "seconds": 6.19,
+        "scans": 303,
+        "processes_seen_max": 5,
+        "hits": [],
+        "error": null,
+        "tunnels": 4
+      },
+      "control_argv_proxy": {
+        "returncode": 0,
+        "seconds": 6.19,
+        "scans": 303,
+        "processes_seen_max": 4,
+        "hits": [
+          {
+            "pid": 94,
+            "file": "cmdline"
+          }
+        ],
+        "error": null,
+        "tunnels": 4
+      },
+      "proxy_auth_headers_seen": 8,
+      "confirmed": true,
+      "phase_seconds": 25.9
+    },
+    "kick": {
+      "api": {
+        "xqc/urllib": {
+          "videos": "ok",
+          "clips": "ok"
+        },
+        "xqc/curl_cffi": {
+          "videos": "ok",
+          "clips": "ok"
+        },
+        "adinross/urllib": {
+          "videos": "ok",
+          "clips": "ok"
+        },
+        "adinross/curl_cffi": {
+          "videos": "ok",
+          "clips": "ok"
+        }
+      },
+      "urls": 5,
+      "media": "not downloaded",
+      "setup": {},
+      "arms": {
+        "without_curl_cffi": [
+          {
+            "kind": "vod",
+            "outcome": "ok",
+            "formats": 5,
+            "seconds": 1.06,
+            "playlist": "200",
+            "impersonation_warning": true,
+            "line": null
+          },
+          {
+            "kind": "vod",
+            "outcome": "ok",
+            "formats": 5,
+            "seconds": 1.0,
+            "playlist": "200",
+            "impersonation_warning": true,
+            "line": null
+          },
+          {
+            "kind": "vod",
+            "outcome": "ok",
+            "formats": 5,
+            "seconds": 1.07,
+            "playlist": "200",
+            "impersonation_warning": true,
+            "line": null
+          },
+          {
+            "kind": "clip",
+            "outcome": "ok",
+            "formats": 1,
+            "seconds": 0.97,
+            "playlist": "200",
+            "impersonation_warning": true,
+            "line": null
+          },
+          {
+            "kind": "clip",
+            "outcome": "ok",
+            "formats": 1,
+            "seconds": 0.98,
+            "playlist": "200",
+            "impersonation_warning": true,
+            "line": null
+          }
+        ],
+        "with_curl_cffi": [
+          {
+            "kind": "vod",
+            "outcome": "ok",
+            "formats": 5,
+            "seconds": 1.01,
+            "playlist": "200",
+            "impersonation_warning": false,
+            "line": null
+          },
+          {
+            "kind": "vod",
+            "outcome": "ok",
+            "formats": 5,
+            "seconds": 0.83,
+            "playlist": "200",
+            "impersonation_warning": false,
+            "line": null
+          },
+          {
+            "kind": "vod",
+            "outcome": "ok",
+            "formats": 5,
+            "seconds": 0.77,
+            "playlist": "200",
+            "impersonation_warning": false,
+            "line": null
+          },
+          {
+            "kind": "clip",
+            "outcome": "ok",
+            "formats": 1,
+            "seconds": 0.65,
+            "playlist": "200",
+            "impersonation_warning": false,
+            "line": null
+          },
+          {
+            "kind": "clip",
+            "outcome": "ok",
+            "formats": 1,
+            "seconds": 0.69,
+            "playlist": "200",
+            "impersonation_warning": false,
+            "line": null
+          }
+        ]
+      },
+      "decision": "metadata_ok_without_curl_cffi",
+      "phase_seconds": 13.5
+    },
+    "youtube": {
+      "url": "https://www.youtube.com/watch?v=u8Y6S6ev-Vg",
+      "tries": 20,
+      "arms": {
+        "image": {
+          "bot_check": {
+            "tries": 20,
+            "count": 20,
+            "share": 1.0
+          },
+          "ok": {
+            "tries": 20,
+            "count": 0,
+            "share": 0.0
+          },
+          "outcomes": {
+            "bot_check": 20
+          },
+          "pot_tokens": 0,
+          "median_seconds": 1.56,
+          "last_error": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        },
+        "node24_ejs": {
+          "bot_check": {
+            "tries": 20,
+            "count": 20,
+            "share": 1.0
+          },
+          "ok": {
+            "tries": 20,
+            "count": 0,
+            "share": 0.0
+          },
+          "outcomes": {
+            "bot_check": 20
+          },
+          "pot_tokens": 0,
+          "median_seconds": 1.3450000000000002,
+          "last_error": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        },
+        "node24_ejs_bgutil": {
+          "bot_check": {
+            "tries": 20,
+            "count": 20,
+            "share": 1.0
+          },
+          "ok": {
+            "tries": 20,
+            "count": 0,
+            "share": 0.0
+          },
+          "outcomes": {
+            "bot_check": 20
+          },
+          "pot_tokens": 0,
+          "median_seconds": 1.32,
+          "last_error": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        }
+      },
+      "setup": {
+        "problems": {},
+        "bgutil_server": "ok"
+      },
+      "pins": {
+        "node": "24.21.0",
+        "bgutil": "2.0.2",
+        "bgutil_image_digest": "sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472",
+        "yt_dlp_ejs": "0.8.0",
+        "curl_cffi": "0.16.0"
+      },
+      "proxy": "not measured: no free proxy allowed",
+      "headers": {
+        "image": {
+          "yt-dlp version": null,
+          "JS runtimes": "node-20.20.2 (unsupported)",
+          "Optional libraries": "certifi-2026.07.22, sqlite3-3.40.1",
+          "pot_providers": "none"
+        },
+        "node24_ejs": {
+          "yt-dlp version": null,
+          "JS runtimes": "node-24.21.0",
+          "Optional libraries": "Cryptodome-3.24.1, brotli-1.2.1, certifi-2026.10.23, mutagen-1.48.1, requests-2.34.2, sqlite3-3.40.1, urllib3-2.8.0, websockets-17.3, yt_dlp_ejs-0.8.0",
+          "pot_providers": "none"
+        },
+        "node24_ejs_bgutil": {
+          "yt-dlp version": null,
+          "JS runtimes": "node-24.21.0",
+          "Optional libraries": "Cryptodome-3.24.1, brotli-1.2.1, certifi-2026.10.23, mutagen-1.48.1, requests-2.34.2, sqlite3-3.40.1, urllib3-2.8.0, websockets-17.3, yt_dlp_ejs-0.8.0",
+          "pot_providers": "bgutil:http-2.0.2 (external), bgutil:script-node-2.0.2 (external, unavailable), bgutil:script-deno-2.0.2 (external, unavailable)"
+        }
+      },
+      "clients": {
+        "default": {
+          "outcome": "bot_check",
+          "line": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        },
+        "tv": {
+          "outcome": "bot_check",
+          "line": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        },
+        "web_safari": {
+          "outcome": "bot_check",
+          "line": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        },
+        "mweb": {
+          "outcome": "bot_check",
+          "line": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        },
+        "android_vr": {
+          "outcome": "bot_check",
+          "line": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        },
+        "web_embedded": {
+          "outcome": "bot_check",
+          "line": "ERROR: [youtube] u8Y6S6ev-Vg: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cook"
+        }
+      },
+      "sources": [],
+      "decision": "no_token",
+      "phase_seconds": 230.6
+    },
+    "audio": {
+      "whisper_model": "small",
+      "limit_seconds": 600.0,
+      "selection": "heuristic only (no LLM key in CI)",
+      "sources": [
+        {
+          "video": {
+            "uuid": "0312db19-d6fa-40e3-970c-3b383535721e",
+            "name": "Blender 4.0 New Features Official Overview",
+            "duration": 694,
+            "licence": "Attribution",
+            "url": "https://video.blender.org/videos/watch/0312db19-d6fa-40e3-970c-3b383535721e"
+          },
+          "download": {
+            "ok": true,
+            "seconds": 185.29,
+            "bytes": 61912318,
+            "error": null
+          },
+          "source": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "48000",
+              "bytes": 11415148,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 162.24,
+              "timeline": 1.12,
+              "select": 0.05
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 92.05,
+                "end": 115.51
+              },
+              {
+                "rank": 2,
+                "start": 397.15,
+                "end": 423.66
+              },
+              {
+                "rank": 3,
+                "start": 177.27,
+                "end": 199.73
+              },
+              {
+                "rank": 4,
+                "start": 115.73,
+                "end": 140.9
+              },
+              {
+                "rank": 5,
+                "start": 278.15,
+                "end": 303.41
+              }
+            ],
+            "silences": 95
+          },
+          "aac128": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 9631960,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 164.89,
+              "timeline": 1.0,
+              "select": 0.06
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 92.05,
+                "end": 115.54
+              },
+              {
+                "rank": 2,
+                "start": 397.15,
+                "end": 423.66
+              },
+              {
+                "rank": 3,
+                "start": 177.27,
+                "end": 199.73
+              },
+              {
+                "rank": 4,
+                "start": 345.05,
+                "end": 392.24
+              },
+              {
+                "rank": 5,
+                "start": 115.91,
+                "end": 140.9
+              }
+            ],
+            "silences": 96,
+            "whisper_words": {
+              "reference_words": 2091,
+              "matched": 2078,
+              "median_ms": 0,
+              "p95_ms": 20,
+              "max_ms": 640
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 4,
+              "same_rank": 3,
+              "unpaired": 1,
+              "max_boundary_ms": 180,
+              "within_limit": 4,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 5,
+              "same_rank": 5,
+              "unpaired": 0,
+              "max_boundary_ms": 0,
+              "within_limit": 5,
+              "limit_ms": 200
+            }
+          },
+          "opus128": {
+            "file": {
+              "codec": "opus",
+              "start_time": "-0.007000",
+              "sample_rate": "48000",
+              "bytes": 9179851,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 162.47,
+              "timeline": 1.99,
+              "select": 0.06
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 92.15,
+                "end": 115.54
+              },
+              {
+                "rank": 2,
+                "start": 397.25,
+                "end": 423.65
+              },
+              {
+                "rank": 3,
+                "start": 177.27,
+                "end": 199.73
+              },
+              {
+                "rank": 4,
+                "start": 345.05,
+                "end": 392.33
+              },
+              {
+                "rank": 5,
+                "start": 0.0,
+                "end": 37.48
+              }
+            ],
+            "silences": 99,
+            "whisper_words": {
+              "reference_words": 2091,
+              "matched": 2082,
+              "median_ms": 0,
+              "p95_ms": 20,
+              "max_ms": 660
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 3,
+              "same_rank": 3,
+              "unpaired": 2,
+              "max_boundary_ms": 100,
+              "within_limit": 3,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 4,
+              "same_rank": 4,
+              "unpaired": 1,
+              "max_boundary_ms": 100,
+              "within_limit": 4,
+              "limit_ms": 200
+            }
+          }
+        },
+        {
+          "video": {
+            "uuid": "03ef2af0-186c-4180-8434-62e270212817",
+            "name": "Grandma Z: Clay Pencil Animation, an Official Blender Lab Project — BCON26",
+            "duration": 1372,
+            "licence": "Attribution - Share Alike",
+            "url": "https://video.blender.org/videos/watch/03ef2af0-186c-4180-8434-62e270212817"
+          },
+          "download": {
+            "ok": true,
+            "seconds": 322.66,
+            "bytes": 71089225,
+            "error": null
+          },
+          "source": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "96000",
+              "bytes": 10211122,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 87.99,
+              "timeline": 1.37,
+              "select": 0.03
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 317.05,
+                "end": 369.42
+              },
+              {
+                "rank": 2,
+                "start": 199.79,
+                "end": 223.68
+              },
+              {
+                "rank": 3,
+                "start": 489.07,
+                "end": 531.7
+              },
+              {
+                "rank": 4,
+                "start": 229.25,
+                "end": 249.78
+              },
+              {
+                "rank": 5,
+                "start": 289.43,
+                "end": 316.66
+              }
+            ],
+            "silences": 152
+          },
+          "aac128": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 9994796,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 84.63,
+              "timeline": 0.95,
+              "select": 0.03
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 351.89,
+                "end": 396.63
+              },
+              {
+                "rank": 2,
+                "start": 210.34,
+                "end": 232.07
+              },
+              {
+                "rank": 3,
+                "start": 455.57,
+                "end": 488.29
+              },
+              {
+                "rank": 4,
+                "start": 551.24,
+                "end": 599.986
+              },
+              {
+                "rank": 5,
+                "start": 289.95,
+                "end": 316.67
+              }
+            ],
+            "silences": 152,
+            "whisper_words": {
+              "reference_words": 916,
+              "matched": 830,
+              "median_ms": 10,
+              "p95_ms": 410,
+              "max_ms": 151900
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 2,
+              "same_rank": 2,
+              "unpaired": 3,
+              "max_boundary_ms": 10550,
+              "within_limit": 0,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 5,
+              "same_rank": 5,
+              "unpaired": 0,
+              "max_boundary_ms": 0,
+              "within_limit": 5,
+              "limit_ms": 200
+            }
+          },
+          "opus128": {
+            "file": {
+              "codec": "opus",
+              "start_time": "-0.007000",
+              "sample_rate": "48000",
+              "bytes": 7892275,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 105.81,
+              "timeline": 1.8,
+              "select": 0.03
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 199.8,
+                "end": 223.62
+              },
+              {
+                "rank": 2,
+                "start": 457.29,
+                "end": 478.1
+              },
+              {
+                "rank": 3,
+                "start": 342.57,
+                "end": 369.44
+              },
+              {
+                "rank": 4,
+                "start": 410.55,
+                "end": 433.92
+              },
+              {
+                "rank": 5,
+                "start": 229.25,
+                "end": 249.8
+              }
+            ],
+            "silences": 154,
+            "whisper_words": {
+              "reference_words": 916,
+              "matched": 839,
+              "median_ms": 20,
+              "p95_ms": 480,
+              "max_ms": 4000
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 3,
+              "same_rank": 0,
+              "unpaired": 2,
+              "max_boundary_ms": 25520,
+              "within_limit": 2,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 5,
+              "same_rank": 5,
+              "unpaired": 0,
+              "max_boundary_ms": 0,
+              "within_limit": 5,
+              "limit_ms": 200
+            }
+          }
+        },
+        {
+          "video": {
+            "uuid": "0944c92e-1fc6-4b55-a2a2-89e724c55f72",
+            "name": "How to Actually Finish an Epic Shortfilm in Blender (By Yourself)",
+            "duration": 942,
+            "licence": "Attribution",
+            "url": "https://video.blender.org/videos/watch/0944c92e-1fc6-4b55-a2a2-89e724c55f72"
+          },
+          "download": {
+            "ok": true,
+            "seconds": 246.49,
+            "bytes": 72541980,
+            "error": null
+          },
+          "source": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "48000",
+              "bytes": 12594452,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 113.73,
+              "timeline": 1.01,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 537.77,
+                "end": 558.34
+              },
+              {
+                "rank": 2,
+                "start": 352.05,
+                "end": 376.36
+              },
+              {
+                "rank": 3,
+                "start": 577.77,
+                "end": 599.99
+              },
+              {
+                "rank": 4,
+                "start": 402.92,
+                "end": 428.69
+              },
+              {
+                "rank": 5,
+                "start": 435.29,
+                "end": 457.04
+              }
+            ],
+            "silences": 147
+          },
+          "aac128": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 9732444,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 110.33,
+              "timeline": 0.95,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 365.55,
+                "end": 387.57
+              },
+              {
+                "rank": 2,
+                "start": 532.05,
+                "end": 554.6
+              },
+              {
+                "rank": 3,
+                "start": 8.92,
+                "end": 50.59
+              },
+              {
+                "rank": 4,
+                "start": 555.35,
+                "end": 595.68
+              },
+              {
+                "rank": 5,
+                "start": 440.25,
+                "end": 465.76
+              }
+            ],
+            "silences": 147,
+            "whisper_words": {
+              "reference_words": 1436,
+              "matched": 1416,
+              "median_ms": 0,
+              "p95_ms": 240,
+              "max_ms": 91130
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 3,
+              "same_rank": 1,
+              "unpaired": 2,
+              "max_boundary_ms": 22420,
+              "within_limit": 0,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 5,
+              "same_rank": 5,
+              "unpaired": 0,
+              "max_boundary_ms": 0,
+              "within_limit": 5,
+              "limit_ms": 200
+            }
+          },
+          "opus128": {
+            "file": {
+              "codec": "opus",
+              "start_time": "-0.007000",
+              "sample_rate": "48000",
+              "bytes": 8302761,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 113.69,
+              "timeline": 1.82,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 365.55,
+                "end": 391.31
+              },
+              {
+                "rank": 2,
+                "start": 520.94,
+                "end": 558.35
+              },
+              {
+                "rank": 3,
+                "start": 397.55,
+                "end": 419.81
+              },
+              {
+                "rank": 4,
+                "start": 435.32,
+                "end": 457.03
+              },
+              {
+                "rank": 5,
+                "start": 300.96,
+                "end": 326.94
+              }
+            ],
+            "silences": 146,
+            "whisper_words": {
+              "reference_words": 1436,
+              "matched": 1406,
+              "median_ms": 10,
+              "p95_ms": 170,
+              "max_ms": 910
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 3,
+              "same_rank": 0,
+              "unpaired": 2,
+              "max_boundary_ms": 16830,
+              "within_limit": 1,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 2,
+              "same_rank": 1,
+              "unpaired": 3,
+              "max_boundary_ms": 0,
+              "within_limit": 2,
+              "limit_ms": 200
+            }
+          }
+        },
+        {
+          "video": {
+            "uuid": "099713bb-c37a-4588-8687-2ed80e05b960",
+            "name": "From Vertex to T. Rex: 3D Printing My Own Hall of Dinosaurs — BCON26",
+            "duration": 1209,
+            "licence": "Attribution - Share Alike",
+            "url": "https://video.blender.org/videos/watch/099713bb-c37a-4588-8687-2ed80e05b960"
+          },
+          "download": {
+            "ok": true,
+            "seconds": 288.61,
+            "bytes": 66789471,
+            "error": null
+          },
+          "source": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "96000",
+              "bytes": 10137512,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 120.92,
+              "timeline": 1.38,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 228.85,
+                "end": 259.28
+              },
+              {
+                "rank": 2,
+                "start": 300.25,
+                "end": 321.87
+              },
+              {
+                "rank": 3,
+                "start": 162.74,
+                "end": 183.62
+              },
+              {
+                "rank": 4,
+                "start": 185.95,
+                "end": 219.07
+              },
+              {
+                "rank": 5,
+                "start": 493.88,
+                "end": 514.63
+              }
+            ],
+            "silences": 122
+          },
+          "aac128": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 9893336,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 119.9,
+              "timeline": 0.97,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 228.85,
+                "end": 259.25
+              },
+              {
+                "rank": 2,
+                "start": 300.08,
+                "end": 321.86
+              },
+              {
+                "rank": 3,
+                "start": 160.22,
+                "end": 183.62
+              },
+              {
+                "rank": 4,
+                "start": 185.95,
+                "end": 219.07
+              },
+              {
+                "rank": 5,
+                "start": 2.71,
+                "end": 40.83
+              }
+            ],
+            "silences": 122,
+            "whisper_words": {
+              "reference_words": 1455,
+              "matched": 1439,
+              "median_ms": 0,
+              "p95_ms": 70,
+              "max_ms": 17880
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 4,
+              "same_rank": 4,
+              "unpaired": 1,
+              "max_boundary_ms": 2520,
+              "within_limit": 3,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 5,
+              "same_rank": 5,
+              "unpaired": 0,
+              "max_boundary_ms": 0,
+              "within_limit": 5,
+              "limit_ms": 200
+            }
+          },
+          "opus128": {
+            "file": {
+              "codec": "opus",
+              "start_time": "-0.007000",
+              "sample_rate": "48000",
+              "bytes": 8335859,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 120.12,
+              "timeline": 1.86,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 174.94,
+                "end": 223.04
+              },
+              {
+                "rank": 2,
+                "start": 300.07,
+                "end": 321.87
+              },
+              {
+                "rank": 3,
+                "start": 241.37,
+                "end": 273.7
+              },
+              {
+                "rank": 4,
+                "start": 493.92,
+                "end": 514.63
+              },
+              {
+                "rank": 5,
+                "start": 2.71,
+                "end": 40.83
+              }
+            ],
+            "silences": 122,
+            "whisper_words": {
+              "reference_words": 1455,
+              "matched": 1442,
+              "median_ms": 10,
+              "p95_ms": 110,
+              "max_ms": 15600
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 4,
+              "same_rank": 1,
+              "unpaired": 1,
+              "max_boundary_ms": 14420,
+              "within_limit": 2,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 4,
+              "same_rank": 3,
+              "unpaired": 1,
+              "max_boundary_ms": 9810,
+              "within_limit": 3,
+              "limit_ms": 200
+            }
+          }
+        },
+        {
+          "video": {
+            "uuid": "0a76d01f-08d5-473f-9197-b87cc4585004",
+            "name": "Closing Event",
+            "duration": 706,
+            "licence": "Attribution",
+            "url": "https://video.blender.org/videos/watch/0a76d01f-08d5-473f-9197-b87cc4585004"
+          },
+          "download": {
+            "ok": true,
+            "seconds": 205.58,
+            "bytes": 91369107,
+            "error": null
+          },
+          "source": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "48000",
+              "bytes": 11028703,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 128.67,
+              "timeline": 1.0,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 334.45,
+                "end": 360.98
+              },
+              {
+                "rank": 2,
+                "start": 128.2,
+                "end": 168.71
+              },
+              {
+                "rank": 3,
+                "start": 68.05,
+                "end": 128.05
+              },
+              {
+                "rank": 4,
+                "start": 272.89,
+                "end": 318.98
+              },
+              {
+                "rank": 5,
+                "start": 39.57,
+                "end": 65.36
+              }
+            ],
+            "silences": 120
+          },
+          "aac128": {
+            "file": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 9802131,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 132.75,
+              "timeline": 0.96,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 331.45,
+                "end": 352.66
+              },
+              {
+                "rank": 2,
+                "start": 40.06,
+                "end": 67.47
+              },
+              {
+                "rank": 3,
+                "start": 272.84,
+                "end": 304.32
+              },
+              {
+                "rank": 4,
+                "start": 115.05,
+                "end": 143.45
+              },
+              {
+                "rank": 5,
+                "start": 80.66,
+                "end": 114.76
+              }
+            ],
+            "silences": 119,
+            "whisper_words": {
+              "reference_words": 1448,
+              "matched": 1384,
+              "median_ms": 10,
+              "p95_ms": 160,
+              "max_ms": 7500
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 5,
+              "same_rank": 1,
+              "unpaired": 0,
+              "max_boundary_ms": 25260,
+              "within_limit": 0,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 3,
+              "same_rank": 0,
+              "unpaired": 2,
+              "max_boundary_ms": 38990,
+              "within_limit": 2,
+              "limit_ms": 200
+            }
+          },
+          "opus128": {
+            "file": {
+              "codec": "opus",
+              "start_time": "-0.007000",
+              "sample_rate": "48000",
+              "bytes": 8145144,
+              "error": null
+            },
+            "seconds": {
+              "transcribe": 132.07,
+              "timeline": 1.82,
+              "select": 0.04
+            },
+            "clips": [
+              {
+                "rank": 1,
+                "start": 331.45,
+                "end": 352.64
+              },
+              {
+                "rank": 2,
+                "start": 40.06,
+                "end": 67.47
+              },
+              {
+                "rank": 3,
+                "start": 115.05,
+                "end": 139.13
+              },
+              {
+                "rank": 4,
+                "start": 272.89,
+                "end": 318.9
+              },
+              {
+                "rank": 5,
+                "start": 80.66,
+                "end": 114.76
+              }
+            ],
+            "silences": 120,
+            "whisper_words": {
+              "reference_words": 1448,
+              "matched": 1394,
+              "median_ms": 10,
+              "p95_ms": 170,
+              "max_ms": 5090
+            },
+            "whisper_clips": {
+              "clips": 5,
+              "paired": 4,
+              "same_rank": 2,
+              "unpaired": 1,
+              "max_boundary_ms": 13290,
+              "within_limit": 1,
+              "limit_ms": 200
+            },
+            "captions_clips": {
+              "clips": 5,
+              "paired": 3,
+              "same_rank": 0,
+              "unpaired": 2,
+              "max_boundary_ms": 38990,
+              "within_limit": 2,
+              "limit_ms": 200
+            }
+          }
+        }
+      ],
+      "phase_seconds": 3281.9
+    },
+    "range": {
+      "synthetic": {
+        "baseline_offset_s": 0.0,
+        "hls_copy": {
+          "pieces": [
+            {
+              "start": 47.3,
+              "ok": true,
+              "seconds": 1.03,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 71.2,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.088000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 95.1,
+              "ok": true,
+              "seconds": 1.04,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.188000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 119.0,
+              "ok": true,
+              "seconds": 1.02,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 142.9,
+              "ok": true,
+              "seconds": 1.02,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 166.8,
+              "ok": true,
+              "seconds": 1.02,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.088000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 190.7,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.188000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 214.6,
+              "ok": true,
+              "seconds": 1.02,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 238.5,
+              "ok": true,
+              "seconds": 1.03,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 262.4,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.088000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 286.3,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.188000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 310.2,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 334.1,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 358.0,
+              "ok": true,
+              "seconds": 1.02,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.088000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 381.9,
+              "ok": true,
+              "seconds": 1.02,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 405.8,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 429.7,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 453.6,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.088000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 477.5,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.188000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 501.4,
+              "ok": true,
+              "seconds": 1.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            }
+          ],
+          "measured": 20,
+          "within_one_frame": 1.0,
+          "median_seconds": 1.01
+        },
+        "hls_keyframes": {
+          "pieces": [
+            {
+              "start": 47.3,
+              "ok": true,
+              "seconds": 1.89,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 71.2,
+              "ok": true,
+              "seconds": 1.87,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 95.1,
+              "ok": true,
+              "seconds": 1.89,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 119.0,
+              "ok": true,
+              "seconds": 1.86,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 142.9,
+              "ok": true,
+              "seconds": 1.89,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 166.8,
+              "ok": true,
+              "seconds": 1.87,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 190.7,
+              "ok": true,
+              "seconds": 1.88,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 214.6,
+              "ok": true,
+              "seconds": 1.88,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 238.5,
+              "ok": true,
+              "seconds": 1.88,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 262.4,
+              "ok": true,
+              "seconds": 1.92,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011899999999998911,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 286.3,
+              "ok": true,
+              "seconds": 1.94,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 310.2,
+              "ok": true,
+              "seconds": 1.97,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 334.1,
+              "ok": true,
+              "seconds": 1.91,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 358.0,
+              "ok": true,
+              "seconds": 1.91,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 381.9,
+              "ok": true,
+              "seconds": 1.96,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 405.8,
+              "ok": true,
+              "seconds": 1.93,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 429.7,
+              "ok": true,
+              "seconds": 1.96,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 453.6,
+              "ok": true,
+              "seconds": 1.89,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 477.5,
+              "ok": true,
+              "seconds": 1.95,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 501.4,
+              "ok": true,
+              "seconds": 1.94,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            }
+          ],
+          "measured": 20,
+          "within_one_frame": 1.0,
+          "median_seconds": 1.9
+        },
+        "dash_copy": {
+          "pieces": [
+            {
+              "start": 47.3,
+              "ok": true,
+              "seconds": 1.31,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 71.2,
+              "ok": true,
+              "seconds": 1.17,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.089000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 95.1,
+              "ok": true,
+              "seconds": 1.14,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.189000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 119.0,
+              "ok": true,
+              "seconds": 1.17,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 142.9,
+              "ok": true,
+              "seconds": 1.12,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 166.8,
+              "ok": true,
+              "seconds": 1.24,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.089000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 190.7,
+              "ok": true,
+              "seconds": 1.14,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.189000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 214.6,
+              "ok": true,
+              "seconds": 1.15,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 238.5,
+              "ok": true,
+              "seconds": 1.14,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 262.4,
+              "ok": true,
+              "seconds": 1.17,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.089000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 286.3,
+              "ok": true,
+              "seconds": 1.2,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.189000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 310.2,
+              "ok": true,
+              "seconds": 1.16,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 334.1,
+              "ok": true,
+              "seconds": 1.11,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 358.0,
+              "ok": true,
+              "seconds": 1.24,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.089000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 381.9,
+              "ok": true,
+              "seconds": 1.25,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 405.8,
+              "ok": true,
+              "seconds": 1.16,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 429.7,
+              "ok": true,
+              "seconds": 1.27,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.122000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 453.6,
+              "ok": true,
+              "seconds": 1.15,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.089000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 477.5,
+              "ok": true,
+              "seconds": 1.17,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.189000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            },
+            {
+              "start": 501.4,
+              "ok": true,
+              "seconds": 1.11,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.155000",
+              "offset_s": 0.021399999999999864,
+              "offset_frames": 0.642,
+              "error": null
+            }
+          ],
+          "measured": 20,
+          "within_one_frame": 1.0,
+          "median_seconds": 1.165
+        },
+        "dash_keyframes": {
+          "pieces": [
+            {
+              "start": 47.3,
+              "ok": true,
+              "seconds": 1.98,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 71.2,
+              "ok": true,
+              "seconds": 1.98,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 95.1,
+              "ok": true,
+              "seconds": 2.0,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 119.0,
+              "ok": true,
+              "seconds": 1.95,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 142.9,
+              "ok": true,
+              "seconds": 2.02,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 166.8,
+              "ok": true,
+              "seconds": 1.99,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 190.7,
+              "ok": true,
+              "seconds": 1.99,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 214.6,
+              "ok": true,
+              "seconds": 1.97,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 238.5,
+              "ok": true,
+              "seconds": 1.95,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 262.4,
+              "ok": true,
+              "seconds": 1.91,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011899999999998911,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 286.3,
+              "ok": true,
+              "seconds": 1.92,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 310.2,
+              "ok": true,
+              "seconds": 1.94,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 334.1,
+              "ok": true,
+              "seconds": 1.99,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 358.0,
+              "ok": true,
+              "seconds": 2.16,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 381.9,
+              "ok": true,
+              "seconds": 1.96,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 405.8,
+              "ok": true,
+              "seconds": 1.92,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 429.7,
+              "ok": true,
+              "seconds": 1.93,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 453.6,
+              "ok": true,
+              "seconds": 1.91,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 477.5,
+              "ok": true,
+              "seconds": 1.96,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            },
+            {
+              "start": 501.4,
+              "ok": true,
+              "seconds": 2.01,
+              "starts": {
+                "video": 0.0,
+                "audio": 0.0
+              },
+              "duration": "30.034000",
+              "offset_s": -0.011900000000000688,
+              "offset_frames": -0.357,
+              "error": null
+            }
+          ],
+          "measured": 20,
+          "within_one_frame": 1.0,
+          "median_seconds": 1.9649999999999999
+        }
+      },
+      "peertube": {
+        "video": {
+          "uuid": "a6a31a95-8333-4506-8ac5-6d67b20686b8",
+          "name": "Developers Ask Me Anything",
+          "duration": 3596,
+          "licence": "Attribution",
+          "url": "https://video.blender.org/videos/watch/a6a31a95-8333-4506-8ac5-6d67b20686b8"
+        },
+        "full": {
+          "ok": true,
+          "seconds": 84.88,
+          "bytes": 652022301
+        },
+        "cuts": [
+          {
+            "start": 600.0,
+            "keyframes": false,
+            "ok": true,
+            "seconds": 12.61,
+            "bytes": 12360925,
+            "starts": {
+              "video": 0.0,
+              "audio": 0.0
+            },
+            "duration": "60.200000",
+            "error": null
+          },
+          {
+            "start": 600.0,
+            "keyframes": true,
+            "ok": true,
+            "seconds": 38.09,
+            "bytes": 12685306,
+            "starts": {
+              "video": 0.0,
+              "audio": 0.0
+            },
+            "duration": "60.000000",
+            "error": null
+          },
+          {
+            "start": 1500.0,
+            "keyframes": false,
+            "ok": true,
+            "seconds": 5.41,
+            "bytes": 20395750,
+            "starts": {
+              "video": 0.0,
+              "audio": 0.0
+            },
+            "duration": "60.200000",
+            "error": null
+          },
+          {
+            "start": 1500.0,
+            "keyframes": true,
+            "ok": true,
+            "seconds": 51.23,
+            "bytes": 19809185,
+            "starts": {
+              "video": 0.0,
+              "audio": 0.0
+            },
+            "duration": "60.000000",
+            "error": null
+          },
+          {
+            "start": 2400.0,
+            "keyframes": false,
+            "ok": true,
+            "seconds": 6.0,
+            "bytes": 23549374,
+            "starts": {
+              "video": 0.0,
+              "audio": 0.0
+            },
+            "duration": "60.080000",
+            "error": null
+          },
+          {
+            "start": 2400.0,
+            "keyframes": true,
+            "ok": true,
+            "seconds": 52.59,
+            "bytes": 21935907,
+            "starts": {
+              "video": 0.0,
+              "audio": 0.0
+            },
+            "duration": "60.000000",
+            "error": null
+          }
+        ]
+      },
+      "phase_seconds": 683.7
+    },
+    "timing": [
+      {
+        "whisper_model": "small",
+        "selection": "heuristic only (no LLM key in CI)",
+        "audio_first": "simulated: audio bytes at 128 kbit/s over the measured download throughput",
+        "sources": [
+          {
+            "target_seconds": 600,
+            "video": {
+              "uuid": "693102c6-6db5-43ab-93d5-60541a4ae8da",
+              "name": "Interface Overview - Blender Fundamentals",
+              "duration": 601,
+              "licence": "Attribution",
+              "url": "https://video.blender.org/videos/watch/693102c6-6db5-43ab-93d5-60541a4ae8da"
+            },
+            "download_720": {
+              "ok": true,
+              "seconds": 3.69,
+              "bytes": 25409050,
+              "error": null
+            },
+            "audio_encode": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 9688874,
+              "error": null
+            },
+            "throughput_bytes_per_s": 6885921,
+            "seconds": {
+              "video_download": 3.69,
+              "audio_download_simulated": 1.4,
+              "transcribe": 137.97,
+              "timeline_with_scene_pass": 9.02,
+              "timeline_audio_only": 1.05,
+              "select": 0.05
+            },
+            "time_to_selection": {
+              "sequential": 150.73,
+              "audio_first": 140.47,
+              "sequential_with_captions": 12.76,
+              "audio_first_with_captions": 2.5
+            },
+            "bytes_per_hour_720": 152200632,
+            "whisper_realtime_factor": 0.2296
+          }
+        ],
+        "phase_seconds": 197.2
+      },
+      {
+        "whisper_model": "small",
+        "selection": "heuristic only (no LLM key in CI)",
+        "audio_first": "simulated: audio bytes at 128 kbit/s over the measured download throughput",
+        "sources": [
+          {
+            "target_seconds": 1800,
+            "video": {
+              "uuid": "298047fd-604d-42c9-a100-6d6babfa00da",
+              "name": "Geometry Nodes Fields: Explained!",
+              "duration": 1797,
+              "licence": "Attribution",
+              "url": "https://video.blender.org/videos/watch/298047fd-604d-42c9-a100-6d6babfa00da"
+            },
+            "download_720": {
+              "ok": true,
+              "seconds": 8.49,
+              "bytes": 145459931,
+              "error": null
+            },
+            "audio_encode": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 28910177,
+              "error": null
+            },
+            "throughput_bytes_per_s": 17133090,
+            "seconds": {
+              "video_download": 8.49,
+              "audio_download_simulated": 1.68,
+              "transcribe": 327.99,
+              "timeline_with_scene_pass": 36.63,
+              "timeline_audio_only": 1.96,
+              "select": 0.07
+            },
+            "time_to_selection": {
+              "sequential": 373.18,
+              "audio_first": 331.7,
+              "sequential_with_captions": 45.19,
+              "audio_first_with_captions": 3.71
+            },
+            "bytes_per_hour_720": 291405538,
+            "whisper_realtime_factor": 0.1825
+          }
+        ],
+        "phase_seconds": 437.3
+      },
+      {
+        "whisper_model": "small",
+        "selection": "heuristic only (no LLM key in CI)",
+        "audio_first": "simulated: audio bytes at 128 kbit/s over the measured download throughput",
+        "sources": [
+          {
+            "target_seconds": 3600,
+            "video": {
+              "uuid": "a6a31a95-8333-4506-8ac5-6d67b20686b8",
+              "name": "Developers Ask Me Anything",
+              "duration": 3596,
+              "licence": "Attribution",
+              "url": "https://video.blender.org/videos/watch/a6a31a95-8333-4506-8ac5-6d67b20686b8"
+            },
+            "download_720": {
+              "ok": true,
+              "seconds": 234.86,
+              "bytes": 652022301,
+              "error": null
+            },
+            "audio_encode": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 58914799,
+              "error": null
+            },
+            "throughput_bytes_per_s": 2776217,
+            "seconds": {
+              "video_download": 234.86,
+              "audio_download_simulated": 20.72,
+              "transcribe": 335.67,
+              "timeline_with_scene_pass": 93.8,
+              "timeline_audio_only": 3.18,
+              "select": 0.11
+            },
+            "time_to_selection": {
+              "sequential": 664.44,
+              "audio_first": 359.67,
+              "sequential_with_captions": 328.77,
+              "audio_first_with_captions": 24.0
+            },
+            "bytes_per_hour_720": 652747576,
+            "whisper_realtime_factor": 0.0933
+          }
+        ],
+        "phase_seconds": 754.3
+      },
+      {
+        "whisper_model": "small",
+        "selection": "heuristic only (no LLM key in CI)",
+        "audio_first": "simulated: audio bytes at 128 kbit/s over the measured download throughput",
+        "sources": [
+          {
+            "target_seconds": 7200,
+            "video": {
+              "uuid": "49cb30e9-59d3-4372-84e4-655c2a094407",
+              "name": "BCON20 - Blender Conference: Together Apart",
+              "duration": 5937,
+              "licence": "Attribution - Share Alike",
+              "url": "https://video.blender.org/videos/watch/49cb30e9-59d3-4372-84e4-655c2a094407"
+            },
+            "download_720": {
+              "ok": true,
+              "seconds": 44.85,
+              "bytes": 1002501009,
+              "error": null
+            },
+            "audio_encode": {
+              "codec": "aac",
+              "start_time": "0.000000",
+              "sample_rate": "44100",
+              "bytes": 96813082,
+              "error": null
+            },
+            "throughput_bytes_per_s": 22352308,
+            "seconds": {
+              "video_download": 44.85,
+              "audio_download_simulated": 4.25,
+              "transcribe": 711.16,
+              "timeline_with_scene_pass": 153.53,
+              "timeline_audio_only": 7.41,
+              "select": 0.21
+            },
+            "time_to_selection": {
+              "sequential": 909.75,
+              "audio_first": 723.05,
+              "sequential_with_captions": 198.59,
+              "audio_first_with_captions": 11.89
+            },
+            "bytes_per_hour_720": 607883381,
+            "whisper_realtime_factor": 0.1198
+          }
+        ],
+        "phase_seconds": 1031.8
+      }
+    ]
+  }
+}
