@@ -36,7 +36,9 @@ Harness: `scripts/eval/auto_reframe.py`. Sumber dan jendela: `docs/evaluation/TR
   (`rf-25` → gameplay/b-roll, `rf-27` dan `rf-35` → satu pembicara, `rf-33` → layar).
 - **42 jendela**: 12 satu pembicara, 8 podcast dua orang, 6 panel, 8 layar/slide, 8
   gameplay/b-roll. Target 10/10/8/6/6 tidak tercapai untuk podcast dua orang dan panel: sumber dua
-  orang dan panel yang berlisensi terbuka dan bisa diunduh lebih sedikit.
+  orang dan panel yang berlisensi terbuka dan bisa diunduh lebih sedikit. Dua kategori itu yang
+  paling menguji `split` dan banyak wajah, jadi angka per kategorinya (dev 4 dan 3 jendela) lemah.
+  Set tidak ditambah setelah split dan label dev dibuat; menambah sumber berarti split baru.
 - Split seed `20261024`: dev 21, test 21 (per kategori 6/6, 4/4, 3/3, 4/4, 4/4).
 
 ## Label
@@ -93,7 +95,9 @@ Kalau ragu antara `camera` dan `fill_center`, pilih `camera`.
   ukuran yang berbeda: skor `scene` FFmpeg dengan ambang rendah dan selisih frame berturut 64×36.
   Ubin per detik dipakai untuk menemukan cut yang tidak masuk kandidat.
 - **Test split:** pemilik, lewat halaman bantu statis `--label` (HTML lokal, bukan rute app),
-  ±60–90 menit untuk 20 jendela.
+  ±60–90 menit untuk 20 jendela. Tiap jendela dicentang **Selesai** setelah dilabeli. Jendela yang
+  belum dicentang diunduh tanpa label (`cuts_sf` dan `modes` `null`), dan `--score` menolak file
+  itu, jadi jendela yang terlewat tidak terbaca sebagai satu shot `camera`.
 
 ## Metrik
 
@@ -145,10 +149,13 @@ evidence tambahan, lalu dibuat test split **baru** dari jendela baru. Semua itu 
 
 Prediksi diukur di GitHub Actions tanpa membaca label (`--predict`, run
 [40116487099](https://github.com/RevDonz/ai-video-clipper/actions/runs/40116487099), image produksi,
-OpenCV 4.14.0), lalu dinilai dengan label dev (`--score`). Hasil lengkap:
-`docs/evaluation/auto-reframe/baseline-dev-2026-10-25.json`.
+OpenCV 4.14.0), lalu dinilai dengan label dev (`--score`). Prediksi CI:
+`docs/evaluation/auto-reframe/predictions-dev-2026-10-25.json`; hasil lengkap:
+`docs/evaluation/auto-reframe/baseline-dev-2026-10-25.json` (bisa diulang dengan `--score` tanpa
+footage).
 
-Mode hari ini = Ikuti wajah di semua frame. Sumber cut hari ini: flag cut camera plan (sampel
+Mode hari ini = Ikuti wajah, dan bagian tanpa wajah (`no_face` camera plan, > 1,5 detik) dipusatkan,
+karena seed menulis `layout.default.no_face = "center"` (CONTRACTS §5.40). Sumber cut hari ini: flag cut camera plan (sampel
 0,75 detik) dan potongan adegan FFmpeg pipeline (`scene > 0,3`).
 
 | Ukuran (21 jendela, 95 cut) | Hasil |
@@ -156,14 +163,17 @@ Mode hari ini = Ikuti wajah di semua frame. Sumber cut hari ini: flag cut camera
 | Cut camera plan, ±1 frame | P 0,051 · R 0,074 · F1 0,060 |
 | Cut camera plan, ±1 sampel (±0,75 detik) | P 0,377 · R 0,547 |
 | Potongan adegan FFmpeg, ±1 frame | P 0,981 · R 0,547 · F1 0,703 |
-| Agreement mode, Ikuti wajah di semua frame | 21,0% |
+| Potongan adegan FFmpeg, rata-rata per jendela (11 jendela ber-cut) | P 0,889 · R 0,474 |
+| Potongan adegan FFmpeg tanpa `rf-49`, ±1 frame | P 0,967 · R 0,527 |
+| Agreement mode hari ini (Ikuti wajah, tanpa wajah dipusatkan) | 23,0% |
+| Agreement mode, Ikuti wajah di semua frame (tanpa fallback `no_face`) | 21,0% |
 | Agreement mode, Latar blur di semua frame (default Buat klip) | 63,1% |
 | Porsi frame label | camera 21,0% · fill_center 10,5% · fit_blur 63,1% · split 5,3% |
 | Waktu camera plan per jendela 120 detik (CI) | rata-rata 3,75 detik, maks 5,16 detik |
 
 Per kategori, recall potongan adegan FFmpeg: satu pembicara 0,10 (wipe dan fade tidak terdeteksi),
 dua orang 1,00, panel 1,00, layar 0 (3 cut slide terlewat, 1 dialog salah dihitung), gameplay/b-roll
-0,63. Agreement Ikuti wajah tertinggi di satu pembicara (58,2%) dan 0% di layar.
+0,63. Agreement mode hari ini tertinggi di satu pembicara (57,8%) dan 0% di layar dan dua orang.
 
 Artinya untuk RF-M1: flag cut camera plan tidak bisa jadi batas shot (resolusinya satu sampel),
 potongan adegan FFmpeg presisinya sudah tinggi tapi recall-nya jauh di bawah gerbang 0,90.
@@ -171,7 +181,12 @@ potongan adegan FFmpeg presisinya sudah tinggi tapi recall-nya jauh di bawah ger
 Batasan label dev: kandidat cut diambil dari dua ukuran perbedaan gambar, jadi cut yang tidak
 mengubah gambar secara mencolok bisa terlewat oleh kandidat dan oleh pelabel; ubin per detik dipakai
 untuk menutup celah itu. `rf-49` (game showcase dengan banyak menu kabur) adalah label paling tidak
-pasti. `rf-17` berisi satu gambar sampul diam; jendela ini terlewat saat penyaringan sebelum split
+pasti, dan memuat 40 dari 95 cut dev, jadi P/R gabungan sebagian besar mencerminkan satu jendela
+itu; karena itu hasil juga memuat P/R rata-rata per jendela (`*_per_window`) dan jendela dengan cut
+terbanyak (`most_cuts`). Di dev, dua orang dan panel masing-masing hanya punya satu jendela ber-cut.
+90 dari 95 cut label jatuh di kandidat dari skor `scene` FFmpeg dan selisih frame 64×36, keluarga
+sinyal yang sama dengan detektor RF-M1, jadi recall detektor itu di dev kemungkinan terlalu tinggi;
+test split yang dilabeli pemilik di halaman `--label` tidak memakai kandidat. `rf-17` berisi satu gambar sampul diam; jendela ini terlewat saat penyaringan sebelum split
 dan tetap dipakai (label `fit_blur`) supaya split tidak berubah setelah lembar dev dilihat.
 
 ## Menjalankan
