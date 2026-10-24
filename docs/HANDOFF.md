@@ -1,11 +1,16 @@
 # Handoff: status dan cara melanjutkan
 
-Terakhir diperbarui 2026-10-22. Dokumen ini untuk agen atau device mana pun yang melanjutkan.
+Terakhir diperbarui 2026-10-24. Dokumen ini untuk agen atau device mana pun yang melanjutkan.
 Aturan proyek: `AGENTS.md`; arah desain: `DESIGN.md`.
 
+**Rombak 2026-10-24** (multi-pengguna, dashboard HeroUI, ID/EN, unduhan link, Otomatis, sosmed,
+umpan balik performa, editor satu tata letak): rencana di `docs/plans/2026-10-24-rombak/`
+(PR #31, branch `docs/rombak-spec` sampai di-merge). Sekarang di gerbang G0; status dan langkah
+berikutnya: §10.
+
 **Redesign UX** (sidebar aplikasi, Buat klip dengan lipatan, halaman depan baru, tata letak
-editor, panduan di Bantuan): PR dari branch `feat/ux-redesign-workspace`, merge dengan rebase
-setelah CI dan gerbang e2e hijau. Isi, validasi dan sisa risiko: §9.
+editor, panduan di Bantuan) sudah live: PR #30, di-merge dengan rebase dan ter-deploy 2026-10-23.
+Isi, validasi dan sisa risiko: §9.
 
 **PR gabungan adopsi** (45 paket, antrean `docs/plans/2026-10-20-lanjutan-sesi.md`) sudah masuk ke
 `main` lewat #29 (2026-10-22). Isinya, keputusan atas delegasi pemilik dan yang masih untuk
@@ -27,8 +32,11 @@ pemilik: §8.
   mesin `legacy` sampai pemilik memutuskan kuota CPU (§4).
 - Transisi di sambungan cold open (PR #23: Kilat putih / Gelap sebentar + whoosh) dan perbaikan
   frame pertama pratinjau (PR #24).
-- Editor dengan dua tampilan, **Mode Cepat** (bawaan) dan **Mode Lengkap** (PR #25, digabung
-  2026-10-06), termasuk 10 perbaikan dari review PR.
+- Editor dengan dua tampilan, Mode Cepat dan Mode Lengkap (PR #25, digabung 2026-10-06),
+  termasuk 10 perbaikan dari review PR. Rombak menggantinya dengan satu tata letak (Fase 10–11,
+  `DESIGN.md` "Pola tata letak").
+- Redesign UX (PR #30, ter-deploy 2026-10-23): sidebar aplikasi, Buat klip dengan lipatan,
+  halaman depan baru, rel alat editor di kiri, Panduan di Bantuan (§9).
 
 Deploy terjadi otomatis lewat CI setiap ada merge ke `main`.
 
@@ -244,12 +252,12 @@ komentar PR, dan di `docs/editor/CONTRACTS.md` / `GATES.md`.
 9. Perbaikan parity mengubah tampilan sedikit: 2–3 frame awal Fade lebih gelap (isi di atas
    garis), dan watermark tembus pandang lebih gelap di dalam (maks 32 level di 85 %).
 
-## 9. Redesign UX (branch `feat/ux-redesign-workspace`, 2026-10-22)
+## 9. Redesign UX (PR #30, live sejak 2026-10-23)
 
 Permintaan pemilik: tampilan profesional tapi ramah dan mudah dipelajari, rujukan Lokaclip, Social
-Visuals dan editor CapCut. Dibuat dari `main` 4b0ef34. Pemilik memprioritaskan push ke branch
-GitHub dahulu; PR, pemeriksaan berat dan deploy produksi masih menunggu. Merge nantinya dengan
-rebase; deploy otomatis setelah merge. Arah dan polanya: `DESIGN.md` "Pola tata letak".
+Visuals dan editor CapCut. Dibuat dari `main` 4b0ef34, di-merge dengan rebase sebagai #30
+(`77ff02a1` + tindak lanjut e2e `70c3a26a`) dan ter-deploy lewat CI pada 2026-10-23. Arah dan
+polanya: `DESIGN.md` "Pola tata letak" (butir "Sekarang").
 
 **Yang berubah**
 - **Sidebar aplikasi** (`web/components/AppShell.jsx`, `lib/app-nav.mjs`, `lib/app-menu.mjs`,
@@ -306,7 +314,8 @@ rebase; deploy otomatis setelah merge. Arah dan polanya: `DESIGN.md` "Pola tata 
   dan status "Sesuai hasil akhir" tanpa galat JavaScript. Ini pemeriksaan ringan, bukan suite
   browser penuh atau uji render ekspor.
 
-**Pemeriksaan berat di GitHub Actions (belum dijalankan untuk branch ini)**
+**Pemeriksaan berat di GitHub Actions** (rencana saat branch dibuat; PR #30 lolos check wajib
+"Test and build", parity smoke dan penjaga toolchain sebelum merge)
 - CI PR (`ci-cd.yml`, check wajib "Test and build"): gitleaks atas seluruh riwayat, ruff dan
   pytest, `npm test`, `npm run build`, validasi image produksi, penjaga toolchain dan parity smoke.
 - Gerbang browser: `editor-gates.yml` `suite=e2e` di HEAD branch, dengan spec yang diubah atau
@@ -338,3 +347,29 @@ rebase; deploy otomatis setelah merge. Arah dan polanya: `DESIGN.md` "Pola tata 
 - Tata letak editor berubah sebelum uji U1–U8 (§4): uji dengan stopwatch sebaiknya memakai tata
   letak yang akan dirilis.
 - Buat klip di sidebar sengaja tombol netral, bukan lime: lime tetap satu aksi utama per layar.
+
+## 10. Rombak 2026-10-24: status
+
+Rencana lengkap: `docs/plans/2026-10-24-rombak/` (PR #31, branch `docs/rombak-spec`). Mulai dari
+`00-README.md`; urutan fase, kriteria terima dan gate ada di `08-fase-test-deploy.md`; tiap topik
+punya dokumen pemilik yang menang bila berbeda. `lampiran/` hanya catatan sejarah.
+
+**Keputusan pemilik:** Q1, Q2 dan Q9 final (Q9 = opsi (b): `en` dirilis bersama editor di
+Fase 11). Q8 format jam = 24 jam di semua bahasa (default, bisa diubah). Q3–Q7 dan Q10–Q12
+memakai default sampai tenggatnya (08 §7).
+
+**G0 (gerbang sebelum Fase 0):**
+- [x] Redesign UX di `main` (PR #30).
+- [ ] PR amandemen G0 disetujui pemilik: `DESIGN.md` (pola sasaran per fase, kata status, bagian
+  Bahasa), `AGENTS.md` (copy dari katalog, clean-room, migrasi aditif, guard auth sinkron, suite
+  `editor-gates`), `docs/glosarium.md` (baru), dan dokumen ini.
+- [ ] Pemilik mendaftarkan app Google (YouTube Data API), TikTok dan Meta dalam mode testing;
+  tanggal tiketnya dicatat di `docs/operations/SOSMED.md` saat Fase 0.
+- [ ] Pemilik memilih domain HTTPS publik dan email kontak publik (tidak ditulis di repo).
+
+**Fase 0** (runtime Node 24, kontrak CONTRACTS §5.59–§5.65, pengukuran): rinci di 08 §4. Bukti
+toolchain baru dibuat lewat `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`, lalu
+`docs/editor/evidence/toolchain/record.json` yang bercap di-commit.
+
+Sampai fase yang bersangkutan selesai, UI tetap seperti di `main`; `DESIGN.md` menandai setiap
+pola sasaran dengan fase mulai berlakunya.
