@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -94,7 +96,7 @@ def test_agreement_counts_frames_with_the_same_mode(harness):
 def test_saved_predictions_are_scored_against_a_label(harness):
     prediction = {"id": "rf-01", "fps": [30, 1], "window_sf": [1800, 5400], "sample_frames": 22,
                   "camera_plan_cuts_sf": [2010, 3100], "scene_cuts_sf": [2000, 3001, 4000],
-                  "seconds": {"camera_plan": 4.2, "scene_pass": 1.1}}
+                  "no_face_ms": [[0, 1000]], "seconds": {"camera_plan": 4.2, "scene_pass": 1.1}}
     label = _entry()
     row = harness.score_today(prediction, label)
     assert row["cuts"] == 2
@@ -102,8 +104,43 @@ def test_saved_predictions_are_scored_against_a_label(harness):
     assert row["scene_cuts"] == {"found": 3, "frame": [2, 1, 0], "sample": [2, 1, 0]}
     assert row["agreement_camera"] == 200 + 2400  # frames of the two camera shots
     assert row["agreement_fit_blur"] == 1000
+    # today's render centres the first 30 frames (no face), so they leave the camera count
+    assert row["agreement_today"] == 170 + 2400
     with pytest.raises(harness.LabelError):
         harness.score_today({**prediction, "window_sf": [1801, 5401]}, label)
+
+
+@pytest.mark.parametrize(("no_face_ms", "expected"), [
+    ([], ([], ["camera"])),
+    ([[1000, 2500]], ([1830, 1875], ["camera", "fill_center", "camera"])),
+    ([[0, 1600]], ([1848], ["fill_center", "camera"])),
+    ([[119_000, 120_000]], ([5370], ["camera", "fill_center"])),
+    ([[1000, 2500], [2500, 4000]], ([1830, 1920], ["camera", "fill_center", "camera"])),
+    ([[0, 120_000]], ([], ["fill_center"])),
+])
+def test_today_centres_the_no_face_runs(harness, no_face_ms, expected):
+    # seed.py writes layout.default.no_face = "center" (CONTRACTS §5.40), so a camera-plan
+    # no_face span renders as a centre crop, on the frames layouts.no_face_frames picks
+    assert harness.today_modes(no_face_ms, [30, 1], [1800, 5400]) == expected
+
+
+def _row(name, cuts, frame):
+    return {"id": name, "frames": 100, "cuts": cuts,
+            "seconds": {"camera_plan": 1.0, "scene_pass": 1.0},
+            "camera_plan_cuts": {"found": 0, "frame": [0, 0, cuts], "sample": [0, 0, cuts]},
+            "scene_cuts": {"found": frame[0] + frame[1], "frame": frame, "sample": frame},
+            "agreement_camera": 0, "agreement_fit_blur": 0, "agreement_today": 0,
+            "label_frames": {"camera": 0, "fill_center": 0, "fit_blur": 100, "split": 0}}
+
+
+def test_the_summary_reports_per_window_scores_next_to_the_pooled_ones(harness):
+    rows = [_row("rf-01", 40, [40, 0, 0]), _row("rf-02", 2, [0, 0, 2]), _row("rf-03", 0, [0, 0, 0])]
+    block = harness.summarise(rows, {})["all"]
+    assert block["scene_cuts"]["recall"] == round(40 / 42, 4)
+    # windows without a labelled cut have no recall; windows without a found cut no precision
+    assert block["scene_cuts_per_window"] == {"precision": 1.0, "recall": 0.5,
+                                              "windows_with_cuts": 2}
+    assert block["most_cuts"] == {"id": "rf-01", "cuts": 40, "share": round(40 / 42, 4)}
 
 
 # --- labels --------------------------------------------------------------------------------------
@@ -248,6 +285,46 @@ def test_the_label_page_lists_the_fetched_windows(harness, tmp_path):
     assert "<\\/" not in page.split("const DATA = ", 1)[0]
     with pytest.raises(FileNotFoundError):
         harness.label_page(windows, "test", tmp_path)
+
+
+def _export(harness, data, state):
+    script = (harness.EXPORT_JS + "\nconst [data, state] = JSON.parse(process.argv[1]);"
+              "\nprocess.stdout.write(JSON.stringify(exportLabels(data, state)));")
+    out = subprocess.run(["node", "-e", script, json.dumps([data, state])],
+                         capture_output=True, text=True, check=True, timeout=30)
+    return json.loads(out.stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs Node")
+def test_the_label_page_exports_only_the_windows_marked_done(harness):
+    registry = {"reframe_eval": {"windows": [_window(id="rf-01", split="test"),
+                                             _window(id="rf-02", split="test"),
+                                             _window(id="rf-03", split="test")]}}
+    data = {"schema": harness.LABELS_SCHEMA, "split": "test", "windows": [
+        {"id": name, "fps": [30, 1], "window_sf": [1800, 5400]}
+        for name in ("rf-01", "rf-02", "rf-03")]}
+    state = {"rf-01": {"cuts": [200], "modes": ["camera", "fit_blur"], "done": True},
+             "rf-02": {"cuts": [], "modes": ["camera"]}}  # opened, never marked done
+    labels = _export(harness, data, state)
+    by_id = {entry["id"]: entry for entry in labels["windows"]}
+    assert by_id["rf-01"]["cuts_sf"] == [2000] and by_id["rf-01"]["modes"] == ["camera", "fit_blur"]
+    for name in ("rf-02", "rf-03"):
+        assert by_id[name]["cuts_sf"] is None and by_id[name]["modes"] is None
+    with pytest.raises(harness.LabelError, match="not labelled"):
+        harness.check_labels(labels, registry, "test")
+    harness.check_labels(labels, registry, "test", allow_empty=True)
+    state.update({"rf-02": {"cuts": [], "modes": ["camera"], "done": True},
+                  "rf-03": {"cuts": [], "modes": ["split"], "done": True}})
+    harness.check_labels(_export(harness, data, state), registry, "test")
+
+
+def test_the_label_page_carries_the_export_and_a_done_mark(harness, tmp_path):
+    (tmp_path / "windows").mkdir()
+    info = {"id": "rf-01", "fps": [30, 1], "window_sf": [1800, 5400], "frames": 3600}
+    (tmp_path / "windows" / "rf-01.json").write_text(json.dumps(info), encoding="utf-8")
+    page = harness.label_page([_window(id="rf-01")], "test", tmp_path)
+    assert harness.EXPORT_JS in page
+    assert 'id="done"' in page
 
 
 # --- the committed set ---------------------------------------------------------------------------
