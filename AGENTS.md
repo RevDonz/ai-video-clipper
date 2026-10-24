@@ -4,7 +4,9 @@ This file is the single source of project rules for every coding agent (Claude C
 from `CLAUDE.md`; Codex, Cursor, Gemini CLI and others read it directly). The rules come from the
 owner; when one is in doubt, ask before acting against it.
 
-**Current work and how to resume it: `docs/HANDOFF.md`. Read it first.**
+**Current work and how to resume it: `docs/HANDOFF.md`. Read it first.** The overhaul plan
+("rombak") is `docs/plans/2026-10-24-rombak/` (entry `00-README.md`; phase order in
+`08-fase-test-deploy.md`); until PR #31 is merged it lives on branch `docs/rombak-spec`.
 
 ## Owner rules
 
@@ -16,7 +18,13 @@ owner; when one is in doubt, ask before acting against it.
   skills below.
 - **Free LLMs first.** Use the free providers in the saved Pengaturan chain; never switch to a
   paid model or provider without asking the owner.
-- **UI copy** is Indonesian, short and to the point.
+- **UI copy** lives in `web/messages/id/*.json` (source) and is translated for every locale in
+  `web/lib/i18n/locales.mjs`. Short labels in every language. Content language (captions, titles,
+  hashtags, LLM output) follows the video's language, never the UI language. English copy is
+  written from the Indonesian catalog and the glossary only (clean-room). Terms come from
+  `docs/glosarium.md`; a new term is added there in the PR that introduces it. Until the catalog
+  exists (overhaul Fase 1, i18n M0), copy stays in the component: Indonesian, short and to the
+  point. Operational docs, deploy self-checks, CLI messages and logs stay Indonesian.
 
 ## Engineering rules
 
@@ -32,14 +40,41 @@ owner; when one is in doubt, ask before acting against it.
 - On the owner's PC, the local apps run on ports 3000 and 3001 and use `artifacts/local`
   (read-only for agents). Stop only processes you started, by PID; never kill by name or port.
 - Tests first for behaviour changes; never weaken a threshold or a test to make it pass.
+- **Migrations are additive only:** new tables, nullable or defaulted columns, new optional JSON
+  fields. A migration file never changes once it is on `main`. Removing anything ("contract")
+  ships only in a separate release and is recorded in the rollback matrix. DB rules and lint:
+  `docs/plans/2026-10-24-rombak/01-arsitektur-data.md` §3.
+- **Auth guards stay synchronous:** `requireAuth`, `currentUser` and the `authorize(request)` step
+  of `secureRoute` never become `async`, and nobody writes `await authorize(`. When the DB-backed
+  session lands (overhaul Fase 4), `web/tests/authorize-sync-contract.test.mjs` locks this.
 - **Do not load the owner's PC with heavy tests** (owner's request, 2026-10-01). Many agents in
   parallel are fine; what lagged the PC was heavy test work. Locally run only targeted tests for
   the files you change. Whole suites, Docker image builds,
   FFmpeg gate measurements and browser suites run on GitHub Actions: push the work branch, then
-  `gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command [-f command='…']`,
-  follow it with `gh run watch`, read failures with `gh run view --log-failed`, fetch outputs with
-  `gh run download`. Before every push, scan with main's gitleaks config and change any fake
-  key-like test value that trips it (CI scans every ref).
+  `gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command|e2e|player
+  [-f command='…']` (`command`: a shell command in the image; `e2e`: the spec files under `web/`;
+  `player`: the Playwright arguments), follow it with `gh run watch`, read failures with
+  `gh run view --log-failed`, fetch outputs with `gh run download`. Before every push, scan with
+  main's gitleaks config and change any fake key-like test value that trips it (CI scans every
+  ref).
+- A toolchain change (base image, Debian snapshot, package pins, Node, JASSUB) needs fresh
+  evidence: `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`, then commit the stamped
+  `docs/editor/evidence/toolchain/record.json` (`docs/editor/OPERASIONAL.md` §3).
+
+## Clean-room (SupoClip)
+
+SupoClip is AGPL-3.0. Potongin stays free of AGPL as long as none of its code comes in.
+- Allowed: reading SupoClip's docs, code and screenshots, and trying it, to understand behaviour,
+  flows and edge cases. Clone it outside this repository.
+- Forbidden: copying or closely paraphrasing its code, markup, CSS, UI strings, module names or
+  constants; using its screenshots as Potongin assets; having SupoClip files open beside Potongin
+  files while writing.
+- Practice: read, close, write a behaviour note in your own words in the PR ("Rujukan
+  perilaku"), then implement from the spec and Potongin's code.
+- The English catalog is translated from the Indonesian catalog and the glossary, never from
+  anyone else's text.
+- Every PR description carries the line `Rujukan: rencana 2026-10-24-rombak + kode Potongin`. A
+  PR that touches `web/messages/en/` also carries `Sumber copy: messages/id + glosarium`.
 
 <!-- antislop:start -->
 ## antislop
