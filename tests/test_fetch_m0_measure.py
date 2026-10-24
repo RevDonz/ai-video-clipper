@@ -238,6 +238,26 @@ def test_range_gate_needs_both_numbers(m0):
     assert gate["pass"] is False and gate["median_saving"] is None
 
 
+def timing_source(duration, video, audio, transcribe, select=0.1):
+    return {"video": {"duration": duration},
+            "seconds": {"video_download": video, "audio_download_simulated": audio,
+                        "transcribe": transcribe, "select": select}}
+
+
+def test_range_report_counts_only_long_sources(m0):
+    sources = [timing_source(600, 4, 1, 140), timing_source(3596, 85, 8, 800),
+               timing_source(5937, 140, 13, 1400), {"video": None}]
+    report = m0.range_report(sources, cut_seconds=[12.6, 5.4, 6.0], offsets_frames=[0.6] * 40)
+    assert [item["duration"] for item in report["sources"]] == [3596, 5937]
+    first = report["sources"][0]
+    # 5 clips at the median cut time (6.0 s), one after the other
+    assert first["ranges_seconds"] == pytest.approx(30.0)
+    assert first["whisper"] == pytest.approx(m0.range_only_saving(8, 800, 0.1, 85, 30.0))
+    assert first["captions"] == pytest.approx(m0.range_only_saving(8, 0, 0.1, 85, 30.0))
+    assert report["gate_whisper"]["pass"] is False
+    assert report["gate_captions"]["av_within_one_frame"] == 1.0
+
+
 def test_kick_decision(m0):
     assert m0.kick_decision(["ok"] * 5, ["ok"] * 5) == "metadata_ok_without_curl_cffi"
     assert m0.kick_decision(["ok"] * 4 + ["forbidden"], []) == "metadata_ok_without_curl_cffi"

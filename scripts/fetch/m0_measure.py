@@ -304,6 +304,30 @@ def range_gate(savings: Sequence[float], offsets_frames: Sequence[float]) -> dic
                          and median >= 0.40 and within >= 0.95)}
 
 
+def range_report(timing_sources: Sequence[Mapping[str, Any]], cut_seconds: Sequence[float],
+                 offsets_frames: Sequence[float], clips: int = 5) -> dict[str, Any]:
+    """§B11 inputs from the measured numbers: sources of at least 40 minutes, ``clips`` cuts at
+    the median measured cut time one after the other, with Whisper and with captions."""
+    cut = statistics.median(cut_seconds) if cut_seconds else None
+    rows = []
+    for source in timing_sources:
+        video, seconds = source.get("video"), source.get("seconds")
+        if not video or not seconds or cut is None or float(video["duration"]) < 2400:
+            continue
+        ranges = clips * cut
+        audio = seconds["audio_download_simulated"]
+        rows.append({
+            "duration": video["duration"], "ranges_seconds": ranges,
+            "whisper": range_only_saving(audio, seconds["transcribe"], seconds["select"],
+                                         seconds["video_download"], ranges),
+            "captions": range_only_saving(audio, 0, seconds["select"],
+                                          seconds["video_download"], ranges),
+        })
+    return {"cut_median_seconds": cut, "clips": clips, "sources": rows,
+            "gate_whisper": range_gate([row["whisper"] for row in rows], offsets_frames),
+            "gate_captions": range_gate([row["captions"] for row in rows], offsets_frames)}
+
+
 def kick_decision(without: Sequence[str], with_cffi: Sequence[str]) -> str:
     """04 §B8: Kick is a go only when it works without curl_cffi (or the owner approves it)."""
     if not without:
@@ -738,11 +762,15 @@ def phase_youtube(ctx: Context) -> dict[str, Any]:
                                         "bgutil_server": server.problem or (
                                             "ok" if server_ok else "skipped")},
                               "pins": PINS, "proxy": "not measured: no free proxy allowed"}
+    def arm_env(name: str) -> Mapping[str, str]:
+        # The image arm keeps the image's own Node 20 on PATH, as production runs it.
+        return child_env(os.environ) if name == "image" else env
+
     result["headers"] = {}
     for name, binary, extra in arms:
         if binary:
             header = run([binary, "-v", *extra, "--simulate", "--no-playlist", YOUTUBE_PROBE],
-                         timeout=180, env=env)
+                         timeout=180, env=arm_env(name))
             result["headers"][name] = {
                 key: debug_value(header.stderr, key) for key in (
                     "yt-dlp version", "JS runtimes", "Optional libraries")} | {
@@ -755,7 +783,7 @@ def phase_youtube(ctx: Context) -> dict[str, Any]:
         for attempt in range(tries):  # interleaved, so the arms share the same minutes
             for name, binary, extra in order:
                 outcomes[name].append(_youtube_try(
-                    binary, YOUTUBE_PROBE, ctx.work / "yt" / name, extra, env))
+                    binary, YOUTUBE_PROBE, ctx.work / "yt" / name, extra, arm_env(name)))
                 time.sleep(2)
             log(f"youtube try {attempt + 1}/{tries}")
         for name, binary, _ in arms:
@@ -879,7 +907,7 @@ def phase_audio(ctx: Context) -> dict[str, Any]:
     for video in talks:
         entry: dict[str, Any] = {"video": describe(video)}
         work = ctx.work / "audio" / video["uuid"]
-        download = _download_peertube(ctx, video, 360, work / "dl")
+        download = _download_peertube(ctx, video, 720, work / "dl")
         entry["download"] = {key: download[key] for key in ("ok", "seconds", "bytes", "error")}
         if not download["ok"]:
             result["sources"].append(entry)
@@ -1361,6 +1389,26 @@ def measure(args: argparse.Namespace) -> int:
     return 0
 
 
+def _each(value: Any) -> list[Mapping[str, Any]]:
+    return [item for item in (value if isinstance(value, list) else [value])
+            if isinstance(item, Mapping)]
+
+
+def report(merged: Mapping[str, Any]) -> dict[str, Any]:
+    """The derived numbers of a merged result: the §B11 range-only inputs."""
+    phases = merged.get("phases", {})
+    timing = [source for item in _each(phases.get("timing")) for source in item.get("sources", [])]
+    cuts, offsets = [], []
+    for item in _each(phases.get("range")):
+        cuts += [cut["seconds"] for cut in (item.get("peertube") or {}).get("cuts", [])
+                 if cut.get("ok") and not cut.get("keyframes")]
+        for value in (item.get("synthetic") or {}).values():
+            if isinstance(value, Mapping) and "pieces" in value:
+                offsets += [piece["offset_frames"] for piece in value["pieces"]
+                            if piece.get("offset_frames") is not None]
+    return {"schema": SCHEMA + "#report", "range_only": range_report(timing, cuts, offsets)}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv[:1] == ["merge"]:
@@ -1371,6 +1419,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         merged = merge_results([json.loads(Path(item).read_text(encoding="utf-8"))
                                 for item in args.files])
         _write(Path(args.out), merged)
+        return 0
+    if argv[:1] == ["report"]:
+        parser = argparse.ArgumentParser(prog="m0_measure.py report")
+        parser.add_argument("merged")
+        parser.add_argument("--out", required=True)
+        args = parser.parse_args(argv[1:])
+        _write(Path(args.out), report(json.loads(Path(args.merged).read_text(encoding="utf-8"))))
         return 0
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--out", required=True)
