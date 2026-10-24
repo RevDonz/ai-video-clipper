@@ -40,6 +40,9 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections.abc import Iterator, Mapping, Sequence
 from itertools import pairwise, product
 from pathlib import Path
@@ -58,9 +61,10 @@ WINDOW_MS = 120_000
 OUTPUT = (720, 1280)
 FETCH_MAX_HEIGHT = 720  # Potongin downloads are at most 720p
 USER_AGENT = "PotonginEval/1 (open-licence reframe evaluation) ffmpeg"
-FETCH_ATTEMPTS = 5
-FETCH_PAUSE_S = 10  # between windows
-FETCH_BACKOFF_S = 30  # times the attempt number; the media hosts rate-limit shared CI addresses
+FETCH_ATTEMPTS = 8
+FETCH_PAUSE_S = 5  # between downloads
+FETCH_BACKOFF_S = 60
+FETCH_MAX_WAIT_S = 900
 CATEGORIES = ("single_speaker", "two_person", "panel", "screen", "gameplay_broll")
 COMPOSITION = {"single_speaker": 10, "two_person": 10, "panel": 8, "screen": 6,
                "gameplay_broll": 6}
@@ -389,41 +393,68 @@ def _tool(name: str) -> str:
     return path
 
 
-def _network(command: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
-    """Run an FFmpeg tool that reads a URL, retrying with a growing pause when it fails."""
+def download(url: str, target: Path, *, sha1: str | None) -> Path:
+    """The whole file in one request (the media host rate-limits uncached requests per client,
+    so a seek over HTTP, which makes several, runs into the limit sooner). A 429 or 503 waits for
+    its ``Retry-After``. ``sha1`` (Commons' hash of an original upload) is checked when given."""
+    if target.exists():
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + ".part")
     for attempt in range(1, FETCH_ATTEMPTS + 1):
-        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout,
-                                check=False)
-        if result.returncode == 0 or attempt == FETCH_ATTEMPTS:
-            return result
-        print(f"  retry {attempt}: {result.stderr.strip()[-160:]}", flush=True)
-        time.sleep(FETCH_BACKOFF_S * attempt)
-    raise AssertionError("unreachable")
+        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response, \
+                    partial.open("wb") as out:
+                shutil.copyfileobj(response, out, 1 << 20)
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (429, 503) or attempt == FETCH_ATTEMPTS:
+                raise RuntimeError(f"{url}: HTTP {exc.code}") from exc
+            wait = min(int(exc.headers.get("Retry-After") or FETCH_BACKOFF_S), FETCH_MAX_WAIT_S)
+            print(f"  HTTP {exc.code}, waiting {wait} s (attempt {attempt})", flush=True)
+            time.sleep(wait)
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            if attempt == FETCH_ATTEMPTS:
+                raise RuntimeError(f"{url}: {exc}") from exc
+            time.sleep(FETCH_BACKOFF_S * attempt)
+    if sha1 is not None:
+        digest = hashlib.sha1(partial.read_bytes()).hexdigest()  # Commons' pin for the original
+        if digest != sha1:
+            partial.unlink()
+            raise RuntimeError(f"{url}: sha1 {digest} is not the registry's {sha1}")
+    os.replace(partial, target)
+    return target
 
 
-def _probe(url: str) -> dict[str, Any]:
-    out = _network(
-        [_tool("ffprobe"), "-v", "error", "-user_agent", USER_AGENT, "-select_streams", "v:0",
-         "-show_entries", "stream=r_frame_rate,avg_frame_rate,width,height", "-of", "json", url],
-        timeout=300)
-    if out.returncode != 0:
-        raise RuntimeError(f"ffprobe: {out.stderr.strip()[-300:]}")
+def _probe(path: Path) -> dict[str, Any]:
+    out = subprocess.run(
+        [_tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
+         "stream=r_frame_rate,avg_frame_rate,width,height", "-of", "json", str(path)],
+        capture_output=True, text=True, timeout=300, check=True)
     stream = json.loads(out.stdout)["streams"][0]
 
     def rate(text: str) -> tuple[int, int]:
         num, den = (int(v) for v in text.split("/"))
         g = math.gcd(num, den) or 1
-        return num // g, den // g
+        return (num // g, den // g) if num > 0 and den > 0 else (0, 1)
 
     native, average = rate(stream["r_frame_rate"]), rate(stream["avg_frame_rate"])
-    vfr = average[0] > 0 and abs(native[0] / native[1] - average[0] / average[1]) > (
-        native[0] / native[1]) * 0.001
+    if native[0] == 0:
+        native = average
+    vfr = native[0] == 0 or (average[0] > 0 and abs(native[0] / native[1] - average[0] /
+                                                    average[1]) > native[0] / native[1] * 0.001)
     return {"native": native, "average": average, "vfr": vfr,
             "size": [stream["width"], stream["height"]]}
 
 
 def window_path(cache: Path, window: Mapping[str, Any]) -> Path:
     return cache / "windows" / f"{window['id']}.mp4"
+
+
+def media_path(cache: Path, source: Mapping[str, Any]) -> Path:
+    suffix = Path(urllib.parse.urlparse(source["media_url"]).path).suffix or ".bin"
+    return cache / "media" / f"{source['source_id']}{suffix}"
 
 
 def fetch_window(cache: Path, window: Mapping[str, Any], source: Mapping[str, Any]) -> dict:
@@ -433,18 +464,21 @@ def fetch_window(cache: Path, window: Mapping[str, Any], source: Mapping[str, An
     if target.exists() and info_file.exists():
         return json.loads(info_file.read_text(encoding="utf-8"))
     target.parent.mkdir(parents=True, exist_ok=True)
-    probe = _probe(source["media_url"])
+    original = "/transcoded/" not in source["media_url"]
+    media = download(source["media_url"], media_path(cache, source),
+                     sha1=source.get("original_sha1") if original else None)
+    probe = _probe(media)
     fps = document_fps(probe["native"], vfr=probe["vfr"])
     first, end = window_grid(window["start_ms"], window["duration_ms"], fps)
     seek = f"{first * fps[1] / fps[0]:.6f}"
     partial = target.with_name(target.stem + ".part.mp4")
-    command = [_tool("ffmpeg"), "-nostdin", "-v", "error", "-user_agent", USER_AGENT,
-               "-ss", seek, "-i", source["media_url"], "-map", "0:v:0", "-map", "0:a:0?",
+    command = [_tool("ffmpeg"), "-nostdin", "-v", "error", "-ss", seek, "-i", str(media),
+               "-map", "0:v:0", "-map", "0:a:0?",
                "-vf", f"fps={fps[0]}/{fps[1]},scale=-2:'min({FETCH_MAX_HEIGHT},ih)'",
                "-frames:v", str(end - first), "-c:v", "libx264", "-preset", "veryfast",
                "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-shortest",
                "-y", str(partial)]
-    result = _network(command, timeout=1800)
+    result = subprocess.run(command, capture_output=True, text=True, timeout=1800, check=False)
     if result.returncode != 0:
         partial.unlink(missing_ok=True)
         raise RuntimeError(f"{window['id']}: {result.stderr.strip()[-300:]}")
@@ -833,6 +867,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             try:
                 cached = window_path(args.cache, window).with_suffix(".json").exists()
                 info = fetch_window(args.cache, window, sources[window["source_id"]])
+                media_path(args.cache, sources[window["source_id"]]).unlink(missing_ok=True)
                 if not cached:
                     time.sleep(FETCH_PAUSE_S)
                 print(f"{window['id']}: {info['frames']} frames at {info['fps']}", flush=True)
