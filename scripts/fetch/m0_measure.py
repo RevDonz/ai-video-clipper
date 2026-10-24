@@ -19,6 +19,7 @@ Phases (``--only``, comma-separated; default all):
   selection on each.
 * ``timing`` (M0-2): time to selection, sequential against simulated audio-first, on sources
   near 10/30/60/120 minutes.
+* ``sizes`` (M0-8): bytes per hour of the 720p and 1080p files of those sources (metadata).
 * ``range`` (M0-6): ``--download-sections`` cut time against the full download, and the A/V
   offset of cut pieces of a flash/beep test source served locally as HLS and DASH.
 * ``proxy`` (M0-4): a proxy given through ``--config-locations`` never shows in
@@ -68,7 +69,8 @@ sys.path.insert(0, str(ROOT / "scripts" / "ytdlp"))
 import ytdlp_smoke as smoke
 
 SCHEMA = "potongin.fetch-m0/1"
-PHASES = ("env", "extractors", "youtube", "audio", "timing", "range", "proxy", "kick")
+PHASES = ("env", "extractors", "youtube", "audio", "timing", "sizes", "range", "proxy",
+          "kick")
 
 # Ad hoc measurement tools, never Potongin dependencies. Versions at least two weeks old.
 PINS = {
@@ -947,6 +949,30 @@ def phase_audio(ctx: Context) -> dict[str, Any]:
     return result
 
 
+def phase_sizes(ctx: Context) -> dict[str, Any]:
+    """M0-8 from metadata: bytes per hour of the 720p and 1080p files of the timing sources."""
+    picked = pick_by_duration(peertube_videos(), TIMING_TARGETS)
+    rows = []
+    for target, video in picked.items():
+        if video is None:
+            continue
+        detail = fetch_json(f"{PEERTUBE}/api/v1/videos/{video['uuid']}")
+        files = list(detail.get("files") or [])
+        for playlist in detail.get("streamingPlaylists") or []:
+            files += [item | {"hls": True} for item in playlist.get("files") or []]
+        sizes: dict[str, int] = {}
+        for item in files:
+            height = (item.get("resolution") or {}).get("id")
+            if height in (720, 1080) and item.get("size"):
+                sizes[str(height)] = max(sizes.get(str(height), 0), int(item["size"]))
+        rows.append({"target_seconds": target, "video": describe(video),
+                     "bytes": sizes,
+                     "bytes_per_hour": {height: bytes_per_hour(size, video["duration"])
+                                        for height, size in sizes.items()}})
+    return {"source": "video.blender.org file sizes (metadata, no download)", "sources": rows,
+            "youtube": "not measured: every YouTube request from the runner was bot-checked"}
+
+
 def phase_timing(ctx: Context) -> dict[str, Any]:
     args = ctx.args
     picked = pick_by_duration(peertube_videos(), TIMING_TARGETS)
@@ -1349,7 +1375,7 @@ def phase_kick(ctx: Context) -> dict[str, Any]:
 PHASE_FUNCS: dict[str, Callable[[Context], dict[str, Any]]] = {
     "env": phase_env, "extractors": phase_extractors, "youtube": phase_youtube,
     "audio": phase_audio, "timing": phase_timing, "range": phase_range, "proxy": phase_proxy,
-    "kick": phase_kick,
+    "kick": phase_kick, "sizes": phase_sizes,
 }
 
 
