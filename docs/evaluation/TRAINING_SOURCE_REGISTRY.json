@@ -105,6 +105,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -126,6 +127,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -147,6 +149,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -168,6 +171,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -189,6 +193,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -210,6 +215,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -231,27 +237,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
-      "source_id": "commons-scott-kelly-talks-about-his-year-in-space",
-      "platform": "wikimedia_commons",
-      "title": "Scott Kelly Talks About His Year in Space.webm",
-      "url": "https://commons.wikimedia.org/wiki/File:Scott_Kelly_Talks_About_His_Year_in_Space.webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/a/a0/Scott_Kelly_Talks_About_His_Year_in_Space.webm",
-      "original_sha1": "f5a83158c4e9432da9b6d65759a9a48573526b3a",
-      "author": "NASA",
-      "duration_seconds": 3315.422,
-      "width": 1280,
-      "height": 720,
-      "license": "Public domain",
-      "license_url": "https://commons.wikimedia.org/wiki/File:Scott_Kelly_Talks_About_His_Year_in_Space.webm",
-      "rights_status": "public_domain",
-      "attribution_required": false,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -273,6 +259,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -294,6 +281,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -315,6 +303,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -336,6 +325,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -357,6 +347,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -378,6 +369,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -399,6 +391,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -420,6 +413,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -441,6 +435,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -462,6 +457,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -483,27 +479,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
-      "source_id": "commons-the-css-podcast-090-scroll-driven-animations",
-      "platform": "wikimedia_commons",
-      "title": "The CSS-Podcast – 090 – Scroll-driven animations.webm",
-      "url": "https://commons.wikimedia.org/wiki/File:The_CSS-Podcast_%E2%80%93_090_%E2%80%93_Scroll-driven_animations.webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7b/The_CSS-Podcast_%E2%80%93_090_%E2%80%93_Scroll-driven_animations.webm/The_CSS-Podcast_%E2%80%93_090_%E2%80%93_Scroll-driven_animations.webm.1080p.vp9.webm",
-      "original_sha1": "38b5224e3285fb994dde042575e1b693a56c6f60",
-      "author": "Chrome for Developers",
-      "duration_seconds": 2792.228,
-      "width": 3840,
-      "height": 2160,
-      "license": "CC BY 3.0",
-      "license_url": "https://creativecommons.org/licenses/by/3.0",
-      "rights_status": "creative_commons_attribution",
-      "attribution_required": true,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -525,6 +501,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -546,6 +523,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -567,6 +545,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -588,6 +567,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -609,27 +589,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
-      "source_id": "commons-podcast-com-jorge-lordello",
-      "platform": "wikimedia_commons",
-      "title": "Podcast com Jorge Lordello.webm",
-      "url": "https://commons.wikimedia.org/wiki/File:Podcast_com_Jorge_Lordello.webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/b/be/Podcast_com_Jorge_Lordello.webm",
-      "original_sha1": "3879b983c6accee2c4809b466b21b836eb665c9e",
-      "author": "Lisa, Leve e Solta",
-      "duration_seconds": 7750.016,
-      "width": 1920,
-      "height": 1080,
-      "license": "CC BY 3.0",
-      "license_url": "https://creativecommons.org/licenses/by/3.0",
-      "rights_status": "creative_commons_attribution",
-      "attribution_required": true,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -651,6 +611,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -672,6 +633,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -693,6 +655,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -714,6 +677,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -735,6 +699,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -756,6 +721,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -777,6 +743,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -798,6 +765,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -819,6 +787,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -840,6 +809,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -861,27 +831,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
-      "source_id": "commons-roundtable-part-of-a-global-cultural-commons-pro",
-      "platform": "wikimedia_commons",
-      "title": "Roundtable - Part of a Global Cultural Commons - Provenance Research in 2024.webm",
-      "url": "https://commons.wikimedia.org/wiki/File:Roundtable_-_Part_of_a_Global_Cultural_Commons_-_Provenance_Research_in_2024.webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/8/82/Roundtable_-_Part_of_a_Global_Cultural_Commons_-_Provenance_Research_in_2024.webm",
-      "original_sha1": "09e043c0c3040983e57a9e4a2aba2424205e9288",
-      "author": "edelmat.digital GmbH für Wikimedia Deutschland e.V.",
-      "duration_seconds": 6104.681,
-      "width": 1920,
-      "height": 1080,
-      "license": "CC BY 4.0",
-      "license_url": "https://creativecommons.org/licenses/by/4.0",
-      "rights_status": "creative_commons_attribution",
-      "attribution_required": true,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -903,6 +853,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -924,27 +875,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
-      "source_id": "commons-age-of-empires-iv-multiplayer-match",
-      "platform": "wikimedia_commons",
-      "title": "Age of Empires IV- Multiplayer Match.webm",
-      "url": "https://commons.wikimedia.org/wiki/File:Age_of_Empires_IV-_Multiplayer_Match.webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Age_of_Empires_IV-_Multiplayer_Match.webm",
-      "original_sha1": "1fa2f6ec9f161023ef9a9f84f4d70a71a006b961",
-      "author": "Age of Empires",
-      "duration_seconds": 2633.841,
-      "width": 1920,
-      "height": 1080,
-      "license": "CC BY 3.0",
-      "license_url": "https://creativecommons.org/licenses/by/3.0",
-      "rights_status": "creative_commons_attribution",
-      "attribution_required": true,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -966,6 +897,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -987,6 +919,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -1008,6 +941,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -1029,8 +963,10 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
+      "raw_media_committed": false,
+      "license_note": "dual-licensed CC BY 3.0 and CC BY-SA 3.0 on the file page; used under CC BY 3.0"
     },
     {
       "source_id": "commons-sprite-fright-blender-open-movie-full-movie",
@@ -1050,6 +986,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "none",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -1071,27 +1008,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
-      "source_id": "commons-the-history-of-the-web-chrome-university-2019-kn",
-      "platform": "wikimedia_commons",
-      "title": "The history of the web (Chrome University 2019) (kNzoswFIU9M).webm",
-      "url": "https://commons.wikimedia.org/wiki/File:The_history_of_the_web_(Chrome_University_2019)_(kNzoswFIU9M).webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/d/de/The_history_of_the_web_%28Chrome_University_2019%29_%28kNzoswFIU9M%29.webm",
-      "original_sha1": "3fa17793dee5dd7b386dff2bb1dfa7f4c57f4861",
-      "author": "Google Chrome Developers",
-      "duration_seconds": 2534.068,
-      "width": 1280,
-      "height": 720,
-      "license": "CC BY 3.0",
-      "license_url": "https://creativecommons.org/licenses/by/3.0",
-      "rights_status": "creative_commons_attribution",
-      "attribution_required": true,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -1113,27 +1030,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
-      "dataset_use": "reframe_evaluation",
-      "raw_media_committed": false
-    },
-    {
-      "source_id": "commons-wikidata-workshop-theoretical-part-maastricht-un",
-      "platform": "wikimedia_commons",
-      "title": "Wikidata Workshop - Theoretical part - Maastricht University - 15 October 2024.webm",
-      "url": "https://commons.wikimedia.org/wiki/File:Wikidata_Workshop_-_Theoretical_part_-_Maastricht_University_-_15_October_2024.webm",
-      "media_url": "https://upload.wikimedia.org/wikipedia/commons/7/79/Wikidata_Workshop_-_Theoretical_part_-_Maastricht_University_-_15_October_2024.webm",
-      "original_sha1": "e5c1d55c4d05d1e064e3a5f58cf5ef3f793dd8ff",
-      "author": "Olaf Janssen",
-      "duration_seconds": 3886.982,
-      "width": 960,
-      "height": 720,
-      "license": "CC BY 4.0",
-      "license_url": "https://creativecommons.org/licenses/by/4.0",
-      "rights_status": "creative_commons_attribution",
-      "attribution_required": true,
-      "license_checked_at": "2026-10-24",
-      "accessed_at": "2026-10-24",
-      "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "pending",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     },
@@ -1155,6 +1052,7 @@
       "license_checked_at": "2026-10-24",
       "accessed_at": "2026-10-24",
       "license_check": "licence template on the Commons file page (API extmetadata LicenseShortName/LicenseUrl)",
+      "commons_license_review": "passed",
       "dataset_use": "reframe_evaluation",
       "raw_media_committed": false
     }
@@ -1171,18 +1069,18 @@
     },
     "composition": {
       "single_speaker": 10,
-      "two_person": 14,
-      "panel": 10,
-      "screen": 9,
-      "gameplay_broll": 8
+      "two_person": 11,
+      "panel": 9,
+      "screen": 7,
+      "gameplay_broll": 7
     },
     "start_rule": "seeded whole second between 10% of the source and 90% minus 120 s (auto_reframe.window_start_ms)",
     "split": {
       "seed": 20261024,
       "assigned_at": "2026-10-24",
       "method": "per category, sources shuffled with the seed; first half (rounded down) dev, the rest test (auto_reframe.assign_splits)",
-      "dev": 25,
-      "test": 26,
+      "dev": 20,
+      "test": 24,
       "test_locked": true
     },
     "windows": [
@@ -1247,15 +1145,6 @@
         "start_ms": 85000,
         "duration_ms": 120000,
         "split": "dev",
-        "fps": null
-      },
-      {
-        "id": "rf-08",
-        "source_id": "commons-scott-kelly-talks-about-his-year-in-space",
-        "category": "two_person",
-        "start_ms": 492000,
-        "duration_ms": 120000,
-        "split": "test",
         "fps": null
       },
       {
@@ -1336,7 +1225,7 @@
         "category": "two_person",
         "start_ms": 399000,
         "duration_ms": 120000,
-        "split": "test",
+        "split": "dev",
         "fps": null
       },
       {
@@ -1345,7 +1234,7 @@
         "category": "two_person",
         "start_ms": 642000,
         "duration_ms": 120000,
-        "split": "dev",
+        "split": "test",
         "fps": null
       },
       {
@@ -1353,15 +1242,6 @@
         "source_id": "commons-the-css-podcast-088-state-queries",
         "category": "two_person",
         "start_ms": 330000,
-        "duration_ms": 120000,
-        "split": "test",
-        "fps": null
-      },
-      {
-        "id": "rf-20",
-        "source_id": "commons-the-css-podcast-090-scroll-driven-animations",
-        "category": "two_person",
-        "start_ms": 436000,
         "duration_ms": 120000,
         "split": "dev",
         "fps": null
@@ -1381,7 +1261,7 @@
         "category": "two_person",
         "start_ms": 114000,
         "duration_ms": 120000,
-        "split": "dev",
+        "split": "test",
         "fps": null
       },
       {
@@ -1409,15 +1289,6 @@
         "start_ms": 1232000,
         "duration_ms": 120000,
         "split": "test",
-        "fps": null
-      },
-      {
-        "id": "rf-26",
-        "source_id": "commons-podcast-com-jorge-lordello",
-        "category": "two_person",
-        "start_ms": 1251000,
-        "duration_ms": 120000,
-        "split": "dev",
         "fps": null
       },
       {
@@ -1462,7 +1333,7 @@
         "category": "screen",
         "start_ms": 1020000,
         "duration_ms": 120000,
-        "split": "test",
+        "split": "dev",
         "fps": null
       },
       {
@@ -1498,7 +1369,7 @@
         "category": "panel",
         "start_ms": 809000,
         "duration_ms": 120000,
-        "split": "dev",
+        "split": "test",
         "fps": null
       },
       {
@@ -1515,15 +1386,6 @@
         "source_id": "commons-phabricator-tasks",
         "category": "screen",
         "start_ms": 376000,
-        "duration_ms": 120000,
-        "split": "dev",
-        "fps": null
-      },
-      {
-        "id": "rf-38",
-        "source_id": "commons-roundtable-part-of-a-global-cultural-commons-pro",
-        "category": "panel",
-        "start_ms": 1869000,
         "duration_ms": 120000,
         "split": "test",
         "fps": null
@@ -1547,21 +1409,12 @@
         "fps": null
       },
       {
-        "id": "rf-41",
-        "source_id": "commons-age-of-empires-iv-multiplayer-match",
-        "category": "gameplay_broll",
-        "start_ms": 307000,
-        "duration_ms": 120000,
-        "split": "test",
-        "fps": null
-      },
-      {
         "id": "rf-42",
         "source_id": "commons-big-buck-bunny-4k",
         "category": "gameplay_broll",
         "start_ms": 290000,
         "duration_ms": 120000,
-        "split": "dev",
+        "split": "test",
         "fps": null
       },
       {
@@ -1579,7 +1432,7 @@
         "category": "screen",
         "start_ms": 406000,
         "duration_ms": 120000,
-        "split": "dev",
+        "split": "test",
         "fps": null
       },
       {
@@ -1597,7 +1450,7 @@
         "category": "gameplay_broll",
         "start_ms": 364000,
         "duration_ms": 120000,
-        "split": "test",
+        "split": "dev",
         "fps": null
       },
       {
@@ -1605,15 +1458,6 @@
         "source_id": "commons-tears-of-steel-in-4k-official-blender-foundation",
         "category": "gameplay_broll",
         "start_ms": 231000,
-        "duration_ms": 120000,
-        "split": "test",
-        "fps": null
-      },
-      {
-        "id": "rf-48",
-        "source_id": "commons-the-history-of-the-web-chrome-university-2019-kn",
-        "category": "screen",
-        "start_ms": 2090000,
         "duration_ms": 120000,
         "split": "test",
         "fps": null
@@ -1628,21 +1472,12 @@
         "fps": null
       },
       {
-        "id": "rf-50",
-        "source_id": "commons-wikidata-workshop-theoretical-part-maastricht-un",
-        "category": "screen",
-        "start_ms": 2622000,
-        "duration_ms": 120000,
-        "split": "test",
-        "fps": null
-      },
-      {
         "id": "rf-51",
         "source_id": "commons-parade-of-ships-b-roll-fleet-week-nyc-2016",
         "category": "gameplay_broll",
         "start_ms": 85000,
         "duration_ms": 120000,
-        "split": "dev",
+        "split": "test",
         "fps": null
       }
     ]
