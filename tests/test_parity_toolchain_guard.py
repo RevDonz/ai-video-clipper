@@ -61,7 +61,7 @@ def _recorded_repo(tmp_path: Path) -> Path:
 def test_the_dockerfile_gives_the_toolchain_document_the_image_writes():
     document = tg.derive_toolchain(DOCKERFILE)
     assert toolchain.validate(document) == document
-    assert document["base_image"].startswith("node:20-bookworm-slim@sha256:")
+    assert document["base_image"].startswith("node:24-bookworm-slim@sha256:")
     assert document["apt_snapshot"] == "20260924T000000Z"
     assert document["packages"]["ffmpeg"] == "7:5.1.9-0+deb12u1"
     assert document["packages"]["libass9"] == "1:0.17.1-1+deb12u1"
@@ -82,7 +82,7 @@ def test_any_pin_change_changes_the_toolchain_sha():
     lambda text: text.replace("ARG DEBIAN_SNAPSHOT=20260924T000000Z", "ARG DEBIAN_SNAPSHOT"),
     lambda text: text.replace("fontconfig=2.14.1-4", "fontconfig"),
     lambda text: text.replace("libfribidi0=1.0.8-2.1", "libfribidi0=1.0.8-2.1 libfribidi0=1.0.9-1"),
-    lambda text: text.replace("ARG NODE_IMAGE=node:20-bookworm-slim@sha256:", "ARG NODE_IMAGE=node:20-bookworm-slim:"),
+    lambda text: text.replace("ARG NODE_IMAGE=node:24-bookworm-slim@sha256:", "ARG NODE_IMAGE=node:24-bookworm-slim:"),
 ])
 def test_an_unpinned_or_ambiguous_dockerfile_is_refused(mangle):
     with pytest.raises(tg.GuardError):
