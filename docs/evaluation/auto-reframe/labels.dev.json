@@ -1,0 +1,543 @@
+{
+ "schema": "potongin.reframe-labels/1",
+ "split": "dev",
+ "labelled_by": "implementer",
+ "method": "contact sheets: one tile per second plus frames k-2..k+1 around candidates from FFmpeg scene score >= 0.08 or 64x36 frame difference >= 0.04 (auto_reframe --sheets)",
+ "windows": [
+  {
+   "id": "rf-04",
+   "fps": [
+    24000,
+    1001
+   ],
+   "window_sf": [
+    3045,
+    5922
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "camera"
+   ],
+   "note": "speaker on a screen filmed by a handheld camera; zooms at 44-46 s are camera moves"
+  },
+  {
+   "id": "rf-06",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    4226,
+    7822
+   ],
+   "cuts_sf": [
+    5145,
+    5271
+   ],
+   "modes": [
+    "camera",
+    "fit_blur",
+    "camera"
+   ],
+   "note": "fade to a white title card and back; cuts at the half-way frame of each fade"
+  },
+  {
+   "id": "rf-07",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    2550,
+    6150
+   ],
+   "cuts_sf": [
+    2774,
+    3283,
+    3438,
+    4846,
+    5027,
+    5101,
+    5482
+   ],
+   "modes": [
+    "camera",
+    "fit_blur",
+    "camera",
+    "camera",
+    "camera",
+    "camera",
+    "fit_blur",
+    "camera"
+   ],
+   "note": "shape-wipe transitions, cut where the new picture covers half the frame; slide text changes beside the speaker are graphics"
+  },
+  {
+   "id": "rf-09",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    3687,
+    7283
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "fill_center"
+   ]
+  },
+  {
+   "id": "rf-10",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    780,
+    4380
+   ],
+   "cuts_sf": [
+    1616,
+    1717,
+    1967,
+    2461,
+    2565,
+    2760,
+    3129,
+    3431
+   ],
+   "modes": [
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur"
+   ],
+   "note": "flat animation; only whole-composition changes are cuts, elements animating inside a composition are not"
+  },
+  {
+   "id": "rf-12",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    18612,
+    22208
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "fit_blur"
+   ],
+   "note": "four or more people round a table; a person passing close to the lens at 31-33 s is not a cut"
+  },
+  {
+   "id": "rf-17",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    11970,
+    15570
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "fit_blur"
+   ],
+   "note": "a still cover image for the whole window (audio podcast); no person"
+  },
+  {
+   "id": "rf-19",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    9900,
+    13500
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "split"
+   ],
+   "note": "two hosts far apart in one wide shot, both talking"
+  },
+  {
+   "id": "rf-24",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    27513,
+    31109
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "fit_blur"
+   ],
+   "note": "four people standing in one wide shot"
+  },
+  {
+   "id": "rf-25",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    36924,
+    40520
+   ],
+   "cuts_sf": [
+    37067,
+    37261,
+    38789,
+    38960
+   ],
+   "modes": [
+    "fit_blur",
+    "fit_blur",
+    "fill_center",
+    "fill_center",
+    "fit_blur"
+   ],
+   "note": "dissolves at 1865 and 2036 cut at the half-way frame; the plaque shot is a centred still object"
+  },
+  {
+   "id": "rf-27",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    12708,
+    16304
+   ],
+   "cuts_sf": [
+    15201,
+    15531,
+    15722
+   ],
+   "modes": [
+    "camera",
+    "fill_center",
+    "fit_blur",
+    "camera"
+   ],
+   "note": "speaker with a slide beside him; full-frame slide 2823-3014; dissolve back cut at its half-way frame"
+  },
+  {
+   "id": "rf-29",
+   "fps": [
+    25,
+    1
+   ],
+   "window_sf": [
+    9875,
+    12875
+   ],
+   "cuts_sf": [
+    9965,
+    11759,
+    11924,
+    12017,
+    12282,
+    12487,
+    12611
+   ],
+   "modes": [
+    "split",
+    "fill_center",
+    "split",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fill_center"
+   ],
+   "note": "studio two-shot, interviewee alone, b-roll of crowds"
+  },
+  {
+   "id": "rf-32",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    66084,
+    69680
+   ],
+   "cuts_sf": [
+    66736,
+    67169,
+    67339,
+    69571,
+    69620
+   ],
+   "modes": [
+    "fit_blur",
+    "camera",
+    "fit_blur",
+    "camera",
+    "fit_blur",
+    "camera"
+   ]
+  },
+  {
+   "id": "rf-34",
+   "fps": [
+    24000,
+    1001
+   ],
+   "window_sf": [
+    5827,
+    8704
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "fit_blur"
+   ],
+   "note": "screen recording; the left pane flickering grey/white is not a cut"
+  },
+  {
+   "id": "rf-36",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    1890,
+    5490
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "fit_blur"
+   ],
+   "note": "screen recording"
+  },
+  {
+   "id": "rf-37",
+   "fps": [
+    25,
+    1
+   ],
+   "window_sf": [
+    9400,
+    12400
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "fit_blur"
+   ],
+   "note": "screen recording; page changes and dialogs inside the same recording are not cuts"
+  },
+  {
+   "id": "rf-40",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    13067,
+    16663
+   ],
+   "cuts_sf": [],
+   "modes": [
+    "fit_blur"
+   ],
+   "note": "one continuous shot: a close shot of one speaker zooms out to the whole table at 56-60 s; the wide part is longer, so the shot is fit_blur"
+  },
+  {
+   "id": "rf-43",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    6060,
+    9660
+   ],
+   "cuts_sf": [
+    7172,
+    7323,
+    7562,
+    7653,
+    7805,
+    7888,
+    8059
+   ],
+   "modes": [
+    "fit_blur",
+    "fit_blur",
+    "camera",
+    "camera",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur"
+   ],
+   "note": "archive film; 1827 is an over-exposed last frame of the old shot"
+  },
+  {
+   "id": "rf-44",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    12168,
+    15764
+   ],
+   "cuts_sf": [
+    12464,
+    13718,
+    15493
+   ],
+   "modes": [
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur"
+   ],
+   "note": "slides; the small webcam box fading in and out over a slide is an overlay"
+  },
+  {
+   "id": "rf-49",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    18120,
+    21720
+   ],
+   "cuts_sf": [
+    18144,
+    18190,
+    18233,
+    18271,
+    18301,
+    18552,
+    18608,
+    18675,
+    18715,
+    18739,
+    18764,
+    18817,
+    18869,
+    18896,
+    18901,
+    18958,
+    19036,
+    19109,
+    19177,
+    20056,
+    20209,
+    20501,
+    20604,
+    20635,
+    20678,
+    20726,
+    20876,
+    20903,
+    21189,
+    21243,
+    21309,
+    21385,
+    21426,
+    21468,
+    21509,
+    21568,
+    21599,
+    21630,
+    21661,
+    21707
+   ],
+   "modes": [
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur"
+   ],
+   "note": "fast-cut game showcase; menus opening, closing or blurring over the same view and in-game camera zooms are not cuts; the least certain labels in the set"
+  },
+  {
+   "id": "rf-51",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    2548,
+    6144
+   ],
+   "cuts_sf": [
+    2627,
+    3096,
+    3451,
+    3696,
+    4087,
+    4600,
+    4867,
+    5241,
+    6074
+   ],
+   "modes": [
+    "camera",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "fit_blur",
+    "camera"
+   ],
+   "note": "b-roll; pans with repeated frames are not cuts"
+  }
+ ]
+}

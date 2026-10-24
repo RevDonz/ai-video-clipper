@@ -1,0 +1,1331 @@
+{
+ "schema": "potongin.reframe-result/1",
+ "method": "today_camera",
+ "split": "dev",
+ "opencv": "4.14.0",
+ "python": "3.11.2",
+ "gates": {
+  "cut_precision": 0.95,
+  "cut_recall": 0.9,
+  "scan_base_s": 15.0,
+  "scan_per_cut_s": 0.5,
+  "agreement": 0.85,
+  "speaker_framing_multi": 0.217,
+  "owner_accepts": [
+   8,
+   10
+  ]
+ },
+ "summary": {
+  "all": {
+   "windows": 21,
+   "cuts": 95,
+   "most_cuts": {
+    "id": "rf-49",
+    "cuts": 40,
+    "share": 0.4211
+   },
+   "camera_plan_cuts": {
+    "precision": 0.0507,
+    "recall": 0.0737,
+    "f1": 0.0601,
+    "tp": 7,
+    "fp": 131,
+    "fn": 88
+   },
+   "camera_plan_cuts_within_sample": {
+    "precision": 0.3768,
+    "recall": 0.5474,
+    "f1": 0.4464,
+    "tp": 52,
+    "fp": 86,
+    "fn": 43
+   },
+   "camera_plan_cuts_per_window": {
+    "precision": 0.0701,
+    "recall": 0.0942,
+    "windows_with_cuts": 11
+   },
+   "scene_cuts": {
+    "precision": 0.9811,
+    "recall": 0.5474,
+    "f1": 0.7027,
+    "tp": 52,
+    "fp": 1,
+    "fn": 43
+   },
+   "scene_cuts_within_sample": {
+    "precision": 0.9811,
+    "recall": 0.5474,
+    "f1": 0.7027,
+    "tp": 52,
+    "fp": 1,
+    "fn": 43
+   },
+   "scene_cuts_per_window": {
+    "precision": 0.8889,
+    "recall": 0.4744,
+    "windows_with_cuts": 11
+   },
+   "agreement_today": 0.2302,
+   "agreement_camera": 0.2103,
+   "agreement_fit_blur": 0.6314,
+   "label_mode_share": {
+    "camera": 0.2103,
+    "fill_center": 0.1054,
+    "fit_blur": 0.6314,
+    "split": 0.0529
+   },
+   "camera_plan_seconds": {
+    "max": 5.16,
+    "mean": 3.75
+   }
+  },
+  "single_speaker": {
+   "windows": 6,
+   "cuts": 20,
+   "most_cuts": {
+    "id": "rf-10",
+    "cuts": 8,
+    "share": 0.4
+   },
+   "camera_plan_cuts": {
+    "precision": 0.0625,
+    "recall": 0.05,
+    "f1": 0.0556,
+    "tp": 1,
+    "fp": 15,
+    "fn": 19
+   },
+   "camera_plan_cuts_within_sample": {
+    "precision": 0.625,
+    "recall": 0.5,
+    "f1": 0.5556,
+    "tp": 10,
+    "fp": 6,
+    "fn": 10
+   },
+   "camera_plan_cuts_per_window": {
+    "precision": 0.0208,
+    "recall": 0.0357,
+    "windows_with_cuts": 4
+   },
+   "scene_cuts": {
+    "precision": 1.0,
+    "recall": 0.1,
+    "f1": 0.1818,
+    "tp": 2,
+    "fp": 0,
+    "fn": 18
+   },
+   "scene_cuts_within_sample": {
+    "precision": 1.0,
+    "recall": 0.1,
+    "f1": 0.1818,
+    "tp": 2,
+    "fp": 0,
+    "fn": 18
+   },
+   "scene_cuts_per_window": {
+    "precision": 1.0,
+    "recall": 0.119,
+    "windows_with_cuts": 4
+   },
+   "agreement_today": 0.5782,
+   "agreement_camera": 0.5815,
+   "agreement_fit_blur": 0.2304,
+   "label_mode_share": {
+    "camera": 0.5815,
+    "fill_center": 0.1882,
+    "fit_blur": 0.2304,
+    "split": 0.0
+   },
+   "camera_plan_seconds": {
+    "max": 4.32,
+    "mean": 3.78
+   }
+  },
+  "two_person": {
+   "windows": 4,
+   "cuts": 7,
+   "most_cuts": {
+    "id": "rf-29",
+    "cuts": 7,
+    "share": 1.0
+   },
+   "camera_plan_cuts": {
+    "precision": 0.0323,
+    "recall": 0.1429,
+    "f1": 0.0526,
+    "tp": 1,
+    "fp": 30,
+    "fn": 6
+   },
+   "camera_plan_cuts_within_sample": {
+    "precision": 0.2258,
+    "recall": 1.0,
+    "f1": 0.3684,
+    "tp": 7,
+    "fp": 24,
+    "fn": 0
+   },
+   "camera_plan_cuts_per_window": {
+    "precision": 0.0278,
+    "recall": 0.1429,
+    "windows_with_cuts": 1
+   },
+   "scene_cuts": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "tp": 7,
+    "fp": 0,
+    "fn": 0
+   },
+   "scene_cuts_within_sample": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "tp": 7,
+    "fp": 0,
+    "fn": 0
+   },
+   "scene_cuts_per_window": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "windows_with_cuts": 1
+   },
+   "agreement_today": 0.0,
+   "agreement_camera": 0.0,
+   "agreement_fit_blur": 0.5714,
+   "label_mode_share": {
+    "camera": 0.0,
+    "fill_center": 0.1492,
+    "fit_blur": 0.5714,
+    "split": 0.2794
+   },
+   "camera_plan_seconds": {
+    "max": 4.42,
+    "mean": 3.6
+   }
+  },
+  "panel": {
+   "windows": 3,
+   "cuts": 5,
+   "most_cuts": {
+    "id": "rf-32",
+    "cuts": 5,
+    "share": 1.0
+   },
+   "camera_plan_cuts": {
+    "precision": 0.0244,
+    "recall": 0.2,
+    "f1": 0.0435,
+    "tp": 1,
+    "fp": 40,
+    "fn": 4
+   },
+   "camera_plan_cuts_within_sample": {
+    "precision": 0.122,
+    "recall": 1.0,
+    "f1": 0.2174,
+    "tp": 5,
+    "fp": 36,
+    "fn": 0
+   },
+   "camera_plan_cuts_per_window": {
+    "precision": 0.0833,
+    "recall": 0.2,
+    "windows_with_cuts": 1
+   },
+   "scene_cuts": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "tp": 5,
+    "fp": 0,
+    "fn": 0
+   },
+   "scene_cuts_within_sample": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "tp": 5,
+    "fp": 0,
+    "fn": 0
+   },
+   "scene_cuts_per_window": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "windows_with_cuts": 1
+   },
+   "agreement_today": 0.2526,
+   "agreement_camera": 0.2526,
+   "agreement_fit_blur": 0.7474,
+   "label_mode_share": {
+    "camera": 0.2526,
+    "fill_center": 0.0,
+    "fit_blur": 0.7474,
+    "split": 0.0
+   },
+   "camera_plan_seconds": {
+    "max": 4.36,
+    "mean": 4.19
+   }
+  },
+  "screen": {
+   "windows": 4,
+   "cuts": 3,
+   "most_cuts": {
+    "id": "rf-44",
+    "cuts": 3,
+    "share": 1.0
+   },
+   "camera_plan_cuts": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "tp": 0,
+    "fp": 1,
+    "fn": 3
+   },
+   "camera_plan_cuts_within_sample": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "tp": 0,
+    "fp": 1,
+    "fn": 3
+   },
+   "camera_plan_cuts_per_window": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "windows_with_cuts": 1
+   },
+   "scene_cuts": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "tp": 0,
+    "fp": 1,
+    "fn": 3
+   },
+   "scene_cuts_within_sample": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "tp": 0,
+    "fp": 1,
+    "fn": 3
+   },
+   "scene_cuts_per_window": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "windows_with_cuts": 1
+   },
+   "agreement_today": 0.0,
+   "agreement_camera": 0.0,
+   "agreement_fit_blur": 1.0,
+   "label_mode_share": {
+    "camera": 0.0,
+    "fill_center": 0.0,
+    "fit_blur": 1.0,
+    "split": 0.0
+   },
+   "camera_plan_seconds": {
+    "max": 3.23,
+    "mean": 3.09
+   }
+  },
+  "gameplay_broll": {
+   "windows": 4,
+   "cuts": 60,
+   "most_cuts": {
+    "id": "rf-49",
+    "cuts": 40,
+    "share": 0.6667
+   },
+   "camera_plan_cuts": {
+    "precision": 0.0816,
+    "recall": 0.0667,
+    "f1": 0.0734,
+    "tp": 4,
+    "fp": 45,
+    "fn": 56
+   },
+   "camera_plan_cuts_within_sample": {
+    "precision": 0.6122,
+    "recall": 0.5,
+    "f1": 0.5505,
+    "tp": 30,
+    "fp": 19,
+    "fn": 30
+   },
+   "camera_plan_cuts_per_window": {
+    "precision": 0.1513,
+    "recall": 0.1375,
+    "windows_with_cuts": 4
+   },
+   "scene_cuts": {
+    "precision": 1.0,
+    "recall": 0.6333,
+    "f1": 0.7755,
+    "tp": 38,
+    "fp": 0,
+    "fn": 22
+   },
+   "scene_cuts_within_sample": {
+    "precision": 1.0,
+    "recall": 0.6333,
+    "f1": 0.7755,
+    "tp": 38,
+    "fp": 0,
+    "fn": 22
+   },
+   "scene_cuts_per_window": {
+    "precision": 1.0,
+    "recall": 0.6854,
+    "windows_with_cuts": 4
+   },
+   "agreement_today": 0.1385,
+   "agreement_camera": 0.0333,
+   "agreement_fit_blur": 0.8487,
+   "label_mode_share": {
+    "camera": 0.0333,
+    "fill_center": 0.1181,
+    "fit_blur": 0.8487,
+    "split": 0.0
+   },
+   "camera_plan_seconds": {
+    "max": 5.16,
+    "mean": 4.21
+   }
+  }
+ },
+ "windows": [
+  {
+   "id": "rf-04",
+   "frames": 2877,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 4.32,
+    "scene_pass": 2.87
+   },
+   "camera_plan_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 2877,
+   "agreement_fit_blur": 0,
+   "agreement_today": 2877,
+   "label_frames": {
+    "camera": 2877,
+    "fill_center": 0,
+    "fit_blur": 0,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-06",
+   "frames": 3596,
+   "cuts": 2,
+   "seconds": {
+    "camera_plan": 3.98,
+    "scene_pass": 2.97
+   },
+   "camera_plan_cuts": {
+    "found": 2,
+    "frame": [
+     0,
+     2,
+     2
+    ],
+    "sample": [
+     2,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     2
+    ],
+    "sample": [
+     0,
+     0,
+     2
+    ]
+   },
+   "agreement_camera": 3470,
+   "agreement_fit_blur": 126,
+   "agreement_today": 3458,
+   "label_frames": {
+    "camera": 3470,
+    "fill_center": 0,
+    "fit_blur": 126,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-07",
+   "frames": 3600,
+   "cuts": 7,
+   "seconds": {
+    "camera_plan": 3.54,
+    "scene_pass": 2.81
+   },
+   "camera_plan_cuts": {
+    "found": 12,
+    "frame": [
+     1,
+     11,
+     6
+    ],
+    "sample": [
+     7,
+     5,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 1,
+    "frame": [
+     1,
+     0,
+     6
+    ],
+    "sample": [
+     1,
+     0,
+     6
+    ]
+   },
+   "agreement_camera": 2710,
+   "agreement_fit_blur": 890,
+   "agreement_today": 2675,
+   "label_frames": {
+    "camera": 2710,
+    "fill_center": 0,
+    "fit_blur": 890,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-09",
+   "frames": 3596,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 3.79,
+    "scene_pass": 2.94
+   },
+   "camera_plan_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 0,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 3596,
+    "fit_blur": 0,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-10",
+   "frames": 3600,
+   "cuts": 8,
+   "seconds": {
+    "camera_plan": 2.86,
+    "scene_pass": 2.12
+   },
+   "camera_plan_cuts": {
+    "found": 1,
+    "frame": [
+     0,
+     1,
+     8
+    ],
+    "sample": [
+     0,
+     1,
+     8
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     8
+    ],
+    "sample": [
+     0,
+     0,
+     8
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3600,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3600,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-12",
+   "frames": 3596,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 4.42,
+    "scene_pass": 3.31
+   },
+   "camera_plan_cuts": {
+    "found": 13,
+    "frame": [
+     0,
+     13,
+     0
+    ],
+    "sample": [
+     0,
+     13,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3596,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3596,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-17",
+   "frames": 3600,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 2.89,
+    "scene_pass": 2.11
+   },
+   "camera_plan_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3600,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3600,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-19",
+   "frames": 3600,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 3.36,
+    "scene_pass": 2.51
+   },
+   "camera_plan_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 0,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 0,
+    "split": 3600
+   }
+  },
+  {
+   "id": "rf-24",
+   "frames": 3596,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 4.2,
+    "scene_pass": 3.15
+   },
+   "camera_plan_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3596,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3596,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-25",
+   "frames": 3596,
+   "cuts": 4,
+   "seconds": {
+    "camera_plan": 3.07,
+    "scene_pass": 2.29
+   },
+   "camera_plan_cuts": {
+    "found": 4,
+    "frame": [
+     2,
+     2,
+     2
+    ],
+    "sample": [
+     4,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 2,
+    "frame": [
+     2,
+     0,
+     2
+    ],
+    "sample": [
+     2,
+     0,
+     2
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 1897,
+   "agreement_today": 1529,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 1699,
+    "fit_blur": 1897,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-27",
+   "frames": 3596,
+   "cuts": 3,
+   "seconds": {
+    "camera_plan": 4.2,
+    "scene_pass": 3.28
+   },
+   "camera_plan_cuts": {
+    "found": 1,
+    "frame": [
+     0,
+     1,
+     3
+    ],
+    "sample": [
+     1,
+     0,
+     2
+    ]
+   },
+   "scene_cuts": {
+    "found": 1,
+    "frame": [
+     1,
+     0,
+     2
+    ],
+    "sample": [
+     1,
+     0,
+     2
+    ]
+   },
+   "agreement_camera": 3075,
+   "agreement_fit_blur": 191,
+   "agreement_today": 3054,
+   "label_frames": {
+    "camera": 3075,
+    "fill_center": 330,
+    "fit_blur": 191,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-29",
+   "frames": 3000,
+   "cuts": 7,
+   "seconds": {
+    "camera_plan": 3.75,
+    "scene_pass": 2.7
+   },
+   "camera_plan_cuts": {
+    "found": 18,
+    "frame": [
+     1,
+     17,
+     6
+    ],
+    "sample": [
+     7,
+     11,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 7,
+    "frame": [
+     7,
+     0,
+     0
+    ],
+    "sample": [
+     7,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 687,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 2058,
+    "fit_blur": 687,
+    "split": 255
+   }
+  },
+  {
+   "id": "rf-32",
+   "frames": 3596,
+   "cuts": 5,
+   "seconds": {
+    "camera_plan": 4.01,
+    "scene_pass": 3.13
+   },
+   "camera_plan_cuts": {
+    "found": 6,
+    "frame": [
+     1,
+     5,
+     4
+    ],
+    "sample": [
+     5,
+     1,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 5,
+    "frame": [
+     5,
+     0,
+     0
+    ],
+    "sample": [
+     5,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 2725,
+   "agreement_fit_blur": 871,
+   "agreement_today": 2725,
+   "label_frames": {
+    "camera": 2725,
+    "fill_center": 0,
+    "fit_blur": 871,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-34",
+   "frames": 2877,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 3.14,
+    "scene_pass": 1.79
+   },
+   "camera_plan_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 2877,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 2877,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-36",
+   "frames": 3600,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 2.97,
+    "scene_pass": 2.35
+   },
+   "camera_plan_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3600,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3600,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-37",
+   "frames": 3000,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 3.23,
+    "scene_pass": 1.74
+   },
+   "camera_plan_cuts": {
+    "found": 1,
+    "frame": [
+     0,
+     1,
+     0
+    ],
+    "sample": [
+     0,
+     1,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 1,
+    "frame": [
+     0,
+     1,
+     0
+    ],
+    "sample": [
+     0,
+     1,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3000,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3000,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-40",
+   "frames": 3596,
+   "cuts": 0,
+   "seconds": {
+    "camera_plan": 4.36,
+    "scene_pass": 3.41
+   },
+   "camera_plan_cuts": {
+    "found": 35,
+    "frame": [
+     0,
+     35,
+     0
+    ],
+    "sample": [
+     0,
+     35,
+     0
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     0
+    ],
+    "sample": [
+     0,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3596,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3596,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-43",
+   "frames": 3600,
+   "cuts": 7,
+   "seconds": {
+    "camera_plan": 3.76,
+    "scene_pass": 3.1
+   },
+   "camera_plan_cuts": {
+    "found": 6,
+    "frame": [
+     0,
+     6,
+     7
+    ],
+    "sample": [
+     6,
+     0,
+     1
+    ]
+   },
+   "scene_cuts": {
+    "found": 7,
+    "frame": [
+     7,
+     0,
+     0
+    ],
+    "sample": [
+     7,
+     0,
+     0
+    ]
+   },
+   "agreement_camera": 330,
+   "agreement_fit_blur": 3270,
+   "agreement_today": 330,
+   "label_frames": {
+    "camera": 330,
+    "fill_center": 0,
+    "fit_blur": 3270,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-44",
+   "frames": 3596,
+   "cuts": 3,
+   "seconds": {
+    "camera_plan": 3.01,
+    "scene_pass": 2.08
+   },
+   "camera_plan_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     3
+    ],
+    "sample": [
+     0,
+     0,
+     3
+    ]
+   },
+   "scene_cuts": {
+    "found": 0,
+    "frame": [
+     0,
+     0,
+     3
+    ],
+    "sample": [
+     0,
+     0,
+     3
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3596,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3596,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-49",
+   "frames": 3600,
+   "cuts": 40,
+   "seconds": {
+    "camera_plan": 4.83,
+    "scene_pass": 3.96
+   },
+   "camera_plan_cuts": {
+    "found": 19,
+    "frame": [
+     2,
+     17,
+     38
+    ],
+    "sample": [
+     16,
+     3,
+     24
+    ]
+   },
+   "scene_cuts": {
+    "found": 23,
+    "frame": [
+     23,
+     0,
+     17
+    ],
+    "sample": [
+     23,
+     0,
+     17
+    ]
+   },
+   "agreement_camera": 0,
+   "agreement_fit_blur": 3600,
+   "agreement_today": 0,
+   "label_frames": {
+    "camera": 0,
+    "fill_center": 0,
+    "fit_blur": 3600,
+    "split": 0
+   }
+  },
+  {
+   "id": "rf-51",
+   "frames": 3596,
+   "cuts": 9,
+   "seconds": {
+    "camera_plan": 5.16,
+    "scene_pass": 4.15
+   },
+   "camera_plan_cuts": {
+    "found": 20,
+    "frame": [
+     0,
+     20,
+     9
+    ],
+    "sample": [
+     4,
+     16,
+     5
+    ]
+   },
+   "scene_cuts": {
+    "found": 6,
+    "frame": [
+     6,
+     0,
+     3
+    ],
+    "sample": [
+     6,
+     0,
+     3
+    ]
+   },
+   "agreement_camera": 149,
+   "agreement_fit_blur": 3447,
+   "agreement_today": 134,
+   "label_frames": {
+    "camera": 149,
+    "fill_center": 0,
+    "fit_blur": 3447,
+    "split": 0
+   }
+  }
+ ]
+}
