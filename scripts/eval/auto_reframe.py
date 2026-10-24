@@ -18,12 +18,16 @@ root::
     uv run python scripts/eval/auto_reframe.py --fetch --split dev --cache DIR
     uv run python scripts/eval/auto_reframe.py --sheets --split dev --cache DIR --out DIR2
     uv run python scripts/eval/auto_reframe.py --label --split test --cache DIR --out PAGE.html
+    uv run python scripts/eval/auto_reframe.py --predict --split dev --cache DIR --out PRED.json
+    uv run python scripts/eval/auto_reframe.py --score PRED.json --split dev --cache DIR --out RESULT.json
     uv run python scripts/eval/auto_reframe.py --split dev --cache DIR --out RESULT.json
     uv run python scripts/eval/auto_reframe.py --timing --split dev --cache DIR
     uv run python scripts/eval/auto_reframe.py --sweep --split dev --cache DIR
 
-Without ``--sweep``, ``--split dev`` measures today's camera mode (Ikuti wajah on every frame,
-with the camera plan's cut flags and the pipeline's FFmpeg scene cuts as today's cut sources).
+``--predict`` measures without reading labels (on CI, where the footage is), ``--score`` scores
+those predictions against the labels later; plain ``--split dev`` does both. They measure today's
+camera mode (Ikuti wajah on every frame, with the camera plan's cut flags and the pipeline's
+FFmpeg scene cuts as today's cut sources).
 ``--sweep`` and the test split need the shot detector of RF-M1 (``edit_v2.shot_cuts``).
 """
 
@@ -56,6 +60,7 @@ LABEL_DIR = ROOT / "docs" / "evaluation" / "auto-reframe"
 TEST_LOCK = LABEL_DIR / "test-run.json"
 LABELS_SCHEMA = "potongin.reframe-labels/1"
 RESULT_SCHEMA = "potongin.reframe-result/1"
+PREDICTION_SCHEMA = "potongin.reframe-prediction/1"
 
 WINDOW_MS = 120_000
 OUTPUT = (720, 1280)
@@ -740,8 +745,9 @@ def _scene_times(path: Path) -> list[float]:
     return times
 
 
-def measure_today(path: Path, info: Mapping[str, Any], label: Mapping[str, Any]
-                  ) -> dict[str, Any]:
+def predict_today(path: Path, info: Mapping[str, Any]) -> dict[str, Any]:
+    """Today's camera mode on one cached window, before any label is read: the camera plan's
+    cut flags, the pipeline's scene cuts, and how long each took."""
     from ai_clipper.edit_v2.camera import build_camera_plan
     from ai_clipper.edit_v2.timemap import Fps as GridFps
 
@@ -755,20 +761,33 @@ def measure_today(path: Path, info: Mapping[str, Any], label: Mapping[str, Any]
     began = time.perf_counter()
     scene = scene_cut_sf(_scene_times(path), first_sf=first, fps=fps, frames=frames)
     scene_s = time.perf_counter() - began
-    camera = camera_cut_sf(plan, first_sf=first, fps=fps)
+    return {"id": info["id"], "fps": list(fps), "window_sf": [first, end],
+            "sample_frames": round(plan["sample_ms"] * fps[0] / (1000 * fps[1])),
+            "camera_plan_cuts_sf": camera_cut_sf(plan, first_sf=first, fps=fps),
+            "scene_cuts_sf": scene,
+            "no_face_ms": plan.get("no_face", []),
+            "seconds": {"camera_plan": round(camera_s, 2), "scene_pass": round(scene_s, 2)}}
+
+
+def score_today(prediction: Mapping[str, Any], label: Mapping[str, Any]) -> dict[str, Any]:
+    """One window's row: cut matches within one grid frame and within one camera sample, and
+    the frames that today's single mode (``camera``, or the default ``fit_blur``) gets right."""
+    if (list(prediction["window_sf"]) != list(label["window_sf"])
+            or list(prediction["fps"]) != list(label["fps"])):
+        raise LabelError(f"{label['id']}: the measured window is not the labelled one")
+    first, end = label["window_sf"]
     truth = label["cuts_sf"]
     window = (first, end)
-    loose = round(plan["sample_ms"] * fps[0] / (1000 * fps[1]))  # one camera sample
-    row: dict[str, Any] = {"id": label["id"], "frames": frames, "cuts": len(truth),
-                           "seconds": {"camera_plan": round(camera_s, 2),
-                                       "scene_pass": round(scene_s, 2)}}
-    for name, predicted in (("camera_plan_cuts", camera), ("scene_cuts", scene)):
+    row: dict[str, Any] = {"id": label["id"], "frames": end - first, "cuts": len(truth),
+                           "seconds": dict(prediction["seconds"])}
+    for name in ("camera_plan_cuts", "scene_cuts"):
+        predicted = prediction[f"{name}_sf"]
         row[name] = {"found": len(predicted),
                      "frame": list(match_cuts(predicted, truth, 1)),
-                     "sample": list(match_cuts(predicted, truth, loose))}
+                     "sample": list(match_cuts(predicted, truth, prediction["sample_frames"]))}
     labelled = (truth, label["modes"])
-    for name, mode in (("camera", "camera"), ("fit_blur", "fit_blur")):
-        row[f"agreement_{name}"] = agreement(window, ([], [mode]), labelled)[0]
+    for mode in ("camera", "fit_blur"):
+        row[f"agreement_{mode}"] = agreement(window, ([], [mode]), labelled)[0]
     row["label_frames"] = {mode: agreement(window, ([], [mode]), labelled)[0] for mode in MODES}
     return row
 
@@ -807,26 +826,35 @@ def summarise(rows: Sequence[Mapping[str, Any]], categories: Mapping[str, str]) 
     return out
 
 
-def run_today(registry: Mapping[str, Any], split: str, cache: Path) -> dict[str, Any]:
+def predict_split(registry: Mapping[str, Any], split: str, cache: Path) -> dict[str, Any]:
+    import cv2
+
+    rows = []
+    for window in split_windows(registry, split):
+        info = window_info(cache, window)
+        row = predict_today(window_path(cache, window), info)
+        rows.append(row)
+        print(f"{row['id']:<8} camera-plan cuts {len(row['camera_plan_cuts_sf']):>3}  scene cuts "
+              f"{len(row['scene_cuts_sf']):>3}  {row['seconds']['camera_plan']} s", flush=True)
+    return {"schema": PREDICTION_SCHEMA, "method": "today_camera", "split": split,
+            "opencv": cv2.__version__, "python": sys.version.split()[0], "windows": rows}
+
+
+def score_split(registry: Mapping[str, Any], split: str, predictions: Mapping[str, Any]
+                ) -> dict[str, Any]:
     labels = json.loads((LABEL_DIR / f"labels.{split}.json").read_text(encoding="utf-8"))
     check_labels(labels, registry, split)
+    if predictions.get("schema") != PREDICTION_SCHEMA or predictions.get("split") != split:
+        raise LabelError(f"not {split} predictions ({PREDICTION_SCHEMA})")
+    measured = {row["id"]: row for row in predictions["windows"]}
     categories = {w["id"]: w["category"] for w in split_windows(registry, split)}
     rows = []
     for entry in labels["windows"]:
-        window = next(w for w in split_windows(registry, split) if w["id"] == entry["id"])
-        info = window_info(cache, window)
-        if info["window_sf"] != entry["window_sf"] or info["fps"] != entry["fps"]:
-            raise LabelError(f"{entry['id']}: the cached window is not the labelled one")
-        row = measure_today(window_path(cache, window), info, entry)
-        rows.append(row)
-        print(f"{row['id']:<8} cuts {row['cuts']:>3}  camera-plan {row['camera_plan_cuts']['frame']}"
-              f"  scene {row['scene_cuts']['frame']}  camera agreement "
-              f"{row['agreement_camera'] / row['frames']:.1%}  {row['seconds']['camera_plan']} s",
-              flush=True)
-    import cv2
-
-    return {"schema": RESULT_SCHEMA, "method": "today_camera", "split": split,
-            "opencv": cv2.__version__, "python": sys.version.split()[0], "gates": GATES,
+        if entry["id"] not in measured:
+            raise LabelError(f"{entry['id']}: no prediction")
+        rows.append(score_today(measured[entry["id"]], entry))
+    return {"schema": RESULT_SCHEMA, "method": predictions["method"], "split": split,
+            "opencv": predictions["opencv"], "python": predictions["python"], "gates": GATES,
             "summary": summarise(rows, categories), "windows": rows}
 
 
@@ -845,6 +873,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     action.add_argument("--label", action="store_true", help="write the static label page")
     action.add_argument("--sweep", action="store_true", help="sweep the rules (RF-M1/RF-M4)")
     action.add_argument("--timing", action="store_true", help="scan time per window")
+    action.add_argument("--predict", action="store_true",
+                        help="measure today's camera mode without reading labels")
+    action.add_argument("--score", type=Path, metavar="PREDICTIONS",
+                        help="score saved --predict output against the labels")
     parser.add_argument("--split", choices=("dev", "test", "all"), required=True)
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument("--out", type=Path)
@@ -928,7 +960,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                               GridFps(*fps), out_w=OUTPUT[0], out_h=OUTPUT[1])
             print(f"{window['id']}: camera plan {time.perf_counter() - began:.2f} s", flush=True)
         return 0
-    result = run_today(registry, args.split, args.cache)
+    if args.predict:
+        predictions = predict_split(registry, args.split, args.cache)
+        if args.out:
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            args.out.write_text(json.dumps(predictions, indent=1) + "\n", encoding="utf-8")
+        return 0
+    if args.score is not None:
+        predictions = json.loads(args.score.read_text(encoding="utf-8"))
+    else:
+        predictions = predict_split(registry, args.split, args.cache)
+    result = score_split(registry, args.split, predictions)
     print(json.dumps(result["summary"]["all"], indent=1))
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)

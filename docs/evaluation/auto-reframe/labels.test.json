@@ -1,0 +1,280 @@
+{
+ "schema": "potongin.reframe-labels/1",
+ "split": "test",
+ "labelled_by": "owner",
+ "windows": [
+  {
+   "id": "rf-01",
+   "fps": [
+    25,
+    1
+   ],
+   "window_sf": [
+    21125,
+    24125
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-02",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    6684,
+    10280
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-03",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    4436,
+    8032
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-05",
+   "fps": [
+    24000,
+    1001
+   ],
+   "window_sf": [
+    600,
+    3477
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-11",
+   "fps": [
+    25,
+    1
+   ],
+   "window_sf": [
+    12600,
+    15600
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-13",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    4650,
+    8250
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-14",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    3090,
+    6690
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-15",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    26704,
+    30300
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-16",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    9441,
+    13037
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-21",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    19710,
+    23310
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-23",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    10910,
+    14506
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-28",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    75465,
+    79061
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-30",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    7613,
+    11209
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-31",
+   "fps": [
+    24000,
+    1001
+   ],
+   "window_sf": [
+    24456,
+    27333
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-33",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    75630,
+    79230
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-35",
+   "fps": [
+    30000,
+    1001
+   ],
+   "window_sf": [
+    24246,
+    27842
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-39",
+   "fps": [
+    25,
+    1
+   ],
+   "window_sf": [
+    18175,
+    21175
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-42",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    8700,
+    12300
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-45",
+   "fps": [
+    30,
+    1
+   ],
+   "window_sf": [
+    10500,
+    14100
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-46",
+   "fps": [
+    24,
+    1
+   ],
+   "window_sf": [
+    8736,
+    11616
+   ],
+   "cuts_sf": null,
+   "modes": null
+  },
+  {
+   "id": "rf-47",
+   "fps": [
+    24,
+    1
+   ],
+   "window_sf": [
+    5544,
+    8424
+   ],
+   "cuts_sf": null,
+   "modes": null
+  }
+ ]
+}
