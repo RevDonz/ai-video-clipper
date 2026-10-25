@@ -492,3 +492,26 @@ def test_the_window_detector_is_asked_for_boxes_when_it_takes_them(source, monke
     plan = build_camera_plan(source, (1000, 3000), Fps(25, 1), out_w=720, out_h=1280)
     assert calls == [True]
     assert plan["faces"] == [[400, 200, 200, 300], None, [500, 200, 200, 300]]
+
+
+def test_a_plan_from_a_shared_scan_has_the_same_bytes(cut_video, monkeypatch):
+    """The auto layout scans a window once for its camera plan and its shot evidence
+    (rombak 04 §A4): the plan built from that scan is byte for byte today's plan."""
+    import cv2
+
+    from ai_clipper import face_window
+
+    monkeypatch.setattr(cv2, "FaceDetectorYN", ContentFaces)
+    fps = Fps(25, 1)
+    today = encode_camera_plan(build_camera_plan(cut_video, (400, 7400), fps, out_w=720,
+                                                 out_h=1280))
+    scan = face_window.scan_window(cut_video, start=0.4, end=7.4, frame_diff=True)
+    events = []
+    with camera.reporting(lambda done, total: events.append((done, total))):
+        shared = encode_camera_plan(build_camera_plan(cut_video, (400, 7400), fps, out_w=720,
+                                                      out_h=1280, scan=scan))
+    assert shared == today
+    assert events[0] == (0, len(scan.times)) and events[-1] == (len(scan.times),) * 2
+    with pytest.raises(ValueError, match="today's detector"):
+        build_camera_plan(cut_video, (400, 7400), fps, out_w=720, out_h=1280,
+                          detector=StubDetector(), scan=scan)

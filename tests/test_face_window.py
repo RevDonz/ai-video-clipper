@@ -207,3 +207,46 @@ def test_the_window_can_return_the_framed_face_box(tmp_path, two_faces):
     assert (times, centres, cuts, width, height) == plain
     x, y, w, h = LEFT
     assert boxes == [pytest.approx((x / WIDTH, y / HEIGHT, w / WIDTH, h / HEIGHT))] * len(times)
+
+
+def test_the_scan_keeps_no_frame_difference_unless_asked(tmp_path, two_faces):
+    video = write_video(tmp_path / "left.avi", lambda _t: LEFT)
+    today = face_window.scan_window(video, start=0.0, end=3.0)
+    assert today.frame_diff is None
+    asked = face_window.scan_window(video, start=0.0, end=3.0, frame_diff=True)
+    assert asked.samples == today.samples and asked.times == today.times
+    assert len(asked.frame_diff) == len(asked.samples)
+    assert asked.frame_diff[0] == 0.0
+    assert all(0.0 <= value < face_window.CUT_CHANGE for value in asked.frame_diff)
+
+
+def test_the_frame_difference_is_the_value_the_cut_flag_compares(tmp_path, two_faces):
+    rng = np.random.default_rng(9)
+    path = tmp_path / "cut.avi"
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), FPS, (WIDTH, HEIGHT))
+    for index in range(round(4 * FPS)):
+        level = 40 if index < 2 * FPS else 210  # a cut at 2.0 s
+        frame = np.full((HEIGHT, WIDTH, 3), level, dtype=np.uint8)
+        frame[::7, ::5] = rng.integers(0, 30, size=frame[::7, ::5].shape, dtype=np.uint8)
+        writer.write(frame)
+    writer.release()
+    scan = face_window.scan_window(path, start=0.0, end=4.0, frame_diff=True)
+    flagged = [sample.cut for sample in scan.samples]
+    assert flagged == [value >= face_window.CUT_CHANGE for value in scan.frame_diff]
+    assert flagged.count(True) == 1 and scan.frame_diff[flagged.index(True)] > 0.5
+
+
+def test_the_window_track_from_a_shared_scan_is_the_same(tmp_path, two_faces, monkeypatch):
+    video = write_video(tmp_path / "turns.avi", lambda t: LEFT if t < 3.0 else RIGHT,
+                        seconds=6)
+    today = face_window.detect_window(video, start=0.0, end=6.0, boxes=True)
+    scan = face_window.scan_window(video, start=0.0, end=6.0, frame_diff=True)
+
+    def no_second_scan(*_args, **_kwargs):
+        raise AssertionError("the shared scan is decoded again")
+
+    monkeypatch.setattr(face_window, "scan_window", no_second_scan)
+    shared = face_window.detect_window(video, start=0.0, end=6.0, boxes=True, scan=scan)
+    assert shared == today
+    with pytest.raises(ValueError, match="another window"):
+        face_window.detect_window(video, start=0.0, end=4.5, scan=scan)
