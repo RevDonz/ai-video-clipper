@@ -95,7 +95,9 @@ const catalogText = async (locale, namespace, key) => key.split(".").reduce(
 
 test("login shows the message for a wrong password and for too many attempts, from the catalog", async () => {
   // The route's ?error= codes (app/api/auth/login/route.js) name a message; the page says it in
-  // the visitor's language (05 §6.2). The Indonesian text is the one the page showed before.
+  // the visitor's language (05 §6.2). The Indonesian texts are the ones the page showed before,
+  // except that the wrong-password one is the shared catalog label from i18n M0, without the old
+  // trailing period ("Nama pengguna atau kata sandi salah." before).
   assert.equal(loginErrorCode(undefined), null);
   assert.equal(loginErrorCode("1"), "invalid");
   assert.equal(loginErrorCode("limit"), "limited");
