@@ -403,12 +403,14 @@ satu PR gabungan per fase, tes berat sekali di akhir fase.
   - CI: push ke `main` yang hanya mengubah dokumentasi (`docs/**`, `*.md` di luar `src/`,
     `resources/`, `web/`) melewati build image, parity dan deploy; `Test and build` tetap jalan
     (`scripts/ci/deploy_scope.py`, ragu = deploy).
-- Sisa sebelum merge (agen gerbang, sekali di akhir fase, di GitHub Actions): `ci-cd.yml`,
-  `editor-gates.yml -f suite=full` dan `-f suite=image`, e2e `desktop-chromium`,
-  `mobile-chromium` dan `en-smoke` (shell + login), CSS editor hasil build identik byte dan
-  kenaikan JS rute editor tercatat, TTFB `/`, `/dashboard`, `/login` sebelum/sesudah
-  (`gh workflow run editor-gates.yml --ref feat/f1-shell -f suite=e2e -f ttfb=true -f ref=main`,
-  lalu `-f ref=feat/f1-shell`; angkanya dicatat di badan PR #44), screenshot shell.
+- Gerbang akhir fase sudah jalan di GitHub Actions (run dan angka di badan PR #44): `ci-cd.yml`,
+  `editor-gates.yml` `full`, `image`, `player`, e2e `desktop-chromium`, `mobile-chromium` dan
+  `en-smoke`, screenshot shell. `-f ttfb=true` (suite e2e, sekali `-f ref=main`, sekali
+  `-f ref=feat/f1-shell`) mencatat TTFB `/`, `/dashboard`, `/login` di `ttfb.json` dan CSS/JS
+  rute editor di `editor-assets.json` (`web/scripts/measure-route-assets.mjs`): CSS editor
+  identik (digest sama), JS awal rute editor naik 4.218 B (1.685 B gzip), di bawah use-intl
+  11.814 B (5.484 B gzip). Celah: e2e `smoke` dan `read-only` butuh proyek selesai yang tidak ada
+  di app gerbang (gagal sama di `main`).
 - Untuk pemilik: review copy `en` baru (`web/messages/en/auth.json`, `common.json`,
   `shell.json` `account.language`); izin merge PR #44; pilihan menyalakan `id,en` di produksi
   sebagai pratinjau (boleh sampai undangan anggota pertama di Fase 6).

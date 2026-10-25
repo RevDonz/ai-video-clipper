@@ -146,19 +146,22 @@ Skema `layout.ranges` yang dikunci di §5.63 (KA6) **dimiliki `04-reframe-unduha
 
 **Dependensi:** Fase 0 (Node 24).
 
-**Kriteria terima**
-- [ ] `next build` hijau.
-- [ ] CSS editor hasil build **identik** byte; kenaikan JS rute editor ≤ ukuran use-intl dan tercatat di PR.
-- [ ] e2e editor, `parity-text`, dan screenshot editor tanpa diff.
-- [ ] Halaman uji (Button, Modal, Table, DatePicker, Switch) sesuai palet, target 44 px, tanpa lime selain `variant="primary"`.
-- [ ] Tes alias variabel membaca `node_modules/@heroui/styles/dist/themes/default/variables.css` dan semua variabel ter-alias.
-- [ ] Setiap `<Button` menulis `variant`; ≤ 1 `primary` per file halaman.
-- [ ] Ganti bahasa ≤ 2 klik, bertahan setelah reload, jalan tanpa JS di `/login`; pengunjung tanpa cookie mengikuti Accept-Language (`in` = `id`).
-- [ ] Shell: fokus kembali ke tombol Menu, latar inert saat Drawer, `aria-current`, kelas `.jobBadge/.jobBadgeDot/.jobBadgeText/.brandName` tetap.
-- [ ] Pintasan satu tombol bisa dimatikan sejak rilis (WCAG 2.1.4).
-- [ ] `en-smoke` (shell + login) hijau di CI dengan `POTONGIN_LOCALES=id,en`.
-- [ ] Ratchet `i18n-hardcoded` = 0 di `AppShell`, `login`, `not-found`, `error`.
-- [ ] TTFB tercatat; `VM_NGINX_CLOUDFLARE.md` diperbarui.
+**Kriteria terima** (dicentang 2026-10-25; bukti run CI dan angka di badan PR #44)
+- [x] `next build` hijau.
+- [x] CSS editor hasil build **identik** byte; kenaikan JS rute editor ≤ ukuran use-intl dan tercatat di PR.
+- [x] e2e editor, `parity-text`, dan screenshot editor tanpa diff.
+- [x] Halaman uji (Button, Modal, Table, DatePicker, Switch) sesuai palet, target 44 px, tanpa lime selain `variant="primary"`.
+- [x] Tes alias variabel membaca `node_modules/@heroui/styles/dist/themes/default/variables.css` dan semua variabel ter-alias.
+- [x] Setiap `<Button` menulis `variant`; ≤ 1 `primary` per file halaman.
+- [x] Ganti bahasa ≤ 2 klik, bertahan setelah reload, jalan tanpa JS di `/login`; pengunjung tanpa cookie mengikuti Accept-Language (`in` = `id`).
+- [x] Shell: fokus kembali ke tombol Menu, latar inert saat Drawer, `aria-current`, kelas `.jobBadge/.jobBadgeDot/.jobBadgeText/.brandName` tetap.
+- [x] Pintasan satu tombol bisa dimatikan sejak rilis (WCAG 2.1.4).
+- [x] `en-smoke` (shell + login) hijau di CI dengan `POTONGIN_LOCALES=id,en`.
+- [x] Ratchet `i18n-hardcoded` = 0 di `AppShell`, `login`, `not-found`, `error`.
+- [x] TTFB tercatat; `VM_NGINX_CLOUDFLARE.md` diperbarui.
+- Celah yang dicatat: e2e `smoke` dan `read-only` belum pernah hijau (gagal "No completed project
+  with clips was found" karena app gerbang tidak punya proyek selesai; sama di `main`), jadi
+  perubahan `read-only.spec` (tombol masuk dibatasi ke formnya) belum teruji di browser.
 
 **Tes:** diubah `app-shell`, `ui-guards`, `licenses`, `entry-pages`, `help-page`, `help-guide`, `job-badge`, `proxy-matcher`; baru `ui-foundation`, `heroui-variables`, `heroui-default-labels`, `i18n-catalog`, `i18n-usage`, `i18n-hardcoded`, `i18n-intl-literal`, `i18n-registry`, `i18n-resolve`, `i18n-rsc-boundary`, `content-language-isolation`, `locale-route`, `route-guard-coverage` (allowlist awal), `ui-prefs`, `app-nav`, `app-shortcuts` (05 §8.1); e2e `app-shell` (+ proyek mobile), `header-badge`, `smoke`, `read-only`, `aria-names` (baru). `web/playwright.config.mjs`: `use.locale:"id-ID"` di semua proyek, proyek baru `en-smoke`; `web/e2e/support/harness.mjs` memasang cookie `potongin_locale=id`.
 
