@@ -26,11 +26,10 @@ const inert = (page) => page.locator("main").evaluate((element) => element.inert
 const shortcutCookie = async (page) => (await page.context().cookies()).find((cookie) => cookie.name === "potongin_shortcuts")?.value;
 const LINKS = ["shell.nav.create", "shell.nav.projects", "shell.nav.trends", "shell.nav.settings", "shell.nav.help"];
 
+// Measured once an opening overlay has finished its scale-in (the menu grows from 95 %).
 async function expectTarget(locator, what) {
-  const box = await locator.boundingBox();
-  expect(box, what).not.toBeNull();
-  expect(box.height, `${what}: height`).toBeGreaterThanOrEqual(44);
-  expect(box.width, `${what}: width`).toBeGreaterThanOrEqual(44);
+  await expect.poll(async () => (await locator.boundingBox())?.height ?? 0, { message: `${what}: height` }).toBeGreaterThanOrEqual(44);
+  await expect.poll(async () => (await locator.boundingBox())?.width ?? 0, { message: `${what}: width` }).toBeGreaterThanOrEqual(44);
 }
 
 test.describe("App shell", () => {
@@ -93,10 +92,13 @@ test.describe("App shell", () => {
     await login(page, "/bantuan");
     const search = page.locator('#konten input[type="search"]');
 
-    // On (the default): / goes to the page's search, where N is just a letter.
-    await blur(page);
-    await page.keyboard.press("/");
-    await expect(search).toBeFocused();
+    // On (the default): / goes to the page's search, where N is just a letter. The key is pressed
+    // again until the page has hydrated and the shell listens.
+    await expect(async () => {
+      await blur(page);
+      await page.keyboard.press("/");
+      await expect(search).toBeFocused({ timeout: 500 });
+    }).toPass();
     await page.keyboard.type("n");
     await expect(search).toHaveValue("n");
     await expect(page).toHaveURL(/\/bantuan/);
@@ -108,10 +110,13 @@ test.describe("App shell", () => {
     await shortcutsItem(page).click();
     await expect.poll(() => shortcutCookie(page)).toBe("off");
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
     await page.reload();
     await accountButton(page).click();
     await expect(shortcutsItem(page)).toHaveAttribute("aria-checked", "false");
     await page.keyboard.press("Escape");
+    // An overlay on its way out still owns the keys: wait until the menu is gone.
+    await expect(page.getByRole("menu")).toHaveCount(0);
     await blur(page);
     await page.keyboard.press("/");
     await expect(search).not.toBeFocused();
@@ -124,6 +129,7 @@ test.describe("App shell", () => {
     await shortcutsItem(page).click();
     await expect.poll(() => shortcutCookie(page)).toBe("on");
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
     await blur(page);
     await expect(page).toHaveURL(/\/bantuan/);
     await page.keyboard.press("n");
@@ -160,7 +166,10 @@ test.describe("App shell", () => {
     await expect(menu).toHaveAttribute("aria-expanded", "true");
     await expect(nav(page)).toHaveCount(1);
     await expect(drawer(page).getByRole("navigation", { name: L("aria.mainMenu") })).toBeVisible();
-    await expect(drawer(page).locator(":focus")).toHaveCount(1);
+    // Focus moves into the drawer (React Aria focuses the dialog), and the first Tab is Buat klip.
+    await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]')))).toBe(true);
+    await page.keyboard.press("Tab");
+    await expect(nav(page).getByRole("link", { name: L("shell.nav.create"), exact: true })).toBeFocused();
     await expect(nav(page).getByRole("link", { name: L("shell.nav.help"), exact: true })).toHaveAttribute("aria-current", "page");
     for (const key of LINKS) await expectTarget(nav(page).getByRole("link", { name: L(key), exact: true }), key);
     await expectTarget(drawer(page).getByRole("button", { name: L("aria.close"), exact: true }), "Tutup");
