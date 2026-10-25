@@ -5448,7 +5448,10 @@ the gates run), `editor-click-budget.spec.mjs` (table `web/e2e/support/click-bud
 entry per 06 §10 row, checked by `editor-click-budget-table.test.mjs`), unit `editor-disclosure`,
 `editor-url-state`, `editor-layout-shell`, `editor-store` (`readEditorFlags.shell`), PF-PLAY,
 PF-SEEK. F2: `editor-transcript-shell.spec.mjs`, `editor-lines.spec.mjs` (the successor of
-`editor-quick-lines.spec.mjs`), the click-budget rows 10, 11, 21–32 and 78, unit
+`editor-quick-lines.spec.mjs`), the click-budget rows 10, 11, 21–32 and 78, plus the rows whose
+control moves later but is mounted already, walked where it sits today (17, 19, 20, 43, 44, 46,
+47, 49–51, 59–67, 72, 75–77, 89, 91; their documents from `e2e/support/shell-docs.mjs`; every other
+waiting row names its `gap`, GATES.md "Editor one layout"), unit
 `editor-transcript-shell` and `editor-word-toolbar`, with the old shell's `editor-transcript`,
 `editor-cleanup`, `editor-spelling`, `editor-scrubber`, `editor-markers` and `editor-acceptance`
 still green; `editor-disclosure.spec.mjs` from the first panel with a Lanjutan fold (F3);

@@ -2328,3 +2328,68 @@ of the full matrix passes (47 of 47, lowest SSIM 0.99924 on `sinar-90`).
   blurs the border, which the watermark draws as its shadow; the fill stays sharp) clears it;
   `watermark-top_center` and `-bottom_right` rise to 0.9958 and 0.9948.
 - All four change pixels inside the batch's single `RENDER_SEMANTICS` 2 bump (unreleased).
+
+## Editor one layout (rombak Fase 10, F0–F2, 2026-10-25)
+
+The one-layout shell stays behind `POTONGIN_EDITOR_SHELL` (default `legacy`), so production keeps
+the two-view editor until its phase passes (CONTRACTS §5.69). No threshold changed.
+
+### PF-SEEK: open, waiting for the owner
+
+PF-SEEK (≤ 50 ms p95, a 06 §17 F1 gate) is red on the track branch and passes or fails on `main`
+in the same window. The player libraries, `/parity-harness/player`, `web/package.json`, its lock
+and the Dockerfile are unchanged from `main` on the branch.
+
+| Ref | Run | PF-SEEK p95 |
+|---|---|---|
+| `feat/editor-i` | 40197213264 | **red** in 5 of 5 runs (53.1–87.9 ms) |
+| `main` | 40196388728 | **red** (80.2 ms) |
+| `main` | 40196391133 | **red** |
+| `main` | 40192905152 | **pass** (the whole player suite, 44 passed) |
+
+So the gate is noisy on the runner, not red by construction, and the branch has not shown a
+pass. The threshold stays. Before the track merges, the owner chooses one: accept the F1 gate on
+`main`'s evidence (the player code is the same), or ask for separate player work (W2 Open 13: the
+10-frame plate GOP, 20.2 / 54 ms in T2.4) and a green PF-SEEK on the branch.
+
+### Click budget (06 §2.3, §10)
+
+`editor-click-budget.spec.mjs` walks 58 of the 92 rows (`web/e2e/support/click-budget.mjs`): the
+shell's and the transcript's own rows, and 25 rows whose control moves in a later sub-phase but
+is already mounted in the one layout, walked where it sits today within the row's budget (Teks:
+position, size, highlight, words per line, hook suggestions, hook design, Pakai di semua klip;
+Tata letak: Atur bingkai, Atur potongan, Zoom, Pembagian; Audio: Tambah musik, Hapus musik, both
+volumes, ducking, Mulai dari; Logo: Unggah logo, Teks watermark, Hapus teks; Cold open: both nudge
+groups, Efek gambar, Putar transisi; the caption on the stage). The documents those rows open come
+from `support/shell-docs.mjs` (real commands, each passing checkDoc). Every other row is a fixme
+that names why (`gap`):
+
+- new controls of later sub-phases: rows 33–40 (F6, F7), 53–55 (F4b), 80, 85, 86 (F8);
+- the export dialog after a render starts, and the new export checks: rows 81–84 (F8);
+- a state the fakes do not stage: a logo with its picture (18, 68–71), the caption over a face
+  (45), a face analysis running or failed, or Ikuti wajah with one (56, 57), manual keyframes
+  (58), cold-open candidates (74), an upload in progress (90).
+
+These run on GitHub Actions with the gates run at the end of the track (not measured locally).
+
+### Open for the next sub-phases
+
+- **F3:** `editor-disclosure.spec.mjs` (Lanjutan closed on open, its summary after an edit; 06
+  §19.4) is written with the first panel that mounts `Advanced.jsx`. Until then only the unit test
+  `web/tests/editor-disclosure.test.mjs` covers it.
+- **M8a:** `Advanced.jsx` joins the summary items with `LIST_SEPARATOR` (" · ", set once in
+  `web/lib/i18n/format.mjs`), not `useFormatter().list(labels, {type: "unit"})` as 06 §2.2 butir 3
+  says. The `id` output is the same; M8a makes the `en` output and the 07-i18n contract agree
+  (either the formatter with that separator, or 06 §2.2 amended to the constant).
+- **DESIGN.md §Pola tata letak, Editor:** the replacement text of 06 §18.1 lands with the change
+  that makes the one layout the default (the flag flip), because until then the current text
+  describes the editor production shows. `docs/HANDOFF.md` is updated in the same change.
+
+### Diputuskan atas delegasi pemilik
+
+- **Linimasa detail remembers its fold** (`potongin-editor-timeline`, try/catch, closed when
+  storage fails). 06 §8.6 asks for it ("Keadaannya diingat di `localStorage`"); §3.2 and §19.2
+  ("Linimasa terlipat" when the editor opens) are read as the first open, as for Lanjutan, which
+  §2.2 butir 4 also remembers while §19.2 lists it as closed. A viewer who never opened it, or whose
+  browser keeps no storage, gets it folded (`editor-transcript-shell.spec.mjs`). If the owner reads
+  §19.2 as every open, dropping the two storage calls in `shell/TimelineDetail.jsx` is the change.
