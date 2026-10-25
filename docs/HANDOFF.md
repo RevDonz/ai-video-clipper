@@ -1,6 +1,6 @@
 # Handoff: status dan cara melanjutkan
 
-Terakhir diperbarui 2026-10-24. Dokumen ini untuk agen atau device mana pun yang melanjutkan.
+Terakhir diperbarui 2026-10-25. Dokumen ini untuk agen atau device mana pun yang melanjutkan.
 Aturan proyek: `AGENTS.md`; arah desain: `DESIGN.md`.
 
 **Rombak 2026-10-24** (multi-pengguna, dashboard HeroUI, ID/EN, unduhan link, Otomatis, sosmed,
@@ -419,6 +419,62 @@ satu PR gabungan per fase, tes berat sekali di akhir fase.
   menampilkan `digest`; teks 404/error ada di `common.page` (subtree inti `errors` tetap `web` +
   `http`); tautan "Buka Riwayat" menjadi "Buka Proyek" mengikuti nama baru di navigasi; menu akun
   tidak memberi tanda bila ganti bahasa ditolak (hanya terjadi saat batas 20/menit habis).
+
+**Fase 2 + 3** (dashboard baru: Buat klip, halaman proyek, Proyek, Pengaturan, Tren, Bantuan;
+kode error dan progres; status 2026-10-25). Satu PR gabungan: #47, branch `fase/2-3`, belum
+di-merge. Gerbang berat jalan sekali di akhir (agen gerbang mengisi hasil dan checklist di badan
+PR).
+- Diputuskan atas delegasi pemilik (alasan singkat di sini, rinci di commit masing-masing):
+  - Satu `stageText(t, job)` (`web/lib/i18n/stage.mjs`) untuk baris tahap di semua halaman:
+    `stage.<stageCode>` bila ada, kalau tidak `stageDetail` lama apa adanya.
+  - Pemetaan langkah stepper proyek: Unduh, Transkrip, Pilih momen, Render (empat langkah,
+    `web/lib/project-progress.mjs`), dari tahap mesin yang ada.
+  - "Kenapa dipilih" tidak menampilkan kode `llm_rerank` (skor peringkat ulang LLM): itu catatan
+    metode, tetap di artefak.
+  - Baseline ratchet `i18n-hardcoded` saat menggabung sub-track: diambil angka terkecil per file
+    (min-merge), lalu dikunci turun.
+  - Hasil hapus proyek diberitahukan lewat toast saja, tanpa baris status di halaman.
+  - Label "Diedit" dipakai bersama sebagai `common.edited`.
+  - Skor klip memakai `role="meter"` biasa, bukan komponen Meter HeroUI (axe membaca
+    `role="meter progressbar"` HeroUI sebagai peran tak dikenal).
+  - Tab Pengaturan yang tidak aktif disembunyikan lewat CSS `[data-inert]` dan tetap terpasang,
+    bukan dilepas dari DOM.
+  - Escape menutup AlertDialog di Tren.
+  - Toast duduk di atas bar Simpan Pengaturan (offset), supaya tidak menutupi tombol.
+  - Padding composer Buat klip 12 px.
+  - `ranking.py` dan `features.py` tidak menulis `reason_codes`/`warning_codes` sendiri; alasan
+    dipecah sesudahnya dari template di `src/ai_clipper/reason_codes.py`. Gold terurai penuh (401
+    alasan, tanpa jatuh ke kode `text`). Risiko: template baru di `ranking.py`/`features.py` tanpa
+    pola di `reason_codes.py` akan tampil sebagai teks apa adanya (prosa mesin, Indonesia) sampai
+    polanya ditambah.
+  - Satu-satunya tes kontrak lama yang diubah dengan sengaja: `tests/test_pipeline_v3.py`
+    `CLIP_KEYS` mendapat `reason_codes` (manifest hanya bertambah field). Tidak ada asersi route yang
+    diubah atau dihapus; perubahan di file tes route hanya asersi sumber halaman dan view.
+  - Review 2026-10-25: modul view Buat klip dan proyek (`dashboard-view`, `dashboard-choices`,
+    `selection-v3-view`, `trend-view`) kini mengembalikan deskriptor katalog dan ratchet-nya 0;
+    tes view membandingkan teks Indonesia lewat katalog asli (`textsOf`). Pesan masalah form Buat
+    klip di tes kini label katalog yang memang tampil di layar. Teks unduhan dan penyimpanan
+    punya satu sumber (katalog); `legacyMessage()` (`web/lib/i18n/legacy.mjs`) mengisi
+    `stageDetail` worker. Entri Bantuan unduhan/penyimpanan tidak lagi membawa teks sendiri (sama
+    seperti entri AI); indeks pencarian halaman Bantuan membaca katalog. Notice "Buka Konteks Tren"
+    menjadi "Buka Tren". `/licenses` dari katalog (`help.licenses.*`), kepala halaman tanpa kalimat.
+  - Gerbang read-only produksi diuji pada proyek selesai yang disemai di CI
+    (`web/scripts/seed-e2e-project.mjs`, `editor-gates.yml -f seed=true`); gambar landing diambil
+    ulang dari proyek itu dan editor fakes (`e2e/landing-shots.spec.mjs`).
+- Belum selesai, perlu keputusan atau penundaan eksplisit dari pemilik:
+  - Peta pesan sisi server yang masih menulis teks Indonesia sendiri untuk field `error`
+    (`clip-text-api`, `clips-zip`, `transcription-settings`, `llm-settings-actions`, `clip-edit`)
+    belum diganti `legacyMessage()`; teksnya lebih rinci dari katalog (mis. ukuran ZIP), jadi
+    menggantinya mengurangi detail di `id` sampai katalog punya parameter.
+  - Pembaca klien `body.error` yang tersisa di luar editor: `lib/clip-text.mjs` (Simpan, Tulis
+    ulang), `checkZip` di `lib/project-workspace.mjs`, kode `invalid` di
+    `TranscriptionCard`/`transcription-settings-view`: di `en` masih bisa tampil teks server
+    Indonesia. Editor (`editor/commands`, `editor-ai`) di luar cakupan "UI en lengkap kecuali
+    editor".
+  - Modul view yang belum disentuh dan masih Indonesia di `en`: `lib/project-view.mjs`
+    (`projectName`, `clipLabel`, mis. "Klip 03"), `lib/clip-text.mjs` (masalah form judul),
+    `lib/source-language.mjs` (notice bahasa video), `lib/stage-summary.mjs`; `app/licenses/notices.mjs`
+    (keterangan pemakaian paket) sengaja tetap seperti diterbitkan.
 
 Sampai fase yang bersangkutan selesai, UI tetap seperti di `main`; `DESIGN.md` menandai setiap
 pola sasaran dengan fase mulai berlakunya.
