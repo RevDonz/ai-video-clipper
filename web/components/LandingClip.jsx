@@ -3,12 +3,13 @@
 // The landing's Sesudah clip. lib/landing-preview.mjs decides when it plays: only on screen,
 // never in a hidden tab, paused from the start under prefers-reduced-motion. The button exists
 // only once that logic runs, so a page without JavaScript shows the poster and no dead control.
+// The page passes the video's name and the button's words (`labels`) in the visitor's language.
 import { useEffect, useRef, useState } from "react";
 
 import { LANDING_MEDIA } from "../lib/landing-media.mjs";
 import { attachPreview, previewButtonLabel } from "../lib/landing-preview.mjs";
 
-export default function LandingClip({ className, frameClassName, barClassName, buttonClassName, children }) {
+export default function LandingClip({ className, frameClassName, barClassName, buttonClassName, labels, children }) {
   const videoRef = useRef(null);
   const previewRef = useRef(null);
   const [state, setState] = useState(null);
@@ -37,14 +38,14 @@ export default function LandingClip({ className, frameClassName, barClassName, b
           playsInline
           preload="none"
           disablePictureInPicture
-          aria-label="Klip 9:16 hasil Potongin dari adegan yang sama, tanpa suara"
+          aria-label={labels.video}
         />
       </div>
       <figcaption className={barClassName}>
         {children}
         {state && (
           <button type="button" className={buttonClassName} onClick={() => previewRef.current?.toggle()}>
-            {previewButtonLabel(state)}
+            {previewButtonLabel(state, labels)}
           </button>
         )}
       </figcaption>

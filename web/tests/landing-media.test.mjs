@@ -106,7 +106,13 @@ test("the page and the clip component use every listed picture, and the video pl
   assert.deepEqual([...used].sort(), Object.keys(LANDING_MEDIA).sort());
   // Pictures carry their size and a description; the clip starts on its poster and never
   // autoplays by attribute (lib/landing-preview.mjs decides).
-  assert.match(page, /<img[^>]*alt="[^"]{20,}"/);
+  // The descriptions are in the catalog (messages/<locale>/landing.json), long enough to say what the picture shows.
+  const alts = [...page.matchAll(/<img[^>]*alt=\{t\("([a-zA-Z.]+)"/g)].map((match) => match[1]);
+  assert.ok(alts.length >= 3, "every picture has a description");
+  for (const locale of ["id", "en"]) {
+    const catalog = JSON.parse(await read(`messages/${locale}/landing.json`));
+    for (const key of alts) assert.ok(key.split(".").reduce((node, part) => node?.[part], catalog)?.length >= 20, `${locale}: ${key}`);
+  }
   assert.match(clip, /muted/);
   assert.match(clip, /playsInline/);
   assert.match(clip, /loop/);
@@ -137,10 +143,15 @@ test("the landing media open without a session; every other file still asks for 
 
 test("the footage is credited on the page and in the docs with its licence", async () => {
   const page = await read("app/page.jsx");
-  assert.match(page, /Elephants Dream/);
-  assert.match(page, /CC BY 2\.5/);
-  assert.match(page, /href="https:\/\/creativecommons\.org\/licenses\/by\/2\.5\/"/);
-  assert.match(page, /Blender Foundation/);
+  assert.match(page, /const LICENSE_PAGE = "https:\/\/creativecommons\.org\/licenses\/by\/2\.5\/";/);
+  assert.match(page, /t\.rich\("footer\.credits", \{ film, license: \(chunks\) => <a href=\{LICENSE_PAGE\}>\{chunks\}<\/a> \}\)/);
+  // The credit is in every locale's catalog, with the film, the licence and its holders.
+  for (const locale of ["id", "en"]) {
+    const credits = JSON.parse(await read(`messages/${locale}/landing.json`)).footer.credits;
+    assert.match(credits, /<film>Elephants Dream<\/film>/, locale);
+    assert.match(credits, /<license>CC BY 2\.5<\/license>/, locale);
+    assert.match(credits, /Blender Foundation/, locale);
+  }
   const docs = await readFile(path.join(WEB, "..", "docs", "design", "LANDING.md"), "utf8");
   for (const src of LANDING_MEDIA_PATHS) assert.ok(docs.includes(src.replace("/landing/", "")), src);
   assert.match(docs, /CC BY 2\.5/);

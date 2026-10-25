@@ -28,8 +28,9 @@ export function shouldPlay(state) {
   return !state.paused && state.visible && !state.hidden;
 }
 
-export function previewButtonLabel(state) {
-  return state.paused ? "Putar" : "Jeda";
+/** The button's word: `labels.play` while paused, else `labels.pause` (the page's, in the UI language). */
+export function previewButtonLabel(state, labels = { play: "Putar", pause: "Jeda" }) {
+  return state.paused ? labels.play : labels.pause;
 }
 
 /**

@@ -1,1 +1,127 @@
-{}
+{
+  "nav": {
+    "label": "Bagian halaman",
+    "example": "Contoh",
+    "how": "Cara kerja",
+    "looks": "Gaya",
+    "features": "Fitur",
+    "privacy": "Privasi",
+    "cta": "Buat klip"
+  },
+  "hero": {
+    "title1": "Tempel link,",
+    "title2": "klipnya menyusul.",
+    "body": "Potongin mencari momen dengan hook terkuat di video panjang berbahasa Indonesia atau Inggris, memotongnya ke 9:16 atau 1:1, lalu menambah subtitle, teks hook, dan caption siap salin.",
+    "start": "Mulai potong video",
+    "see": "Lihat contohnya"
+  },
+  "example": {
+    "title": "Satu adegan, sebelum dan sesudah.",
+    "body": "Video 16:9 masuk, klip 9:16 keluar. Potongan mengikuti wajah, teks hook di atas, subtitle menyala per kata.",
+    "beforeAlt": "Frame 16:9 dari Elephants Dream menit 8:09: Emo membungkuk di antara kabel, di sisi kiri gambar.",
+    "before": "Sebelum",
+    "beforeNote": "Video 16:9, menit 8:09 dari film 10:58",
+    "after": "Sesudah",
+    "afterNote": "11 detik pertama klip 1:03",
+    "video": "Klip 9:16 hasil Potongin dari adegan yang sama, tanpa suara",
+    "play": "Putar",
+    "pause": "Jeda",
+    "note": "Sumber: film terbuka <film>Elephants Dream</film> (2006), dialog bahasa Inggris. Klip ini dibuat tanpa AI: heuristik lokal memilih momennya, tata letak Ikuti wajah. Di halaman ini tanpa suara."
+  },
+  "how": {
+    "title": "Anda memilih, server mengerjakan.",
+    "body": "Dua langkah ada di tangan Anda, di awal dan di akhir. Di antaranya Potongin bekerja sendiri dan progresnya tampil per tahap.",
+    "you": "Anda",
+    "potongin": "Potongin",
+    "source": {
+      "title": "Tempel link atau unggah",
+      "text": "Link YouTube atau file MP4, MOV, MKV, WEBM. Pilih jumlah klip, durasi, dan tata letak."
+    },
+    "transcript": {
+      "title": "Ambil dan transkrip",
+      "text": "Subtitle YouTube kalau rapi, selain itu Whisper di server sendiri."
+    },
+    "moments": {
+      "title": "Pilih momen",
+      "text": "AI dari penyedia yang Anda atur menilai hook tiap momen. Tanpa AI, heuristik lokal yang memilih."
+    },
+    "render": {
+      "title": "Render",
+      "text": "Klip 9:16 atau 1:1 dengan subtitle, teks hook, dan kalimat terkuat di depan."
+    },
+    "review": {
+      "title": "Cek dan unduh",
+      "text": "Tonton di halaman proyek, rapikan di editor kalau perlu, lalu unduh MP4 dan salin caption."
+    }
+  },
+  "looks": {
+    "title": "Gaya subtitle yang siap pakai.",
+    "body": "Contoh di bawah dirender dari gaya yang sama dengan klipnya. Posisi atas, tengah, atau bawah dalam tiga ukuran; per klip bisa diubah lagi di editor.",
+    "styleAlt": "Gaya {name}: tulisan “Halo semua” seperti tampil di klip.",
+    "layoutsTitle": "Tata letak",
+    "style": {
+      "classic": "Putih bergaris hitam, tanpa sorotan.",
+      "karaoke": "Kata yang sedang diucapkan menyala.",
+      "bold": "Huruf besar tebal, kata aktif berwarna.",
+      "box": "Teks di kotak gelap.",
+      "sorot": "Kotak warna di kata yang diucapkan.",
+      "sinar": "Karaoke dengan cahaya lembut."
+    },
+    "layout": {
+      "fit_blur": "Video landscape tetap utuh, sisa layar diisi salinannya yang diburamkan.",
+      "camera": "Layar penuh, potongan mengikuti wajah pembicara.",
+      "fill_center": "Untuk video yang subjeknya selalu di tengah.",
+      "split": "Dua potongan bertumpuk, 30/70 atau 50/50. Diatur per klip di editor."
+    }
+  },
+  "features": {
+    "title": "Yang dikerjakan Potongin",
+    "results": {
+      "title": "Klip yang siap diunggah",
+      "body": "Setiap klip datang dengan judul, deskripsi, hashtag, teks hook, dan skornya. Salin caption atau unduh MP4 langsung dari halaman proyek.",
+      "alt": "Tiga klip 9:16 dari film Elephants Dream; klip kedua terbuka dengan teks hook dan skornya."
+    },
+    "editor": {
+      "title": "Editor",
+      "body": "Buka klip mana pun dari halaman proyeknya. Potong per kata dari transkrip, ganti teks hook dan gaya caption, atur cold open, tambah logo dan musik, lalu ekspor ulang.",
+      "note": "Editor butuh layar minimal 1024 px.",
+      "alt": "Editor Potongin: ikon alat di kiri, pratinjau klip 9:16 di tengah, transkrip per kata di kanan, timeline di bawah."
+    },
+    "focus": {
+      "title": "Cari momen tentang topik",
+      "text": "Isi kata kunci seperti “prank” atau “tips kerja”. Klip yang membahasnya didahulukan dan diberi label."
+    },
+    "ranges": {
+      "title": "Rentang waktu sendiri",
+      "text": "Tulis 10.30-12.05 dan rentang itu jadi satu klip apa adanya; sisa slot diisi momen lain."
+    },
+    "trends": {
+      "title": "Tren",
+      "text": "Tren yang sedang ramai ikut dipakai untuk judul, hook, dan hashtag kalau transkripnya menyebutnya."
+    },
+    "coldOpen": {
+      "title": "Kalimat terkuat di depan",
+      "text": "Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal."
+    }
+  },
+  "privacy": {
+    "title": "Video Anda tetap di server Anda.",
+    "body": "Video, audio, dan hasil render disimpan di server sendiri. Yang dikirim ke penyedia AI hanya teks transkrip, ditambah kata kunci fokus dan tren kalau dipakai, dan hanya ke penyedia yang Anda atur. Audio hanya keluar dari server kalau Anda menyalakan transkripsi lewat Groq di Pengaturan. Matikan AI di Pengaturan, semua pemrosesan tetap berjalan di server.",
+    "projects": "Proyek tersimpan dan bisa dihapus.",
+    "free": "AI bisa dibatasi ke model gratis.",
+    "local": "Tanpa AI, momen tetap dipilih heuristik lokal."
+  },
+  "final": {
+    "title1": "Lebih sedikit edit manual.",
+    "title2": "Lebih banyak klip terbit.",
+    "cta": "Mulai potong video"
+  },
+  "footer": {
+    "tagline": "Klip pendek dari video panjang, diproses di server sendiri.",
+    "nav": "Tautan aplikasi",
+    "create": "Buat klip",
+    "projects": "Proyek",
+    "help": "Bantuan",
+    "credits": "Video contoh: <film>Elephants Dream</film> (2006), © Blender Foundation dan Netherlands Media Art Institute, www.elephantsdream.org, lisensi <license>CC BY 2.5</license>. Potongan 16:9, klip 9:16 dan kedua tangkapan layar dibuat dengan Potongin."
+  }
+}

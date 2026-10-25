@@ -19,9 +19,21 @@ function visibleText(source) {
     .replace(/className=\{[^}]*\}|className="[^"]*"|href="[^"]*"|style=\{\{[^}]*\}\}/g, "");
 }
 
+// The landing's copy lives in messages/<locale>/landing.json since i18n M3 (07 §8.3); the words a
+// visitor reads are the page's own plus that catalog's.
+const catalogStrings = (value) => (typeof value === "string" ? [value] : Object.values(value ?? {}).flatMap(catalogStrings));
+async function landingCatalog(locale = "id") {
+  return JSON.parse(await read(`messages/${locale}/landing.json`));
+}
+async function landingText(locale = "id") {
+  return `${visibleText(await read("app/page.jsx"))}\n${catalogStrings(await landingCatalog(locale)).join("\n")}`;
+}
+
 test("landing copy is Indonesian, has no em dash, version label or template buzzword", async () => {
   const source = await read("app/page.jsx");
   assert.doesNotMatch(visibleText(source), FORBIDDEN_COPY);
+  for (const locale of ["id", "en"]) assert.doesNotMatch(await landingText(locale), FORBIDDEN_COPY, locale);
+  assert.match(source, /const t = await getT\(locale, "landing"\);/);
   assert.match(source, /import Brand from "\.\.\/components\/Brand\.jsx";/);
   assert.match(source, /import styles from "\.\/landing\.module\.css";/);
   assert.doesNotMatch(source, /className="landing/, "landing styles live in the module now");
@@ -55,29 +67,36 @@ test("every landing anchor points at a section that exists, and the CTAs reach t
 
 test("the landing covers Tata letak and the editor, with the editor's screen limit said plainly", async () => {
   const source = await read("app/page.jsx");
-  const text = visibleText(source);
-  assert.match(text, /"Tata letak"|>Tata letak</);
-  assert.match(text, /Ikuti wajah/);
-  assert.match(text, /Layar terbagi|layar terbagi/);
-  assert.match(text, /"Editor"|>Editor</);
-  assert.match(text, /Editor butuh layar minimal 1024 px\./);
+  const landing = await landingCatalog();
+  const layout = JSON.parse(await read("messages/id/layout.json"));
+  assert.equal(landing.looks.layoutsTitle, "Tata letak");
+  assert.match(source, /\{t\("looks\.layoutsTitle"\)\}/);
+  // Every layout, Layar terbagi included, by the names the app uses (layout.names).
+  assert.match(source, /LAYOUT_FRAMES\.map\(/);
+  for (const mode of ["fit_blur", "camera", "fill_center", "split"]) assert.match(source, new RegExp(`tLayout\\("names\\.${mode}"\\)`), mode);
+  assert.deepEqual([layout.names.camera, layout.names.split], ["Ikuti wajah", "Layar terbagi"]);
+  assert.equal(landing.features.editor.title, "Editor");
+  assert.equal(landing.features.editor.note, "Editor butuh layar minimal 1024 px.");
+  assert.match(source, /\{t\("features\.editor\.note"\)\}/);
   // The example says what it is: an open film, English speech, picked without AI.
   const example = /id="contoh"[\s\S]*?<\/section>/.exec(source)[0];
-  assert.match(example, /Sebelum/);
-  assert.match(example, /Sesudah/);
-  assert.match(example, /bahasa Inggris/);
-  assert.match(example, /tanpa AI/);
+  for (const key of ["example.before", "example.after", "example.note"]) assert.ok(example.includes(`"${key}"`), key);
+  assert.equal(landing.example.before, "Sebelum");
+  assert.equal(landing.example.after, "Sesudah");
+  assert.match(landing.example.note, /bahasa Inggris/);
+  assert.match(landing.example.note, /tanpa AI/);
 });
 
 test("the landing makes no claim it cannot back: no badges, ranks, countdowns or round numbers", async () => {
-  const text = visibleText(await read("app/page.jsx"));
+  const text = await landingText();
   assert.doesNotMatch(text, /\bBARU\b|\bNew\b|\bNo\.?\s?1\b|nomor satu|terbaik|tercepat|termudah|\d+\s?\+|ribuan|jutaan|Sisa waktu|hitung mundur|countdown|promo|diskon|viral|\bHot\b/i);
 });
 
 test("the privacy section says what leaves the server instead of claiming nothing does", async () => {
   const source = await read("app/page.jsx");
   assert.match(source, /id="privasi"/);
-  const privacy = /id="privasi"[\s\S]*?<\/section>/.exec(source)[0];
+  assert.match(/id="privasi"[\s\S]*?<\/section>/.exec(source)[0], /\{t\("privacy\.body"\)\}/);
+  const privacy = catalogStrings((await landingCatalog()).privacy).join("\n");
   assert.match(privacy, /hanya teks transkrip/i);
   // The AI also reads the focus terms and note and the trend items (llm_selection.py): say so.
   assert.match(privacy, /kata kunci fokus/i);
