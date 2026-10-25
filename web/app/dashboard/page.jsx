@@ -1,334 +1,201 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// Buat klip (05-ui-dashboard.md §6.3): the link (or a file) and [Buat klip] first, then every
+// choice as a valued chip whose popover holds its control, then the four newest projects. Enter
+// in the link sends the form; a field error opens the chip that holds the field and focuses it.
+// After the job is made the page goes to its project (P4), as a full document load (P12).
+import { Alert, Button, Label, Radio, RadioGroup, Switch, ToggleButton, ToggleButtonGroup } from "@heroui/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "use-intl";
 
 import AppShell from "../../components/AppShell.jsx";
-import CancelJob from "../../components/CancelJob.jsx";
-import StageSummary from "../../components/StageSummary.jsx";
+import ChoiceChip from "../../components/ChoiceChip.jsx";
 import { PACK_IMAGES, imageSrc } from "../../components/editor/panels/pack-images.js";
+import { useRenderModeName } from "../../components/layout-names.jsx";
+import PageHead from "../../components/ui/PageHead.jsx";
 import { CLIP_LIMITS } from "../../lib/clip-limits.mjs";
-import { failedClipView } from "../../lib/clip-status.mjs";
 import {
-  AI_STATUS_UNREADABLE,
-  aiStatusView,
-  clipMetaText,
-  focusAiMode,
-  jobActivityText,
-  jobFailureView,
-  jobFinished,
-  jobFormProblems,
-  jobPercentText,
-  jobSourceLabel,
-  jobStageText,
-  jobStepText,
-  jobWaitingText,
-  JOB_STATUS_LABELS,
-  storageMessage,
-  submitErrorMessage,
-  subtitleFileProblem,
-  videoFileProblem,
-} from "../../lib/dashboard-view.mjs";
-import {
+  CHIPS,
   DEFAULT_CHOICES,
   DURATION_PRESETS,
   LAYOUT_CHOICES,
-  OPTION_SECTIONS,
   RATIO_CHOICES,
   RESOLUTION_CHOICES,
   VIDEO_LANGUAGE_CHOICES,
   browserStorage,
-  choicesSummary,
+  chipOfField,
+  choicesFromJob,
   lookChoices,
   normalizeChoices,
   outputSizeOf,
   readStoredChoices,
-  sectionOfField,
-  sectionSummary,
   withDuration,
-  withSection,
   writeStoredChoices,
 } from "../../lib/dashboard-choices.mjs";
+import { createStorageStatusRecovery, storageStatusView } from "../../lib/dashboard-storage-status.mjs";
+import { failedJobHref, projectAfterSubmit, sendJob, submitPhase } from "../../lib/dashboard-submit.mjs";
 import {
-  createStorageStatusRecovery,
-  recoverFailedJobSelection,
-  storageStatusView,
-} from "../../lib/dashboard-storage-status.mjs";
-import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
+  AI_STATUS_UNREADABLE,
+  aiAlert,
+  focusAiMode,
+  jobFormProblemCodes,
+  problemText,
+  storageMessage,
+  subtitleFileCode,
+  submitErrorMessage,
+  videoFileCode,
+} from "../../lib/dashboard-view.mjs";
+import { storageHelpHref } from "../../lib/help-catalog.mjs";
+import { errorText } from "../../lib/i18n/errors.mjs";
 import { notifyJobsChanged } from "../../lib/job-badge.mjs";
-import { jobCancellable } from "../../lib/job-cancel.mjs";
 import { lookPreview } from "../../lib/look-preview.mjs";
-import { videoLanguageNotice } from "../../lib/source-language.mjs";
 import { typedRangeCount } from "../../lib/time-ranges.mjs";
-import {
-  FOCUS_LIMITS,
-  addFocusTerms,
-  clipCaptionText,
-  clipPosterUrl,
-  focusFormFields,
-  focusTermMatchable,
-  focusTermsHint,
-  normalizeFocusText,
-  pastedFocusTerms,
-} from "../../lib/selection-v3-view.mjs";
+import { focusFormFields, normalizeFocusText } from "../../lib/selection-v3-view.mjs";
 import styles from "./dashboard.module.css";
-import focusStyles from "./focus.module.css";
-import lookStyles from "./look.module.css";
+import FocusField from "./FocusField.jsx";
 import LookPreview from "./LookPreview.jsx";
+import RecentProjects from "./RecentProjects.jsx";
 
-// Fields in the order the page checks them; the first invalid one gets focus (its fold opens first).
+// Fields in the order the page checks them; the first invalid one gets focus (its chip opens first).
 const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", subtitle: "subtitle-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration", timeRanges: "time-ranges" };
-const SECTION_TITLES = Object.fromEntries(OPTION_SECTIONS.map((section) => [section.id, section.title]));
+const FOCUS_INPUT = "focus-terms-input";
 
 const draggingFiles = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
+const asSet = (keys) => (keys === "all" ? [] : [...keys]);
+
+/** Every choice's name in the UI language, one literal key each (tests/i18n-usage). */
+function useChoiceNames() {
+  const t = useTranslations("dashboard");
+  return {
+    duration: {
+      auto: t("duration.auto"), short: t("duration.short"), medium: t("duration.medium"), long: t("duration.long"), custom: t("duration.custom"),
+    },
+    style: {
+      classic: t("style.classic"), karaoke: t("style.karaoke"), bold: t("style.bold"), box: t("style.box"), sorot: t("style.sorot"), sinar: t("style.sinar"),
+    },
+    position: { top: t("position.top"), middle: t("position.middle"), bottom: t("position.bottom") },
+    size: { small: t("size.small"), medium: t("size.medium"), large: t("size.large") },
+    language: { id: t("language.id"), en: t("language.en"), auto: t("language.auto") },
+  };
+}
+
+/** The text of a form problem from lib/dashboard-view.mjs (a time range keeps the job API's text). */
+function useProblemText() {
+  const t = useTranslations("dashboard");
+  return (problem) => {
+    if (!problem) return null;
+    switch (problem.code) {
+      case "linkEmpty": return t("problem.linkEmpty");
+      case "linkInvalid": return t("problem.linkInvalid");
+      case "videoMissing": return t("problem.videoMissing");
+      case "videoFormat": return t("problem.videoFormat");
+      case "srtType": return t("problem.srtType");
+      case "srtEmpty": return t("problem.srtEmpty");
+      case "srtTooLarge": return t("problem.srtTooLarge");
+      case "count": return t("problem.count", problem.values);
+      case "seconds": return t("problem.seconds", problem.values);
+      case "durationOrder": return t("problem.durationOrder");
+      default: return problemText(problem);
+    }
+  };
+}
 
 function FieldError({ id, message }) {
-  return message ? <p id={id} className={styles.fieldError}>{message}</p> : null;
+  return message ? <span id={id} className={styles.fieldError}>{message}</span> : null;
 }
 
-/**
- * One of the three folds under the essentials: a heading button that names the fold and, while it
- * is closed, what is chosen inside it. The content is hidden, not unmounted, so typed focus terms
- * and ranges survive a close.
- */
-function Fold({ id, summary, open, onToggle, children }) {
+/** A labelled single choice inside a popover (HeroUI RadioGroup). */
+function Choices({ label, value, onChange, options, className = "", describedBy }) {
   return (
-    <div className={styles.fold}>
-      <h2 className={styles.foldHeading}>
-        <button type="button" className={styles.optionsToggle} aria-expanded={open} aria-controls={`${id}-options`} onClick={onToggle}>
-          <span>
-            <strong>{SECTION_TITLES[id]}</strong>
-            <span>{summary}</span>
-          </span>
-          <i aria-hidden="true" className={styles.chevron} />
-        </button>
-      </h2>
-      <div id={`${id}-options`} className={styles.options} hidden={!open}>{children}</div>
+    <RadioGroup value={value} onChange={onChange} className={`${styles.choices} ${className}`} aria-describedby={describedBy}>
+      <Label className={styles.groupLabel}>{label}</Label>
+      {options.map((option) => (
+        <Radio key={option.id} value={option.id} className={styles.choice}>
+          <Radio.Content className={styles.choiceContent}>
+            <Radio.Control><Radio.Indicator /></Radio.Control>
+            {option.media}
+            <span className={styles.choiceName}>{option.name}</span>
+          </Radio.Content>
+        </Radio>
+      ))}
+    </RadioGroup>
+  );
+}
+
+/** A two-or-three way switch inside a popover (HeroUI ToggleButtonGroup, one always chosen). */
+function Segmented({ label, value, onChange, options }) {
+  return (
+    <div className={styles.segmentedField}>
+      <span className={styles.groupLabel} id={`segment-${label}`}>{label}</span>
+      <ToggleButtonGroup
+        aria-labelledby={`segment-${label}`}
+        disallowEmptySelection
+        selectedKeys={[value]}
+        onSelectionChange={(keys) => { const [key] = asSet(keys); if (key) onChange(String(key)); }}
+        className={styles.segmented}
+      >
+        {options.map((option) => <ToggleButton key={option.id} id={option.id}>{option.name}</ToggleButton>)}
+      </ToggleButtonGroup>
     </div>
   );
 }
 
-/**
- * Fokus klip (docs/plans/2026-09-25-fokus-klip.md §3): focus terms as removable chips (a comma
- * or Enter makes a chip, a pasted list one chip per line) plus a free note for the AI. Empty
- * means no focus: nothing is sent. Chips the transcript can never say literally get a hint.
- */
-function FocusField({ terms, draft, note, error, aiMode, onTermsChange, onDraftChange, onNoteChange, onErrorChange }) {
-  const inputRef = useRef(null);
-  const removeButtons = useRef([]);
-  const refocusIndex = useRef(null);
-  const noteLength = Array.from(normalizeFocusText(note)).length;
-  const full = terms.length >= FOCUS_LIMITS.terms;
-  const hint = focusTermsHint(terms, aiMode);
-
-  // After a chip is removed, keyboard focus moves to the next chip's button, else the input.
-  useEffect(() => {
-    removeButtons.current.length = terms.length;
-    if (refocusIndex.current === null) return;
-    const index = Math.min(refocusIndex.current, terms.length - 1);
-    refocusIndex.current = null;
-    (index >= 0 ? removeButtons.current[index] : inputRef.current)?.focus();
-  }, [terms]);
-
-  function apply(result, rest = "") {
-    onTermsChange(result.terms);
-    onDraftChange([result.pending, rest].filter(Boolean).join(", "));
-    onErrorChange(result.error);
-  }
-
-  function changeDraft(value) {
-    const cut = Math.max(value.lastIndexOf(","), value.lastIndexOf("\n"));
-    if (cut < 0) {
-      onDraftChange(value);
-      if (error) onErrorChange("");
-      return;
-    }
-    apply(addFocusTerms(terms, value.slice(0, cut)), value.slice(cut + 1).trimStart());
-  }
-
-  function commitDraft() {
-    if (normalizeFocusText(draft)) apply(addFocusTerms(terms, draft));
-  }
-
-  // A single-line input turns pasted line breaks into spaces: read the paste itself.
-  function pasteList(event) {
-    const input = event.currentTarget;
-    const text = pastedFocusTerms(draft, event.clipboardData?.getData("text"), input.selectionStart, input.selectionEnd);
-    if (text === null) return;
-    event.preventDefault();
-    apply(addFocusTerms(terms, text));
-  }
-
-  function remove(index) {
-    refocusIndex.current = index;
-    onTermsChange(terms.filter((_, position) => position !== index));
-    onErrorChange("");
-  }
-
+function OnOff({ selected, onChange, children }) {
   return (
-    <div className={focusStyles.focus} role="group" aria-label="Fokus klip">
-      <div className={focusStyles.head}>
-        <label className={focusStyles.label} htmlFor="focus-terms-input">Cari momen tentang… (opsional)</label>
-        <span className={focusStyles.count} aria-hidden="true">{terms.length}/{FOCUS_LIMITS.terms}</span>
-      </div>
-      <div className={focusStyles.box}>
-        {terms.length > 0 && (
-          <ul className={focusStyles.chips} aria-label="Kata kunci fokus">
-            {terms.map((term, index) => (
-              <li key={term} className={focusTermMatchable(term) ? undefined : focusStyles.unmatchable}>
-                <span>{term}</span>
-                <button type="button" ref={(node) => { removeButtons.current[index] = node; }} aria-label={`Hapus kata kunci ${term}`} onClick={() => remove(index)}>×</button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <input
-          id="focus-terms-input"
-          ref={inputRef}
-          className={focusStyles.input}
-          type="text"
-          autoComplete="off"
-          enterKeyHint="enter"
-          value={draft}
-          placeholder={full ? `Maksimal ${FOCUS_LIMITS.terms} kata kunci` : terms.length ? "Tambah kata kunci…" : "contoh: prank, tips kerja"}
-          aria-describedby={hint ? "focus-terms-help focus-terms-hint" : "focus-terms-help"}
-          aria-invalid={error ? "true" : undefined}
-          onChange={(event) => changeDraft(event.target.value)}
-          onPaste={pasteList}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            commitDraft();
-          }}
-          onBlur={commitDraft}
-        />
-      </div>
-      <p id="focus-terms-help" className={focusStyles.help}>Klip yang membahasnya didahulukan; sisa slot diisi momen terbaik lain berlabel “Di luar fokus”. Pisahkan dengan koma atau Enter, maksimal {FOCUS_LIMITS.terms}.</p>
-      {hint && <p id="focus-terms-hint" className={focusStyles.hint}>{hint}</p>}
-      {error && <p className={focusStyles.error} role="alert">{error}</p>}
-      <label className={focusStyles.noteLabel} htmlFor="focus-note">Catatan untuk AI (opsional)</label>
-      <textarea id="focus-note" className={focusStyles.note} rows={2} value={note} placeholder="contoh: momen prank yang bikin ketawa" aria-describedby="focus-note-help" onChange={(event) => onNoteChange(event.target.value)} />
-      <p id="focus-note-help" className={`${focusStyles.help} ${focusStyles.noteMeta}`}>
-        <span>{aiMode === "off" ? "Tanpa AI, hanya momen yang menyebut kata kuncinya langsung yang dikenali; catatan tidak dipakai." : "Jelaskan momen yang dicari dengan kalimat biasa."}</span>
-        <span className={noteLength > FOCUS_LIMITS.note ? focusStyles.over : undefined}>{noteLength}/{FOCUS_LIMITS.note}</span>
-      </p>
-    </div>
-  );
-}
-
-// A clip that failed to render shows why in place of the video, with nothing to download or copy.
-function FailedClipCard({ clip, failed }) {
-  return (
-    <article className={styles.clip} data-failed="true">
-      <div className={styles.clipFailed}>
-        <span className="statusPill error">{failed.label}</span>
-        <p>{failed.text}</p>
-      </div>
-      <div className={styles.clipBody}>
-        <small>{clipMetaText(clip)}</small>
-        {clip.title && <h3>{clip.title}</h3>}
-        <p className={styles.description}>{failed.hint}</p>
-      </div>
-    </article>
-  );
-}
-
-function ClipCard({ clip, copied, onCopy }) {
-  const failed = failedClipView(clip);
-  if (failed) return <FailedClipCard clip={clip} failed={failed} />;
-  return (
-    <article className={styles.clip}>
-      <video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} />
-      <div className={styles.clipBody}>
-        <small>{clipMetaText(clip)}</small>
-        {clip.title && <h3>{clip.title}</h3>}
-        {clip.hookText && <p className={styles.hook}><span>Hook</span>{clip.hookText}</p>}
-        {clip.description && <p className={styles.description}>{clip.description}</p>}
-        <div className={styles.clipActions}>
-          {clip.downloadUrl && <a className="btn" href={clip.downloadUrl} download>Unduh MP4</a>}
-          <button type="button" className="btn" onClick={onCopy}>{copied === "ok" ? "Tersalin" : "Salin caption"}</button>
-        </div>
-        {copied === "failed" && <p className={styles.fieldError}>Tidak bisa menyalin di browser ini. Salin dari halaman proyek.</p>}
-      </div>
-    </article>
+    <Switch isSelected={selected} onChange={onChange} className={styles.switch}>
+      <Switch.Content>
+        <Switch.Control><Switch.Thumb /></Switch.Control>
+        {children}
+      </Switch.Content>
+    </Switch>
   );
 }
 
 export default function DashboardPage() {
+  const t = useTranslations("dashboard");
+  const tErrors = useTranslations("errors");
+  const names = useChoiceNames();
+  const layoutName = useRenderModeName();
+  const problemTextOf = useProblemText();
+
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [video, setVideo] = useState(null);
   const [subtitle, setSubtitle] = useState(null);
+  const [reupload, setReupload] = useState(false);
   const [dragging, setDragging] = useState(false);
   // The last choices come back after hydration (the page is prerendered with the defaults).
   const [choices, setChoices] = useState(DEFAULT_CHOICES);
-  const { limit, duration, minDuration, maxDuration, renderMode, ratio, resolution, coldOpen, hookOverlay, videoLanguage, openSections } = choices;
+  const { limit, duration, minDuration, maxDuration, renderMode, ratio, resolution, coldOpen, hookOverlay, videoLanguage } = choices;
   const [focusTerms, setFocusTerms] = useState([]);
   const [focusDraft, setFocusDraft] = useState("");
   const [focusNote, setFocusNote] = useState("");
   const [focusError, setFocusError] = useState("");
   const [timeRanges, setTimeRanges] = useState("");
   const [problems, setProblems] = useState({});
+  const [openChip, setOpenChip] = useState(null);
   const [aiStatus, setAiStatus] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [jobsState, setJobsState] = useState("loading");
-  // The jobs list says whether the editor is on: the preview names Edit klip only then.
   const [editorOn, setEditorOn] = useState(false);
-  // ...and which engine renders the automatic clips: with the legacy one (the rollback switch)
-  // only the caption looks it draws are offered (CONTRACTS §5.48).
+  // Which engine renders the automatic clips: with the legacy one (the rollback switch) only the
+  // caption looks it draws are offered (CONTRACTS §5.48).
   const [renderEngine, setRenderEngine] = useState("edit-v2");
-  const offered = lookChoices(renderEngine);
-  const { captionStyle, captionPosition, captionSize } = normalizeChoices(choices, { engine: renderEngine });
-  const [activeId, setActiveId] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [recent, setRecent] = useState({ state: "loading", jobs: [] });
+  const [sending, setSending] = useState(null);
   const [message, setMessage] = useState(null);
-  const [copied, setCopied] = useState(null);
-  const [cancelNote, setCancelNote] = useState(null);
   const [storageView, setStorageView] = useState(null);
   const storageRecovery = useRef(null);
-  const resultsRef = useRef(null);
-  const copiedTimer = useRef(null);
-  const mounted = useRef(false);
-  const jobsRefreshGeneration = useRef(0);
+  const formRef = useRef(null);
   const pendingFocus = useRef(null);
-  const sourceType = video ? "upload" : "youtube";
   const videoChosen = useRef(false);
   videoChosen.current = Boolean(video);
 
-  const activeJob = useMemo(() => jobs.find((job) => job.id === activeId), [jobs, activeId]);
+  const offered = lookChoices(renderEngine);
+  const { captionStyle, captionPosition, captionSize } = normalizeChoices(choices, { engine: renderEngine });
+  const sourceType = video ? "upload" : "youtube";
   const storage = storageView || storageStatusView(null);
   const storageBlocked = storage.submitBlocked;
-  const ai = aiStatusView(aiStatus);
   const aiMode = focusAiMode(aiStatus);
-  const failure = jobFailureView(activeJob);
-  const languageNotice = videoLanguageNotice(activeJob);
-  const failureHelp = jobHelpHref(activeJob);
-
-  async function refreshJobs(selectedId = null, signal = undefined) {
-    jobsRefreshGeneration.current += 1;
-    const generation = jobsRefreshGeneration.current;
-    try {
-      const response = await fetch("/api/jobs", { cache: "no-store", signal });
-      if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
-      if (!response.ok) {
-        setJobsState((current) => (current === "ready" ? current : "error"));
-        return;
-      }
-      const payload = await response.json();
-      if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
-      setJobs(payload.jobs || []);
-      setJobsState("ready");
-      setEditorOn(payload.editor === true);
-      setRenderEngine(payload.renderEngine === "legacy" ? "legacy" : "edit-v2");
-      setActiveId((current) => selectedId || current || payload.jobs?.[0]?.id || null);
-    } catch (error) {
-      if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
-      setJobsState((current) => (current === "ready" ? current : "error"));
-      if (selectedId) throw error;
-    }
-  }
-
-  async function refreshStorageStatus() {
-    await storageRecovery.current?.retry();
-  }
+  const ai = aiAlert(aiStatus);
+  const phase = submitPhase({ sending: sending !== null, upload: sourceType === "upload", uploaded: sending?.uploaded });
 
   function updateChoices(patch) {
     const next = { ...choices, ...patch };
@@ -336,27 +203,29 @@ export default function DashboardPage() {
     writeStoredChoices(browserStorage(), next);
   }
 
-  const sectionOpen = (id) => openSections.includes(id);
-  const toggleSection = (id) => updateChoices(withSection(choices, id, !sectionOpen(id)));
+  const clearProblem = (...fields) => setProblems((current) => {
+    if (!fields.some((field) => current[field])) return current;
+    const next = { ...current };
+    for (const field of fields) delete next[field];
+    return next;
+  });
 
-  /** Focuses a field once it is on screen; a field inside a closed fold opens that fold first. */
-  function focusField(id, section = null) {
-    if (!section || sectionOpen(section)) {
-      document.getElementById(id)?.focus();
-      return;
-    }
+  /** Focuses a field once it is on screen; a field inside a chip opens that chip first. */
+  function focusField(id, chip = null) {
     pendingFocus.current = id;
-    updateChoices(withSection(choices, section, true));
+    if (chip) setOpenChip(chip);
+    else setOpenChip(null);
   }
 
   const chooseVideo = useCallback((file) => {
     if (!file) return;
-    const problem = videoFileProblem(file);
-    if (problem) {
-      setProblems((current) => ({ ...current, video: problem }));
+    const code = videoFileCode(file);
+    if (code) {
+      setProblems((current) => ({ ...current, video: { code } }));
       return;
     }
     setVideo(file);
+    setReupload(false);
     setProblems(({ video: _video, youtubeUrl: _url, ...rest }) => rest);
   }, []);
 
@@ -364,14 +233,14 @@ export default function DashboardPage() {
     setVideo(null);
     setSubtitle(null);
     setProblems(({ video: _video, subtitle: _subtitle, ...rest }) => rest);
-    pendingFocus.current = "youtube-url";
+    pendingFocus.current = FIELD_IDS.youtubeUrl;
   }
 
   const chooseSubtitle = useCallback((file) => {
     if (!file) return;
-    const problem = subtitleFileProblem(file);
-    if (problem) {
-      setProblems((current) => ({ ...current, subtitle: problem }));
+    const code = subtitleFileCode(file);
+    if (code) {
+      setProblems((current) => ({ ...current, subtitle: { code } }));
       return;
     }
     setSubtitle(file);
@@ -381,11 +250,29 @@ export default function DashboardPage() {
   function clearSubtitle() {
     setSubtitle(null);
     clearProblem("subtitle");
-    pendingFocus.current = "subtitle-file";
+    pendingFocus.current = FIELD_IDS.subtitle;
   }
 
+  // The stored choices, or with ?ulang=<id> ("Proses ulang" on a project) that job's options.
   useEffect(() => {
     setChoices(readStoredChoices(browserStorage()));
+    const again = new URLSearchParams(window.location.search).get("ulang");
+    if (!again || !/^[0-9a-f-]{8,64}$/i.test(again)) return undefined;
+    const controller = new AbortController();
+    fetch(`/api/jobs/${encodeURIComponent(again)}`, { cache: "no-store", signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        const filled = choicesFromJob(payload?.job);
+        if (!filled || controller.signal.aborted) return;
+        setChoices(filled.choices);
+        setYoutubeUrl(filled.youtubeUrl);
+        setReupload(filled.reupload);
+        setFocusTerms(filled.focusTerms);
+        setFocusNote(filled.focusNote);
+        setTimeRanges(filled.timeRanges);
+      })
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   // A video dropped anywhere in the window becomes the source, instead of the browser opening it.
@@ -414,18 +301,36 @@ export default function DashboardPage() {
     return () => { for (const [name, listener] of listeners) window.removeEventListener(name, listener); };
   }, [chooseVideo, chooseSubtitle]);
 
+  // A field waiting for focus (an error, a removed file) takes it once it is on screen; inside a
+  // chip that is after its popover opened and moved focus to itself.
   useEffect(() => {
-    if (!pendingFocus.current) return;
-    const target = document.getElementById(pendingFocus.current);
-    if (!target || target.closest("[hidden]")) return;
+    const id = pendingFocus.current;
+    if (!id) return undefined;
+    const target = document.getElementById(id);
+    if (!target) return undefined;
     pendingFocus.current = null;
     target.focus();
+    const frame = requestAnimationFrame(() => { if (document.activeElement !== target) target.focus(); });
+    return () => cancelAnimationFrame(frame);
   });
 
+  async function loadRecent(signal) {
+    try {
+      const response = await fetch("/api/jobs", { cache: "no-store", signal });
+      if (!response.ok) throw new Error("jobs");
+      const payload = await response.json();
+      if (signal?.aborted) return;
+      setRecent({ state: "ready", jobs: Array.isArray(payload.jobs) ? payload.jobs.slice(0, 4) : [] });
+      setEditorOn(payload.editor === true);
+      setRenderEngine(payload.renderEngine === "legacy" ? "legacy" : "edit-v2");
+    } catch {
+      if (!signal?.aborted) setRecent((current) => (current.state === "ready" ? current : { state: "error", jobs: [] }));
+    }
+  }
+
   useEffect(() => {
-    mounted.current = true;
     const controller = new AbortController();
-    void refreshJobs(null, controller.signal).catch(() => {});
+    void loadRecent(controller.signal);
     void (async () => {
       // Informative only: the worker decides at run time which AI (if any) picks the moments.
       let next = AI_STATUS_UNREADABLE;
@@ -442,55 +347,21 @@ export default function DashboardPage() {
     storageRecovery.current = recovery;
     void recovery.start();
     return () => {
-      mounted.current = false;
-      jobsRefreshGeneration.current += 1;
       controller.abort();
       storageRecovery.current = null;
       recovery.dispose();
-      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
-      copiedTimer.current = null;
     };
   }, []);
 
-  useEffect(() => {
-    if (!activeId || jobFinished(activeJob)) return undefined;
-    const controller = new AbortController();
-    let requestInFlight = false;
-    const timer = setInterval(async () => {
-      if (requestInFlight) return;
-      requestInFlight = true;
-      try {
-        const response = await fetch(`/api/jobs/${activeId}`, { cache: "no-store", signal: controller.signal });
-        if (!response.ok || controller.signal.aborted) return;
-        const payload = await response.json();
-        if (controller.signal.aborted) return;
-        setJobs((current) => {
-          const exists = current.some((job) => job.id === activeId);
-          // A poll sent before "Batalkan" answered must not bring the finished job back to life.
-          return exists
-            ? current.map((job) => (job.id === activeId ? (jobFinished(job) && !jobFinished(payload.job) ? job : payload.job) : job))
-            : [payload.job, ...current];
-        });
-      } catch {
-        // Transient polling failures are retried on the next interval.
-      } finally {
-        requestInFlight = false;
-      }
-    }, 2500);
-    return () => {
-      clearInterval(timer);
-      controller.abort();
-    };
-  }, [activeId, activeJob?.status]);
-
   async function submit(event) {
     event.preventDefault();
+    if (sending) return;
     setMessage(null);
-    const found = jobFormProblems({ sourceType, youtubeUrl, video, subtitle, limit, minDuration, maxDuration, timeRanges });
+    const found = jobFormProblemCodes({ sourceType, youtubeUrl, video, subtitle, limit, minDuration, maxDuration, timeRanges });
     setProblems(found);
     const firstInvalid = Object.keys(FIELD_IDS).find((name) => found[name]);
     if (firstInvalid) {
-      focusField(FIELD_IDS[firstInvalid], sectionOfField(firstInvalid));
+      focusField(FIELD_IDS[firstInvalid], chipOfField(firstInvalid));
       return;
     }
     const focus = focusFormFields({ terms: focusTerms, pending: focusDraft, note: focusNote });
@@ -498,474 +369,296 @@ export default function DashboardPage() {
     setFocusDraft(focus.pending);
     if (!focus.fields) {
       setFocusError(focus.error);
-      focusField("focus-terms-input", sectionOfField("focus"));
+      focusField(FOCUS_INPUT, chipOfField("focus"));
       return;
     }
-    setSubmitting(true);
+    setOpenChip(null);
+    const data = new FormData();
+    data.set("renderMode", renderMode);
+    data.set("outputSize", outputSizeOf(choices));
+    data.set("limit", String(limit).trim());
+    data.set("minDuration", String(minDuration).trim());
+    data.set("maxDuration", String(maxDuration).trim());
+    data.set("coldOpen", String(coldOpen));
+    data.set("hookOverlay", String(hookOverlay));
+    data.set("captionStyle", captionStyle);
+    if (offered.positions) data.set("captionPosition", captionPosition);
+    if (offered.sizes) data.set("captionSize", captionSize);
+    data.set("videoLanguage", videoLanguage);
+    for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
+    if (timeRanges.trim()) data.set("timeRanges", timeRanges.trim());
+    if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl.trim());
+    else {
+      data.set("video", video);
+      if (subtitle) data.set("subtitle", subtitle);
+    }
+    setSending({ percent: 0, uploaded: false });
+    let result;
     try {
-      const data = new FormData();
-      data.set("renderMode", renderMode);
-      data.set("outputSize", outputSizeOf(choices));
-      data.set("limit", String(limit).trim());
-      data.set("minDuration", String(minDuration).trim());
-      data.set("maxDuration", String(maxDuration).trim());
-      data.set("coldOpen", String(coldOpen));
-      data.set("hookOverlay", String(hookOverlay));
-      data.set("captionStyle", captionStyle);
-      if (offered.positions) data.set("captionPosition", captionPosition);
-      if (offered.sizes) data.set("captionSize", captionSize);
-      data.set("videoLanguage", videoLanguage);
-      for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
-      if (timeRanges.trim()) data.set("timeRanges", timeRanges.trim());
-      if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl.trim());
-      else {
-        data.set("video", video);
-        if (subtitle) data.set("subtitle", subtitle);
-      }
-      const response = await fetch("/api/jobs", { method: "POST", body: data });
-      const payload = (await response.json().catch(() => null)) || {};
-      if (!response.ok) {
-        if (payload.jobId) {
-          notifyJobsChanged();
-          await recoverFailedJobSelection(payload.jobId, {
-            select: setActiveId,
-            refreshJobs,
-          });
-        }
-        if ([507, 503].includes(response.status)) await refreshStorageStatus();
-        setMessage({ tone: "error", text: submitErrorMessage(payload), help: storageHelpHref(payload.code) });
-        return;
-      }
-      setJobs((current) => [payload.job, ...current]);
-      setJobsState("ready");
-      setActiveId(payload.job.id);
+      result = await sendJob(data, {
+        onProgress: (percent) => setSending((current) => (current ? { ...current, percent: percent ?? current.percent } : current)),
+        onUploaded: () => setSending((current) => (current ? { ...current, uploaded: true } : current)),
+      });
+    } catch {
+      setSending(null);
+      setMessage({ text: t("submit.offline") });
+      return;
+    }
+    const next = projectAfterSubmit(result);
+    if (next) {
       notifyJobsChanged();
-      setMessage({ tone: "ok", text: "Job dibuat. Progresnya tampil di panel Hasil." });
-      // On one column the Hasil panel sits below the form: bring the new job into view.
-      if (window.matchMedia("(max-width: 1179px)").matches) {
-        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        resultsRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-      }
-    } catch {
-      setMessage({ tone: "error", text: "Server tidak terjangkau. Periksa koneksi lalu coba lagi." });
-    } finally {
-      setSubmitting(false);
+      window.location.assign(next);
+      return;
     }
-  }
-
-  async function copyCaption(clip) {
-    const key = `${activeJob.id}-${clip.index}`;
-    let result = "ok";
-    try {
-      await navigator.clipboard.writeText(clipCaptionText(clip));
-    } catch {
-      result = "failed";
-    }
-    if (!mounted.current) return;
-    setCopied({ key, result, index: clip.index });
-    if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
-    copiedTimer.current = setTimeout(() => {
-      copiedTimer.current = null;
-      setCopied(null);
-    }, result === "ok" ? 1800 : 6000);
-  }
-
-  // After "Batalkan" the job shows as the server has it; focus moves to its new state.
-  function settleCancel(job, note) {
-    setJobs((current) => current.map((item) => (item.id === job.id ? job : item)));
-    setCancelNote(note ? { id: job.id, text: note } : null);
-    pendingFocus.current = "job-state";
-  }
-
-  function clearProblem(name) {
-    if (problems[name]) setProblems(({ [name]: _removed, ...rest }) => rest);
+    setSending(null);
+    const { status, payload } = result;
+    if (payload.jobId) notifyJobsChanged();
+    if ([507, 503].includes(status)) await storageRecovery.current?.retry();
+    const messageId = typeof payload.messageId === "string" ? payload.messageId : typeof payload.code === "string" ? `web.${payload.code}` : null;
+    setMessage({
+      text: errorText(tErrors, { messageId, legacyText: submitErrorMessage(payload) }),
+      help: storageHelpHref(payload.code),
+      project: failedJobHref(result),
+    });
   }
 
   const describedBy = (name, extra) => [extra, problems[name] ? `${FIELD_IDS[name]}-error` : null].filter(Boolean).join(" ") || undefined;
-  const rangeCount = typedRangeCount(timeRanges);
-  const summary = choicesSummary({ ...choices, captionStyle, captionPosition, captionSize }, { focusTerms: focusTerms.length, ranges: rangeCount });
-  const foldSummary = (id) => sectionSummary(id, { ...choices, captionStyle, captionPosition, captionSize }, {
-    engine: renderEngine, focusTerms: focusTerms.length, ranges: rangeCount, note: Boolean(normalizeFocusText(focusNote)),
+  const problem = (name) => problemTextOf(problems[name]);
+  const chipProps = (id) => ({
+    id,
+    isOpen: openChip === id,
+    onOpenChange: (open) => setOpenChip((current) => (open ? id : current === id ? null : current)),
   });
+  // Enter in a popover field sends the form, as it does in the link field.
+  const enterSends = (event) => {
+    if (event.key !== "Enter" || event.nativeEvent?.isComposing) return;
+    event.preventDefault();
+    formRef.current?.requestSubmit();
+  };
+
   const look = lookPreview(choices, { editor: editorOn, engine: renderEngine });
+  const rangeCount = typedRangeCount(timeRanges);
+  const guided = focusTerms.length + rangeCount + (normalizeFocusText(focusNote) ? 1 : 0);
+  const durationValue = duration === "custom" ? t("chip.seconds", { min: minDuration || "?", max: maxDuration || "?" }) : names.duration[duration];
+  const hookValue = coldOpen && hookOverlay ? t("hook.both") : coldOpen ? t("hook.coldOpen") : hookOverlay ? t("hook.text") : t("hook.none");
+  const formatValue = `${ratio} · ${resolution}`;
+  const submitText = phase === "uploading" ? t("submit.uploading", { percent: sending?.percent ?? 0 })
+    : phase === "checking" ? t("submit.checking") : phase === "preparing" ? t("submit.preparing") : t("submit.idle");
+  const lookLabel = t("look.label", { ratio, layout: layoutName(renderMode), style: names.style[captionStyle] });
+  // Where the subtitle sits, and (only while the editor is on) that Edit klip changes it per clip.
+  const editorNote = !editorOn ? null : renderEngine === "legacy" ? t("look.legacyEditor") : t("look.editor");
+  const lookNote = [look.captionInZone ? t("look.inZone") : null, editorNote].filter(Boolean).join(" · ") || null;
+
+  const chips = {
+    count: (
+      <ChoiceChip {...chipProps("count")} label={t("chip.countLabel")} value={t("chip.count", { count: Number(limit) || 0 })} invalid={Boolean(problems.limit)}>
+        <div className={styles.field}>
+          <label htmlFor="clip-limit" className={styles.groupLabel}>{t("chip.countLabel")}</label>
+          <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min={CLIP_LIMITS.count.min} max={CLIP_LIMITS.count.max} step="1"
+            value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onKeyDown={enterSends}
+            onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit", "timeRanges"); }} />
+          <FieldError id={`${FIELD_IDS.limit}-error`} message={problem("limit")} />
+        </div>
+      </ChoiceChip>
+    ),
+    duration: (
+      <ChoiceChip {...chipProps("duration")} label={t("chip.durationLabel")} value={durationValue} text={t("chip.duration", { value: durationValue })}
+        invalid={Boolean(problems.minDuration || problems.maxDuration)}>
+        <Choices label={t("chip.durationLabel")} value={duration}
+          onChange={(id) => { updateChoices(withDuration(choices, id)); clearProblem("minDuration", "maxDuration"); }}
+          options={DURATION_PRESETS.map((entry) => ({ id: entry.id, name: entry.id === "custom" ? names.duration.custom : `${names.duration[entry.id]} · ${t("chip.seconds", { min: entry.min, max: entry.max })}` }))} />
+        {duration === "custom" && (
+          <div className={styles.numbers}>
+            <div className={styles.field}>
+              <label htmlFor="min-duration" className={styles.groupLabel}>{t("duration.min")}</label>
+              <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max}
+                value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration")} onKeyDown={enterSends}
+                onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration", "maxDuration"); }} />
+              <FieldError id={`${FIELD_IDS.minDuration}-error`} message={problem("minDuration")} />
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="max-duration" className={styles.groupLabel}>{t("duration.max")}</label>
+              <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max}
+                value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration")} onKeyDown={enterSends}
+                onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
+              <FieldError id={`${FIELD_IDS.maxDuration}-error`} message={problem("maxDuration")} />
+            </div>
+          </div>
+        )}
+      </ChoiceChip>
+    ),
+    format: (
+      <ChoiceChip {...chipProps("format")} label={t("chip.formatLabel")} value={formatValue}>
+        <Segmented label={t("format.ratio")} value={ratio} onChange={(id) => updateChoices({ ratio: id })} options={RATIO_CHOICES} />
+        <Segmented label={t("format.resolution")} value={resolution} onChange={(id) => updateChoices({ resolution: id })} options={RESOLUTION_CHOICES} />
+      </ChoiceChip>
+    ),
+    layout: (
+      <ChoiceChip {...chipProps("layout")} label={t("chip.layoutLabel")} value={layoutName(renderMode)} text={t("chip.layout", { value: layoutName(renderMode) })}>
+        <Choices label={t("chip.layoutLabel")} value={renderMode} onChange={(id) => updateChoices({ renderMode: id })}
+          options={LAYOUT_CHOICES.map((entry) => ({
+            id: entry.id,
+            name: layoutName(entry.id),
+            media: <span className={`${styles.frame} ${styles[entry.id]} ${ratio === "1:1" ? styles.squareFrame : ""}`} aria-hidden="true"><i /></span>,
+          }))} />
+      </ChoiceChip>
+    ),
+    subtitle: (
+      <ChoiceChip {...chipProps("subtitle")} label={t("chip.subtitleLabel")} value={names.style[captionStyle]} text={t("chip.subtitle", { value: names.style[captionStyle] })}>
+        <div className={styles.look}>
+          <LookPreview look={look} label={lookLabel} zoneText={t("look.zone")} />
+          <Choices label={t("chip.subtitleLabel")} value={captionStyle} onChange={(id) => updateChoices({ captionStyle: id })} className={styles.styles}
+            describedBy={lookNote ? "caption-style-help" : undefined}
+            options={offered.styles.map((style) => ({
+              id: style.id,
+              name: names.style[style.id],
+              media: <img className={styles.thumb} src={imageSrc(PACK_IMAGES[style.id])} width={160} height={40} alt="" draggable={false} />,
+            }))} />
+        </div>
+        {lookNote && <span id="caption-style-help" className={styles.hint}>{lookNote}</span>}
+        {(offered.positions || offered.sizes) && (
+          <details className={styles.advanced}>
+            <summary>{t("look.advanced", { position: names.position[captionPosition], size: names.size[captionSize] })}</summary>
+            <div className={styles.advancedBody}>
+              {offered.positions && (
+                <Segmented label={t("look.position")} value={captionPosition} onChange={(id) => updateChoices({ captionPosition: id })}
+                  options={offered.positions.map((spot) => ({ id: spot.id, name: names.position[spot.id] }))} />
+              )}
+              {offered.sizes && (
+                <Segmented label={t("look.size")} value={captionSize} onChange={(id) => updateChoices({ captionSize: id })}
+                  options={offered.sizes.map((size) => ({ id: size.id, name: names.size[size.id] }))} />
+              )}
+            </div>
+          </details>
+        )}
+      </ChoiceChip>
+    ),
+    hook: (
+      <ChoiceChip {...chipProps("hook")} label={t("chip.hookLabel")} value={hookValue} text={t("chip.hook", { value: hookValue })}>
+        <OnOff selected={coldOpen} onChange={(on) => updateChoices({ coldOpen: on })}>{t("hook.coldOpen")}</OnOff>
+        <OnOff selected={hookOverlay} onChange={(on) => updateChoices({ hookOverlay: on })}>{t("hook.text")}</OnOff>
+      </ChoiceChip>
+    ),
+    focus: (
+      <ChoiceChip {...chipProps("focus")} label={t("chip.focus")} value={guided ? t("chip.focusCount", { count: guided }) : t("chip.focusAuto")}
+        text={guided ? `${t("chip.focus")} · ${guided}` : t("chip.focus")} invalid={Boolean(problems.timeRanges || focusError)}>
+        <FocusField terms={focusTerms} draft={focusDraft} note={focusNote} error={focusError} aiMode={aiMode}
+          onTermsChange={setFocusTerms} onDraftChange={setFocusDraft} onNoteChange={setFocusNote} onErrorChange={setFocusError} />
+        <div className={styles.field}>
+          <label htmlFor="time-ranges" className={styles.groupLabel}>{t("focus.ranges")}</label>
+          <textarea id="time-ranges" className={`${styles.input} ${styles.ranges}`} rows={2} value={timeRanges} autoComplete="off" spellCheck={false}
+            placeholder="10.30-12.05, 1:02:10-1:03:00" aria-invalid={problems.timeRanges ? "true" : undefined}
+            aria-describedby={describedBy("timeRanges", "time-ranges-help")}
+            onChange={(event) => { setTimeRanges(event.target.value); clearProblem("timeRanges"); }} />
+          <span id="time-ranges-help" className={styles.hint}>{t("focus.rangesHint", { min: CLIP_LIMITS.seconds.min, max: CLIP_LIMITS.seconds.max })}</span>
+          <FieldError id={`${FIELD_IDS.timeRanges}-error`} message={problem("timeRanges")} />
+        </div>
+      </ChoiceChip>
+    ),
+    language: (
+      <ChoiceChip {...chipProps("language")} label={t("chip.languageLabel")} value={names.language[videoLanguage]}>
+        <Choices label={t("chip.languageLabel")} value={videoLanguage} onChange={(id) => updateChoices({ videoLanguage: id })}
+          options={VIDEO_LANGUAGE_CHOICES.map((language) => ({ id: language.id, name: names.language[language.id] }))} />
+      </ChoiceChip>
+    ),
+  };
 
   return (
     <AppShell current="/dashboard">
+      <div className={`shell ${styles.page}`}>
+        <PageHead title={t("title")} id="create-title" />
 
-      <header className="shell pageHead">
-        <div>
-          <h1>Buat klip</h1>
-          <p>Tempel link YouTube atau pilih video, cek jumlah dan durasinya, lalu tekan Buat klip.</p>
-        </div>
-      </header>
-
-      {storageView && storage.warning && (
-        <div className={`shell ${styles.banner} ${storage.unavailable ? styles.bannerWarning : styles.bannerDanger}`} role="alert">
-          <div>
-            <strong>{storageBlocked ? "Job baru dihentikan sementara" : "Status penyimpanan belum tersedia"}</strong>
-            <span>{storageMessage(storage.admission.code)}</span>
-          </div>
-          <div className={styles.bannerActions}>
-            <a className="btn ghost" href={storageHelpHref(storage.admission.code) || storageHelpHref("storage_admission_unavailable")}>Cara memperbaiki</a>
-            <button type="button" className="btn" onClick={refreshStorageStatus}>Periksa lagi</button>
-          </div>
-        </div>
-      )}
-
-      <div className={`shell ${styles.workspace}`}>
-        <form className={`panel ${styles.form} ${dragging ? styles.dragging : ""}`} onSubmit={submit} noValidate aria-label="Buat klip">
-          <div className={styles.source}>
-            <div className={styles.sourceRow}>
-              {video ? (
-                <div className={styles.fileBox}>
-                  <span title={video.name}>{video.name}</span>
-                  <button type="button" aria-label={`Hapus file ${video.name}`} onClick={clearVideo}>×</button>
-                </div>
-              ) : (
-                <>
-                  <label htmlFor="youtube-url" className="visuallyHidden">Link video</label>
-                  <input
-                    id="youtube-url"
-                    className={`${styles.input} ${styles.url}`}
-                    type="url"
-                    inputMode="url"
-                    autoComplete="off"
-                    placeholder="Tempel link YouTube"
-                    value={youtubeUrl}
-                    aria-invalid={problems.youtubeUrl ? "true" : undefined}
-                    aria-describedby={describedBy("youtubeUrl", "source-help")}
-                    onChange={(event) => { setYoutubeUrl(event.target.value); clearProblem("youtubeUrl"); }}
-                  />
-                </>
-              )}
-              <label className={`btn ${styles.pick} ${problems.video ? styles.pickInvalid : ""}`}>
-                <input
-                  id="video-file"
-                  type="file"
-                  accept="video/mp4,video/quicktime,video/webm,.mkv,.m4v"
-                  aria-invalid={problems.video ? "true" : undefined}
-                  aria-describedby={describedBy("video", "source-help")}
-                  onChange={(event) => { chooseVideo(event.target.files?.[0] || null); event.target.value = ""; }}
-                />
-                {video ? "Ganti file" : "Pilih file"}
-              </label>
-              <button type="submit" className={styles.submit} disabled={submitting || storageBlocked} aria-describedby="job-summary">{submitting ? "Membuat job…" : "Buat klip"}</button>
+        {storageView && storage.warning && (
+          <Alert status={storageBlocked ? "danger" : "warning"} className={styles.alert} role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{storageBlocked ? t("storage.blocked") : t("storage.unknown")}</Alert.Title>
+              <Alert.Description>{errorText(tErrors, { messageId: `storage.${storage.admission.code}`, legacyText: storageMessage(storage.admission.code) })}</Alert.Description>
+            </Alert.Content>
+            <div className={styles.alertActions}>
+              <a className={styles.textLink} href={storageHelpHref(storage.admission.code) || storageHelpHref("storage_admission_unavailable")}>{t("help")}</a>
+              <Button variant="secondary" onPress={() => storageRecovery.current?.retry()}>{t("storage.check")}</Button>
             </div>
-            <FieldError id="youtube-url-error" message={problems.youtubeUrl} />
-            <FieldError id="video-file-error" message={problems.video} />
-            <p id="source-help" className={styles.help}>
-              {dragging ? (video ? "Lepaskan: video jadi sumber, file .srt jadi subtitle." : "Lepaskan untuk memakai file ini.") : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, atau tarik ke halaman ini."}
-            </p>
+          </Alert>
+        )}
+        {ai && (
+          <Alert status="warning" className={styles.alert}>
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{ai === "missing" ? t("ai.missing") : t("ai.notReady")}</Alert.Title>
+            </Alert.Content>
+            <div className={styles.alertActions}>
+              <a className={styles.textLink} href="/settings#ai">{t("ai.setup")}</a>
+            </div>
+          </Alert>
+        )}
+
+        <form ref={formRef} className={styles.composer} data-dragging={dragging || undefined} onSubmit={submit} noValidate aria-labelledby="create-title">
+          <div className={styles.sourceRow}>
+            {video ? (
+              <div className={styles.fileBox}>
+                <span title={video.name}>{video.name}</span>
+                <button type="button" className={styles.remove} aria-label={t("source.remove", { name: video.name })} onClick={clearVideo}>×</button>
+              </div>
+            ) : (
+              <div className={styles.linkField}>
+                <label htmlFor="youtube-url" className="visuallyHidden">{t("source.link")}</label>
+                <input id="youtube-url" className={`${styles.input} ${styles.url}`} type="url" inputMode="url" autoComplete="off" enterKeyHint="go"
+                  placeholder={t("source.link")} value={youtubeUrl} aria-invalid={problems.youtubeUrl ? "true" : undefined}
+                  aria-describedby={describedBy("youtubeUrl")}
+                  onChange={(event) => { setYoutubeUrl(event.target.value); clearProblem("youtubeUrl"); }} />
+              </div>
+            )}
+            <Button type="submit" variant="primary" className={styles.submit} isPending={sending !== null} isDisabled={storageBlocked}
+              aria-describedby={message ? "submit-message" : undefined}>
+              {submitText}
+            </Button>
+          </div>
+          <FieldError id={`${FIELD_IDS.youtubeUrl}-error`} message={problem("youtubeUrl")} />
+
+          <div className={styles.fileRow}>
+            <label className={styles.pick} data-invalid={problems.video ? "true" : undefined}>
+              <input id="video-file" type="file" accept="video/mp4,video/quicktime,video/webm,.mkv,.m4v"
+                aria-invalid={problems.video ? "true" : undefined} aria-describedby={describedBy("video")}
+                onChange={(event) => { chooseVideo(event.target.files?.[0] || null); event.target.value = ""; }} />
+              {video ? t("source.replace") : t("source.file")}
+            </label>
             {video && (
-              <div className={styles.subtitleRow}>
+              <>
                 {subtitle && (
                   <div className={styles.fileBox}>
                     <span title={subtitle.name}>{subtitle.name}</span>
-                    <button type="button" aria-label={`Hapus subtitle ${subtitle.name}`} onClick={clearSubtitle}>×</button>
+                    <button type="button" className={styles.remove} aria-label={t("source.remove", { name: subtitle.name })} onClick={clearSubtitle}>×</button>
                   </div>
                 )}
-                <label className={`btn ghost ${styles.pick} ${problems.subtitle ? styles.pickInvalid : ""}`}>
-                  <input
-                    id="subtitle-file"
-                    type="file"
-                    accept=".srt,application/x-subrip"
-                    aria-invalid={problems.subtitle ? "true" : undefined}
-                    aria-describedby={describedBy("subtitle", "subtitle-help")}
-                    onChange={(event) => { chooseSubtitle(event.target.files?.[0] || null); event.target.value = ""; }}
-                  />
-                  {subtitle ? "Ganti .srt" : "Tambah subtitle .srt"}
+                <label className={styles.pick} data-invalid={problems.subtitle ? "true" : undefined}>
+                  <input id="subtitle-file" type="file" accept=".srt,application/x-subrip"
+                    aria-invalid={problems.subtitle ? "true" : undefined} aria-describedby={describedBy("subtitle")}
+                    onChange={(event) => { chooseSubtitle(event.target.files?.[0] || null); event.target.value = ""; }} />
+                  {subtitle ? t("source.replaceSrt") : t("source.srt")}
                 </label>
-              </div>
+              </>
             )}
-            {video && <FieldError id="subtitle-file-error" message={problems.subtitle} />}
-            {video && <p id="subtitle-help" className={styles.help}>Opsional. Kalau ada, transkrip diambil dari file .srt ini, bukan dari audio. Maksimal 2 MB, UTF-8.</p>}
-            {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}{message.help && " "}{message.help && <a className={styles.messageLink} href={message.help}>Cara memperbaiki</a>}</p>}
+            {reupload && !video && <span className={styles.hint}>{t("source.reupload")}</span>}
+          </div>
+          <FieldError id={`${FIELD_IDS.video}-error`} message={problem("video")} />
+          {video && <FieldError id={`${FIELD_IDS.subtitle}-error`} message={problem("subtitle")} />}
+
+          <div className={styles.chips} role="group" aria-label={t("chip.group")}>
+            {CHIPS.map((id) => <div key={id} className={styles.chipSlot}>{chips[id]}</div>)}
           </div>
 
-          <p id="job-summary" className="visuallyHidden">Job berikutnya: {summary}</p>
-          <p className={`${styles.aiStatus} ${styles[ai.tone] || ""}`} role="status">
-            <i aria-hidden="true" />
-            <span>{ai.text}</span>
-            <a href="/settings">Atur AI</a>
-          </p>
-
-          <section className={`${styles.section} ${styles.basics}`} aria-labelledby="clips-title">
-            <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
-            <div className={styles.basicsRow}>
-              <div className={`${styles.field} ${styles.limitField}`}>
-                <label htmlFor="clip-limit">Jumlah klip</label>
-                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min={CLIP_LIMITS.count.min} max={CLIP_LIMITS.count.max} step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); clearProblem("timeRanges"); }} />
-                <FieldError id="clip-limit-error" message={problems.limit} />
-              </div>
-              <fieldset className={`${styles.group} ${styles.ratioGroup}`} aria-describedby="format-help">
-                <legend className={styles.groupTitle}>Rasio</legend>
-                <div className={styles.pills}>
-                  {RATIO_CHOICES.map((entry) => (
-                    <label key={entry.id} className={`${styles.pill} ${ratio === entry.id ? styles.selected : ""}`}>
-                      <input type="radio" name="ratio" value={entry.id} checked={ratio === entry.id} onChange={() => updateChoices({ ratio: entry.id })} />
-                      <strong>{entry.name}</strong>
-                      <small>{entry.tall ? "TikTok, Reels, Shorts" : "Feed"}</small>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+          {message && (
+            <div id="submit-message" className={styles.submitError} role="alert">
+              <span>{message.text}</span>
+              {message.help && <a className={styles.textLink} href={message.help}>{t("help")}</a>}
+              {message.project && <a className={styles.textLink} href={message.project}>{t("openProject")}</a>}
             </div>
-            <fieldset className={styles.group}>
-              <legend className={styles.groupTitle}>Durasi klip</legend>
-              <div className={styles.pills}>
-                {DURATION_PRESETS.map((preset) => (
-                  <label key={preset.id} className={`${styles.pill} ${duration === preset.id ? styles.selected : ""}`}>
-                    <input type="radio" name="duration" value={preset.id} checked={duration === preset.id} onChange={() => { updateChoices(withDuration(choices, preset.id)); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
-                    <strong>{preset.name}</strong>
-                    <small>{preset.id === "custom" ? "Isi detiknya" : `${preset.min}–${preset.max} detik`}</small>
-                  </label>
-                ))}
-              </div>
-              {duration === "custom" && (
-                <div className={styles.numbers}>
-                  <div className={styles.field}>
-                    <label htmlFor="min-duration">Durasi minimum</label>
-                    <div className={styles.unit}>
-                      <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
-                      <span aria-hidden="true">detik</span>
-                    </div>
-                    <FieldError id="min-duration-error" message={problems.minDuration} />
-                  </div>
-                  <div className={styles.field}>
-                    <label htmlFor="max-duration">Durasi maksimum</label>
-                    <div className={styles.unit}>
-                      <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
-                      <span aria-hidden="true">detik</span>
-                    </div>
-                    <FieldError id="max-duration-error" message={problems.maxDuration} />
-                  </div>
-                  <p id="duration-unit" className="visuallyHidden">Dalam detik, {CLIP_LIMITS.seconds.min} sampai {CLIP_LIMITS.seconds.max}.</p>
-                </div>
-              )}
-            </fieldset>
-            <fieldset className={styles.group}>
-              <legend className={styles.groupTitle}>Layout</legend>
-              <div className={`${styles.choices} ${styles.layouts} ${ratio === "1:1" ? styles.squareFrames : ""}`}>
-                {LAYOUT_CHOICES.map((layout) => (
-                  <label key={layout.id} className={`${styles.choice} ${renderMode === layout.id ? styles.selected : ""}`}>
-                    <input type="radio" name="renderMode" value={layout.id} checked={renderMode === layout.id} onChange={() => updateChoices({ renderMode: layout.id })} />
-                    <span className={`${styles.frame} ${styles[layout.id]}`} aria-hidden="true"><i /></span>
-                    <span className={styles.choiceText}><strong>{layout.name}</strong><small>{layout.description}</small></span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <p id="format-help" className={styles.help}>9:16 untuk TikTok, Reels dan Shorts, 1:1 untuk feed. Layout lain, seperti layar terbagi, diatur per klip di editor.</p>
-          </section>
-
-          <Fold id="look" summary={foldSummary("look")} open={sectionOpen("look")} onToggle={() => toggleSection("look")}>
-            <div className={lookStyles.look}>
-              <LookPreview look={look} />
-              <div className={lookStyles.controls}>
-                <fieldset className={styles.group} aria-describedby={look.note ? "caption-style-help" : undefined}>
-                  <legend className={styles.groupTitle}>Gaya subtitle</legend>
-                  <div className={`${styles.choices} ${lookStyles.styles}`}>
-                    {offered.styles.map((style) => (
-                      <label key={style.id} className={`${styles.choice} ${styles.compact} ${lookStyles.style} ${captionStyle === style.id ? styles.selected : ""}`}>
-                        <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => updateChoices({ captionStyle: style.id })} />
-                        <img className={lookStyles.thumb} src={imageSrc(PACK_IMAGES[style.id])} width={160} height={40} alt="" draggable={false} />
-                        <span className={styles.choiceText}><strong>{style.name}</strong><small>{style.description}</small></span>
-                      </label>
-                    ))}
-                  </div>
-                  {look.note && <p id="caption-style-help" className={styles.help}>{look.note}</p>}
-                </fieldset>
-                {(offered.positions || offered.sizes) && (
-                  <div className={lookStyles.spots}>
-                    {offered.positions && (
-                      <fieldset className={styles.group}>
-                        <legend className={styles.groupTitle}>Posisi subtitle</legend>
-                        <div className={`${styles.pills} ${lookStyles.spotPills}`}>
-                          {offered.positions.map((spot) => (
-                            <label key={spot.id} className={`${styles.pill} ${captionPosition === spot.id ? styles.selected : ""}`}>
-                              <input type="radio" name="captionPosition" value={spot.id} checked={captionPosition === spot.id} onChange={() => updateChoices({ captionPosition: spot.id })} />
-                              <strong>{spot.name}</strong>
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-                    )}
-                    {offered.sizes && (
-                      <fieldset className={styles.group}>
-                        <legend className={styles.groupTitle}>Ukuran subtitle</legend>
-                        <div className={`${styles.pills} ${lookStyles.spotPills}`}>
-                          {offered.sizes.map((size) => (
-                            <label key={size.id} className={`${styles.pill} ${captionSize === size.id ? styles.selected : ""}`}>
-                              <input type="radio" name="captionSize" value={size.id} checked={captionSize === size.id} onChange={() => updateChoices({ captionSize: size.id })} />
-                              <strong>{size.name}</strong>
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-                    )}
-                  </div>
-                )}
-                <div className={styles.toggles}>
-                  <label className={styles.toggle}>
-                    <input type="checkbox" checked={coldOpen} onChange={(event) => updateChoices({ coldOpen: event.target.checked })} />
-                    <span className={styles.choiceText}><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal.</small></span>
-                  </label>
-                  <label className={styles.toggle}>
-                    <input type="checkbox" checked={hookOverlay} onChange={(event) => updateChoices({ hookOverlay: event.target.checked })} />
-                    <span className={styles.choiceText}><strong>Teks hook di 4 detik pertama</strong><small>Kalimat pemancing singkat di bagian atas layar.</small></span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </Fold>
-
-          <Fold id="moments" summary={foldSummary("moments")} open={sectionOpen("moments")} onToggle={() => toggleSection("moments")}>
-            <FocusField
-              terms={focusTerms}
-              draft={focusDraft}
-              note={focusNote}
-              error={focusError}
-              aiMode={aiMode}
-              onTermsChange={setFocusTerms}
-              onDraftChange={setFocusDraft}
-              onNoteChange={setFocusNote}
-              onErrorChange={setFocusError}
-            />
-            <div className={styles.field}>
-              <label htmlFor="time-ranges">Rentang waktu (opsional)</label>
-              <textarea
-                id="time-ranges"
-                className={`${styles.input} ${styles.ranges}`}
-                rows={2}
-                value={timeRanges}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="contoh: 10.30-12.05, 1:02:10-1:03:00"
-                aria-invalid={problems.timeRanges ? "true" : undefined}
-                aria-describedby={describedBy("timeRanges", "time-ranges-help")}
-                onChange={(event) => { setTimeRanges(event.target.value); clearProblem("timeRanges"); }}
-              />
-              <p id="time-ranges-help" className={styles.help}>Tiap rentang jadi satu klip apa adanya; sisa slot diisi momen terbaik lain. Pisahkan dengan koma atau baris baru, {CLIP_LIMITS.seconds.min}–{CLIP_LIMITS.seconds.max} detik per rentang.</p>
-              <FieldError id="time-ranges-error" message={problems.timeRanges} />
-            </div>
-            <p className={styles.help}>Tren yang aktif di <a className={styles.inlineLink} href="/trends">Konteks Tren</a> ikut dipakai kalau transkrip menyebutnya.</p>
-          </Fold>
-
-          <Fold id="format" summary={foldSummary("format")} open={sectionOpen("format")} onToggle={() => toggleSection("format")}>
-            <fieldset className={styles.group} aria-describedby="language-help">
-              <legend className={styles.groupTitle}>Bahasa video</legend>
-              <div className={styles.pills}>
-                {VIDEO_LANGUAGE_CHOICES.map((language) => (
-                  <label key={language.id} className={`${styles.pill} ${videoLanguage === language.id ? styles.selected : ""}`}>
-                    <input type="radio" name="videoLanguage" value={language.id} checked={videoLanguage === language.id} onChange={() => updateChoices({ videoLanguage: language.id })} />
-                    <strong>{language.name}</strong>
-                  </label>
-                ))}
-              </div>
-              <p id="language-help" className={styles.help}>Bahasa yang diucapkan di video, untuk transkrip dan subtitle.</p>
-            </fieldset>
-            <fieldset className={styles.group} aria-describedby="resolution-help">
-              <legend className={styles.groupTitle}>Resolusi</legend>
-              <div className={styles.pills}>
-                {RESOLUTION_CHOICES.map((entry) => (
-                  <label key={entry.id} className={`${styles.pill} ${resolution === entry.id ? styles.selected : ""}`}>
-                    <input type="radio" name="resolution" value={entry.id} checked={resolution === entry.id} onChange={() => updateChoices({ resolution: entry.id })} />
-                    <strong>{entry.name}</strong>
-                  </label>
-                ))}
-              </div>
-              <p id="resolution-help" className={styles.help}>1080p lebih tajam, tapi render lebih lama dan file lebih besar.</p>
-            </fieldset>
-          </Fold>
+          )}
+          {dragging && <div className={styles.dropOverlay} aria-hidden="true"><span>{t("source.drop")}</span></div>}
         </form>
 
-        <aside ref={resultsRef} className={`panel ${styles.results}`} aria-labelledby="results-title">
-          <div className={styles.resultsHead}>
-            <h2 id="results-title">Hasil</h2>
-            <a href="/projects">Semua riwayat</a>
-          </div>
-
-          {jobsState === "loading" && !activeJob && (
-            <div className={styles.state} role="status"><strong>Memuat job terakhir…</strong></div>
-          )}
-          {jobsState === "error" && !activeJob && (
-            <div className={styles.state} role="alert">
-              <strong>Job terakhir tidak bisa dimuat.</strong>
-              <p>Periksa koneksi ke server, lalu muat ulang.</p>
-              <button type="button" className="btn" onClick={() => { setJobsState("loading"); void refreshJobs().catch(() => {}); }}>Muat ulang</button>
-            </div>
-          )}
-          {jobsState === "ready" && !activeJob && (
-            <div className={styles.state}>
-              <strong>Belum ada job</strong>
-              <p>Isi form lalu tekan Buat klip. Progres dan klipnya muncul di sini.</p>
-            </div>
-          )}
-
-          {activeJob && (
-            <div className={styles.job}>
-              <div className={`${styles.jobState} ${styles[activeJob.status] || ""}`}>
-                <div>
-                  <small title={jobSourceLabel(activeJob)}>{jobSourceLabel(activeJob)}</small>
-                  <strong id="job-state" tabIndex={-1}>
-                    {jobStageText(activeJob)}
-                    {jobStepText(activeJob) && <span className={styles.jobStep}>{jobStepText(activeJob)}</span>}
-                  </strong>
-                </div>
-                {jobPercentText(activeJob) && <b>{jobPercentText(activeJob)}</b>}
-              </div>
-              <div className={`${styles.progress} ${jobFinished(activeJob) ? styles.progressDone : ""} ${activeJob.status === "failed" ? styles.progressFailed : ""} ${activeJob.status === "cancelled" ? styles.progressCancelled : ""}`} role="progressbar" aria-label="Progres job" aria-valuemin="0" aria-valuemax="100" aria-valuenow={activeJob.progress || 0}><i style={{ width: `${activeJob.progress || 0}%` }} /></div>
-              {!jobFinished(activeJob) && (
-                <div className={styles.activityRow}>
-                  <p className={`${styles.activity} ${activeJob.status === "queued" ? styles.queued : ""}`} role="status" aria-live="polite"><i aria-hidden="true" /><span>{jobActivityText(activeJob)}</span></p>
-                  {jobCancellable(activeJob) && <CancelJob key={activeJob.id} job={activeJob} next="/dashboard" onSettled={settleCancel} />}
-                </div>
-              )}
-              {cancelNote?.id === activeJob.id && <p className={styles.waiting} role="status">{cancelNote.text}</p>}
-              <StageSummary job={activeJob} />
-              {languageNotice && <p className={`notice ${languageNotice.tone} ${styles.languageNotice}`}>{languageNotice.text}</p>}
-              {failure && (
-                <div className={styles.failure} role="alert">
-                  <strong>{failure.text}</strong>
-                  {failure.hint && <span>{failure.hint}</span>}
-                  {failure.detail && (
-                    <details>
-                      <summary>Detail teknis</summary>
-                      <p>{failure.detail}</p>
-                    </details>
-                  )}
-                  {failureHelp && <a className={styles.failureLink} href={failureHelp}>Cara memperbaiki</a>}
-                </div>
-              )}
-              <div className={styles.clips}>
-                {activeJob.clips?.map((clip) => (
-                  <ClipCard key={clip.index} clip={clip} copied={copied?.key === `${activeJob.id}-${clip.index}` ? copied.result : null} onCopy={() => copyCaption(clip)} />
-                ))}
-              </div>
-              {!activeJob.clips?.length && !failure && (
-                <p className={styles.waiting}>{jobWaitingText(activeJob)}</p>
-              )}
-              <a className={styles.projectLink} href={`/projects/${activeJob.id}`}>Buka proyek</a>
-              <p className="visuallyHidden" role="status">{copied?.result === "ok" ? `Caption klip ${copied.index} tersalin.` : ""}</p>
-            </div>
-          )}
-
-          {jobs.length > 1 && (
-            <section className={styles.history} aria-labelledby="history-title">
-              <h3 id="history-title">Job terakhir</h3>
-              <ul>
-                {jobs.slice(0, 8).map((job) => (
-                  <li key={job.id}>
-                    <button type="button" aria-pressed={job.id === activeId} onClick={() => setActiveId(job.id)}>
-                      <span>{jobSourceLabel(job)}</span>
-                      <b className={styles[`status_${job.status}`]}>{JOB_STATUS_LABELS[job.status] || "Memproses"}</b>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </aside>
+        <RecentProjects recent={recent} onRetry={() => { setRecent({ state: "loading", jobs: [] }); void loadRecent(); }} />
       </div>
     </AppShell>
   );

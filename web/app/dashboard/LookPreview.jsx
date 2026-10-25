@@ -1,14 +1,14 @@
-// The 9:16 or 1:1 preview under "Tampilan klip" (lib/look-preview.mjs). One SVG in output pixels, so
-// every spot scales with the frame. The subtitle is its pack's FFmpeg thumbnail at the job's spot
-// and size; the filter keys out the backdrop it was rendered on (CAPTION_KEY), so over the picture
-// it shows only the pack's own ink. The note on where the subtitle sits is the page's, under the
-// subtitle styles.
+// The 9:16 or 1:1 preview in the Subtitle chip of Buat klip (lib/look-preview.mjs). One SVG in
+// output pixels, so every spot scales with the frame. The subtitle is its pack's FFmpeg thumbnail
+// at the job's spot and size; the filter keys out the backdrop it was rendered on (CAPTION_KEY),
+// so over the picture it shows only the pack's own ink. The page passes the accessible name and
+// the TikTok zone's key in the UI language.
 import { PACK_IMAGES, imageSrc } from "../../components/editor/panels/pack-images.js";
 import { PREVIEW_BACKDROP, PREVIEW_PICTURE } from "../../lib/editor/content-colours.mjs";
 import { CAPTION_KEY } from "../../lib/look-preview.mjs";
 import styles from "./look.module.css";
 
-export default function LookPreview({ look }) {
+export default function LookPreview({ look, label, zoneText }) {
   const { frame, picture, caption, hook, zone } = look;
   const { w, h } = frame;
   const middle = h - zone.top - zone.bottom;
@@ -20,7 +20,7 @@ export default function LookPreview({ look }) {
           style={{ aspectRatio: `${w} / ${h}` }}
           viewBox={`0 0 ${look.frame.w} ${look.frame.h}`}
           role="img"
-          aria-label={look.label}
+          aria-label={label}
           focusable="false"
           data-look-preview=""
           data-layout={picture.mode}
@@ -67,7 +67,7 @@ export default function LookPreview({ look }) {
           )}
         </svg>
       </div>
-      {look.tiktok && <figcaption className={styles.key}><i aria-hidden="true" />Area tombol TikTok</figcaption>}
+      {look.tiktok && <figcaption className={styles.key}><i aria-hidden="true" />{zoneText}</figcaption>}
     </figure>
   );
 }

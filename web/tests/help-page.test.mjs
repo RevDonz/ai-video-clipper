@@ -48,9 +48,9 @@ test("the project page, the dashboard and the settings test result link their er
   assert.match(project, /const help = jobHelpHref\(job\);/);
   assert.match(project, /\{help && <a [^>]*href=\{help\}/);
   assert.match(project, /\{notice\.help && <a [^>]*href=\{notice\.help\}/);
+  // Buat klip shows no job (its failure is on the project page); it links storage and submit errors.
   const dashboard = await read("app/dashboard/page.jsx");
-  assert.match(dashboard, /const failureHelp = jobHelpHref\(activeJob\);/);
-  assert.match(dashboard, /\{failureHelp && <a [^>]*href=\{failureHelp\}/);
+  assert.doesNotMatch(dashboard, /activeJob/);
   assert.match(dashboard, /storageHelpHref\(storage\.admission\.code\)/);
   assert.match(dashboard, /help: storageHelpHref\(payload\.code\)/);
   assert.match(dashboard, /message\.help && <a [^>]*href=\{message\.help\}/);

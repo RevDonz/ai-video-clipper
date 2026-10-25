@@ -102,9 +102,13 @@ test("the version guard catches 'editor lama/baru' and 'tampilan lama/baru' in s
 });
 
 test("the version guard reads the real pages: JSX text and strings are seen, comments are not", async () => {
+  // Buat klip's copy is in the catalog now; the licence page still writes its JSX text.
   const source = await readFile(path.join(WEB, "app/dashboard/page.jsx"), "utf8");
   const segments = jsSegments(source);
-  assert.ok(segments.some((segment) => segment.kind === "code" && /Unduh MP4/.test(segment.text)), "JSX text");
+  assert.ok(segments.some((segment) => segment.kind === "code" && /<PageHead title=/.test(segment.text)), "JSX");
+  assert.ok(segments.some((segment) => segment.kind === "string" && segment.text === "submit.idle"), "a catalog key");
+  const licences = jsSegments(await readFile(path.join(WEB, "app/licenses/page.jsx"), "utf8"));
+  assert.ok(licences.some((segment) => segment.kind === "code" && /<\/[a-z]+>/.test(segment.text) && /\p{L}{4,}/u.test(segment.text)), "JSX text");
   assert.ok(segments.some((segment) => segment.kind === "string" && segment.text === "use client"), "string literal");
   const stage = await readFile(path.join(WEB, "lib/stage-detail.mjs"), "utf8");
   assert.ok(!jsSegments(stage).some((segment) => /Kandidat bayangan/.test(segment.text)), "comments are dropped");

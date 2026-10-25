@@ -180,6 +180,17 @@ export function aiStatusView(status) {
 }
 
 /**
+ * The alert Buat klip shows about the AI, only when something needs doing (rombak 05 §2 P6):
+ * "missing" when no AI is set up, "notReady" when the set-up one cannot be used; null when it is
+ * active, deliberately off, still being read or unreadable (a job runs either way).
+ */
+export function aiAlert(status) {
+  if (status?.state === "unconfigured") return "missing";
+  if (status?.state === "unusable" || status?.state === "invalid") return "notReady";
+  return null;
+}
+
+/**
  * The mode the focus hints describe: "off" when the next job will pick moments without AI
  * (literal mentions only), else "auto". The worker decides at run time; this only words hints.
  */
@@ -189,47 +200,86 @@ export function focusAiMode(status) {
 
 // --- Form ------------------------------------------------------------------------------------
 
-export function durationProblem(minimum, maximum) {
+// The form's checks give codes (dashboard.problem.<code> in the catalog, rendered by the page);
+// the Indonesian texts below are what jobFormProblems() and the older callers read.
+const PROBLEM_TEXT = Object.freeze({
+  durationOrder: () => "Durasi maksimum tidak boleh kurang dari minimum.",
+  linkEmpty: () => "Tempel link YouTube atau pilih file video.",
+  linkInvalid: () => "Link harus https:// dari youtube.com atau youtu.be.",
+  videoMissing: () => "Pilih file video dulu.",
+  videoFormat: () => "Format tidak didukung. Pakai MP4, MOV, MKV atau WEBM.",
+  srtType: () => "Subtitle harus file .srt.",
+  srtEmpty: () => "File .srt kosong.",
+  srtTooLarge: () => "Subtitle .srt maksimal 2 MB.",
+  count: ({ min, max }) => `Isi ${min} sampai ${max} klip.`,
+  seconds: ({ min, max }) => `Isi ${min} sampai ${max} detik.`,
+});
+
+/** The Indonesian text of a problem descriptor `{code, values?, text?}`. */
+export function problemText(problem) {
+  if (!problem) return null;
+  if (typeof problem.text === "string") return problem.text;
+  return PROBLEM_TEXT[problem.code]?.(problem.values ?? {}) ?? null;
+}
+
+function durationOrderCode(minimum, maximum) {
   const min = Number(minimum);
   const max = Number(maximum);
-  if (Number.isFinite(min) && Number.isFinite(max) && min > max) return "Durasi maksimum tidak boleh kurang dari minimum.";
-  return null;
+  return Number.isFinite(min) && Number.isFinite(max) && min > max ? "durationOrder" : null;
+}
+
+export function durationProblem(minimum, maximum) {
+  const code = durationOrderCode(minimum, maximum);
+  return code ? problemText({ code }) : null;
 }
 
 // The job API accepts https links from these hosts only (lib/jobs.mjs YOUTUBE_HOSTS).
 const YOUTUBE_HOSTS = new Set(["youtu.be", "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"]);
 
-function youtubeUrlProblem(value) {
+/** "linkEmpty", "linkInvalid", or null for a link the job API takes. */
+export function youtubeUrlCode(value) {
   const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return "Tempel link YouTube atau pilih file video.";
+  if (!text) return "linkEmpty";
   try {
     const url = new URL(text);
     if (url.protocol === "https:" && YOUTUBE_HOSTS.has(url.hostname.toLowerCase())) return null;
   } catch {
-    // Not a URL at all: same message.
+    // Not a URL at all: same code.
   }
-  return "Link harus https:// dari youtube.com atau youtu.be.";
+  return "linkInvalid";
 }
 
 // The upload route takes these extensions only (app/api/jobs/route.js VIDEO_EXTENSIONS). A file
 // picked through "All files" or dropped on the page skips the input's accept list.
 const VIDEO_FILE = /\.(?:mp4|mov|mkv|webm|m4v)$/i;
 
+/** "videoMissing", "videoFormat", or null for a file the upload route takes. */
+export function videoFileCode(file) {
+  if (!file) return "videoMissing";
+  return typeof file.name === "string" && VIDEO_FILE.test(file.name) ? null : "videoFormat";
+}
+
 /** Why `file` cannot be sent as the job's video, or null. */
 export function videoFileProblem(file) {
-  if (!file) return "Pilih file video dulu.";
-  return typeof file.name === "string" && VIDEO_FILE.test(file.name) ? null : "Format tidak didukung. Pakai MP4, MOV, MKV atau WEBM.";
+  const code = videoFileCode(file);
+  return code ? problemText({ code }) : null;
 }
 
 /**
- * Why `file` cannot go with the video as its subtitle, or null (also for no file). The job API
- * checks the content (lib/srt.mjs); this only catches what the browser already knows.
+ * "srtType", "srtEmpty", "srtTooLarge", or null (also for no file). The job API checks the
+ * content (lib/srt.mjs); this only catches what the browser already knows.
  */
-export function subtitleFileProblem(file) {
+export function subtitleFileCode(file) {
   if (!file) return null;
-  if (typeof file.name !== "string" || !/\.srt$/i.test(file.name)) return "Subtitle harus file .srt.";
-  if (!(file.size > 0)) return "File .srt kosong.";
-  return file.size > MAX_SUBTITLE_BYTES ? "Subtitle .srt maksimal 2 MB." : null;
+  if (typeof file.name !== "string" || !/\.srt$/i.test(file.name)) return "srtType";
+  if (!(file.size > 0)) return "srtEmpty";
+  return file.size > MAX_SUBTITLE_BYTES ? "srtTooLarge" : null;
+}
+
+/** Why `file` cannot go with the video as its subtitle, or null (also for no file). */
+export function subtitleFileProblem(file) {
+  const code = subtitleFileCode(file);
+  return code ? problemText({ code }) : null;
 }
 
 function inRange(value, minimum, maximum, integer = false) {
@@ -240,33 +290,33 @@ function inRange(value, minimum, maximum, integer = false) {
 }
 
 /**
- * Problems of the job form as { field: message }, empty when it can be sent. Mirrors the job
- * API's checks, so the owner sees Indonesian messages instead of the browser's.
+ * Problems of the job form as { field: {code, values?} }, empty when it can be sent. Mirrors the
+ * job API's checks. A time range problem carries the job API's own Indonesian `text` (lib/time-ranges.mjs).
  */
-export function jobFormProblems({ sourceType, youtubeUrl, video, subtitle = null, limit, minDuration, maxDuration, timeRanges = "" } = {}) {
+export function jobFormProblemCodes({ sourceType, youtubeUrl, video, subtitle = null, limit, minDuration, maxDuration, timeRanges = "" } = {}) {
   const problems = {};
+  const put = (field, code, values) => { if (code) problems[field] = values ? { code, values } : { code }; };
   if (sourceType === "upload") {
-    const problem = videoFileProblem(video);
-    if (problem) problems.video = problem;
-    const subtitleProblem = subtitleFileProblem(subtitle);
-    if (subtitleProblem) problems.subtitle = subtitleProblem;
+    put("video", videoFileCode(video));
+    put("subtitle", subtitleFileCode(subtitle));
   } else {
-    const problem = youtubeUrlProblem(youtubeUrl);
-    if (problem) problems.youtubeUrl = problem;
+    put("youtubeUrl", youtubeUrlCode(youtubeUrl));
   }
   const { count, seconds } = CLIP_LIMITS;
-  const secondsText = `Isi ${seconds.min} sampai ${seconds.max} detik.`;
-  if (!inRange(limit, count.min, count.max, true)) problems.limit = `Isi ${count.min} sampai ${count.max} klip.`;
-  if (!inRange(minDuration, seconds.min, seconds.max)) problems.minDuration = secondsText;
-  if (!inRange(maxDuration, seconds.min, seconds.max)) problems.maxDuration = secondsText;
-  if (!problems.minDuration && !problems.maxDuration) {
-    const order = durationProblem(minDuration, maxDuration);
-    if (order) problems.maxDuration = order;
-  }
+  const range = { min: seconds.min, max: seconds.max };
+  if (!inRange(limit, count.min, count.max, true)) put("limit", "count", { min: count.min, max: count.max });
+  if (!inRange(minDuration, seconds.min, seconds.max)) put("minDuration", "seconds", range);
+  if (!inRange(maxDuration, seconds.min, seconds.max)) put("maxDuration", "seconds", range);
+  if (!problems.minDuration && !problems.maxDuration) put("maxDuration", durationOrderCode(minDuration, maxDuration));
   // Rentang waktu: the job API's own check and message; the count only once it is a count.
   const ranges = timeRangesProblem(timeRanges, problems.limit ? null : Number(limit));
-  if (ranges) problems.timeRanges = ranges;
+  if (ranges) problems.timeRanges = { code: "ranges", text: ranges };
   return problems;
+}
+
+/** The same problems as { field: Indonesian message }. */
+export function jobFormProblems(fields = {}) {
+  return Object.fromEntries(Object.entries(jobFormProblemCodes(fields)).map(([field, problem]) => [field, problemText(problem)]));
 }
 
 /** The message for a refused job POST: storage codes by name, else the API's own Indonesian text. */

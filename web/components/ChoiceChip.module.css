@@ -1,0 +1,38 @@
+/* The valued chips of Buat klip (ChoiceChip.jsx). A chip is a quiet secondary button: its value
+   is the content, not decoration. An open chip and a chip with a field error are told apart by
+   the edge (text colour, danger), never by lime (P9). The popover is portalled, so the controls
+   inside it are styled from the page's own module and this file's .dialog. */
+
+.chip {
+  gap: 6px;
+  max-width: 100%;
+  padding-inline: 14px 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font: 600 14px/1.2 var(--font);
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.chip:hover { background: var(--surface-3); }
+.chip[aria-expanded="true"] { border-color: var(--text); background: var(--surface-3); }
+.chip[data-invalid] { border-color: var(--danger); }
+.text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chevron { flex: none; color: var(--text-muted); transition: transform var(--dur-2) var(--ease-out); }
+.chip[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+
+.popover {
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  border-radius: var(--radius-l);
+}
+.dialog {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip, .chevron { transition: none; }
+}

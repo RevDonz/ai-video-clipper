@@ -188,8 +188,11 @@ test("the preview of a 1:1 job is square, without the TikTok zone, with the 9:16
 test("the dashboard sends the output size and offers Rasio and Resolusi", () => {
   const page = read("web", "app", "dashboard", "page.jsx");
   assert.match(page, /data\.set\("outputSize", outputSizeOf\(choices\)\)/);
-  assert.match(page, /<legend className=\{styles\.groupTitle\}>Rasio<\/legend>/);
-  assert.match(page, /<legend className=\{styles\.groupTitle\}>Resolusi<\/legend>/);
+  // The Format chip (05 §6.3): Rasio and Resolusi as two labelled one-of switches.
+  assert.match(page, /<Segmented label=\{t\("format\.ratio"\)\} value=\{ratio\} onChange=\{\(id\) => updateChoices\(\{ ratio: id \}\)\} options=\{RATIO_CHOICES\} \/>/);
+  assert.match(page, /<Segmented label=\{t\("format\.resolution"\)\} value=\{resolution\} onChange=\{\(id\) => updateChoices\(\{ resolution: id \}\)\} options=\{RESOLUTION_CHOICES\} \/>/);
+  const id = JSON.parse(read("web", "messages", "id", "dashboard.json")).format;
+  assert.deepEqual([id.ratio, id.resolution], ["Rasio", "Resolusi"]);
 });
 
 // --- the editor at 1:1 ---------------------------------------------------------------------------
