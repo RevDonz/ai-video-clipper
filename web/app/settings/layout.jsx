@@ -8,5 +8,5 @@ export async function generateMetadata() {
 }
 
 export default function SettingsLayout({ children }) {
-  return <SegmentI18n namespaces={["settings"]}><ShellData {...shellData()}>{children}</ShellData></SegmentI18n>;
+  return <SegmentI18n namespaces={["settings", "errors.llm", "hints"]}><ShellData {...shellData()}>{children}</ShellData></SegmentI18n>;
 }

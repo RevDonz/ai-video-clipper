@@ -8,5 +8,5 @@ export async function generateMetadata() {
 }
 
 export default function ProjectsLayout({ children }) {
-  return <SegmentI18n namespaces={["projects"]}><ShellData {...shellData()}>{children}</ShellData></SegmentI18n>;
+  return <SegmentI18n namespaces={["projects", "errors.storage", "errors.download", "hints"]}><ShellData {...shellData()}>{children}</ShellData></SegmentI18n>;
 }

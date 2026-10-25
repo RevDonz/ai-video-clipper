@@ -8,5 +8,5 @@ export async function generateMetadata() {
 }
 
 export default function DashboardLayout({ children }) {
-  return <SegmentI18n namespaces={["dashboard", "layout"]}><ShellData {...shellData()}>{children}</ShellData></SegmentI18n>;
+  return <SegmentI18n namespaces={["dashboard", "layout", "errors.storage", "errors.download", "errors.llm", "hints"]}><ShellData {...shellData()}>{children}</ShellData></SegmentI18n>;
 }
