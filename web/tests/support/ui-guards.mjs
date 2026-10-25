@@ -144,9 +144,14 @@ export const VERSION_WORDING = Object.freeze([
   // Mode Cepat and Mode Lengkap are two views of one editor, never an old and a new one.
   /editor (?:lama|baru)/i,
   /tampilan (?:lama|baru)/i,
+  /Latest only/i,
 ]);
 
-/** Version wording in the strings and JSX text of one JS/JSX source. */
+// Internal codes that must never be the text on screen (05-ui-dashboard.md P11). They stay
+// allowed as values: a string that is exactly the code, an object key, a property access.
+export const CODE_WORDING = Object.freeze(["engine_fallback"]);
+
+/** Version wording (and raw engine codes shown as copy) in the strings and JSX text of one source. */
 export function findVersionWording(file, source) {
   const found = [];
   for (const segment of jsSegments(source)) {
@@ -156,8 +161,136 @@ export function findVersionWording(file, source) {
         found.push({ file, line: lineAt(segment.text, match.index, segment.line), text: match[0], kind: segment.kind });
       }
     }
+    for (const code of CODE_WORDING) {
+      if (segment.kind === "string" && segment.text.trim() === code) continue;
+      for (const match of segment.text.matchAll(new RegExp(`(?<![\\w$])${code}(?![\\w$])`, "g"))) {
+        if (segment.kind === "code") {
+          const before = segment.text.slice(0, match.index);
+          const after = segment.text.slice(match.index + code.length);
+          if (/\??\.\s*$/.test(before) || /^\s*:/.test(after)) continue;
+        }
+        found.push({ file, line: lineAt(segment.text, match.index, segment.line), text: code, kind: segment.kind });
+      }
+    }
   }
   return found;
+}
+
+// UI kit conventions (05-ui-dashboard.md §2 P1, P2, P9 and §3.8)
+
+export const BUTTON_VARIANTS = Object.freeze(["primary", "secondary", "tertiary", "ghost", "danger"]);
+const PALETTE = "red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone|mauve|olive|mist|taupe";
+const COLOUR_UTILITY = "bg|text|border(?:-[trblxyse])?|ring(?:-offset)?|fill|stroke|from|via|to|outline|decoration|shadow|inset-shadow|inset-ring|drop-shadow|accent|caret|divide|placeholder";
+const PALETTE_CLASS = new RegExp(`(?<![\\w-])(?:[a-z0-9-]+:)*(?:${COLOUR_UTILITY})-(?:(?:${PALETTE})-(?:50|[1-9]00|950)|black|white)(?:\\/\\d+)?(?![\\w-])`, "g");
+const ARBITRARY_COLOUR = /[a-z]+-\[#/g;
+
+/** The source with comments blanked out (newlines kept, so line numbers stay right). */
+function withoutComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "))
+    .replace(/(^|[\s;{}(),])\/\/[^\n]*/g, (match, lead) => lead + " ".repeat(match.length - lead.length));
+}
+
+/** From an opening "<" or "{" at `start`, the index just past its end (braces, strings, templates). */
+function scanBalanced(source, start, { tag = false } = {}) {
+  let depth = 0;
+  let i = start;
+  while (i < source.length) {
+    const char = source[i];
+    if (char === '"' || char === "'" || char === "`") {
+      const end = source.indexOf(char, i + 1);
+      i = end === -1 ? source.length : end + 1;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (!tag && depth === 0) return i + 1;
+    }
+    if (tag && char === ">" && depth === 0) return i + 1;
+    i += 1;
+  }
+  return source.length;
+}
+
+function jsxTags(source, name) {
+  const tags = [];
+  for (const match of source.matchAll(new RegExp(`<${name}(?=[\\s/>])`, "g"))) {
+    const end = scanBalanced(source, match.index, { tag: true });
+    tags.push({ index: match.index, text: source.slice(match.index, end) });
+  }
+  return tags;
+}
+
+function attribute(tag, name) {
+  const match = new RegExp(`\\s${name}=(?:"([^"]*)"|\\{\\s*["']([^"']*)["']\\s*\\}|(\\{))`).exec(tag);
+  if (!match) return undefined;
+  return match[1] ?? match[2] ?? null; // null: an expression the guard cannot read
+}
+
+/** Whether the file takes `name` from HeroUI or from the wrappers in components/ui. */
+function importsKit(source, name) {
+  for (const match of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g)) {
+    const names = match[1].split(",").map((part) => part.trim().split(/\s+as\s+/).at(-1));
+    if (names.includes(name) && (match[2] === "@heroui/react" || /(?:^|\/)ui\//.test(match[2]))) return true;
+  }
+  return false;
+}
+
+/**
+ * Breaches of the UI kit conventions in one JSX source: Tailwind palette or arbitrary colour
+ * classes in className, a HeroUI Button without variant or with a variant outside
+ * BUTTON_VARIANTS, more than one primary Button in a file, the accent colour on Chip/Alert, and a
+ * sentence (<p>) inside PageHead. Each hit is { file, line, rule, text }.
+ */
+export function findKitViolations(file, raw) {
+  const source = withoutComments(raw);
+  const at = (index) => lineAt(source, index, 1);
+  const hits = [];
+
+  for (const match of source.matchAll(/<PageHead(?=[\s/>])/g)) {
+    const close = source.indexOf("</PageHead>", match.index);
+    const body = source.slice(match.index, close === -1 ? source.length : close);
+    for (const sentence of body.matchAll(/<p(?=[\s/>])/g)) {
+      hits.push({ file, line: at(match.index + sentence.index), rule: "pagehead-sentence", text: "<p>" });
+    }
+  }
+
+  const classHits = [];
+  for (const match of source.matchAll(/\bclassName=/g)) {
+    const start = match.index + match[0].length;
+    const end = source[start] === '"' ? source.indexOf('"', start + 1) + 1 : source[start] === "{" ? scanBalanced(source, start) : start;
+    const value = source.slice(start, end);
+    for (const found of value.matchAll(PALETTE_CLASS)) classHits.push({ index: start + found.index, rule: "palette-class", text: found[0] });
+    for (const found of value.matchAll(ARBITRARY_COLOUR)) classHits.push({ index: start + found.index, rule: "arbitrary-colour", text: found[0] });
+  }
+  classHits.sort((a, b) => a.index - b.index);
+  hits.push(...classHits.map(({ index, rule, text }) => ({ file, line: at(index), rule, text })));
+
+  const tagHits = [];
+  const primaries = [];
+  if (importsKit(source, "Button")) {
+    for (const tag of jsxTags(source, "Button")) {
+      const variant = attribute(tag.text, "variant");
+      const flat = tag.text.replace(/\s+/g, " ");
+      if (variant === undefined) tagHits.push({ index: tag.index, rule: "button-variant", text: flat });
+      else if (variant !== null && !BUTTON_VARIANTS.includes(variant)) tagHits.push({ index: tag.index, rule: "button-variant-banned", text: variant });
+      if (variant === "primary") primaries.push(tag.index);
+    }
+  }
+  for (const [name, prop] of [["Chip", "color"], ["Alert", "status"]]) {
+    if (!importsKit(source, name)) continue;
+    for (const tag of jsxTags(source, name)) {
+      if (attribute(tag.text, prop) === "accent") tagHits.push({ index: tag.index, rule: "accent-status", text: tag.text.replace(/\s+/g, " ") });
+    }
+  }
+  tagHits.sort((a, b) => a.index - b.index);
+  hits.push(...tagHits.map(({ index, rule, text }) => ({ file, line: at(index), rule, text })));
+
+  if (primaries.length > 1) {
+    hits.push({ file, line: at(primaries[1]), rule: "primary-count", text: `${primaries.length} primary buttons in one file` });
+  }
+  return hits;
 }
 
 // CSS

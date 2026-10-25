@@ -178,7 +178,7 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
                   <div className="trTokenIdentity">
                     <strong>{token.label}</strong>
                     {view.prefixText && <code>{view.prefixText}</code>}
-                    <span className={view.status === "active" ? "chip ok" : "chip"}>{view.statusLabel}</span>
+                    <span className={view.status === "active" ? "statusPill ok" : "statusPill"}>{view.statusLabel}</span>
                   </div>
                   <dl>
                     <div><dt>Dibuat</dt><dd>{view.createdText}</dd></div>

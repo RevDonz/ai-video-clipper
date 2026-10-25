@@ -98,7 +98,7 @@ function presetBadges(name, freeOnly) {
 }
 
 function Chip({ tone, children }) {
-  return <span className={tone ? `chip ${tone}` : "chip"}>{children}</span>;
+  return <span className={tone ? `statusPill ${tone}` : "statusPill"}>{children}</span>;
 }
 
 function FieldError({ id, message }) {

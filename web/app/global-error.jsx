@@ -12,7 +12,7 @@ const dmSans = DM_Sans({ subsets: ["latin"], axes: ["opsz"], variable: "--font-d
 
 export default function GlobalError({ reset }) {
   return (
-    <html lang="id" className={dmSans.variable}>
+    <html lang="id" className={dmSans.variable} data-theme="dark">
       <body>
         <title>Gagal dimuat · Potongin</title>
         <main className="statusPage">

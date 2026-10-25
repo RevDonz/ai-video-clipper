@@ -151,14 +151,14 @@ test("the pages keep the global focus ring: no outline removal, no private ring 
 test("the pages do not restyle the shared building blocks globally", async () => {
   for (const file of ["app/settings/settings.css", "app/trends/trends.css"]) {
     const css = (await read(file)).replace(/\/\*[\s\S]*?\*\//g, "");
-    for (const selector of ["chip", "btn", "panel", "notice", "segmented"]) {
+    for (const selector of ["statusPill", "chip", "btn", "panel", "notice", "segmented"]) {
       // A selector that starts with the block restyles it everywhere; ".inlineRow .btn" does not.
       assert.doesNotMatch(css, new RegExp(`(^|[},])\\s*\\.${selector}\\b[^{]*\\{`, "m"), `${file} overrides .${selector}`);
     }
   }
 });
 
-test("no bare tone class in globals.css leaks onto .chip.error, .notice.error or a page's own tones", async () => {
+test("no bare tone class in globals.css leaks onto .statusPill.error, .notice.error or a page's own tones", async () => {
   const css = (await read("app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
   for (const tone of ["error", "ok", "warning", "info", "muted", "success", "danger"]) {
     assert.doesNotMatch(css, new RegExp(`(^|[},])\\s*\\.${tone}\\s*[{,]`, "m"), `a bare .${tone} rule restyles every element with that tone`);

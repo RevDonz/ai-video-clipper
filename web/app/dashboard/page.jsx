@@ -220,7 +220,7 @@ function FailedClipCard({ clip, failed }) {
   return (
     <article className={styles.clip} data-failed="true">
       <div className={styles.clipFailed}>
-        <span className="chip error">{failed.label}</span>
+        <span className="statusPill error">{failed.label}</span>
         <p>{failed.text}</p>
       </div>
       <div className={styles.clipBody}>

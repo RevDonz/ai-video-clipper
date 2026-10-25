@@ -167,7 +167,7 @@ test("the project page and the dashboard show a failed clip as 'Gagal' in place 
   const project = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
   // The poster: "Gagal" in its frame (the shared poster draws the badge instead of the frame);
   // the detail: a frame with the reason where the video would be.
-  assert.match(project, /badge=\{failed && <span className="chip error">\{failed\.label\}<\/span>\}>/);
+  assert.match(project, /badge=\{failed && <span className="statusPill error">\{failed\.label\}<\/span>\}>/);
   const poster = await readFile(new URL("../components/ClipPoster.jsx", import.meta.url), "utf8");
   assert.match(poster, /\{badge \|\| \(poster \? <img /);
   assert.match(project, /<div key=\{clip\.index\} className=\{`\$\{styles\.video\} \$\{styles\.failedFrame\}`\}>/);

@@ -20,7 +20,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="id" className={dmSans.variable}>
+    <html lang="id" className={dmSans.variable} data-theme="dark">
       <body>{children}</body>
     </html>
   );

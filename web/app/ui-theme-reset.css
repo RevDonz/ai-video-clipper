@@ -1,0 +1,10 @@
+/* Imported by ui.css between Tailwind's theme and HeroUI's: drops Tailwind's default colour
+   palette (bg-red-500 and the like no longer exist) before HeroUI's theme names its own colours
+   from the Potongin tokens (05-ui-dashboard.md §3.3, §3.8). White and black stay because HeroUI's
+   switch thumb applies them; they point at HeroUI's primitives, which globals.css aliases to
+   --text and --accent-ink. ui-guards still rejects them in a className. */
+@theme {
+  --color-*: initial;
+  --color-white: var(--white);
+  --color-black: var(--black);
+}

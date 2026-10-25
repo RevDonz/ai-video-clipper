@@ -109,6 +109,56 @@ export const WEB = Object.freeze([
   { name: "React dan React DOM", version: "19.3.0", license: "MIT", source: at("https://github.com/facebook/react", "v19.3.0"), texts: ["/licenses/web/react-LICENSE.txt"] },
 ]);
 
+// The UI kit of the app pages (docs/plans/2026-10-24-rombak/05-ui-dashboard.md §3.1). HeroUI's
+// package.json says MIT while the LICENSE file in both of its packages holds the Apache License
+// 2.0 text, so the notice gives both and links that file as shipped.
+export const UI = Object.freeze([
+  {
+    name: "HeroUI",
+    packages: [
+      { name: "@heroui/react", version: "3.2.6", license: "MIT" },
+      { name: "@heroui/styles", version: "3.2.6", license: "MIT" },
+    ],
+    use: "Komponen antarmuka halaman aplikasi.",
+    licenseNote: "MIT menurut package.json; berkas LICENSE di paketnya berisi Apache License 2.0.",
+    source: at("https://github.com/heroui-inc/heroui", "v3.2.6"),
+    texts: ["/licenses/ui/heroui-LICENSE.txt"],
+  },
+  {
+    name: "React Aria",
+    packages: [
+      { name: "react-aria", version: "3.52.1", license: "Apache-2.0" },
+      { name: "react-aria-components", version: "1.21.1", license: "Apache-2.0" },
+      { name: "@internationalized/date", version: "3.12.4", license: "Apache-2.0" },
+    ],
+    use: "Keyboard, fokus dan pembaca layar di bawah komponen HeroUI.",
+    licenseNote: "Termasuk paket @react-aria/*, @react-stately/* dan @internationalized/* yang ditarik paket ini.",
+    source: at("https://github.com/adobe/react-spectrum", "react-aria-components@1.21.1"),
+    texts: ["/licenses/ui/react-aria-LICENSE.txt"],
+  },
+  {
+    name: "Tailwind CSS",
+    packages: [{ name: "tailwindcss", version: "4.3.3", license: "MIT" }],
+    use: "Membangun CSS tema dan utilitas komponen saat build.",
+    source: at("https://github.com/tailwindlabs/tailwindcss", "v4.3.3"),
+    texts: ["/licenses/ui/tailwindcss-LICENSE.txt"],
+  },
+  {
+    name: "tw-animate-css",
+    packages: [{ name: "tw-animate-css", version: "1.4.0", license: "MIT" }],
+    use: "Animasi buka dan tutup overlay.",
+    source: at("https://github.com/Wombosvideo/tw-animate-css", "v1.4.0"),
+    texts: ["/licenses/ui/tw-animate-css-LICENSE.txt"],
+  },
+  {
+    name: "Tailwind Variants",
+    packages: [{ name: "tailwind-variants", version: "3.3.1", license: "MIT" }],
+    use: "Kelas varian komponen HeroUI.",
+    source: at("https://github.com/heroui-inc/tailwind-variants", "v3.3.1"),
+    texts: ["/licenses/ui/tailwind-variants-LICENSE.txt"],
+  },
+]);
+
 /** Every licence file the page links to (the test checks each one exists). */
 export function licenceFiles() {
   return [
@@ -117,5 +167,6 @@ export function licenceFiles() {
     ...MEDIABUNNY.texts,
     ...FONTS.flatMap((font) => font.texts),
     ...WEB.flatMap((item) => item.texts),
+    ...UI.flatMap((item) => item.texts),
   ];
 }

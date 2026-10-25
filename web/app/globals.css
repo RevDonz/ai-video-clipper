@@ -1,5 +1,10 @@
+@layer theme, base, components, utilities;
+
 /* Dark design foundation (DESIGN.md). Every colour, its role and its contrast ratio is in
    docs/design/TOKENS.md; change both together. */
+/* Cascade layers (05-ui-dashboard.md §3.2): the tokens and the reduced-motion block stay
+   unlayered (tests read :root there); every rule below sits in @layer base, under HeroUI's
+   component layer and under every unlayered CSS Module, the editor's included. */
 :root {
   color-scheme: dark;
 
@@ -60,6 +65,91 @@
   --dur-3: 320ms;
   --ease-out: cubic-bezier(.22, 1, .36, 1);
   --ease-in-out: cubic-bezier(.45, 0, .2, 1);
+  /* HeroUI v3 theme variables, every one aliased to the tokens above (05-ui-dashboard.md §3.4;
+     heroui-variables.test.mjs reads HeroUI's variables.css). Unlayered, so they win over
+     HeroUI's own light and dark blocks. */
+  --background: var(--bg);
+  --background-secondary: var(--surface);
+  --background-tertiary: var(--surface-2);
+  --background-inverse: var(--text);
+  --foreground: var(--text);
+  --surface-foreground: var(--text);
+  --surface-hover: var(--surface-3);
+  --surface-secondary: var(--surface-2);
+  --surface-secondary-foreground: var(--text);
+  --surface-tertiary: var(--surface-3);
+  --surface-tertiary-foreground: var(--text);
+  --surface-shadow: none;
+  --overlay: var(--surface-2);
+  --overlay-foreground: var(--text);
+  /* A 1 px ring at 3:1 on every surface marks an overlay's edge; the shadow only softens it. */
+  --overlay-shadow: 0 0 0 1px var(--border-strong), 0 16px 48px var(--shadow);
+  --backdrop: var(--shadow);
+  --default: var(--surface-2);
+  --default-foreground: var(--text);
+  --default-hover: var(--surface-3);
+  --default-soft: var(--surface-2);
+  --default-soft-foreground: var(--text);
+  --default-soft-hover: var(--surface-3);
+  --accent-foreground: var(--accent-ink);
+  --accent-soft: var(--surface-3);
+  --accent-soft-foreground: var(--text);
+  --accent-soft-hover: var(--surface-3);
+  --danger-foreground: var(--danger-ink);
+  --danger-hover: var(--danger);
+  --danger-soft: var(--danger-bg);
+  --danger-soft-foreground: var(--danger);
+  --danger-soft-hover: var(--danger-bg);
+  --success-foreground: var(--accent-ink);
+  --success-hover: var(--success);
+  --success-soft: var(--success-bg);
+  --success-soft-foreground: var(--success);
+  --success-soft-hover: var(--success-bg);
+  --warning-foreground: var(--accent-ink);
+  --warning-hover: var(--warning);
+  --warning-soft: var(--warning-bg);
+  --warning-soft-foreground: var(--warning);
+  --warning-soft-hover: var(--warning-bg);
+  --border-secondary: var(--border);
+  --border-tertiary: var(--border);
+  --border-width: 1px;
+  --separator: var(--border);
+  --separator-secondary: var(--border);
+  --separator-tertiary: var(--border);
+  --ring-offset-width: 2px;
+  --link: var(--info);
+  --field-background: var(--surface-2);
+  --field-foreground: var(--text);
+  --field-placeholder: var(--text-muted);
+  --field-border: var(--border-strong);
+  --field-border-hover: var(--text-muted);
+  --field-border-focus: var(--focus);
+  --field-border-width: 1px;
+  --field-hover: var(--surface-3);
+  --field-focus: var(--surface-2);
+  --field-radius: var(--radius-s);
+  --field-shadow: none;
+  --segment: var(--surface-3);
+  --segment-foreground: var(--text);
+  --radius: var(--radius-m);
+  --scrollbar: var(--border-strong);
+  --scrollbar-thumb: var(--border-strong);
+  --scrollbar-track: transparent;
+  --scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  --scrollbar-gutter: auto;
+  --scrollbar-width: thin;
+  --spacing: 0.25rem;
+  /* Disabled text faded to half still keeps 3:1 on every surface (TOKENS.md, heroui-variables). */
+  --disabled-opacity: 0.5;
+  --cursor-interactive: pointer;
+  --cursor-disabled: not-allowed;
+  --skeleton-animation: pulse;
+  --tooltip-delay: 600ms;
+  --tooltip-close-delay: 200ms;
+  --white: var(--text);
+  --black: var(--accent-ink);
+  --snow: var(--text);
+  --eclipse: var(--bg);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -67,6 +157,7 @@
     --dur-1: 0ms;
     --dur-2: 0ms;
     --dur-3: 0ms;
+    --skeleton-animation: none;
   }
   html {
     scroll-behavior: auto !important;
@@ -77,6 +168,15 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+@keyframes pop-in { from { opacity: 0; transform: scale(.92); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes progress-sheen { to { transform: translateX(100%); } }
+@keyframes loading-pulse { 50% { opacity: .35; transform: scale(.7); } }
+@keyframes drawer-in { from { opacity: 0; transform: translateX(-16px); } }
+
+@layer base {
 
 /* Base */
 *, *::before, *::after { box-sizing: border-box; }
@@ -107,11 +207,6 @@ body {
 :where(input, textarea)::placeholder { color: var(--text-muted); opacity: 1; }
 :where(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color: var(--text); }
 
-@keyframes pop-in { from { opacity: 0; transform: scale(.92); } }
-@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
-@keyframes fade-in { from { opacity: 0; } }
-@keyframes progress-sheen { to { transform: translateX(100%); } }
-@keyframes loading-pulse { 50% { opacity: .35; transform: scale(.7); } }
 
 /* Building blocks */
 .btn {
@@ -147,10 +242,9 @@ body {
   transform: none;
 }
 
-.panel, .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); }
-.card { padding: 20px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); }
 
-.chip {
+.statusPill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -161,10 +255,10 @@ body {
   font: 600 12px/1.4 var(--font);
   animation: pop-in var(--dur-2) var(--ease-out);
 }
-.chip.ok { background: var(--success-bg); color: var(--success); }
-.chip.info { background: var(--info-bg); color: var(--info); }
-.chip.warning { background: var(--warning-bg); color: var(--warning); }
-.chip.error { background: var(--danger-bg); color: var(--danger); }
+.statusPill.ok { background: var(--success-bg); color: var(--success); }
+.statusPill.info { background: var(--info-bg); color: var(--info); }
+.statusPill.warning { background: var(--warning-bg); color: var(--warning); }
+.statusPill.error { background: var(--danger-bg); color: var(--danger); }
 
 .notice {
   display: grid;
@@ -214,22 +308,6 @@ body {
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
-.tableWrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-l); }
-.table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.table th {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  text-align: left;
-}
-.table td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.table tr:last-child td { border-bottom: 0; }
-.table tbody tr { transition: background-color var(--dur-1) var(--ease-out); }
-.table tbody tr:hover { background: var(--surface-2); }
-.table .num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .eyebrow { color: var(--text-muted); font: 600 12px/1.4 var(--font); letter-spacing: .06em; }
 .visuallyHidden { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -452,7 +530,6 @@ footer {
   .appScrim { position: fixed; inset: 61px 0 0; z-index: 29; background: var(--shadow); animation: fade-in var(--dur-2) var(--ease-out); }
   html:has(.appFrame[data-menu-open]) { overflow: hidden; }
 }
-@keyframes drawer-in { from { opacity: 0; transform: translateX(-16px); } }
 @media (max-width: 850px) {
   .shell { width: min(100% - 32px, 760px); }
 }
@@ -498,3 +575,5 @@ footer {
 }
 
 .pulse { width: 16px; height: 16px; border-radius: 50%; background: var(--text); animation: loading-pulse 1.4s var(--ease-in-out) infinite; }
+
+}

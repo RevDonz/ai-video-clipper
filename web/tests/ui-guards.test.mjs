@@ -13,6 +13,7 @@ import {
   findContrastFailures,
   findCssColourLiterals,
   findJsColourLiterals,
+  findKitViolations,
   findVersionWording,
   jsSegments,
   listFiles,
@@ -209,4 +210,87 @@ test("every text/background token pair the UI uses meets WCAG AA (4.5:1)", async
   }
   const failures = sources.flatMap(({ file, source }) => findContrastFailures(file, source, palette));
   assert.deepEqual(failures, [], `pairs under AA:\n${failures.map((f) => `${f.file}:${f.line} ${f.selector}: --${f.text} on --${f.background} ${f.ratio ?? f.reason}`).join("\n")}`);
+});
+
+// 4. The UI kit conventions (docs/plans/2026-10-24-rombak/05-ui-dashboard.md §2 P1/P2/P9/P11, §3.8)
+
+test("the version guard also catches engine codes and 'Latest only' shown as copy", () => {
+  const planted = `
+// engine_fallback and Latest only in a comment never render.
+const CODES = ["no_face", "engine_fallback"];
+const TEXT = { engine_fallback: "Dirender dengan cara cadangan" };
+const pick = (reasons) => reasons.engine_fallback ?? reasons?.engine_fallback;
+export function Note() {
+  return (
+    <div>
+      <p>engine_fallback</p>
+      <small>{"Gagal: engine_fallback"}</small>
+      <b>Latest only</b>
+    </div>
+  );
+}
+`;
+  const found = findVersionWording("planted-codes.jsx", planted).map((hit) => [hit.line, hit.text]);
+  assert.deepEqual(found.sort((a, b) => a[0] - b[0]), [
+    [9, "engine_fallback"],
+    [10, "engine_fallback"],
+    [11, "Latest only"],
+  ]);
+});
+
+const PLANTED_KIT = `
+import { Alert, Button, Chip } from "@heroui/react";
+export default function Page() {
+  return (
+    <section>
+      <PageHead title="Proyek">
+        <p>Semua proyek Anda.</p>
+      </PageHead>
+      <div className="flex gap-4 bg-red-500 text-[#ff0000]">
+        <span className={\`p-2 \${on ? "border-slate-200" : "md:hover:text-zinc-950/50"}\`} />
+        <span className="gap-red-ish rounded-lg text-muted" />
+      </div>
+      <Button onPress={go}>Tanpa varian</Button>
+      <Button variant="primary">Satu</Button>
+      <Button
+        size="sm"
+        variant="primary"
+      >Dua</Button>
+      <Button variant="outline">Garis</Button>
+      <Button variant={"danger-soft"}>Merah lembut</Button>
+      <Button variant="ghost" onPress={() => set({ a: 1 })}>Ghost</Button>
+      <Chip color="accent">Lime</Chip>
+      <Alert status="accent" />
+    </section>
+  );
+}
+`;
+
+test("the kit guard catches palette classes, a Button without variant, banned variants, two primaries and <p> in PageHead", () => {
+  const hits = findKitViolations("app/planted/page.jsx", PLANTED_KIT).map((hit) => `${hit.line} ${hit.rule}: ${hit.text}`);
+  assert.deepEqual(hits, [
+    "7 pagehead-sentence: <p>",
+    "9 palette-class: bg-red-500",
+    "9 arbitrary-colour: text-[#",
+    "10 palette-class: border-slate-200",
+    "10 palette-class: md:hover:text-zinc-950/50",
+    "13 button-variant: <Button onPress={go}>",
+    "19 button-variant-banned: outline",
+    "20 button-variant-banned: danger-soft",
+    "22 accent-status: <Chip color=\"accent\">",
+    "23 accent-status: <Alert status=\"accent\" />",
+    "15 primary-count: 2 primary buttons in one file",
+  ]);
+  // Layout utilities, semantic HeroUI names and tokens are fine.
+  assert.deepEqual(findKitViolations("components/ok.jsx", `
+import { Button } from "@heroui/react";
+const a = <div className="flex gap-4 p-2 text-muted bg-surface"><Button variant="secondary">Ok</Button></div>;`), []);
+  // A Button that is not HeroUI's (no import from @heroui/react or components/ui) is left alone.
+  assert.deepEqual(findKitViolations("components/editor/x.jsx", `const a = <Button onClick={go}>Ok</Button>;`), []);
+});
+
+test("pages and components follow the UI kit conventions", async () => {
+  const sources = await readSources(WEB, await jsFiles(UI_DIRS));
+  const found = sources.flatMap(({ file, source }) => findKitViolations(file, source));
+  assert.deepEqual(found, [], `UI kit rules (05-ui-dashboard.md §3.8):\n${found.map((hit) => `${hit.file}:${hit.line} ${hit.rule}: ${hit.text}`).join("\n")}`);
 });
