@@ -100,6 +100,20 @@ test.describe("UI kit test page", () => {
     await page.screenshot({ path: path.join(dir, "laptop.png"), fullPage: true });
   });
 
+  test("the primary action answers with a toast in an Indonesian-named region", async ({ page }, testInfo) => {
+    const dir = outDir(testInfo);
+    await noJobs(page);
+    await login(page, PAGE);
+    await page.getByRole("button", { name: "Simpan" }).click();
+    const region = page.getByRole("region", { name: /Notifikasi/ });
+    await expect(region.getByText("Tersimpan")).toBeVisible();
+    await settle(page);
+    expect(await stray(page)).toEqual([]);
+    await page.screenshot({ path: path.join(dir, "toast.png") });
+    await region.getByRole("button", { name: "Tutup notifikasi" }).click();
+    await expect(region.getByText("Tersimpan")).toBeHidden();
+  });
+
   test("selected states use the text colour and the light surface, never lime", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 900 });
     await noJobs(page);

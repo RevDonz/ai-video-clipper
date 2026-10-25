@@ -1,6 +1,5 @@
 /* The UI kit's test page (app/ui-harness). Layout only; the controls are HeroUI on the tokens. */
 .page { display: grid; gap: 24px; padding-bottom: 48px; }
-.status { min-height: 1.5em; margin: 0; color: var(--text-muted); }
 .block { display: grid; gap: 12px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); }
 .block h2 { margin: 0; font: 600 16px/1.3 var(--font); }
 .row { display: flex; flex-wrap: wrap; gap: 8px; }

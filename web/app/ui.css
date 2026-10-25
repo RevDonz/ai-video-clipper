@@ -79,10 +79,11 @@
   .toggle-button, .pagination__link, .tag__remove-button { min-height: 44px; min-width: 44px; }
   /* The label of a switch, checkbox or radio is its target (the input is visually hidden). */
   .switch, .checkbox, .radio { min-height: 44px; min-width: 44px; }
+  .checkbox, .radio { justify-content: center; }
   /* shouldForceMount keeps a hidden tab panel mounted; React Aria marks it inert, and HeroUI
      3.2.6 does not hide it, so it is hidden here (spike F0, open issue #19). */
   .tabs__panel[data-inert="true"] { display: none; }
-  .button { border-radius: var(--radius-m); }
+  .button, .tabs__tab { border-radius: var(--radius-m); }
   .button--outline { border-color: var(--border-strong); }
   .switch[data-selected] .switch__control,
   .checkbox[data-selected] .checkbox__control,

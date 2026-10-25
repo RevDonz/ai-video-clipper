@@ -9,6 +9,7 @@ import { useState } from "react";
 import PageHead from "../../components/ui/PageHead.jsx";
 import Table, { SelectAll, SelectRow } from "../../components/ui/Table.jsx";
 import Tabs from "../../components/ui/Tabs.jsx";
+import { toast } from "../../components/ui/Toast.jsx";
 import HarnessModal from "./HarnessModal.jsx";
 import styles from "./ui-harness.module.css";
 
@@ -22,13 +23,11 @@ const ROWS = [
 
 export default function UiHarness() {
   const [shortcuts, setShortcuts] = useState(true);
-  const [note, setNote] = useState("");
   return (
     <div className={`shell ${styles.page}`}>
       <PageHead title="Uji komponen" id="ui-harness-title">
-        <Button variant="primary" onPress={() => setNote("Tersimpan")}>Simpan</Button>
+        <Button variant="primary" onPress={() => toast("Tersimpan")}>Simpan</Button>
       </PageHead>
-      <p className={styles.status} role="status">{note}</p>
 
       <section className={styles.block} aria-labelledby="ui-buttons">
         <h2 id="ui-buttons">Tombol</h2>
