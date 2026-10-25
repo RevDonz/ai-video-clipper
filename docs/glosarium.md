@@ -22,6 +22,13 @@ kata status). Kalau berbeda, dokumen itu yang berlaku dan tabel ini diperbarui.
 | Potong tengah | Center crop | |
 | Latar blur | Blurred background | Mode tata letak. Bukan "Blur background" (lihat catatan) |
 | Layar terbagi | Split screen | Hanya editor |
+| Arahkan | Guide | Chip Buat klip (fokus dan rentang waktu) |
+| Durasi | Length | Chip Buat klip |
+| Subtitle (chip Buat klip) | Captions | Gaya teks ucapan di klip |
+| Klasik · Karaoke · Bold · Box · Sorot · Sinar | Classic · Karaoke · Bold · Box · Highlight · Glow | Nama gaya caption |
+| Terbaik · Urutan video | Best · Video order | Urutan klip di halaman proyek |
+| Di luar fokus | Outside focus | Saring klip |
+| Proses ulang | Run again | Aksi proyek |
 | Teks | Text | Tab editor |
 | Audio ★ | Audio | Tab editor |
 | Logo ★ | Logo | Tab editor |
