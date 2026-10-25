@@ -145,7 +145,10 @@ DEFAULT_RENDER_SIZE = (720, 1280)  # the dashboard's render size (web/scripts/ru
 WINDOW_MARGIN_MS = 60_000
 HOOK_TEXT_MAX = 90
 LAYOUT_BY_RENDER_MODE = {"face-track": "camera", "fit-blur": "fit_blur",
-                         "center-crop": "fill_center"}
+                         "center-crop": "fill_center", "auto": "auto"}
+# The legacy renderer has no automatic layout: it renders an ``auto`` job as Latar blur, so a
+# clip ``prepare`` seeds (that engine rendered it) is Latar blur too (rombak 04 §A1).
+LEGACY_LAYOUT = {"auto": "fit_blur"}
 PACK_BY_CAPTION_STYLE = {pack: pack for pack in PACK_IDS}  # a job's captionStyle is a pack id
 HALVED_FPS = {(50, 1): (25, 1), (60, 1): (30, 1), (60000, 1001): (30000, 1001)}
 FALLBACK_FPS = (30, 1)
@@ -305,6 +308,8 @@ def _context(job: Mapping) -> _Context:
     by = job.get("seedBy", "pipeline")
     if by not in EDITORS:
         raise SeedError("seedBy must be pipeline or prepare")
+    if by == "prepare":
+        layout = LEGACY_LAYOUT.get(layout, layout)
     join = CUT_JOIN
     if "coldOpenJoin" in job:
         join = ColdOpenJoin.from_json(job["coldOpenJoin"])
@@ -618,6 +623,33 @@ def _sha(value: object, name: str, *, optional: bool = False) -> str | None:
     return value
 
 
+def _auto_layout(shot_plan: Mapping[str, Any], plan: _ClipPlan, source_sha: str,
+                 camera_sha: str | None) -> tuple[dict[str, Any], str]:
+    """``layout`` and ``base.shots.sha256`` of an automatic seed from the clip's shot plan,
+    which must be the plan of this window, grid, source and camera plan."""
+    from . import shots as _shots
+
+    try:
+        _shots.check_shot_plan(shot_plan)
+    except (ValueError, TypeError, KeyError) as error:
+        raise SeedError("the shot plan is invalid") from error
+    if (shot_plan["window_ms"] != list(plan.window_ms)
+            or shot_plan["fps"] != {"num": plan.fps.num, "den": plan.fps.den}
+            or shot_plan["source_content_sha256"] != source_sha
+            or shot_plan["camera_sha256"] != camera_sha):
+        raise SeedError("the shot plan is not the plan of this clip window")
+    layout: dict[str, Any] = {"default": {"mode": "auto", "no_face": "fit_blur"},
+                              "ranges": _shots.auto_ranges(shot_plan["ranges"])}
+    split = shot_plan["split"]
+    if split is not None:  # the bands' sizes; each split range carries its own crops
+        first = next(entry["split_xy"] for entry in shot_plan["ranges"]
+                     if entry["mode"] == "split")
+        layout["split"] = {"top_pm": split["top_pm"],
+                           **{band: {**first[band], "zoom_pm": split[band]["zoom_pm"]}
+                              for band in ("top", "bottom")}}
+    return layout, sha256_hex(_shots.encode_shot_plan(shot_plan))
+
+
 def build_seed(
     *,
     clip: SelectedClip,
@@ -627,8 +659,14 @@ def build_seed(
     words_count: int,
     camera_sha: str | None,
     selection_sha: str,
+    shot_plan: Mapping[str, Any] | None = None,
 ) -> dict:
-    """The seed document of ``clip`` following every row of the plan §3.5 table."""
+    """The seed document of ``clip`` following every row of the plan §3.5 table.
+
+    The automatic layout (``renderMode: "auto"``, rombak 04 §A8.1) also takes the clip's
+    ``shot_plan`` (CONTRACTS §5.63): its ranges become ``layout.ranges`` (``origin: "auto"``),
+    its sha ``base.shots.sha256``, and runs without a face in a ``camera`` range show Latar blur
+    (``no_face: "fit_blur"``). Every other layout seeds exactly as before."""
     context = _context(job)
     source = _source(source_info)
     _sha(words_sha, "words_sha")
@@ -636,10 +674,17 @@ def build_seed(
     _sha(camera_sha, "camera_sha", optional=True)
     if type(words_count) is not int or words_count < 0:
         raise SeedError("words_count must be a non-negative integer")
-    if (context.layout == "camera") != (camera_sha is not None):
-        raise SeedError("a camera plan is required for, and only for, the face-track layout")
+    if (context.layout in ("camera", "auto")) != (camera_sha is not None):
+        raise SeedError("a camera plan is required for, and only for, the face-track and "
+                        "automatic layouts")
+    if (context.layout == "auto") != (shot_plan is not None):
+        raise SeedError("a shot plan is required for, and only for, the automatic layout")
     plan = _clip_plan(clip, context, source, source_info)
     fps = plan.fps
+    layout: dict[str, Any] = {"default": {"mode": context.layout, "no_face": "center"}}
+    shots_sha = None
+    if shot_plan is not None:
+        layout, shots_sha = _auto_layout(shot_plan, plan, source["content_sha256"], camera_sha)
     removals = _pause_removals(job, plan, context.by)
     tracks: list[dict[str, Any]] = []
     text = _hook_text(clip.hook_text) if context.hook else ""
@@ -704,6 +749,7 @@ def build_seed(
             "window_ms": list(plan.window_ms),
             "words": {"sha256": words_sha, "count": words_count},
             "camera": {"sha256": camera_sha},
+            **({"shots": {"sha256": shots_sha}} if shots_sha is not None else {}),
             "seed_sha256": None,
             "engine": {"compiler": ENGINES[context.by], "render_semantics": RENDER_SEMANTICS},
         },
@@ -716,7 +762,7 @@ def build_seed(
                                    "y_e5": context.caption_y_e5,
                                    "size_pm": context.caption_size_pm},
                      "word_edits": {}},
-        "layout": {"default": {"mode": context.layout, "no_face": "center"}},
+        "layout": layout,
         "tracks": tracks,
         "audio": {"source": {"gain_cdb": 0},
                   "master": {"mode": "off", "target_clufs": -1400, "tp_cdb": -100}},
