@@ -5,7 +5,12 @@
 // and, while another tab has the clip, "Terbuka di tab lain"; the view switch; Urungkan and Ulangi;
 // "Perlu dicek (n)", always shown; the ⋯ Lainnya menu ("Kembali ke versi AI", "Pintasan
 // keyboard"); and Ekspor, the one lime control.
+//
+// The one-layout editor (rombak 06 §4) passes `checksButton` (shell-model checksButtonView) and no
+// `onViewChange`: no view switch, and "Perlu dicek n" or "Catatan n" only while there is something
+// to show.
 import { forwardRef, useEffect, useState } from "react";
+import { useTranslations } from "use-intl";
 
 import styles from "./shell.module.css";
 import { OTHER_TAB_TEXT, saveStatusView } from "./shell-model.mjs";
@@ -28,7 +33,9 @@ const TopBar = forwardRef(function TopBar({
   jobId, title, save, savedAtMs, otherTab = false, view, onViewChange, canUndo, canRedo, onUndo, onRedo,
   onReset, resetDisabled, resetReason = null, onRetrySave, checksCount, checksOpen, onToggleChecks, checksButtonRef,
   onHelp, onExport, exportDisabled, exportBusy, clipNav = null, clipNavBusy = false, onPreviousClip, onNextClip,
+  checksButton = null,
 }, exportButtonRef) {
+  const t = useTranslations("editor.shell");
   const now = useNow(save === "saved");
   const status = saveStatusView({ save, savedAtMs }, now);
   const hasChecks = checksCount > 0;
@@ -63,7 +70,7 @@ const TopBar = forwardRef(function TopBar({
         {status.retry && <button type="button" className={`${styles.linkButton} ${styles.retryButton}`} onClick={onRetrySave}>Coba simpan lagi</button>}
         {otherTab && <span className={styles.otherTab} data-other-tab="">{OTHER_TAB_TEXT}</span>}
       </div>
-      <ViewSwitch view={view} onChange={onViewChange} />
+      {onViewChange ? <ViewSwitch view={view} onChange={onViewChange} /> : null}
       <div className={styles.historyButtons}>
         <button type="button" className={styles.iconButton} onClick={onUndo} disabled={!canUndo} aria-label="Urungkan"
           title="Urungkan (Ctrl+Z)" aria-keyshortcuts="Control+Z">
@@ -74,16 +81,32 @@ const TopBar = forwardRef(function TopBar({
           <Icon name="redo" />
         </button>
       </div>
-      <button
-        ref={checksButtonRef}
-        type="button"
-        className={`${styles.button} ${styles.barButton} ${hasChecks ? styles.warnButton : ""}`}
-        aria-expanded={checksOpen}
-        aria-haspopup="dialog"
-        onClick={onToggleChecks}
-      >
-        {`Perlu dicek (${checksCount})`}
-      </button>
+      {checksButton ? (
+        checksButton.kind ? (
+          <button
+            ref={checksButtonRef}
+            type="button"
+            className={`${styles.button} ${styles.barButton} ${checksButton.kind === "check" ? styles.warnButton : ""}`}
+            aria-expanded={checksOpen}
+            aria-haspopup="dialog"
+            onClick={onToggleChecks}
+            data-checks-button={checksButton.kind}
+          >
+            {checksButton.kind === "check" ? t("checks.needs", { count: checksButton.count }) : t("checks.notes", { count: checksButton.count })}
+          </button>
+        ) : null
+      ) : (
+        <button
+          ref={checksButtonRef}
+          type="button"
+          className={`${styles.button} ${styles.barButton} ${hasChecks ? styles.warnButton : ""}`}
+          aria-expanded={checksOpen}
+          aria-haspopup="dialog"
+          onClick={onToggleChecks}
+        >
+          {`Perlu dicek (${checksCount})`}
+        </button>
+      )}
       <MenuButton label="Lainnya" icon="more" items={more} align="end" />
       <button
         ref={exportButtonRef}

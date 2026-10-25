@@ -3,12 +3,14 @@
 //
 // Scope "global" keys are handled by the shell (EditorApp); scope "transcript" keys act on the
 // transcript selection and belong to the transcript panel (T2.7), which handles them while it
-// has focus. Every action also has a visible control (Appendix C.4, last line).
+// has focus. Every action also has a visible control (Appendix C.4, last line). `singleKey: true`
+// marks an entry with a character key (K, I, O, ', ?) that "Pintasan satu tombol" turns off
+// (rombak 06 §14); the Pintasan keyboard dialog shows those keys as off while it is.
 
 const entry = (fields) => Object.freeze({ ...fields, keys: Object.freeze(fields.keys) });
 
 export const SHORTCUTS = Object.freeze([
-  entry({ id: "playPause", keys: ["Spasi", "K"], description: "Putar / jeda", scope: "global" }),
+  entry({ id: "playPause", keys: ["Spasi", "K"], description: "Putar / jeda", scope: "global", singleKey: true }),
   entry({ id: "frameBack", keys: ["←"], description: "Mundur satu frame", scope: "global" }),
   entry({ id: "frameForward", keys: ["→"], description: "Maju satu frame", scope: "global" }),
   entry({ id: "secondBack", keys: ["Shift+←"], description: "Mundur 1 detik", scope: "global" }),
@@ -20,15 +22,15 @@ export const SHORTCUTS = Object.freeze([
   entry({ id: "redo", keys: ["Ctrl+Shift+Z", "Ctrl+Y"], description: "Ulangi", scope: "global" }),
   entry({ id: "removeWords", keys: ["Delete", "Backspace"], description: "Hapus kata terpilih (jump cut)", scope: "transcript" }),
   entry({ id: "editWord", keys: ["Enter"], description: "Edit kata", scope: "transcript" }),
-  entry({ id: "trimStart", keys: ["I"], description: "Mulai klip di pilihan atau playhead", scope: "global" }),
-  entry({ id: "trimEnd", keys: ["O"], description: "Akhiri klip di pilihan atau playhead", scope: "global" }),
+  entry({ id: "trimStart", keys: ["I"], description: "Mulai klip di pilihan atau playhead", scope: "global", singleKey: true }),
+  entry({ id: "trimEnd", keys: ["O"], description: "Akhiri klip di pilihan atau playhead", scope: "global", singleKey: true }),
   entry({ id: "coldOpen", keys: ["Ctrl+Shift+H"], description: "Jadikan pilihan cold open", scope: "transcript" }),
   entry({ id: "emphasis", keys: ["Ctrl+E"], description: "Warna kata kunci", scope: "transcript" }),
   entry({ id: "hideWord", keys: ["Ctrl+Shift+X"], description: "Sembunyikan dari caption", scope: "transcript" }),
-  entry({ id: "safeZone", keys: ["'"], description: "Tampilkan zona aman", scope: "global" }),
+  entry({ id: "safeZone", keys: ["'"], description: "Tampilkan zona aman", scope: "global", singleKey: true }),
   entry({ id: "truthFrame", keys: ["Ctrl+Shift+R"], description: "Frame akhir (piksel persis)", scope: "global" }),
   entry({ id: "export", keys: ["Ctrl+Shift+E"], description: "Ekspor", scope: "global" }),
-  entry({ id: "help", keys: ["?"], description: "Bantuan pintasan", scope: "global" }),
+  entry({ id: "help", keys: ["?"], description: "Bantuan pintasan", scope: "global", singleKey: true }),
   // A focused trim handle in the timeline handles these itself (CONTRACTS §5.55); listed for help.
   entry({ id: "trimGap", keys: ["←", "→"], description: "Geser awal/akhir klip ke celah kata", scope: "trim" }),
   entry({ id: "trimNudge", keys: ["Shift+←", "Shift+→"], description: "Geser awal/akhir klip 0,1 detik", scope: "trim" }),
@@ -42,8 +44,9 @@ const SCOPE = new Map(SHORTCUTS.map((item) => [item.id, item.scope]));
 // Roles whose own keyboard behaviour must win: Space activates, arrows move within the widget.
 const ACTIVATES_ON_SPACE = new Set(["BUTTON", "A", "SUMMARY"]);
 const SPACE_ROLES = new Set(["button", "link", "tab", "slider", "checkbox", "radio", "switch", "menuitem", "option"]);
-const ARROW_ROLES = new Set(["slider", "tab", "radio", "option", "menuitem", "spinbutton", "scrollbar"]);
-const ARROW_CONTAINERS = '[role="tablist"], [role="radiogroup"], [role="listbox"], [role="menu"], [role="slider"]';
+// A grid (the one-layout editor's Klip list, a React Aria GridList) moves between its rows.
+const ARROW_ROLES = new Set(["slider", "tab", "radio", "option", "menuitem", "spinbutton", "scrollbar", "row", "gridcell"]);
+const ARROW_CONTAINERS = '[role="tablist"], [role="radiogroup"], [role="listbox"], [role="menu"], [role="slider"], [role="grid"]';
 const ARROW_ACTIONS = new Set(["frameBack", "frameForward", "secondBack", "secondForward", "previousClip", "nextClip"]);
 
 // Input types that take no typed text (Mode Cepat spec §4.5): every other type, a missing one and

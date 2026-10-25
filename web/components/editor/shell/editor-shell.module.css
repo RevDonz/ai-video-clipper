@@ -1,0 +1,505 @@
+/* The one-layout editor (rombak 06 §3): one grid whose areas move per breakpoint (§3.1).
+   - ≥ 1440 px: Klip (240) | Pratinjau ‖ Transkrip side by side | panel (380).
+   - 1280–1439 px: Klip (240) | Pratinjau above Transkrip | panel (360).
+   - 1024–1279 px: the Klip column folds into a 56 px rail | centre | panel (340).
+   The page never scrolls; the clip list, the transcript and the panel scroll on their own. Values
+   come from the tokens on `.tokens` (editor.module.css); the column widths live here. */
+
+.shell {
+  --es-clips: 240px;
+  --es-panel: 360px;
+  /* The toast (shell.module.css) sits this far above the bottom edge. */
+  --ed-bottom-region: var(--ed-space-4);
+  display: grid;
+  grid-template-areas:
+    "top top top"
+    "clips stage panel"
+    "clips transcript panel"
+    "clips timeline panel";
+  grid-template-rows: var(--ed-topbar-height) minmax(0, 1fr) minmax(220px, 32%) auto;
+  grid-template-columns: var(--es-clips) minmax(0, 1fr) var(--es-panel);
+  height: 100vh;
+  min-width: var(--ed-min-width);
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: var(--ed-font-size-md) / var(--ed-line-height) var(--ed-font-ui);
+}
+
+.shell *,
+.shell *::before,
+.shell *::after {
+  box-sizing: border-box;
+}
+
+.shell :is(button, a, [tabindex], input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: var(--ed-focus-ring);
+}
+
+@media (min-width: 1440px) {
+  .shell {
+    --es-panel: 380px;
+    grid-template-areas:
+      "top top top top"
+      "clips stage transcript panel"
+      "clips timeline timeline panel";
+    grid-template-rows: var(--ed-topbar-height) minmax(0, 1fr) auto;
+    grid-template-columns: var(--es-clips) minmax(0, 1.1fr) minmax(320px, 1fr) var(--es-panel);
+  }
+}
+
+@media (max-width: 1279px) {
+  .shell {
+    --es-clips: 56px;
+    --es-panel: 340px;
+  }
+}
+
+.visuallyHidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Klip column ---------- */
+
+.clips {
+  grid-area: clips;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.clipsHead {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: var(--ed-space-2);
+  margin: 0;
+  padding: var(--ed-space-3) var(--ed-space-3) var(--ed-space-2);
+  color: var(--text-muted);
+  font: 600 var(--ed-font-size-xs) / 1.2 var(--ed-font-ui);
+  letter-spacing: var(--ed-label-tracking);
+  text-transform: uppercase;
+}
+
+.clipList {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 var(--ed-space-2) var(--ed-space-2);
+  overflow: auto;
+  outline: none;
+}
+
+.clipRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ed-space-2);
+  min-height: var(--ed-target);
+  margin-bottom: 2px;
+  padding: 0 var(--ed-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--ed-radius-md);
+  color: var(--text);
+  font-size: var(--ed-font-size-sm);
+  cursor: pointer;
+  transition: background var(--ed-duration-fast), border-color var(--ed-duration-fast);
+}
+
+.clipRow[data-hovered] {
+  background: var(--surface-2);
+}
+
+.clipRow[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.clipRow[data-current="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.clipRow[data-disabled] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.clipNumber {
+  min-width: 3ch;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.clipDuration {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.clipEdited {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+}
+
+.clipEdited::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--info);
+  content: "";
+}
+
+/* Below 1280 px: a rail with one labelled button that opens the list in a drawer. */
+.clipRail {
+  display: flex;
+  justify-content: center;
+  padding: var(--ed-space-2) 0;
+}
+
+.clipRailButton {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: var(--ed-target);
+  min-height: 56px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--ed-radius-md);
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--ed-font-size-xs) / 1.1 var(--ed-font-ui);
+  cursor: pointer;
+  transition: background var(--ed-duration-fast);
+}
+
+.clipRailButton[data-hovered],
+.clipRailButton:hover {
+  background: var(--surface-2);
+}
+
+.drawerBackdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  background: var(--shadow);
+}
+
+.drawerPanel {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 280px;
+  max-width: calc(100vw - 48px);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--ed-shadow-popover);
+  transition: transform var(--ed-duration-slow);
+}
+
+.drawerPanel[data-entering] {
+  transform: translateX(-100%);
+}
+
+.drawerDialog {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: var(--text);
+  font: var(--ed-font-size-md) / var(--ed-line-height) var(--ed-font-ui);
+  outline: none;
+}
+
+.drawerClose {
+  min-width: var(--ed-target);
+  min-height: var(--ed-target);
+  padding: 0 var(--ed-space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: 600 var(--ed-font-size-sm) / 1 var(--ed-font-ui);
+  cursor: pointer;
+}
+
+.drawerClose[data-hovered] {
+  background: var(--surface-2);
+}
+
+.drawerClose[data-focus-visible],
+.clipRailButton[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2);
+  padding: var(--ed-space-3);
+}
+
+.drawerTitle {
+  margin: 0;
+  font-size: var(--ed-font-size-lg);
+}
+
+.drawerBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ---------- Centre: stage and transcript ---------- */
+
+.stage {
+  grid-area: stage;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.stageHead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2);
+  padding: var(--ed-space-2) var(--ed-space-4) 0;
+}
+
+.ratio {
+  margin: 0;
+  color: var(--text-muted);
+  font: 600 var(--ed-font-size-xs) / 1.2 var(--ed-font-ui);
+  letter-spacing: var(--ed-label-tracking);
+  text-transform: uppercase;
+}
+
+.stageBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.transport {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.scrubberRow {
+  padding: 0 var(--ed-space-4) var(--ed-space-2);
+}
+
+.transcript {
+  grid-area: transcript;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+@media (min-width: 1440px) {
+  .transcript {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+}
+
+/* ---------- Linimasa detail (folded) ---------- */
+
+.timeline {
+  grid-area: timeline;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.timelineTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--ed-space-2);
+  width: 100%;
+  min-height: var(--ed-target);
+  padding: 0 var(--ed-space-4);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--ed-font-size-sm) / 1 var(--ed-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.timelineTrigger:hover {
+  background: var(--surface-2);
+}
+
+.timelineHeading {
+  margin: 0;
+  font: inherit;
+}
+
+.timelineBody {
+  height: var(--ed-timeline-height);
+  min-height: 0;
+}
+
+/* ---------- Right panel: five tabs, one panel ---------- */
+
+.panel {
+  grid-area: panel;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tabList {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: var(--ed-space-2) var(--ed-space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  min-height: var(--ed-target);
+  padding: 0 var(--ed-space-2);
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font: 600 var(--ed-font-size-sm) / 1 var(--ed-font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--ed-duration-fast);
+}
+
+.tab[data-hovered],
+.tab[data-selected] {
+  color: var(--text);
+}
+
+.tab[data-selected] {
+  border-bottom-color: var(--text);
+}
+
+.tab[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.tabPanel {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--ed-space-3);
+  outline: none;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* ---------- Lanjutan ---------- */
+
+.advanced {
+  margin-top: var(--ed-space-2);
+  border-top: 1px solid var(--border);
+}
+
+.advancedHeading {
+  margin: 0;
+  font: inherit;
+}
+
+.advancedTrigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: var(--ed-target);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--ed-font-size-sm) / 1.2 var(--ed-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.advancedSummary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.indicator {
+  flex: none;
+  margin-left: auto;
+}
+
+.advancedBody {
+  padding-bottom: var(--ed-space-3);
+}
+
+@media (forced-colors: active) {
+  .clipRow[data-current="true"] {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+
+  .clipRow[data-focus-visible],
+  .tab[data-focus-visible] {
+    outline: 2px solid Highlight;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clipRow,
+  .clipRailButton,
+  .drawerPanel,
+  .tab {
+    transition: none;
+  }
+}

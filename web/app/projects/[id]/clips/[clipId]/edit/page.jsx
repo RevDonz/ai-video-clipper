@@ -37,5 +37,6 @@ export default async function EditorPage({ params }) {
   const flags = readEditorFlags(process.env);
   // "Pintasan satu tombol", the same per-device preference as the app pages' (05 §3.9).
   const singleKeyShortcuts = shortcutPrefFromValue(store.get(SHORTCUTS_COOKIE)?.value);
-  return <EditorApp jobId={id} clipId={ref.clipId} clipIndex={ref.index} runtimeKind={mode} features={{ uploads: flags.uploads, llm: flags.llm }} singleKeyShortcuts={singleKeyShortcuts} />;
+  // `shell`: POTONGIN_EDITOR_SHELL, the one-layout editor (v2) or the two-view one (legacy, the default).
+  return <EditorApp jobId={id} clipId={ref.clipId} clipIndex={ref.index} runtimeKind={mode} features={{ uploads: flags.uploads, llm: flags.llm }} singleKeyShortcuts={singleKeyShortcuts} shell={flags.shell} />;
 }

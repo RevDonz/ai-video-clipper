@@ -1462,6 +1462,23 @@
   font: 600 var(--ed-font-size-xs) var(--ed-font-mono);
 }
 
+/* A character key while "Pintasan satu tombol" is off (rombak 06 §14): struck through, with "Mati". */
+.kbdOff {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.shortcutOff {
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+}
+
+.shortcutSwitch {
+  margin-top: var(--ed-space-3);
+  padding-top: var(--ed-space-3);
+  border-top: 1px solid var(--border);
+}
+
 .fieldset {
   display: grid;
   gap: 6px;

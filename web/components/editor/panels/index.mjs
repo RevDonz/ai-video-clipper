@@ -36,6 +36,23 @@ export const PANELS = Object.freeze([
   }),
 ]);
 
+// The one-layout editor's five tabs (rombak 06 §3.5, §8), in its order: the transcript is always
+// on screen, so it is no tab, and Musik is Audio (the music panel until F5 renames it). The
+// labels come from the catalog (editor.shell.tabs.*), so these entries carry none. The list
+// above stays the two-view editor's until F10 removes that shell.
+function tab(id, panelId) {
+  const from = PANELS.find((entry) => entry.id === panelId);
+  return Object.freeze({ id, file: from.file, component: from.component, load: from.load });
+}
+
+export const SHELL_TABS = Object.freeze([
+  tab("text", "text"),
+  tab("layout", "layout"),
+  tab("audio", "music"),
+  tab("logo", "logo"),
+  tab("coldopen", "coldopen"),
+]);
+
 export function panelById(id) {
   return PANELS.find((panel) => panel.id === id) ?? null;
 }

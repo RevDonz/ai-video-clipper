@@ -153,6 +153,28 @@ export function actionableChecks(checks) {
   return (Array.isArray(checks) ? checks : []).filter((check) => check.severity !== "info");
 }
 
+/** The output's aspect as "w:h" in lowest terms ("9:16", "1:1"), for the stage's label (rombak 06 §5.1). */
+export function outputRatio(output) {
+  const w = Number.isSafeInteger(output?.w) && output.w > 0 ? output.w : 720;
+  const h = Number.isSafeInteger(output?.h) && output.h > 0 ? output.h : 1280;
+  let [a, b] = [w, h];
+  while (b) [a, b] = [b, a % b];
+  return `${w / a}:${h / a}`;
+}
+
+/**
+ * The one-layout top bar's checks button (rombak 06 §4 #6): `{ kind: "check", count }` ("Perlu
+ * dicek n") while an error or a warning is listed, `{ kind: "note", count }` ("Catatan n") when
+ * only notes are, and `{ kind: null, count: 0 }` (no button) when the list is empty.
+ */
+export function checksButtonView(checks) {
+  const list = Array.isArray(checks) ? checks : [];
+  const actionable = actionableChecks(list).length;
+  if (actionable) return { kind: "check", count: actionable };
+  if (list.length) return { kind: "note", count: list.length };
+  return { kind: null, count: 0 };
+}
+
 /**
  * The toast text of a command rejected by the store (Appendix B: `CommandRejected(code)` carries
  * a user message): its `userMessage`, else the message of its code, else a generic line.
