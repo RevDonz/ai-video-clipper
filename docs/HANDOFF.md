@@ -459,8 +459,15 @@ PR).
     seperti entri AI); indeks pencarian halaman Bantuan membaca katalog. Notice "Buka Konteks Tren"
     menjadi "Buka Tren". `/licenses` dari katalog (`help.licenses.*`), kepala halaman tanpa kalimat.
   - Gerbang read-only produksi diuji pada proyek selesai yang disemai di CI
-    (`web/scripts/seed-e2e-project.mjs`, `editor-gates.yml -f seed=true`); gambar landing diambil
-    ulang dari proyek itu dan editor fakes (`e2e/landing-shots.spec.mjs`).
+    (`web/scripts/seed-e2e-project.mjs`, `editor-gates.yml -f seed=true`): `read-only` dan
+    `smoke` lulus di desktop, mobile dan en-smoke (run 40202796408, 40202804203, 40202802047).
+    `hasil.webp` landing diambil ulang dari proyek itu (penampil klip, 1400 × 860,
+    `e2e/landing-shots.spec.mjs`, run 40203327967); daftar klip editor di-fake di spec itu supaya
+    tampak seperti proyek metode sekarang (Edit klip ada). `editor.webp` dibiarkan: isinya editor
+    yang dikirim sekarang (Mode Lengkap pada klip sungguhan), editor baru datang di Fase 10–11, dan
+    editor fakes tidak punya video untuk pratinjau.
+  - Penampil klip di desktop melebar sampai 980 px: ukuran `lg` Modal HeroUI membatasi dialog di
+    32rem, sehingga judul menjadi satu kolom huruf (terlihat di tangkapan CI).
 - Belum selesai, perlu keputusan atau penundaan eksplisit dari pemilik:
   - Peta pesan sisi server yang masih menulis teks Indonesia sendiri untuk field `error`
     (`clip-text-api`, `clips-zip`, `transcription-settings`, `llm-settings-actions`, `clip-edit`)
@@ -472,7 +479,8 @@ PR).
     Indonesia. Editor (`editor/commands`, `editor-ai`) di luar cakupan "UI en lengkap kecuali
     editor".
   - Modul view yang belum disentuh dan masih Indonesia di `en`: `lib/project-view.mjs`
-    (`projectName`, `clipLabel`, mis. "Klip 03"), `lib/clip-text.mjs` (masalah form judul),
+    (`projectName`, `clipLabel`, mis. "Klip 03"), `lib/clip-entry-view.mjs` (alasan klip tidak
+    bisa diedit, label ekspor), `lib/clip-text.mjs` (masalah form judul),
     `lib/source-language.mjs` (notice bahasa video), `lib/stage-summary.mjs`; `app/licenses/notices.mjs`
     (keterangan pemakaian paket) sengaja tetap seperti diterbitkan.
 

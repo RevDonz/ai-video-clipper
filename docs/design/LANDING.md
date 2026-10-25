@@ -25,7 +25,7 @@ gambar tiruan, angka karangan, atau footage pihak ketiga tanpa lisensi.
 
 | File (`web/public/landing/`) | Isi | Ukuran gambar |
 |---|---|---|
-| `hasil.webp` | Tangkapan layar bagian klip di halaman proyek (tiga klip, klip 2 terbuka), dipotong sampai bawah pratinjau | 1400 × 642 |
+| `hasil.webp` | Tangkapan layar penampil klip di halaman proyek (klip terbaik terbuka) pada proyek contoh yang disemai di CI dari `sesudah.mp4` (`web/e2e/landing-shots.spec.mjs`, `editor-gates.yml -f suite=e2e -f seed=true -f command=e2e/landing-shots.spec.mjs`) | 1400 × 860 |
 | `editor.webp` | Tangkapan layar editor sungguhan, Mode Lengkap, detik ke-2, pada job contoh yang sumbernya `sesudah.mp4` (langkah 6) | 1440 × 900 |
 | `sebelum.webp` | Frame sumber 16:9 di 8:09,62 (saat yang sama dengan poster klip) | 960 × 540 |
 | `sesudah.webp` | Poster klip: frame klip 2 di detik 0,6 | 432 × 768 |
