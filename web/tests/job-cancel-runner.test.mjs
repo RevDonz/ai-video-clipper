@@ -166,9 +166,11 @@ setInterval(() => {}, 1000);
     },
     leaseCheckMs: 25,
   });
+  // The 25 ms check can stop the child before waitFor sees its pid file; handle the rejection now.
+  const stopped = assert.rejects(outcome, LeaseLostError);
   const pids = await waitFor(() => readJsonFile(pidsFile), { what: "the fake child" });
   procs = [identity(pids.leader)];
-  await assert.rejects(outcome, LeaseLostError);
+  await stopped;
   assert.ok(checks >= 4, "an unreadable state (null) is no verdict; only false stops the child");
   assert.equal(running(procs[0]), false);
 });
