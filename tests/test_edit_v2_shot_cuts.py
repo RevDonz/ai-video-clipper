@@ -191,15 +191,23 @@ def test_a_candidate_is_refined_to_the_largest_difference_nearby():
 
 def test_a_difference_below_the_refine_threshold_is_dropped():
     diff = [0] * 60
-    diff[30] = 9_000
+    diff[29], diff[30], diff[31] = 3_000, 9_000, 3_000  # not a lone jump either
     scene = [0] * 60
     scene[30] = 50_000
     assert detect(profile(diff, scene), Fps(25, 1), rules=RULES) == []
 
 
+def test_a_lone_jump_between_similar_pictures_is_a_cut_without_a_scene_score():
+    diff = [300] * 100
+    diff[50] = 6_000  # under the refine threshold, over half of it, 20× its neighbours
+    assert detect(profile(diff), Fps(25, 1), rules=RULES) == [50]
+    diff[49] = 2_000  # 3× a neighbour: motion, not a lone jump
+    assert detect(profile(diff), Fps(25, 1), rules=RULES) == []
+
+
 def test_camera_plan_flags_only_propose_candidates():
     diff = [0] * 100
-    diff[50] = 30_000
+    diff[49], diff[50] = 10_000, 30_000  # a cut, but not a lone jump
     p = profile(diff)
     assert detect(p, Fps(25, 1), rules=RULES) == []  # no scene score: no candidate
     assert detect(p, Fps(25, 1), rules=RULES, coarse_cuts_ms=[1800]) == [50]
@@ -223,6 +231,23 @@ def test_a_picture_that_returns_within_two_frames_is_a_flash():
     scene[30] = scene[31] = 80_000
     back = [0] * 60  # frame 31 against frame 29 (lag 2): the same picture
     assert detect(profile(diff, scene, far={2: back}), Fps(25, 1), rules=RULES) == []
+
+
+def test_a_dip_through_black_is_one_cut_where_the_new_picture_arrives(tmp_path, ffmpeg):
+    a, b, black = texture(11), texture(12), bytes([16]) * (W * H)
+    frames = ([a] * 50 + [blend(a, black, (i + 1) / 9) for i in range(8)] + [black] * 2
+              + [blend(black, b, (i + 1) / 9) for i in range(8)] + [b] * 50)
+    fps = Fps(25, 1)
+    video = encode(tmp_path / "dip.mp4", frames, "25")
+    found = find_cuts(video, window(len(frames), fps), fps, rules=RULES)
+    # the new picture is at least half there from the fourth frame of the fade in (60 + 3)
+    assert close(found.cuts_sf, [63])
+
+
+def test_a_steady_pan_is_not_a_cut():
+    diff = [3_000] * 120  # the picture moves the same amount every frame
+    far = {2: [6_000] * 120, 3: [9_000] * 120, 12: [36_000] * 120}
+    assert detect(profile(diff, far=far), Fps(25, 1), rules=RULES) == []
 
 
 def test_the_profile_round_trips_through_json():

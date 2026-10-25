@@ -202,17 +202,60 @@ rata-rata ke frame 1, 2, 3 dan 12 frame sebelumnya disimpan. Lalu:
 
 1. kandidat = frame dengan skor `scene` > `cut.coarse_scene_pm`, ditambah flag cut camera plan;
 2. di ±500 ms tiap kandidat, frame dengan selisih terbesar ke frame sebelumnya adalah cut bila
-   selisih itu ≥ `cut.refine_diff_pm`; gambar yang kembali dalam ≤ 2 frame adalah kilat, bukan cut;
-3. transisi bertahap (fade, dissolve, wipe): frame tengah 12 frame yang ujung-ujungnya berbeda ≥
-   `cut.refine_diff_pm` tanpa satu frame pun yang melompat sebesar itu, dengan gambar diam sebelum
-   dan sesudahnya (selisih per 3 frame ≤ 1/8 perubahan; gerak kamera tidak lolos);
-4. dua cut yang lebih dekat dari `cut.min_gap_ms`: yang lebih kuat dipertahankan.
+   selisih itu ≥ `cut.refine_diff_pm` **dan** frame itu membawa ≥ separuh perubahan dari dua frame
+   sebelumnya sampai frame sesudahnya (langkah dissolve atau gerak kamera tidak); gambar yang
+   kembali dalam ≤ 2 frame adalah kilat, bukan cut;
+3. lompatan tunggal: selisih ≥ separuh `cut.refine_diff_pm` yang ≥ 4× selisih kedua tetangganya
+   (cut di antara dua gambar mirip, yang skor `scene`-nya rendah), dengan syarat yang sama;
+4. transisi bertahap (fade, dissolve, wipe): 12 frame yang ujung-ujungnya berbeda ≥
+   `cut.refine_diff_pm`, tanpa satu frame pun yang membawa separuh perubahan itu, dengan gambar
+   diam sebelum dan sesudahnya (selisih per 3 frame ≤ 1/8 perubahan; gerak kamera tidak lolos).
+   Cut-nya frame pertama saat separuh perubahan frame-ke-frame sudah terjadi (gambar baru ≥ 50%).
+   Dua transisi yang berjarak ≤ 24 frame adalah satu dip lewat hitam/putih: cut-nya yang kedua,
+   saat gambar baru datang;
+5. dua cut yang lebih dekat dari `cut.min_gap_ms`: yang lebih kuat dipertahankan.
 
-Langkah 3 dan aturan kilat ditambahkan di atas rancangan 04 §A3 karena baseline menunjukkan wipe
-dan fade tidak tertangkap (recall satu pembicara 0,10) dan label menyebut kilat bukan cut; konstanta
-keduanya (2 frame, 12 frame, 1/8) tetap, tidak ikut sweep. Pengukuran satu proses untuk seluruh
-jendela menggantikan dekode ±500 ms per kandidat dari 04 §A3: hasil per frame sama, dan profil yang
-sama bisa dinilai ulang untuk setiap konfigurasi sweep tanpa footage.
+Langkah 3, 4 dan aturan kilat ditambahkan di atas rancangan 04 §A3 karena baseline menunjukkan
+wipe dan fade tidak tertangkap (recall satu pembicara 0,10) dan label menyebut kilat bukan cut;
+konstantanya (2 frame, 4×, separuh, 12 frame, 1/8, 24 frame) tetap, tidak ikut sweep. Pengukuran
+satu proses untuk seluruh jendela menggantikan dekode ±500 ms per kandidat dari 04 §A3: hasil per
+frame sama, dan profil yang sama bisa dinilai ulang untuk setiap konfigurasi sweep tanpa footage.
+
+### Hasil sweep dev (2026-10-25)
+
+Profil diukur di GitHub Actions tanpa membaca label (`--profile`, run
+[40185140026](https://github.com/RevDonz/ai-video-clipper/actions/runs/40185140026), image produksi):
+`docs/evaluation/auto-reframe/profiles-dev-2026-10-25.json`. Sweep dua tahap di profil itu
+(`--sweep`, bisa diulang tanpa footage): `docs/evaluation/auto-reframe/sweep-dev-2026-10-25.json`.
+Nilai terpilih ditulis ke `resources/reframe/rules.v1.json` (`rules_id` `6b67494539ede149`):
+
+| Kunci | Nilai |
+|---|---|
+| `cut.coarse_scene_pm` / `refine_diff_pm` / `min_gap_ms` | 200 / 130 / 800 |
+| `face.present_pm` / `small_w_pm` / `centre_pm` | 400 / 80 / 60 |
+| `speakers.active_pm` / `split_share_pm` | 100 / 300 |
+| `motion.still_pm` | 20 |
+
+| Gerbang (dev) | Syarat | Hasil |
+|---|---|---|
+| Cut, ±1 frame (21 jendela, 95 cut) | P ≥ 0,95 dan R ≥ 0,90 | **gagal**: P 0,915 · R 0,789 · F1 0,847 (75 benar, 7 salah, 20 terlewat) |
+| Waktu pindai (CI) | ≤ 15 dtk + 0,5 dtk/cut | lolos di 21/21 jendela, maks 9,99 dtk |
+| Agreement mode (dev, informatif; gerbangnya test split di RF-M4) | ≥ 85% | 82,5% (baseline hari ini 23,0%; Latar blur di semua frame 63,1%) |
+
+Tidak ada konfigurasi cut yang memenuhi kedua lantai, jadi tahap 2 berjalan di F1 terbaik dan
+gerbang cut RF-M1 dicatat **gagal**; lantainya tidak dilonggarkan. Per kategori: dua orang dan panel
+P = R = 1,0; gameplay/b-roll P 0,94 · R 0,85 (`rf-49` memuat 9 dari 20 cut terlewat); satu pembicara
+P 0,85 · R 0,55 (`rf-10`: 7 cut di antara sudut yang hampir sama, selisih 64×36 hanya 3–10%); layar
+P 0,33 · R 0,33 (`rf-37`: pindah dialog yang menurut label bukan cut; `rf-44`: ganti slide dengan
+selisih 6–7%). Agreement per kategori: layar 100%, gameplay/b-roll 87%, satu pembicara 79%, panel
+75%, dua orang 72% (frame `split` berlabel selalu salah selama `AUTO_SPLIT = False`).
+
+Detektor diperbaiki dua kali di dev sebelum nilai ini dipilih (dicatat supaya tidak tampak satu
+kali coba): versi pertama (tanpa syarat separuh perubahan, tanpa lompatan tunggal, tanpa dip)
+memberi P 0,784 · R 0,726; versi kedua (dengan syarat separuh dan posisi 50%) P 0,843 · R 0,737.
+Langkah berikutnya untuk menutup celah tanpa melonggarkan gerbang: sinyal cut yang lebih halus
+dari 64×36 abu-abu (warna atau resolusi lebih tinggi untuk `rf-10` dan slide), lalu sweep ulang di
+dev; test split tetap tertutup sampai RF-M4.
 
 **Sweep tanpa footage:** `--profile` (di CI, tanpa membaca label) menyimpan profil grid, scan wajah
 dan waktu tiap jendela; `--sweep --profiles …` menjalankan tahap 1 (75 konfigurasi `cut.*`) dan

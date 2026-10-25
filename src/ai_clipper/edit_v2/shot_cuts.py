@@ -15,12 +15,18 @@ index), and measures every grid frame twice (:func:`measure`):
    plan's cut flags (``coarse_cuts_ms``; a flag only proposes a candidate, it is never a cut by
    itself).
 2. **Refinement**: around each candidate (±500 ms) the frame with the largest difference to its
-   predecessor is the cut when that difference reaches ``cut.refine_diff_pm``. A frame the
-   picture returns from (or to) within ``FLASH_FRAMES`` is a flash, not a cut.
-3. **Gradual transitions** (a fade, a dissolve, a wipe): the middle frame of
-   ``2·GRADUAL_HALF`` frames whose ends differ by at least ``cut.refine_diff_pm``, where no
-   single frame does, and whose picture is still before and after (a pan never is).
-4. **Minimum gap**: of two cuts closer than ``cut.min_gap_ms`` the stronger is kept.
+   predecessor is the cut when that difference reaches ``cut.refine_diff_pm`` and the frame
+   carries at least half of the change across it (a step of a dissolve or of a camera move does
+   not). A frame the picture returns from (or to) within ``FLASH_FRAMES`` is a flash, not a cut.
+3. **Lone jumps**: a difference of at least half ``cut.refine_diff_pm`` that is ``JUMP_RATIO``
+   times both neighbours' is a cut between two similar pictures (the scene score misses those),
+   under the same two conditions.
+4. **Gradual transitions** (a fade, a dissolve, a wipe): ``2·GRADUAL_HALF`` frames whose ends
+   differ by at least ``cut.refine_diff_pm``, where no single frame carries half of it, and
+   whose picture is still before and after (a pan never is). The cut is the first frame by which
+   half of the frame-to-frame change has happened; two transitions within ``DIP_FRAMES`` are one
+   dip through black or white, cut where the new picture arrives.
+5. **Minimum gap**: of two cuts closer than ``cut.min_gap_ms`` the stronger is kept.
 
 A cut is the first frame of the new shot, never the window's first frame.
 
@@ -63,6 +69,10 @@ LAGS = (1, 2, 3, 12)
 FLASH_FRAMES = 2  # a picture back within this many frames was a flash
 GRADUAL_HALF = 6  # half the span a gradual transition is measured over
 STILL_SHARE = 8  # the picture beside a gradual transition changes at most 1/8 of it per 3 frames
+ABRUPT_SHARE = 2  # a cut's frame carries at least half of the change across it
+JUMP_RATIO = 4  # a difference this many times both neighbours' is a candidate by itself
+JUMP_SHARE = 2  # ... and a cut from half the refine threshold (two similar pictures)
+DIP_FRAMES = 4 * GRADUAL_HALF  # two transitions this close are one dip through black/white
 REFINE_HALF_MS = 500
 FFMPEG_THREADS = 2
 SCALE = 100_000  # differences and scene scores are kept as 1/100000
@@ -236,6 +246,31 @@ def _flash(profile: Profile, k: int, threshold: int) -> bool:
     return False
 
 
+def _abrupt(profile: Profile, k: int) -> bool:
+    """Frame ``k`` carries at least half of the change across it (from the frame two before
+    to the frame after): a cut, not a step of a dissolve or of a camera move."""
+    after = min(k + 1, profile.frames - 1)
+    across = profile.lag[3][after] if after >= 3 else profile.lag[1][k]
+    return ABRUPT_SHARE * profile.lag[1][k] >= across
+
+
+def _isolated(profile: Profile, threshold: int) -> dict[int, int]:
+    """Cuts between two similar pictures, which the scene score passes over: a difference of
+    at least ``threshold`` that stands alone (``JUMP_RATIO`` times both neighbours'), carries
+    the change across it and is no flash."""
+    diff = profile.lag[1]
+    n = profile.frames
+    found = {}
+    for k in range(1, n):
+        if diff[k] < threshold:
+            continue
+        neighbours = max(diff[k - 1] if k > 1 else 0, diff[k + 1] if k + 1 < n else 0)
+        if (diff[k] >= JUMP_RATIO * neighbours and _abrupt(profile, k)
+                and not _flash(profile, k, threshold)):
+            found[k] = diff[k]
+    return found
+
+
 def _hard(profile: Profile, candidates: Sequence[int], fps: Fps, threshold: int
           ) -> dict[int, int]:
     half = _frames_of_ms(REFINE_HALF_MS, fps)
@@ -246,7 +281,8 @@ def _hard(profile: Profile, candidates: Sequence[int], fps: Fps, threshold: int
         if lo >= hi:
             continue
         k = max(range(lo, hi), key=lambda i: (diff[i], -i))
-        if diff[k] >= threshold and not _flash(profile, k, threshold):
+        if (diff[k] >= threshold and _abrupt(profile, k)
+                and not _flash(profile, k, threshold)):
             found[k] = diff[k]
     return found
 
@@ -262,26 +298,44 @@ def _gradual(profile: Profile, threshold: int) -> dict[int, int]:
         change = wide[k + GRADUAL_HALF]  # frame k + half against frame k − half
         if change < threshold:
             continue
-        if max(step[k - GRADUAL_HALF + 1:k + GRADUAL_HALF + 1]) >= threshold:
-            continue  # a hard cut is inside: the refinement finds it
+        if ABRUPT_SHARE * max(step[k - GRADUAL_HALF + 1:k + GRADUAL_HALF + 1]) >= change:
+            continue  # one frame carries half of it: a cut, which the refinement finds
         if (still[k - GRADUAL_HALF] * STILL_SHARE > change
                 or still[k + GRADUAL_HALF + 3] * STILL_SHARE > change):
             continue  # the picture moves before or after: a pan, not a transition
         qualifies.append((k, change))
-    found: dict[int, int] = {}
+    transitions: list[tuple[int, int]] = []
     run: list[tuple[int, int]] = []
     for item in [*qualifies, (-10, 0)]:
         if run and item[0] != run[-1][0] + 1:
-            k, change = max(run, key=lambda p: (p[1], -p[0]))
-            found[k] = change
+            centre, change = max(run, key=lambda p: (p[1], -p[0]))
+            frame = _half_way(step, centre)
+            # a dip through black or white is the old picture leaving, then the new one
+            # arriving: one cut, where the new picture arrives
+            if transitions and frame - transitions[-1][0] <= DIP_FRAMES:
+                transitions.pop()
+            transitions.append((frame, change))
             run = []
         run.append(item)
-    return found
+    return dict(transitions)
+
+
+def _half_way(step: Sequence[int], centre: int) -> int:
+    """The first frame of a transition around ``centre`` by which half of its frame-to-frame
+    change has happened: where the new picture is at least half there."""
+    frames = range(centre - GRADUAL_HALF + 1, centre + GRADUAL_HALF + 1)
+    total = sum(step[k] for k in frames)
+    done = 0
+    for k in frames:
+        done += step[k]
+        if 2 * done >= total:
+            return k
+    return centre
 
 
 def detect(profile: Profile, fps: Fps, *, rules: Rules,
            coarse_cuts_ms: Sequence[int] = ()) -> list[int]:
-    """The cuts of the profiled window as source-grid frames (module notes, steps 1–4)."""
+    """The cuts of the profiled window as source-grid frames (module notes, steps 1–5)."""
     fps = Fps.from_json(fps)
     threshold = rules.cut_refine_diff_pm * (SCALE // 1000)
     coarse = rules.cut_coarse_scene_pm * (SCALE // 1000)
@@ -291,6 +345,7 @@ def detect(profile: Profile, fps: Fps, *, rules: Rules,
         if 0 < k < profile.frames:
             candidates.append(k)
     strength = _gradual(profile, threshold)
+    strength.update(_isolated(profile, threshold // JUMP_SHARE))
     strength.update(_hard(profile, candidates, fps, threshold))
     gap = _frames_of_ms(rules.cut_min_gap_ms, fps) if rules.cut_min_gap_ms else 0
     kept: list[int] = []
