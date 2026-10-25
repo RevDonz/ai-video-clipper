@@ -6,13 +6,16 @@
 html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 
 .settingsPage { padding-bottom: 16px; }
-.settingsShell { display: grid; gap: 0; }
+/* minmax(0, 1fr): the tab row's full width must not widen the column (and the page) on a phone. */
+.settingsShell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
 
 /* Tabs: one row, scrolling sideways on a phone instead of wrapping into a second row. */
-.settingsTabs { display: grid; gap: 20px; }
+.settingsTabs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
 .settingsTabList { overflow-x: auto; scrollbar-width: thin; }
 .settingsTabDot { margin-left: 6px; color: var(--warning); font-size: 10px; line-height: 1; }
 .settingsPanel { display: grid; gap: 16px; min-width: 0; }
+/* The other tabs stay mounted (their unsaved changes live on) but out of sight and reach. */
+.settingsPanel[data-inert="true"] { display: none; }
 
 /* Cards */
 .settingsCard {

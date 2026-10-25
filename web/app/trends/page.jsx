@@ -62,7 +62,8 @@ function DeleteDialog({ item, busy, onConfirm, onClose }) {
   const t = useTranslations("trends");
   return (
     <AlertDialog isOpen={Boolean(item)} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
-      <AlertDialog.Backdrop>
+      {/* HeroUI's AlertDialog ignores Escape by default; here Escape closes it unless it is busy. */}
+      <AlertDialog.Backdrop isKeyboardDismissDisabled={busy}>
         <AlertDialog.Container size="sm">
           <AlertDialog.Dialog>
             <AlertDialog.Header>

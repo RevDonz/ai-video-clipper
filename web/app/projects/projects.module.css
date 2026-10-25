@@ -18,8 +18,10 @@
   }
 }
 
+/* minmax(0, 1fr): the filter row's full width must not widen the column (and the page) on a phone. */
 .tabs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
