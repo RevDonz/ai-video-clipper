@@ -40,15 +40,19 @@ const NO_SEARCH = Promise.resolve({});
 const RERUN = "rerun";
 const DELETE = "delete";
 
+// A notice's title, text and action are descriptors (or the page's own strings).
 function Notice({ notice, helpLabel }) {
+  const tAll = useTranslations();
+  const title = msg(tAll, notice.title);
+  const action = msg(tAll, notice.action);
   return (
     <div className={`notice ${notice.tone}`}>
-      {notice.title && <strong>{notice.title}</strong>}
-      <span>{notice.text}</span>
+      {title && <strong>{title}</strong>}
+      <span>{msg(tAll, notice.text)}</span>
       {(notice.href || notice.help) && (
         <span className={styles.noticeLinks}>
           {notice.help && <a className={styles.noticeLink} href={notice.help}>{helpLabel}</a>}
-          {notice.href && <a className={styles.noticeLink} href={notice.href}>{notice.action}</a>}
+          {notice.href && <a className={styles.noticeLink} href={notice.href}>{action}</a>}
         </span>
       )}
     </div>
@@ -58,12 +62,13 @@ function Notice({ notice, helpLabel }) {
 // Fokus klip: "Fokus: jomok, jomokers · 5 dari 8 klip cocok". Nothing for jobs without focus.
 function FocusSummary({ job }) {
   const t = useTranslations("project");
+  const tAll = useTranslations();
   const view = focusSummaryLine(job);
   if (!view) return null;
   return (
     <p className={focusStyles.focusLine}>
       <span className={focusStyles.label}>{t("focus")}</span> {view.termsText}
-      {view.countText && <> · <strong>{view.countText}</strong></>}
+      {view.countText && <> · <strong>{msg(tAll, view.countText)}</strong></>}
     </p>
   );
 }
@@ -209,7 +214,7 @@ function ProjectView({ job, entries, viewing, onView, copyState, onCopy, cancelN
         </Alert>
       )}
 
-      {notices.length > 0 && <div className={styles.notices}>{notices.map((notice) => <Notice key={`${notice.tone}:${notice.text}`} notice={notice} helpLabel={t("help")} />)}</div>}
+      {notices.length > 0 && <div className={styles.notices}>{notices.map((notice) => <Notice key={`${notice.tone}:${msg(tAll, notice.text)}`} notice={notice} helpLabel={t("help")} />)}</div>}
       <FocusSummary job={job} />
 
       <p className={styles.zipStatus} role="status" aria-live="polite">{zip.state === "error" ? "" : zip.message}</p>

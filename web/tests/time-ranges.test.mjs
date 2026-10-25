@@ -267,7 +267,10 @@ test("the dashboard checks the field before anything is sent, against the clip c
 });
 
 test("the folded options' summary counts the typed ranges", async () => {
-  const { DEFAULT_CHOICES, choicesSummary } = await import("../lib/dashboard-choices.mjs");
+  const choicesView = await import("../lib/dashboard-choices.mjs");
+  const { textsOf } = await import("./support/catalog-t.mjs");
+  const { DEFAULT_CHOICES } = choicesView;
+  const choicesSummary = (...args) => textsOf(choicesView.choicesSummary(...args)).join(" · ");
   assert.equal(choicesSummary(DEFAULT_CHOICES, { ranges: 2, focusTerms: 1 }), "3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia · 2 rentang waktu · fokus 1 kata kunci");
   assert.equal(choicesSummary(DEFAULT_CHOICES, { ranges: 0 }), choicesSummary(DEFAULT_CHOICES));
 });
@@ -285,7 +288,10 @@ test("the moments row says how many clips came from the typed ranges", async () 
 });
 
 test("a job made only of typed ranges is not called a job made without AI", async () => {
-  const { clipRangeChip, selectionNotices } = await import("../lib/selection-v3-view.mjs");
+  const view = await import("../lib/selection-v3-view.mjs");
+  const { textsOf } = await import("./support/catalog-t.mjs");
+  const clipRangeChip = (clip) => textsOf(view.clipRangeChip(clip));
+  const selectionNotices = (job) => textsOf(view.selectionNotices(job));
   const summary = { mode: "v3", status: "completed", source: "heuristic", warnings: [] };
   const job = (clips) => ({ options: { llmMode: "auto" }, selectionV3: summary, clips });
   assert.deepEqual(selectionNotices(job([{ index: 1, manual: true }, { index: 2, manual: true }])), []);

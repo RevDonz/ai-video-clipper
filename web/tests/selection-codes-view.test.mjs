@@ -8,7 +8,13 @@ import test from "node:test";
 import { createTranslator } from "use-intl/core";
 
 import { warningText } from "../lib/i18n/stage.mjs";
-import { clipReasonTexts, clipReasons, selectionNotices, selectionWarningLabel } from "../lib/selection-v3-view.mjs";
+import * as selectionView from "../lib/selection-v3-view.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The selection view returns catalog descriptors; these compare their Indonesian text.
+const { clipReasonTexts, clipReasons } = selectionView;
+const selectionNotices = (...args) => textsOf(selectionView.selectionNotices(...args));
+const selectionWarningLabel = (...args) => textsOf(selectionView.selectionWarningLabel(...args));
 
 const WEB = new URL("..", import.meta.url);
 const catalog = async (locale) => JSON.parse(await readFile(new URL(`messages/${locale}/reason.json`, WEB), "utf8"));

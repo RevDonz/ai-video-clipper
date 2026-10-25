@@ -153,5 +153,51 @@
     "label": "Tren yang disebut di klip ini",
     "kind": "{kind} · disebut di transkrip klip ini",
     "plain": "Disebut di transkrip klip ini"
+  },
+  "archetype": {
+    "curiosity_gap": "Bikin penasaran",
+    "controversial_claim": "Klaim kontroversial",
+    "confession": "Pengakuan",
+    "insider_secret": "Rahasia orang dalam",
+    "story_twist": "Cerita dengan twist",
+    "number_proof": "Bukti angka",
+    "conflict": "Konflik",
+    "humor": "Humor",
+    "relatable_pain": "Masalah yang relate",
+    "emotional": "Emosional",
+    "practical_tip": "Tips praktis",
+    "other": "Lainnya"
+  },
+  "scoreName": {
+    "hook": "Hook",
+    "standalone": "Berdiri sendiri",
+    "payoff": "Payoff",
+    "emotion": "Emosi",
+    "shareability": "Layak dibagikan"
+  },
+  "trendChip": "Nyambung tren: {title}",
+  "focusSummary": {
+    "count": "{matched} dari {requested} klip cocok",
+    "text": "Fokus: {terms}",
+    "textCount": "Fokus: {terms} · {matched} dari {requested} klip cocok"
+  },
+  "focusChip": {
+    "outside": "Di luar fokus",
+    "semantic": "Terkait {terms} (menurut AI)",
+    "semanticAny": "Terkait fokus (menurut AI)",
+    "literal": "Menyebut {terms}",
+    "literalAt": "Menyebut {terms} · {at}",
+    "literalAny": "Menyebut fokus",
+    "literalAnyAt": "Menyebut fokus · {at}"
+  },
+  "rangeChip": "Rentang waktu kamu",
+  "notice": {
+    "aiFailed": "AI gagal dipakai",
+    "aiFailedText": "Momen dipilih tanpa AI, jadi judul dan hook bisa kurang tajam. Cek API key atau kuota di Pengaturan.",
+    "noAi": "Dibuat tanpa AI",
+    "noAiText": "AI mati atau belum diatur saat proyek ini diproses.",
+    "setUpAi": "Atur AI",
+    "openSettings": "Buka Pengaturan",
+    "openTrends": "Buka Tren"
   }
 }

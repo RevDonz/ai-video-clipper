@@ -5,26 +5,19 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import {
-  CAPTION_STYLE_CHOICES,
-  CHOICES_KEY,
-  DEFAULT_CHOICES,
-  DURATION_PRESETS,
-  LAYOUT_CHOICES,
-  OPTION_SECTIONS,
-  VIDEO_LANGUAGE_CHOICES,
-  choicesSummary,
-  normalizeChoices,
-  readStoredChoices,
-  sectionOfField,
-  sectionSummary,
-  withDuration,
-  withSection,
-  writeStoredChoices,
-} from "../lib/dashboard-choices.mjs";
+import * as choicesView from "../lib/dashboard-choices.mjs";
 import * as dashboardView from "../lib/dashboard-view.mjs";
 import { CAPTION_STYLES, RENDER_MODES, VIDEO_LANGUAGES, parseJobOptions } from "../lib/jobs.mjs";
 import { textsOf } from "./support/catalog-t.mjs";
+
+// The choices' descriptions, fold titles and summaries are catalog descriptors; compared by their
+// Indonesian text (a summary's parts joined as the screen joins them).
+const { CAPTION_STYLE_CHOICES, CHOICES_KEY, DEFAULT_CHOICES, LAYOUT_CHOICES, normalizeChoices, readStoredChoices, sectionOfField, withDuration, withSection, writeStoredChoices } = choicesView;
+const DURATION_PRESETS = textsOf(choicesView.DURATION_PRESETS);
+const OPTION_SECTIONS = textsOf(choicesView.OPTION_SECTIONS);
+const VIDEO_LANGUAGE_CHOICES = textsOf(choicesView.VIDEO_LANGUAGE_CHOICES);
+const choicesSummary = (...args) => textsOf(choicesView.choicesSummary(...args)).join(" · ");
+const sectionSummary = (...args) => textsOf(choicesView.sectionSummary(...args)).join(" · ");
 
 // The dashboard view returns catalog descriptors; compared by their Indonesian text.
 const jobFormProblems = (fields) => textsOf(dashboardView.jobFormProblems(fields));

@@ -7,6 +7,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslations } from "use-intl";
 
+import { msg } from "../../lib/i18n/descriptor.mjs";
 import {
   FOCUS_LIMITS,
   addFocusTerms,
@@ -19,12 +20,13 @@ import styles from "./focus.module.css";
 
 export default function FocusField({ terms, draft, note, error, aiMode, onTermsChange, onDraftChange, onNoteChange, onErrorChange }) {
   const t = useTranslations("dashboard");
+  const tAll = useTranslations();
   const inputRef = useRef(null);
   const removeButtons = useRef([]);
   const refocusIndex = useRef(null);
   const noteLength = Array.from(normalizeFocusText(note)).length;
   const full = terms.length >= FOCUS_LIMITS.terms;
-  const hint = focusTermsHint(terms, aiMode);
+  const hint = msg(tAll, focusTermsHint(terms, aiMode));
 
   // After a chip is removed, keyboard focus moves to the next chip's button, else the input.
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function FocusField({ terms, draft, note, error, aiMode, onTermsC
       </div>
       <span id="focus-terms-help" className={styles.help}>{t("focus.help")}</span>
       {hint && <span id="focus-terms-hint" className={styles.hint}>{hint}</span>}
-      {error && <span className={styles.error} role="alert">{error}</span>}
+      {error && <span className={styles.error} role="alert">{msg(tAll, error)}</span>}
       <label className={styles.noteLabel} htmlFor="focus-note">{t("focus.note")}</label>
       <textarea id="focus-note" className={styles.note} rows={2} value={note} placeholder={t("focus.noteExample")} aria-describedby="focus-note-count" onChange={(event) => onNoteChange(event.target.value)} />
       <span id="focus-note-count" className={`${styles.help} ${styles.noteMeta}`}>

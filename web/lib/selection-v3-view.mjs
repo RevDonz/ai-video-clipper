@@ -1,38 +1,43 @@
-// Presentation helpers for Selection V3 clips and summaries. Client-safe: no
-// Node built-ins, so both the dashboard and the project page can import it.
+// Presentation helpers for the clips and selection summaries of the current method. Client-safe:
+// no Node built-ins, so both the dashboard and the project page can import it. Copy comes back as
+// catalog descriptors ({ key, values }, lib/i18n/descriptor.mjs; msg(t, …) gives the text); the
+// clip's own words (titles, terms, trend titles) are data and pass as strings.
 
 import { llmWarningHelpHref } from "./help-catalog.mjs";
-import { TREND_KIND_LABELS, TREND_LIMITS, cleanLine } from "./trend-view.mjs";
+import { TREND_KIND_NAMES, TREND_LIMITS, cleanLine } from "./trend-view.mjs";
+import { d } from "./i18n/descriptor.mjs";
 import { secondsFormat } from "./i18n/format.mjs";
 import { SOURCE_LOCALE } from "./i18n/locales.mjs";
-import { reasonText, sanitizeReasonCodes } from "./i18n/stage.mjs";
+import { reasonText, sanitizeReasonCodes, warningDescriptor } from "./i18n/stage.mjs";
 
-export const ARCHETYPE_LABELS = Object.freeze({
-  curiosity_gap: "Bikin penasaran",
-  controversial_claim: "Klaim kontroversial",
-  confession: "Pengakuan",
-  insider_secret: "Rahasia orang dalam",
-  story_twist: "Cerita dengan twist",
-  number_proof: "Bukti angka",
-  conflict: "Konflik",
-  humor: "Humor",
-  relatable_pain: "Masalah yang relate",
-  emotional: "Emosional",
-  practical_tip: "Tips praktis",
-  other: "Lainnya",
+const frozen = (table) => Object.freeze(Object.fromEntries(Object.entries(table).map(([id, value]) => [id, Object.freeze(value)])));
+
+export const ARCHETYPE_LABELS = frozen({
+  curiosity_gap: d("project.archetype.curiosity_gap"),
+  controversial_claim: d("project.archetype.controversial_claim"),
+  confession: d("project.archetype.confession"),
+  insider_secret: d("project.archetype.insider_secret"),
+  story_twist: d("project.archetype.story_twist"),
+  number_proof: d("project.archetype.number_proof"),
+  conflict: d("project.archetype.conflict"),
+  humor: d("project.archetype.humor"),
+  relatable_pain: d("project.archetype.relatable_pain"),
+  emotional: d("project.archetype.emotional"),
+  practical_tip: d("project.archetype.practical_tip"),
+  other: d("project.archetype.other"),
 });
 
-export const SCORE_LABELS = Object.freeze({
-  hook: "Hook",
-  standalone: "Berdiri sendiri",
-  payoff: "Payoff",
-  emotion: "Emosi",
-  shareability: "Layak dibagikan",
+export const SCORE_LABELS = frozen({
+  hook: d("project.scoreName.hook"),
+  standalone: d("project.scoreName.standalone"),
+  payoff: d("project.scoreName.payoff"),
+  emotion: d("project.scoreName.emotion"),
+  shareability: d("project.scoreName.shareability"),
 });
 
 export function archetypeLabel(code) {
   if (typeof code !== "string" || !code) return null;
-  return ARCHETYPE_LABELS[code] || ARCHETYPE_LABELS.other;
+  return Object.hasOwn(ARCHETYPE_LABELS, code) ? ARCHETYPE_LABELS[code] : ARCHETYPE_LABELS.other;
 }
 
 export function formatTenths(value) {
@@ -146,79 +151,47 @@ export function clipTrendChips(clip) {
     const key = id || `title:${title.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    chips.push({ key, title, label: `Nyambung tren: ${title}`, kindLabel: TREND_KIND_LABELS[trend.kind] || null });
+    const kind = typeof trend.kind === "string" && trend.kind !== "other" && Object.hasOwn(TREND_KIND_NAMES, trend.kind) ? TREND_KIND_NAMES[trend.kind] : null;
+    chips.push({ key, title, label: d("project.trendChip", { title }), kindLabel: kind });
   }
   return chips;
 }
 
-// Konteks Tren and Fokus klip summary codes (engine: pipeline.py and selection_v3.py). Other
-// codes stay technical and get no label.
-const WARNING_LABELS = Object.freeze({
-  trend_items_skipped: (count) => `${count} item tren rusak dilewati.`,
-  trend_ref_ungrounded: (count) => `${count} tren yang disebut AI dibuang karena tidak disebut di transkrip klipnya.`,
-  trend_packaging_ungrounded: (count) => `${count} klip AI menyebut tren yang tidak ada di transkripnya; judul, hook atau deskripsinya diganti dari klip itu sendiri.`,
-  trend_sensitive_humor: (count) => `${count} klip lucu menyinggung tren sensitif; periksa judul dan hook-nya sebelum diunggah.`,
-  focus_few_matches: (count) => `Hanya ${count} klip yang cocok dengan fokus; sisa slot diisi momen terbaik lain dengan label “Di luar fokus”.`,
-  focus_literal_ungrounded: (count) => `${count} klip yang menurut AI menyebut fokus ternyata istilahnya tidak ditemukan di transkrip klip itu; labelnya diturunkan dari “Menyebut”.`,
-  focus_packaging_ungrounded: (count) => `${count} klip memakai kata kunci fokus di judul, hook atau deskripsinya padahal klip itu tidak menyebutnya; teks itu diganti dari isi klipnya sendiri.`,
-  focus_terms_unmatchable: (count) => `${count} kata kunci fokus terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; untuk kata kunci itu hanya pembacaan AI yang berlaku.`,
-  focus_topup: (count) => `AI diminta sekali lagi mencari momen di sekitar sebutan fokus yang belum tercakup, dan mengusulkan ${count} momen fokus tambahan.`,
-});
-
+// Tren and Fokus klip summary codes (engine: pipeline.py and selection_v3.py) explained on the
+// page; their text is reason.warning.<code> (lib/i18n/stage.mjs). Other codes stay technical.
+const COUNTED_WARNINGS = new Set([
+  "trend_items_skipped", "trend_ref_ungrounded", "trend_packaging_ungrounded", "trend_sensitive_humor",
+  "focus_few_matches", "focus_literal_ungrounded", "focus_packaging_ungrounded", "focus_terms_unmatchable", "focus_topup",
+]);
 // Fokus klip top-up (engine: llm_selection.py): why the one extra request was not used.
-const FOCUS_TOPUP_SKIPPED = Object.freeze({
-  budget: "Permintaan tambahan ke AI untuk momen fokus dilewati: sisa permintaan AI dipakai untuk peringkat ulang, atau batas jumlah permintaan AI job ini sudah habis.",
-  deadline: "Permintaan tambahan ke AI untuk momen fokus dilewati karena batas waktu AI job ini sudah habis.",
-  context: "Permintaan tambahan ke AI untuk momen fokus dilewati karena potongan transkripnya tidak muat di konteks model.",
-});
-
+const FOCUS_TOPUP_SKIPPED = new Set(["budget", "deadline", "context"]);
 // Transkripsi lewat Groq (engine: pipeline.py, transcribe_groq.py): why Groq was not used. Local
 // Whisper always made the transcript instead.
-const GROQ_FALLBACK_REASONS = Object.freeze({
-  no_key: "belum ada API key Groq",
-  auth: "Groq menolak API key-nya",
-  rate_limited: "kuota gratis Groq sedang habis",
-  too_long: "video lebih dari 2 jam, melewati batas gratis Groq per jam",
-  too_large: "file audio melewati batas ukuran Groq",
-  audio_failed: "audio video tidak bisa disiapkan",
-  model_unavailable: "model Whisper di Groq tidak tersedia",
-  server_error: "server Groq sedang bermasalah",
-  http_error: "Groq menolak permintaannya",
-  timeout: "Groq tidak menjawab tepat waktu",
-  network: "server ini tidak bisa menghubungi Groq",
-  malformed: "jawaban Groq tidak terbaca",
-  empty: "Groq tidak menemukan ucapan",
-  error: "ada kesalahan tak terduga",
-});
-
+const GROQ_FALLBACK_REASONS = new Set([
+  "no_key", "auth", "rate_limited", "too_long", "too_large", "audio_failed", "model_unavailable",
+  "server_error", "http_error", "timeout", "network", "malformed", "empty", "error",
+]);
 // An uploaded .srt the engine could not use (pipeline.py): the transcript came from the audio.
-const SUBTITLE_REJECTED = Object.freeze({
-  invalid: "Subtitle .srt tidak bisa dibaca",
-  empty: "Subtitle .srt tidak berisi kata",
-  duration_mismatch: "Subtitle .srt lebih panjang dari video",
-});
+const SUBTITLE_REJECTED = new Set(["invalid", "empty", "duration_mismatch"]);
 
-/** An Indonesian explanation of a trend, focus, Groq or subtitle warning code of the selection summary, or null. */
+function explainedWarning(code) {
+  if (typeof code !== "string") return false;
+  const subtitle = /^subtitle_rejected:([a-z_]{1,32})$/.exec(code);
+  if (subtitle) return SUBTITLE_REJECTED.has(subtitle[1]);
+  if (code === "trend_context_invalid") return true;
+  const groq = /^groq_fallback:([a-z_]{1,32})$/.exec(code);
+  if (groq) return GROQ_FALLBACK_REASONS.has(groq[1]);
+  if (code === "focus_few_matches:0" || code === "focus_topup:0") return true;
+  const topup = /^focus_topup_(failed|skipped):([a-z][a-z0-9_]{0,63})$/.exec(code);
+  if (topup?.[1] === "failed") return true;
+  if (topup?.[1] === "skipped") return FOCUS_TOPUP_SKIPPED.has(topup[2]);
+  const counted = /^([a-z_]+):([1-9]\d{0,5})$/.exec(code);
+  return Boolean(counted) && COUNTED_WARNINGS.has(counted[1]);
+}
+
+/** The explanation of a trend, focus, Groq or subtitle warning code of the selection summary (a descriptor), or null. */
 export function selectionWarningLabel(code) {
-  const subtitle = typeof code === "string" ? /^subtitle_rejected:([a-z_]{1,32})$/.exec(code) : null;
-  if (subtitle) {
-    return Object.hasOwn(SUBTITLE_REJECTED, subtitle[1]) ? `${SUBTITLE_REJECTED[subtitle[1]]}; transkrip dibuat dari audio.` : null;
-  }
-  if (code === "trend_context_invalid") return "File konteks tren job rusak atau hilang; job jalan tanpa tren.";
-  const groq = typeof code === "string" ? /^groq_fallback:([a-z_]{1,32})$/.exec(code) : null;
-  if (groq) {
-    return Object.hasOwn(GROQ_FALLBACK_REASONS, groq[1])
-      ? `Groq tidak dipakai (${GROQ_FALLBACK_REASONS[groq[1]]}); transkrip dibuat dengan Whisper di server ini.`
-      : null;
-  }
-  if (code === "focus_few_matches:0") return "Tidak ada momen yang cocok dengan fokus; semua klip adalah momen terbaik lain dan diberi label “Di luar fokus”.";
-  if (code === "focus_topup:0") return "AI diminta sekali lagi mencari momen di sekitar sebutan fokus yang belum tercakup, tetapi tidak ada momen fokus tambahan yang layak.";
-  const topup = typeof code === "string" ? /^focus_topup_(failed|skipped):([a-z][a-z0-9_]{0,63})$/.exec(code) : null;
-  if (topup?.[1] === "failed") return `Permintaan tambahan ke AI untuk momen fokus gagal (${topup[2]}); klip dipilih dari usulan pertama AI.`;
-  if (topup?.[1] === "skipped") return Object.hasOwn(FOCUS_TOPUP_SKIPPED, topup[2]) ? FOCUS_TOPUP_SKIPPED[topup[2]] : null;
-  const match = typeof code === "string" ? /^([a-z_]+):([1-9]\d{0,5})$/.exec(code) : null;
-  const label = match && Object.hasOwn(WARNING_LABELS, match[1]) ? WARNING_LABELS[match[1]] : null;
-  return label ? label(match[2]) : null;
+  return explainedWarning(code) ? warningDescriptor(code) : null;
 }
 
 // Explained warnings the owner acts on: shown as notices above the clips. Every other explained
@@ -235,7 +208,7 @@ function summaryWarnings(job) {
   return summary.warnings.filter((code) => typeof code === "string" && selectionWarningLabel(code) !== null);
 }
 
-/** "Catatan pemilihan": the explained warnings that need no action, as plain text. */
+/** "Catatan pemilihan": the explained warnings that need no action. */
 export function selectionNotes(job) {
   return summaryWarnings(job).filter((code) => !ACTIONABLE_WARNINGS.test(code)).map(selectionWarningLabel);
 }
@@ -319,10 +292,7 @@ export function focusTermsHint(terms, llmMode) {
   const unmatchable = (Array.isArray(terms) ? terms : []).filter((term) => !focusTermMatchable(term));
   if (!unmatchable.length) return null;
   const names = unmatchable.map((term) => `“${term}”`).join(", ");
-  const text = `${names} terlalu pendek atau terlalu umum untuk dicari langsung di transkrip`;
-  return llmMode === "off"
-    ? `${text}. Tanpa AI kata kunci itu tidak berpengaruh.`
-    : `${text}; hanya AI yang bisa mengenalinya dari maknanya.`;
+  return llmMode === "off" ? d("dashboard.focus.unmatchableOff", { names }) : d("dashboard.focus.unmatchable", { names });
 }
 
 // Pasted separators that become commas: line breaks (a single-line input would turn them into
@@ -354,7 +324,8 @@ function focusTermPreview(term) {
 
 /**
  * Adds the typed text to the chips. Valid terms (2–40 characters, new, at most 8 in all) become
- * chips; a duplicate is dropped; anything else stays in the input (`pending`) with `error`.
+ * chips; a duplicate is dropped; anything else stays in the input (`pending`) with `error` (a
+ * descriptor, or "" for none).
  */
 export function addFocusTerms(terms, text) {
   const next = [...terms];
@@ -365,12 +336,12 @@ export function addFocusTerms(terms, text) {
     const length = focusCodePoints(term);
     const key = focusTermKey(term);
     let problem = "";
-    if (length < FOCUS_LIMITS.termMin) problem = `Kata kunci “${term}” terlalu pendek (minimal ${FOCUS_LIMITS.termMin} karakter).`;
-    else if (length > FOCUS_LIMITS.termMax) problem = `Kata kunci “${focusTermPreview(term)}” terlalu panjang (maksimal ${FOCUS_LIMITS.termMax} karakter).`;
+    if (length < FOCUS_LIMITS.termMin) problem = d("dashboard.focus.tooShort", { term, min: FOCUS_LIMITS.termMin });
+    else if (length > FOCUS_LIMITS.termMax) problem = d("dashboard.focus.tooLong", { term: focusTermPreview(term), max: FOCUS_LIMITS.termMax });
     else if (keys.has(key)) {
-      error ||= `“${term}” sudah ada.`;
+      error ||= d("dashboard.focus.duplicate", { term });
       continue;
-    } else if (next.length >= FOCUS_LIMITS.terms) problem = `Maksimal ${FOCUS_LIMITS.terms} kata kunci.`;
+    } else if (next.length >= FOCUS_LIMITS.terms) problem = d("dashboard.focus.tooMany", { max: FOCUS_LIMITS.terms });
     if (problem) {
       error ||= problem;
       rejected.push(term);
@@ -396,11 +367,11 @@ export function focusFormFields({ terms = [], pending = "", note = "" } = {}) {
   if (committed.pending) return { ...committed, fields: null };
   const cleanNote = normalizeFocusText(note);
   if (focusCodePoints(cleanNote) > FOCUS_LIMITS.note) {
-    return { ...committed, fields: null, error: `Catatan untuk AI maksimal ${FOCUS_LIMITS.note} karakter.` };
+    return { ...committed, fields: null, error: d("dashboard.focus.noteTooLong", { max: FOCUS_LIMITS.note }) };
   }
   if (!committed.terms.length) {
     return cleanNote
-      ? { ...committed, fields: null, error: "Isi minimal satu kata kunci fokus, atau kosongkan catatan untuk AI." }
+      ? { ...committed, fields: null, error: d("dashboard.focus.noteWithoutTerms") }
       : { terms: [], pending: "", error: "", fields: {} };
   }
   return {
@@ -449,7 +420,8 @@ export function formatTimestamp(seconds) {
 
 /**
  * "Fokus: jomok, jomokers · 5 dari 8 klip cocok" for a job with focus terms, or null (every job
- * without focus). The counts come from the engine's summary; without them only the terms.
+ * without focus): the terms, `countText` and `text` as descriptors. The counts come from the
+ * engine's summary; without them only the terms.
  */
 export function focusSummaryLine(job) {
   const terms = jobFocusTerms(job);
@@ -457,11 +429,14 @@ export function focusSummaryLine(job) {
   const summary = job?.selectionV3?.focus;
   const matched = focusCount(summary?.matched);
   const requested = focusCount(summary?.requested);
-  const countText = matched !== null && requested !== null && requested > 0 && matched <= requested
-    ? `${matched} dari ${requested} klip cocok`
-    : null;
+  const counted = matched !== null && requested !== null && requested > 0 && matched <= requested;
   const termsText = terms.join(", ");
-  return { terms, termsText, countText, text: `Fokus: ${termsText}${countText ? ` · ${countText}` : ""}` };
+  return {
+    terms,
+    termsText,
+    countText: counted ? d("project.focusSummary.count", { matched, requested }) : null,
+    text: counted ? d("project.focusSummary.textCount", { terms: termsText, matched, requested }) : d("project.focusSummary.text", { terms: termsText }),
+  };
 }
 
 function quotedTerms(terms) {
@@ -477,21 +452,24 @@ function quotedTerms(terms) {
 export function clipFocusChip(clip, job) {
   const focus = clip?.focus;
   const match = focus && typeof focus === "object" && FOCUS_MATCHES.includes(focus.match) ? focus.match : null;
-  if (!match) return job?.selectionV3?.focus && typeof job.selectionV3.focus === "object" ? { tone: "none", label: "Di luar fokus" } : null;
-  if (match === "none") return { tone: "none", label: "Di luar fokus" };
+  if (!match) return job?.selectionV3?.focus && typeof job.selectionV3.focus === "object" ? { tone: "none", label: d("project.focusChip.outside") } : null;
+  if (match === "none") return { tone: "none", label: d("project.focusChip.outside") };
   const own = cleanFocusTerms(focus.terms);
   const terms = own.length ? own : jobFocusTerms(job);
   if (match === "semantic") {
-    return { tone: "semantic", label: terms.length ? `Terkait ${quotedTerms(terms)} (menurut AI)` : "Terkait fokus (menurut AI)" };
+    return { tone: "semantic", label: terms.length ? d("project.focusChip.semantic", { terms: quotedTerms(terms) }) : d("project.focusChip.semanticAny") };
   }
   const at = formatTimestamp(focus.at);
-  const named = terms.length ? `Menyebut ${quotedTerms(terms)}` : "Menyebut fokus";
-  return { tone: "literal", label: at ? `${named} · ${at}` : named };
+  if (terms.length) {
+    const named = quotedTerms(terms);
+    return { tone: "literal", label: at ? d("project.focusChip.literalAt", { terms: named, at }) : d("project.focusChip.literal", { terms: named }) };
+  }
+  return { tone: "literal", label: at ? d("project.focusChip.literalAnyAt", { at }) : d("project.focusChip.literalAny") };
 }
 
 /** "Rentang waktu kamu" for a clip cut from a range the person typed, else null. */
 export function clipRangeChip(clip) {
-  return clip?.manual === true ? "Rentang waktu kamu" : null;
+  return clip?.manual === true ? d("project.rangeChip") : null;
 }
 
 // Every clip came from a typed range: no moment was chosen, by AI or otherwise.
@@ -513,35 +491,35 @@ export function coldOpenLength(clip) {
  * explained warnings are selectionNotes). A clean run has none. Provider, model and prompt version
  * are provenance: they stay in the job's artifact and log (the transcript source shows only in the
  * stage summary, lib/stage-summary.mjs). A failed job is explained by its own error, not here.
- * `label(code)` words a warning in the UI language (the page passes warningText); without a text
- * it falls back to the Indonesian label.
+ * Titles, texts and actions are descriptors; a warning's text is selectionWarningLabel(code), or
+ * `label(code)` when that gives one.
  */
-export function selectionNotices(job, { label = selectionWarningLabel } = {}) {
+export function selectionNotices(job, { label = null } = {}) {
   const summary = job?.selectionV3;
   if (!summary || typeof summary !== "object" || summary.mode !== "v3") return [];
   const notices = [];
   if (summary.status === "fallback") {
     notices.push({
       tone: "warning",
-      title: "AI gagal dipakai",
-      text: "Momen dipilih tanpa AI, jadi judul dan hook bisa kurang tajam. Cek API key atau kuota di Pengaturan.",
+      title: d("project.notice.aiFailed"),
+      text: d("project.notice.aiFailedText"),
       href: "/settings",
-      action: "Buka Pengaturan",
+      action: d("project.notice.openSettings"),
       help: llmWarningHelpHref(summary.warnings),
     });
   } else if (summary.status === "completed" && summary.source === "heuristic" && job?.options?.llmMode !== "off" && !typedRangesOnly(job)) {
     notices.push({
       tone: "info",
-      title: "Dibuat tanpa AI",
-      text: "AI mati atau belum diatur saat proyek ini diproses.",
+      title: d("project.notice.noAi"),
+      text: d("project.notice.noAiText"),
       href: "/settings",
-      action: "Atur AI",
+      action: d("project.notice.setUpAi"),
     });
   }
   for (const code of summaryWarnings(job).filter((item) => ACTIONABLE_WARNINGS.test(item))) {
-    const text = label(code) || selectionWarningLabel(code);
-    if (TREND_PAGE_WARNINGS.test(code)) notices.push({ tone: "warning", text, href: "/trends", action: "Buka Konteks Tren" });
-    else if (SETTINGS_PAGE_WARNINGS.test(code)) notices.push({ tone: "warning", text, href: "/settings", action: "Buka Pengaturan" });
+    const text = (typeof label === "function" && label(code)) || selectionWarningLabel(code);
+    if (TREND_PAGE_WARNINGS.test(code)) notices.push({ tone: "warning", text, href: "/trends", action: d("project.notice.openTrends") });
+    else if (SETTINGS_PAGE_WARNINGS.test(code)) notices.push({ tone: "warning", text, href: "/settings", action: d("project.notice.openSettings") });
     else notices.push({ tone: "warning", text });
   }
   return notices;
@@ -556,10 +534,10 @@ const LLM_STATE_TONES = { active: "ok", disabled: "muted", unconfigured: "muted"
  */
 export function llmStatusView(status, llmMode = "auto") {
   if (llmMode === "off") {
-    return { tone: "muted", label: "LLM tidak dipakai untuk job ini — memakai heuristik lokal" };
+    return { tone: "muted", label: d("dashboard.llmStatus.off") };
   }
   if (!status || typeof status !== "object" || typeof status.label !== "string" || !status.label) {
-    return { tone: "muted", label: "Memeriksa status LLM…" };
+    return { tone: "muted", label: d("dashboard.llmStatus.checking") };
   }
   return { tone: LLM_STATE_TONES[status.state] || "warning", label: status.label };
 }

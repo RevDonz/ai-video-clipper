@@ -29,17 +29,7 @@ import {
 } from "../lib/jobs.mjs";
 import { readLlmStatus } from "../lib/llm-status.mjs";
 import { claimNextJob, LeaseLostError } from "../lib/primary-job-queue.mjs";
-import {
-  archetypeLabel,
-  captionParts,
-  clipCaptionText,
-  clipPosterUrl,
-  clipScoreView,
-  llmStatusView,
-  scoreRows,
-  selectionNotices,
-  tenPointScore,
-} from "../lib/selection-v3-view.mjs";
+import * as selectionView from "../lib/selection-v3-view.mjs";
 import {
   CAPTION_LANGUAGES,
   ProcessTimeoutError,
@@ -55,6 +45,15 @@ import {
   manifestJobPatch,
   runFencedProcess,
 } from "../scripts/run-job.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The selection view returns catalog descriptors; these compare their Indonesian text.
+const { captionParts, clipCaptionText, clipPosterUrl, tenPointScore } = selectionView;
+const archetypeLabel = (...args) => textsOf(selectionView.archetypeLabel(...args));
+const clipScoreView = (...args) => textsOf(selectionView.clipScoreView(...args));
+const llmStatusView = (...args) => textsOf(selectionView.llmStatusView(...args));
+const scoreRows = (...args) => textsOf(selectionView.scoreRows(...args));
+const selectionNotices = (...args) => textsOf(selectionView.selectionNotices(...args));
 
 const BASE = { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 };
 const V3 = { ...BASE, selectionMode: "v3", llmMode: "auto", coldOpen: true, hookOverlay: true, captionStyle: "karaoke" };

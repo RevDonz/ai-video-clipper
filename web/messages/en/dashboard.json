@@ -117,7 +117,15 @@
     "noteExample": "prank moments that make people laugh",
     "noteOff": "Without AI the note is not used",
     "ranges": "Time ranges",
-    "rangesHint": "{min}–{max} s per range"
+    "rangesHint": "{min}–{max} s per range",
+    "unmatchable": "{names} is too short or too common to search the transcript for; only AI can recognize it by meaning.",
+    "unmatchableOff": "{names} is too short or too common to search the transcript for. Without AI that keyword has no effect.",
+    "tooShort": "Keyword “{term}” is too short (at least {min} characters).",
+    "tooLong": "Keyword “{term}” is too long (at most {max} characters).",
+    "duplicate": "“{term}” is already there.",
+    "tooMany": "At most {max} keywords.",
+    "noteTooLong": "Note for AI: at most {max} characters.",
+    "noteWithoutTerms": "Add at least one focus keyword, or clear the note for AI."
   },
   "problem": {
     "linkEmpty": "Paste a YouTube link or choose a file",
@@ -185,5 +193,55 @@
     "invalid": "AI settings invalid. Moments picked by local heuristics.",
     "unreadable": "Couldn't read AI status. Jobs still run.",
     "unknown": "Unknown AI status. Jobs still run."
+  },
+  "llmStatus": {
+    "off": "AI not used for this project; local heuristics instead",
+    "checking": "Checking AI status…"
+  },
+  "layoutNote": {
+    "fitBlur": "The landscape video stays whole; a blurred copy fills the rest.",
+    "faceTrack": "Full screen; the crop follows the speaker's face.",
+    "centerCrop": "For videos whose subject stays in the middle."
+  },
+  "styleNote": {
+    "classic": "White with a black outline, no highlight.",
+    "karaoke": "The word being spoken lights up.",
+    "bold": "Big bold letters, the active word in color.",
+    "box": "Text in a dark box.",
+    "sorot": "A colored box on the spoken word.",
+    "sinar": "Karaoke with a soft glow."
+  },
+  "languageSummary": {
+    "id": "Indonesian",
+    "en": "English",
+    "auto": "Detect language"
+  },
+  "section": {
+    "look": "Captions and hook",
+    "moments": "Guide the moments",
+    "format": "Language and resolution"
+  },
+  "summary": {
+    "coldOpen": "Strongest line first",
+    "noColdOpen": "No opening line",
+    "hookText": "Hook text",
+    "noHookText": "No hook text",
+    "keywords": "{count, plural, one {# keyword} other {# keywords}}",
+    "ranges": "{count, plural, one {# time range} other {# time ranges}}",
+    "note": "has a note",
+    "clips": "{count, plural, one {# clip} other {# clips}}",
+    "preset": "{name} {min}–{max} s",
+    "seconds": "{min}–{max} s",
+    "withoutColdOpen": "no opening line",
+    "withoutHookText": "no hook text",
+    "focusKeywords": "{count, plural, one {focus # keyword} other {focus # keywords}}",
+    "spot": {
+      "top": "captions top",
+      "middle": "captions middle"
+    },
+    "size": {
+      "small": "small captions",
+      "large": "large captions"
+    }
   }
 }

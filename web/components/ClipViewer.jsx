@@ -11,6 +11,7 @@ import { useEffect, useRef } from "react";
 import { useTranslations } from "use-intl";
 
 import { clipDownloads } from "../lib/clip-download.mjs";
+import { msg } from "../lib/i18n/descriptor.mjs";
 import { failedClipView } from "../lib/clip-status.mjs";
 import { clipLabel } from "../lib/project-view.mjs";
 import { arrowDelta, clipFallbackNotes } from "../lib/project-workspace.mjs";
@@ -51,13 +52,13 @@ function Body({ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEnt
   const failed = failedClipView(clip);
   const label = clipLabel(clip);
   const score = clipScoreView(clip);
-  const archetype = archetypeLabel(clip.archetype);
+  const archetype = msg(tAll, archetypeLabel(clip.archetype));
   const coldOpen = coldOpenLength(clip);
   const caption = captionParts(clip);
   const reasons = clipReasonTexts(tAll, clip);
   const trendChips = clipTrendChips(clip);
   const focusChip = clipFocusChip(clip, job);
-  const rangeChip = clipRangeChip(clip);
+  const rangeChip = msg(tAll, clipRangeChip(clip));
   const notes = clipFallbackNotes(clip);
   const from = formatTimestamp(clip.sourceStart);
   const to = formatTimestamp(clip.sourceEnd);
@@ -85,7 +86,7 @@ function Body({ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEnt
         {(tags.length > 0 || focusChip || edited) && (
           <div className={styles.tags}>
             {tags.map((tag) => <span key={tag} className="statusPill">{tag}</span>)}
-            {focusChip && <span className={`statusPill ${styles.focusChip}`} data-focus={focusChip.tone}>{focusChip.label}</span>}
+            {focusChip && <span className={`statusPill ${styles.focusChip}`} data-focus={focusChip.tone}>{msg(tAll, focusChip.label)}</span>}
             {edited && <span className="statusPill info">{entry.editBadge.text}</span>}
           </div>
         )}
@@ -136,7 +137,7 @@ function Body({ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEnt
               <dl className={styles.scoreRows}>
                 {score.rows.map((row) => (
                   <div key={row.name}>
-                    <dt>{row.label}</dt>
+                    <dt>{msg(tAll, row.label)}</dt>
                     <dd>
                       <span className={styles.bar} aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, row.percent))}%` }} /></span>
                       <b>{formatTenths(row.value)}</b>

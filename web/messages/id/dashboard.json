@@ -117,7 +117,15 @@
     "noteExample": "momen prank yang bikin ketawa",
     "noteOff": "Tanpa AI, catatan tidak dipakai",
     "ranges": "Rentang waktu",
-    "rangesHint": "{min}–{max} dtk per rentang"
+    "rangesHint": "{min}–{max} dtk per rentang",
+    "unmatchable": "{names} terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; hanya AI yang bisa mengenalinya dari maknanya.",
+    "unmatchableOff": "{names} terlalu pendek atau terlalu umum untuk dicari langsung di transkrip. Tanpa AI kata kunci itu tidak berpengaruh.",
+    "tooShort": "Kata kunci “{term}” terlalu pendek (minimal {min} karakter).",
+    "tooLong": "Kata kunci “{term}” terlalu panjang (maksimal {max} karakter).",
+    "duplicate": "“{term}” sudah ada.",
+    "tooMany": "Maksimal {max} kata kunci.",
+    "noteTooLong": "Catatan untuk AI maksimal {max} karakter.",
+    "noteWithoutTerms": "Isi minimal satu kata kunci fokus, atau kosongkan catatan untuk AI."
   },
   "problem": {
     "linkEmpty": "Tempel link YouTube atau pilih file",
@@ -185,5 +193,55 @@
     "invalid": "Pengaturan AI tidak valid. Momen dipilih heuristik lokal.",
     "unreadable": "Status AI tidak terbaca. Job tetap berjalan.",
     "unknown": "Status AI tidak dikenal. Job tetap berjalan."
+  },
+  "llmStatus": {
+    "off": "AI tidak dipakai untuk proyek ini; memakai heuristik lokal",
+    "checking": "Memeriksa status LLM…"
+  },
+  "layoutNote": {
+    "fitBlur": "Video landscape tetap utuh, sisa layar diisi versi blur.",
+    "faceTrack": "Layar penuh, potongan mengikuti wajah pembicara.",
+    "centerCrop": "Untuk video yang subjeknya selalu di tengah."
+  },
+  "styleNote": {
+    "classic": "Putih bergaris hitam, tanpa sorotan.",
+    "karaoke": "Kata yang sedang diucapkan menyala.",
+    "bold": "Huruf besar tebal, kata aktif berwarna.",
+    "box": "Teks di kotak gelap.",
+    "sorot": "Kotak warna di kata yang diucapkan.",
+    "sinar": "Karaoke dengan cahaya lembut."
+  },
+  "languageSummary": {
+    "id": "Bahasa Indonesia",
+    "en": "Bahasa Inggris",
+    "auto": "Deteksi bahasa"
+  },
+  "section": {
+    "look": "Subtitle dan hook",
+    "moments": "Arahkan pilihan momen",
+    "format": "Bahasa dan resolusi"
+  },
+  "summary": {
+    "coldOpen": "Kalimat terkuat dulu",
+    "noColdOpen": "Tanpa kalimat pembuka",
+    "hookText": "Teks hook",
+    "noHookText": "Tanpa teks hook",
+    "keywords": "{count} kata kunci",
+    "ranges": "{count} rentang waktu",
+    "note": "ada catatan",
+    "clips": "{count} klip",
+    "preset": "{name} {min}–{max} detik",
+    "seconds": "{min}–{max} detik",
+    "withoutColdOpen": "tanpa kalimat pembuka",
+    "withoutHookText": "tanpa teks hook",
+    "focusKeywords": "fokus {count} kata kunci",
+    "spot": {
+      "top": "subtitle atas",
+      "middle": "subtitle tengah"
+    },
+    "size": {
+      "small": "subtitle kecil",
+      "large": "subtitle besar"
+    }
   }
 }

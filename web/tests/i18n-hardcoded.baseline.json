@@ -54,10 +54,7 @@
   "components/editor/ViewSwitch.jsx": 1,
   "lib/clip-entry-view.mjs": 14,
   "lib/clip-text.mjs": 15,
-  "lib/dashboard-choices.mjs": 21,
   "lib/llm-presets.mjs": 22,
   "lib/project-view.mjs": 14,
-  "lib/selection-v3-view.mjs": 50,
-  "lib/source-language.mjs": 2,
-  "lib/trend-view.mjs": 1
+  "lib/source-language.mjs": 2
 }
