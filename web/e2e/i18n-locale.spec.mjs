@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 
 import { login, settings, test } from "./support/harness.mjs";
-import { pageTitle } from "./support/i18n.mjs";
+import { pageTitle, pageTitleIn } from "./support/i18n.mjs";
 
 // The UI language of a request (rombak 07 §5, §8): the potongin_locale cookie the harness sets
 // (id in desktop-chromium, en in en-smoke), else Accept-Language, else id. <html lang> and the
@@ -26,7 +26,7 @@ test.describe("UI language", () => {
     const response = await page.goto("/login");
     expect(response?.status()).toBe(200);
     await expect(page.locator("html")).toHaveAttribute("lang", uiLocale);
-    await expect(page).toHaveTitle(pageTitle(uiLocale, "login"));
+    await expect(page).toHaveTitle(pageTitle("login"));
     const cacheControl = response.headers()["cache-control"];
     expect(cacheControl).toMatch(/\bprivate\b/);
     expect(cacheControl).toMatch(/\bno-store\b/);
@@ -40,7 +40,7 @@ test.describe("UI language", () => {
     }));
     await login(page, "/bantuan");
     await expect(page.locator("html")).toHaveAttribute("lang", uiLocale);
-    await expect(page).toHaveTitle(pageTitle(uiLocale, "help"));
+    await expect(page).toHaveTitle(pageTitle("help"));
   });
 
   test("a visitor without the cookie follows Accept-Language, with \"in\" as Indonesian", async ({ playwright, baseURL }, testInfo) => {
@@ -48,7 +48,7 @@ test.describe("UI language", () => {
     for (const [header, expected] of [["en-GB,en;q=0.9", "en"], ["ms-MY,in;q=0.8", "id"], ["fr-FR", "id"], ["en;q=0, id", "id"]]) {
       const page = await served(playwright, baseURL, { "Accept-Language": header });
       expect(page.lang, header).toBe(expected);
-      expect(page.title, header).toBe(pageTitle(expected, "login"));
+      expect(page.title, header).toBe(pageTitleIn(expected, "login"));
     }
   });
 
