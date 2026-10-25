@@ -10,14 +10,18 @@ import { Suspense, lazy, useCallback, useEffect, useState, useSyncExternalStore 
 
 import { IDLE_ANALYSIS, layoutAnalysisFor } from "../panels/layout-analysis.mjs";
 import AccordionCard from "../ui/AccordionCard.jsx";
+import { cardModules } from "./card-modules.mjs";
 import { CARDS, DEFAULT_CARD, cardById } from "./cards.mjs";
 import { cardSummary } from "./quick-model.mjs";
 import styles from "./quick.module.css";
 
 const components = new Map();
+// Every body is loaded when the cards mount, so an opened card renders it at once instead of
+// growing under the pointer when its lazy body arrives (card-modules.mjs).
+const MODULES = cardModules();
 
 function lazyCard(card) {
-  if (!components.has(card.file)) components.set(card.file, lazy(card.load));
+  if (!components.has(card.file)) components.set(card.file, lazy(MODULES.importer(card)));
   return components.get(card.file);
 }
 
@@ -26,6 +30,9 @@ const quiet = () => () => {};
 
 export default function QuickPanel({ initialCard = null, onCardChange = null, ...props }) {
   const [openId, setOpenId] = useState(() => (cardById(initialCard) ? initialCard : DEFAULT_CARD));
+  useEffect(() => {
+    MODULES.preload(CARDS);
+  }, []);
   useEffect(() => {
     onCardChange?.(openId);
   }, [openId, onCardChange]);
