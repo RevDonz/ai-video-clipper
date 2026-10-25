@@ -110,6 +110,8 @@ const ZERO = Object.freeze([
   "app/bantuan/HelpSearch.jsx",
   "app/bantuan/HelpGuide.jsx",
   "lib/help-view.mjs",
+  // Lisensi (i18n M3, linked from Pengaturan Sistem).
+  "app/licenses/page.jsx",
 ]);
 
 async function counts() {
@@ -223,8 +225,9 @@ test("the files already on the catalog stay at zero", async () => {
 });
 
 // 08 Fase 3: every existing dashboard route (Buat klip, Proyek and one project, Pengaturan, Tren,
-// Bantuan) and the shared components those pages draw hold no copy of their own.
-const DASHBOARD_ROUTES = /^app\/(?:dashboard|projects|settings|trends|bantuan)\//;
+// Bantuan, and Lisensi from Pengaturan Sistem) and the shared components those pages draw hold no
+// copy of their own.
+const DASHBOARD_ROUTES = /^app\/(?:dashboard|projects|settings|trends|bantuan|licenses)\//;
 const DASHBOARD_SHARED = Object.freeze(["components/ClipPoster.jsx", "components/trends/TrendChips.jsx"]);
 
 test("every file of the dashboard routes stays at zero", async () => {

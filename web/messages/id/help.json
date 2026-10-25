@@ -419,5 +419,26 @@
         "2": "Untuk 4xx: periksa model, Base URL dan Mode JSON, lalu jalankan Tes koneksi."
       }
     }
+  },
+  "licenses": {
+    "title": "Lisensi pihak ketiga",
+    "license": "Lisensi",
+    "package": "Paket",
+    "npm": "npm {name}@{version}",
+    "shipped": "Dikirim ke browser",
+    "shippedFiles": "{files}, tanpa diubah",
+    "source": "Kode sumber",
+    "commit": "commit {commit}",
+    "tag": "tag {tag}",
+    "buildScripts": "Skrip build",
+    "wasmParts": "Komponen di dalam file WebAssembly",
+    "fullNotice": "Teks lengkap semua lisensinya, seperti yang dikumpulkan JASSUB:",
+    "fribidi": "FriBidi berlisensi LGPL-2.1. Kode sumber setiap komponen dan skrip build JASSUB ada di tautan di atas, jadi file WebAssembly ini bisa dibangun ulang, termasuk dengan FriBidi yang sudah diubah.",
+    "bundled": "Commit {commit}. Kodenya tidak diubah; browser menerimanya di dalam bundel aplikasi web.",
+    "licenseText": "Teks lisensi",
+    "fonts": "Font",
+    "fontSource": "Sumber",
+    "web": "Aplikasi web",
+    "ui": "Komponen antarmuka"
   }
 }

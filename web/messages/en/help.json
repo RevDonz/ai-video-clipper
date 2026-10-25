@@ -419,5 +419,26 @@
         "2": "For 4xx: check the model, the Base URL and JSON mode, then run Test connection."
       }
     }
+  },
+  "licenses": {
+    "title": "Third-party licenses",
+    "license": "License",
+    "package": "Package",
+    "npm": "npm {name}@{version}",
+    "shipped": "Sent to the browser",
+    "shippedFiles": "{files}, unchanged",
+    "source": "Source code",
+    "commit": "commit {commit}",
+    "tag": "tag {tag}",
+    "buildScripts": "Build scripts",
+    "wasmParts": "Components inside the WebAssembly file",
+    "fullNotice": "The full text of every license, as collected by JASSUB:",
+    "fribidi": "FriBidi is licensed under LGPL-2.1. The source of every component and JASSUB's build scripts are linked above, so this WebAssembly file can be rebuilt, also with a modified FriBidi.",
+    "bundled": "Commit {commit}. The code is unchanged; the browser gets it inside the web app bundle.",
+    "licenseText": "License text",
+    "fonts": "Fonts",
+    "fontSource": "Source",
+    "web": "Web app",
+    "ui": "Interface components"
   }
 }
