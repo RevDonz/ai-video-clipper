@@ -83,6 +83,10 @@
   /* shouldForceMount keeps a hidden tab panel mounted; React Aria marks it inert, and HeroUI
      3.2.6 does not hide it, so it is hidden here (spike F0, open issue #19). */
   .tabs__panel[data-inert="true"] { display: none; }
+  /* HeroUI shows a toast's close button only on hover, as a 20 px corner badge; here it is
+     always there, in the row, as a 44 px target that a keyboard and a touch screen can reach. */
+  .toast__close-button { position: static; flex: none; opacity: 1; pointer-events: auto; }
+  .toast { border-radius: var(--radius-l); }
   .button, .tabs__tab { border-radius: var(--radius-m); }
   .button--outline { border-color: var(--border-strong); }
   .switch[data-selected] .switch__control,
