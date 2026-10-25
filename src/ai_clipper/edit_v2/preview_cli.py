@@ -26,7 +26,13 @@ ready: [k]}``.
 Restores a missing words artifact (``seed.prepare_legacy_job``), builds the camera plan when the
 layout (the requested one, else the current document's) is face-track and none exists
 (``camera.build_camera_plan``, written immutably as ``camera.<sha16>.json``), and reports the
-plate cells of the current document in that layout. Idempotent.
+plate cells of the current document in that layout. Idempotent. ``layout: "auto"`` (Otomatis,
+CONTRACTS §5.63) also answers ``shots: "ready" | "failed"``: it builds the clip's shot plan
+(``shots.prepare_auto``, written immutably as ``shots.<sha16>.json``, with the camera plan from
+the same scan when none exists) unless the automatic document's own plan is there, and reports
+the plate of the document with it (its ``origin: "user"`` ranges kept). An analysis that cannot
+run is ``failed``, and the rest of the answer is the current document's (an automatic one's as
+Latar blur).
 
 ``plan`` ``{jobId, clipId, requestRaw}`` → ``{dto, lane}``: ``dto`` is the plan DTO of plan §4.3
 (``text.ass`` omitted when ``known.assSha256`` is the new sha; cell, audio and logo states
@@ -119,6 +125,7 @@ MAX_META_BYTES = 1 << 20
 NICE = 5
 CANCEL_POLL_S = 0.05
 LAYOUTS = ("fit_blur", "camera", "fill_center", "split")
+AUTO_LAYOUT = "auto"  # Otomatis (CONTRACTS §5.63): prepare only; its plate follows the ranges
 PREVIEW_DIR = "preview"
 PROBE_FILE = "probe.json"  # the source's ffprobe result under its file identity (_use_probe)
 CANCEL_DIR = ".cancel"
@@ -207,6 +214,7 @@ _CHECKS: dict[str, Callable[[object], bool]] = {
     "jobId": lambda v: isinstance(v, str) and _UUID.fullmatch(v) is not None,
     "clipId": lambda v: isinstance(v, str) and CLIP_ID_PATTERN.fullmatch(v) is not None,
     "layoutOrNull": lambda v: v is None or v in LAYOUTS,
+    "prepareLayout": lambda v: v is None or v in LAYOUTS or v == AUTO_LAYOUT,
     "layout": lambda v: v in LAYOUTS,
     "noFace": lambda v: v == "fit_blur",
     "keyframes": _keyframes_field,
@@ -223,7 +231,7 @@ _CHECKS: dict[str, Callable[[object], bool]] = {
     "opacityPm": lambda v: _is_int(v, 200, 1000),
 }
 _FIELDS: dict[str, dict[str, str]] = {
-    "prepare": {"jobId": "jobId", "clipId": "clipId", "layout": "layoutOrNull"},
+    "prepare": {"jobId": "jobId", "clipId": "clipId", "layout": "prepareLayout"},
     "plan": {"jobId": "jobId", "clipId": "clipId", "requestRaw": "requestRaw"},
     "cells": {"jobId": "jobId", "clipId": "clipId", "layout": "layout", "cells": "cells",
               "cancelToken": "cancelToken"},
@@ -976,6 +984,8 @@ def _prepare(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
             raise AnalysisMissing()
     current, _current_etag, _is_seed = store.get(ctx.clip)
     layout = envelope["layout"] or current["layout"]["default"]["mode"]
+    if layout == AUTO_LAYOUT:
+        return _prepare_auto(ctx, current)
     doc = _switched(current, layout)
     camera_state = "not_needed"
     camera_sha = None
@@ -1001,6 +1011,88 @@ def _prepare(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
             "noFace": _plate_no_face(doc), "keyframes": _keyframe_triples(doc),
             "split": _split_lane(doc), "zoom": _zoom_lane(doc), "plateKey": key,
             "cellFrames": tm.cell_frames(fps), "cells": list(cells), "ready": ready}
+
+
+def _auto_switched(doc: Mapping[str, Any], shot_plan: Mapping[str, Any],
+                   shots_sha: str) -> dict[str, Any]:
+    """``doc`` with the automatic layout of ``shot_plan`` (CONTRACTS §5.63): its ranges, with
+    the document's own ``origin: "user"`` ranges kept (``shots.merge_user_ranges``), Latar blur
+    where a ``camera`` range finds no face, the zoom kept, no manual framing (V8)."""
+    from . import shots as _shots
+
+    new_auto = _shots.auto_ranges(shot_plan["ranges"])
+    old = doc["layout"].get("ranges", ())
+    layout: dict[str, Any] = {"default": {"mode": AUTO_LAYOUT, "no_face": "fit_blur"},
+                              "ranges": _shots.merge_user_ranges(new_auto, old) if old
+                              else new_auto}
+    if "zoom_pm" in doc["layout"]:
+        layout["zoom_pm"] = doc["layout"]["zoom_pm"]
+    changed = dict(doc)
+    changed["layout"] = layout
+    changed["base"] = {**doc["base"], "shots": {"sha256": shots_sha}}
+    return changed
+
+
+def _prepare_auto(ctx: _Context, current: Mapping[str, Any]) -> dict[str, Any]:
+    """``prepare`` with ``layout: "auto"``: the clip's shot plan (``shots.prepare_auto``, the
+    camera plan built from the same scan when there is none yet) and the plate of the document
+    with it. ``shots`` is ``ready``, or ``failed`` when the analysis could not run (the lane
+    then reports the current document)."""
+    from . import camera as camera_module
+    from . import plates, store
+    from . import shots as _shots
+    from .source_info import sha256_hex, write_immutable
+
+    shot_plan = None
+    shots = current["base"].get("shots")
+    if current["layout"]["default"]["mode"] == AUTO_LAYOUT and isinstance(shots, Mapping):
+        try:
+            shot_plan = _shots.load_shot_plan(ctx.clip, shots["sha256"])
+            doc = dict(current)
+        except AnalysisMissing:
+            shot_plan = None
+    if shot_plan is None:
+        try:
+            existing, _sha = plates.camera_for(ctx.clip, _with_layout(current, "camera"))
+        except AnalysisMissing:
+            existing = None
+        fps = tm.Fps.from_json(current["output"]["fps"])
+        source = current["base"]["source"]
+        rect = source.get("content_rect")
+        words = store.load_words(ctx.clip, current["base"]["words"]["sha256"])
+        try:
+            camera_plan, shot_plan = _shots.prepare_auto(
+                plates.source_path(ctx.job), tuple(current["base"]["window_ms"]), fps,
+                output=(current["output"]["w"], current["output"]["h"]), camera_plan=existing,
+                scene_cuts_ms=words.get("scene_cuts_ms", ()),
+                content=None if rect is None else [rect[k] for k in ("x", "y", "w", "h")])
+            if existing is None:
+                raw = camera_module.encode_camera_plan(camera_plan)
+                write_immutable(ctx.clip / camera_module.camera_file_name(raw), raw)
+            _name, shots_sha = _shots.write_shot_plan(ctx.clip, shot_plan)
+        except (AnalysisMissing, NotFound):
+            raise
+        except Exception:  # noqa: BLE001 - reported as shots: failed, the editor offers a retry
+            # the current document's lane; an automatic one without its plan shows Latar blur
+            mode = current["layout"]["default"]["mode"]
+            result = _prepare(ctx, {"layout": "fit_blur" if mode == AUTO_LAYOUT else None})
+            return {**result, "shots": "failed"}
+        doc = _auto_switched(current, shot_plan, shots_sha)
+        doc["base"] = {**doc["base"], "camera": {
+            "sha256": sha256_hex(camera_module.encode_camera_plan(camera_plan))}}
+    camera_sha = None
+    camera_state = "not_needed"
+    if _shots.uses_camera(doc):
+        _camera, camera_sha = plates.camera_for(ctx.clip, doc)
+        camera_state = "ready"
+    fps = tm.Fps.from_json(doc["output"]["fps"])
+    key = plates.plate_key(doc, camera_sha256=camera_sha, toolchain_sha256=_toolchain())
+    cells = plates.cells_for_pieces(tm.pieces(current), fps)
+    ready = [k for k in cells if _is_file(ctx.preview / "plates" / plates.cell_name(key, k))]
+    return {"words": "ready", "camera": camera_state, "shots": "ready", "layout": AUTO_LAYOUT,
+            "noFace": None, "keyframes": None, "split": None, "zoom": _zoom_lane(doc),
+            "plateKey": key, "cellFrames": tm.cell_frames(fps), "cells": list(cells),
+            "ready": ready}
 
 
 def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:

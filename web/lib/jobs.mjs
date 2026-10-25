@@ -21,6 +21,12 @@ import { TimeRangeError, parseTimeRanges, validStoredRanges } from "./time-range
 export { TimeRangeError };
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
+/**
+ * Otomatis (rombak 04 §A8.1): a layout per shot, Selection V3 only. New jobs may ask for it only
+ * while POTONGIN_AUTO_REFRAME is on (`autoReframe`); a stored job keeps it whatever the flag says.
+ */
+export const AUTO_RENDER_MODE = "auto";
+export const STORED_RENDER_MODES = Object.freeze([...RENDER_MODES, AUTO_RENDER_MODE]);
 /** Every selection mode a stored job may carry. Only CURRENT_SELECTION_MODE is accepted for new jobs. */
 export const SELECTION_MODES = ["v1", "v2-shadow", "v3"];
 /** The selection every new job uses, stored under its internal name for the worker. */
@@ -70,6 +76,16 @@ const WORKER_PROGRESS_PREFIX = "POTONGIN_PROGRESS ";
  * A new job asked for a selection mode, or options of one, that is no longer offered. Stored jobs
  * keep their mode (validatePersistedJobOptions); only job creation refuses it.
  */
+/** A new job asked for Otomatis while it is off, or outside Selection V3 (`code`, `messageId`). */
+export class AutoReframeError extends Error {
+  constructor(code) {
+    super(`Automatic layout refused: ${code}`);
+    this.name = "AutoReframeError";
+    this.code = code;
+    this.messageId = `web.${code}`;
+  }
+}
+
 export class RetiredSelectionModeError extends Error {
   constructor() {
     super("Retired selection mode: new jobs always use the current selection");
@@ -353,8 +369,11 @@ export function validatePersistedJobOptions(input) {
     throw new Error("Invalid persisted job options");
   }
   const renderMode = input.renderMode;
-  if (typeof renderMode !== "string" || !RENDER_MODES.includes(renderMode)) {
+  if (typeof renderMode !== "string" || !STORED_RENDER_MODES.includes(renderMode)) {
     throw new Error("Invalid persisted job options: unsupported render mode");
+  }
+  if (renderMode === AUTO_RENDER_MODE && input.selectionMode !== CURRENT_SELECTION_MODE) {
+    throw new Error("Invalid persisted job options: the automatic layout requires v3 mode");
   }
   const limit = persistedNumber(input.limit, "limit", true);
   const minDuration = persistedNumber(input.minDuration, "minimum duration");
@@ -444,9 +463,11 @@ export function validatePersistedJobOptions(input) {
   return { ...options, clipProfile, maxCandidates, maxMediaCandidates, mediaTimeout };
 }
 
-export function parseJobOptions(input = {}) {
+export function parseJobOptions(input = {}, { autoReframe = false } = {}) {
   const renderMode = input.renderMode || "fit-blur";
-  if (!RENDER_MODES.includes(renderMode)) throw new Error("Unsupported render mode");
+  if (renderMode === AUTO_RENDER_MODE) {
+    if (autoReframe !== true) throw new AutoReframeError("auto_reframe_off");
+  } else if (!RENDER_MODES.includes(renderMode)) throw new Error("Unsupported render mode");
   const limit = formNumber(input.limit, 5, "limit");
   const minDuration = formNumber(input.minDuration, 20, "minimum duration");
   const maxDuration = formNumber(input.maxDuration, 60, "maximum duration");
@@ -464,6 +485,8 @@ export function parseJobOptions(input = {}) {
     throw new RetiredSelectionModeError();
   }
   if (selectionMode !== CURRENT_SELECTION_MODE) throw new Error("Unsupported selection mode");
+  // Defence in depth: a new job is always the current selection by now.
+  if (renderMode === AUTO_RENDER_MODE && selectionMode !== "v3") throw new AutoReframeError("auto_reframe_needs_v3");
   const llmMode = provided("llmMode") ? input.llmMode : DEFAULT_V3_OPTIONS.llmMode;
   if (typeof llmMode !== "string" || !LLM_MODES.includes(llmMode)) throw new Error("Unsupported LLM mode");
   const captionStyle = provided("captionStyle") ? input.captionStyle : DEFAULT_V3_OPTIONS.captionStyle;

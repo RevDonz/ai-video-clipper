@@ -57,6 +57,30 @@ def test_cli_parses_source_and_processing_options():
     assert args.render_mode == "fit-blur"
 
 
+def test_cli_takes_the_automatic_layout():
+    """Otomatis (rombak 04 §A8.1): ``--render-mode auto``, beside the three legacy modes."""
+    from ai_clipper.pipeline import JOB_RENDER_MODES, legacy_render_mode
+    from ai_clipper.render import RENDER_MODES
+
+    assert parse_args(["video.mp4", "--render-mode", "auto"]).render_mode == "auto"
+    assert RENDER_MODES == ("face-track", "fit-blur", "center-crop")  # the legacy renderer's
+    assert JOB_RENDER_MODES == (*RENDER_MODES, "auto")
+    assert [legacy_render_mode(mode) for mode in JOB_RENDER_MODES] == [
+        "face-track", "fit-blur", "center-crop", "fit-blur"]
+    with pytest.raises(SystemExit):
+        parse_args(["video.mp4", "--render-mode", "split"])
+
+
+def test_the_automatic_layout_needs_the_current_selection(tmp_path):
+    from ai_clipper.pipeline import run_pipeline
+
+    source = tmp_path / "video.mp4"
+    source.write_bytes(b"")
+    with pytest.raises(ValueError, match="auto needs selection_mode v3"):
+        run_pipeline(source, tmp_path / "out", model=None, render_mode="auto",
+                     selection_mode="v1")
+
+
 def test_cli_defaults_to_face_tracking():
     args = parse_args(["video.mp4"])
     assert args.render_mode == "face-track"

@@ -36,6 +36,7 @@ from ai_clipper.edit_v2 import (
     store,
 )
 from ai_clipper.edit_v2 import seed as seed_module
+from ai_clipper.edit_v2 import shots as shots_module
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2 import transitions as tr
 from ai_clipper.edit_v2.clip_id import clip_id, ms_from_seconds
@@ -461,6 +462,117 @@ def test_the_seed_join_comes_from_the_cold_open_join_key():
 def test_a_malformed_cold_open_join_key_is_refused(value):
     with pytest.raises(SeedError):
         _seed(_clip(cold_open=(40.5, 43.25)), {**_job(), "coldOpenJoin": value})
+
+
+# --- the automatic layout (rombak 04 §A8.1, CONTRACTS §5.63) ------------------------------------
+
+
+def _shot_plan(seed, *, camera_sha="d" * 64, modes=("camera", "fit_blur"), **changes):
+    """A shot plan of ``seed``'s window: one shot per mode, cut evenly."""
+    fps = Fps.from_json(seed["output"]["fps"])
+    window_ms = tuple(seed["base"]["window_ms"])
+    first, end = tm.sf_floor(window_ms[0], fps), tm.sf_ceil(window_ms[1], fps)
+    step = (end - first) // len(modes)
+    cuts = [first + step * (index + 1) for index in range(len(modes) - 1)]
+    edges = [first, *cuts, end]
+    evidence = shots_module.ShotEvidence(
+        samples=8, face_share_pm=1000, faces_p90=1, face_w_med_pm=150, speakers=1,
+        talk_share_pm=(900,), spread_pm=150, centre_dev_pm=250, motion_med_pm=80)
+    planned = [shots_module.Shot(edges[i], edges[i + 1], mode, "rf_face", evidence)
+               for i, mode in enumerate(modes)]
+    arguments = {"rules": shots_module.load_rules(),
+                 "source_content_sha256": seed["base"]["source"]["content_sha256"],
+                 "camera_sha256": camera_sha, "window_ms": window_ms, "fps": fps,
+                 "cut_source": "shot_cuts", "cuts_sf": cuts, "shots": planned}
+    return shots_module.build_shot_plan(**{**arguments, **changes})
+
+
+def test_an_automatic_seed_copies_the_shot_plan_ranges():
+    clip = _clip()
+    plan = _shot_plan(_seed(clip))
+    seed = build_seed(clip=clip, job=_job(renderMode="auto"), source_info=_source_info(),
+                      words_sha="b" * 64, words_count=321, camera_sha="d" * 64,
+                      selection_sha="c" * 64, shot_plan=plan)
+    assert seed["layout"]["default"] == {"mode": "auto", "no_face": "fit_blur"}
+    assert seed["layout"]["ranges"] == [{**entry, "origin": "auto"} for entry in plan["ranges"]]
+    assert "split" not in seed["layout"]
+    raw = shots_module.encode_shot_plan(plan)
+    assert seed["base"]["shots"] == {"sha256": hashlib.sha256(raw).hexdigest()}
+    assert seed["base"]["camera"] == {"sha256": "d" * 64}
+    # everything else is the Latar blur seed of the same clip
+    plain = _seed(clip)
+    for key in ("clip_id", "main", "captions", "tracks", "output", "audio"):
+        assert seed[key] == plain[key], key
+    assert _no_floats(seed)
+
+
+def test_an_automatic_seed_needs_its_own_shot_plan_and_camera_plan():
+    clip = _clip()
+    plan = _shot_plan(_seed(clip))
+    auto = _job(renderMode="auto")
+
+    def seed_with(**changes):
+        arguments = {"clip": clip, "job": auto, "source_info": _source_info(),
+                     "words_sha": "b" * 64, "words_count": 1, "camera_sha": "d" * 64,
+                     "selection_sha": "c" * 64, "shot_plan": plan, **changes}
+        return build_seed(**arguments)
+
+    with pytest.raises(SeedError):
+        seed_with(shot_plan=None)
+    with pytest.raises(SeedError):
+        seed_with(camera_sha=None)
+    with pytest.raises(SeedError):  # another camera plan
+        seed_with(camera_sha="e" * 64)
+    with pytest.raises(SeedError):  # another window
+        seed_with(shot_plan=_shot_plan(_seed(_clip(start=30.0, end=60.0))))
+    with pytest.raises(SeedError):  # a shot plan for another layout
+        build_seed(clip=clip, job=_job(), source_info=_source_info(), words_sha="b" * 64,
+                   words_count=1, camera_sha=None, selection_sha="c" * 64, shot_plan=plan)
+    broken = copy.deepcopy(plan)
+    broken["ranges"][0]["mode"] = "sideways"
+    with pytest.raises(SeedError):
+        seed_with(shot_plan=broken)
+
+
+def test_a_prepare_seed_of_an_automatic_job_is_latar_blur():
+    """The legacy engine renders an automatic job as Latar blur (rombak 04 §A1), so the clip
+    ``prepare`` seeds for that file is Latar blur, with no analysis to run."""
+    job = _job(renderMode="auto")
+    job["seedBy"] = "prepare"
+    seed = _seed(job=job)
+    assert seed["layout"] == {"default": {"mode": "fit_blur", "no_face": "center"}}
+    assert "shots" not in seed["base"]
+
+
+@pytest.mark.parametrize("modes", [("camera",), ("camera", "fit_blur"),
+                                   ("fit_blur", "fill_center", "camera")])
+def test_an_automatic_seed_validates(modes, edit_v2_doc_contexts):
+    context_id = fixtures.CONTEXT_IDS[0]
+    context = edit_v2_doc_contexts[context_id]
+    plain = _fixture_seed(context_id, edit_v2_doc_contexts)
+    options = {**_fixture_options(context_id), "renderMode": "auto"}
+    plan = _shot_plan(plain, modes=modes)
+    spec = fixtures.SPECS[context_id]
+    base = plain["base"]
+    clip = _clip(rank=spec.rank, start=spec.start_ms / 1000, end=spec.end_ms / 1000,
+                 cold_open=None if spec.cold_open_ms is None
+                 else (spec.cold_open_ms[0] / 1000, spec.cold_open_ms[1] / 1000),
+                 hook_unit_id=base["origin"]["hook_unit_id"], hook_text=spec.hook_text or "Hook",
+                 source=spec.selection_source)
+    job = {"id": spec.job_id, "options": options, "hookDuration": spec.hook_duration_s,
+           "renderSize": list(spec.output), "seedAtMs": fixtures.CREATED_AT_MS}
+    source_info = {"content_sha256": spec.source_sha,
+                   "probe": {"w": spec.source_w, "h": spec.source_h,
+                             "fps_native": list(spec.fps_native), "vfr": False,
+                             "duration_ms": spec.duration_ms, "has_audio": True,
+                             "grid_sf": _grid(spec.duration_ms)}}
+    seed = build_seed(clip=clip, job=job, source_info=source_info,
+                      words_sha=base["words"]["sha256"], words_count=base["words"]["count"],
+                      camera_sha="d" * 64,
+                      selection_sha=base["origin"]["selection_artifact_sha256"], shot_plan=plan)
+    validation = validate_doc(seed, words=context.words, assets=context.assets, seed=None)
+    assert validation.errors == (), validation.errors
+    assert len(seed["layout"]["ranges"]) == len(modes)
 
 
 def test_seed_prepare_marks_the_legacy_engine():

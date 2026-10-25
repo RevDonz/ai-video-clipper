@@ -21,12 +21,13 @@ from .pipeline import (
     DEFAULT_MAX_CANDIDATES,
     DEFAULT_MAX_MEDIA_CANDIDATES,
     DEFAULT_MEDIA_TIMEOUT,
+    JOB_RENDER_MODES,
     MAX_MEDIA_CANDIDATES,
     MAX_MEDIA_TIMEOUT,
     run_pipeline,
 )
 from .ranking import MAX_RANKING_INPUTS
-from .render import HOOK_DURATION_MAX_SECONDS, RENDER_MODES
+from .render import HOOK_DURATION_MAX_SECONDS
 from .selection_types import MAX_FOCUS_TERM_CHARS, MAX_FOCUS_TERMS, MIN_FOCUS_TERM_CHARS
 from .selection_v3 import LLM_MODES
 from .time_ranges import MAX_RANGES, TimeRange, TimeRangeError, check_ranges, parse_time_range
@@ -116,9 +117,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--height", type=int, default=1920)
     parser.add_argument(
         "--render-mode",
-        choices=RENDER_MODES,
+        choices=JOB_RENDER_MODES,
         default="face-track",
-        help="portrait framing strategy",
+        help="portrait framing strategy (auto: one per shot, selection v3 only)",
     )
     parser.add_argument(
         "--selection-mode",

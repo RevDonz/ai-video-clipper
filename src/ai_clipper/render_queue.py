@@ -43,6 +43,7 @@ from typing import Any, BinaryIO, TextIO
 from . import job_files
 from .edit_v2 import errors as edit_errors
 from .edit_v2 import plates as edit_plates
+from .edit_v2 import shots as edit_shots
 from .edit_v2 import store as edit_store
 from .edit_v2 import timemap as _timemap
 from .edit_v2.clip_id import CLIP_ID_PATTERN
@@ -452,6 +453,10 @@ _RENDER_COST_9_16 = {
     ("fill_center", (1080, 1920)): 1125,
     ("camera", (1080, 1920)): 1800,
     ("split", (1080, 1920)): 1350,
+    # Otomatis (CONTRACTS §5.63) mixes the layouts per shot: face-track's budget, the largest,
+    # until RF-M6 measures it.
+    ("auto", (720, 1280)): 800,
+    ("auto", (1080, 1920)): 1800,
 }
 RENDER_COST_PERMILLE = {
     **_RENDER_COST_9_16,
@@ -830,9 +835,10 @@ def _find_doc(clip: Path, etag: str) -> dict[str, Any]:
 
 
 def _camera_for(clip: Path, doc: Mapping[str, Any]) -> dict[str, Any] | None:
-    """The camera plan of a face-track document: the seed's (``base.camera.sha256``), else the
-    one plan built on demand for the clip (W3 layout switch)."""
-    if doc["layout"]["default"]["mode"] != "camera":
+    """The camera plan of a face-track document, or of an automatic one with a ``camera``
+    range (CONTRACTS §5.63): the seed's (``base.camera.sha256``), else the one plan built on
+    demand for the clip (W3 layout switch)."""
+    if not edit_shots.uses_camera(doc):
         return None
     sha = doc["base"]["camera"]["sha256"]
     if sha is not None:
@@ -860,6 +866,11 @@ def _plan(clip: Path, doc: Mapping[str, Any], resources: Resources) -> RenderPla
     try:
         words = edit_store.load_words(clip, doc["base"]["words"]["sha256"])
         camera = _camera_for(clip, doc)
+        if doc["layout"]["default"]["mode"] == "auto":  # its shot plan must be there (§5.63)
+            shots = doc["base"].get("shots")
+            if not isinstance(shots, Mapping):
+                raise QueueAnalysisMissing()
+            edit_shots.load_shot_plan(clip, shots["sha256"])
         assets = edit_store.load_assets(clip, doc["assets"].keys())
         # the caption check reads the faces of a camera plan under the other layouts (§5.50)
         faces = None if camera is not None else edit_plates.faces_for(clip, doc)

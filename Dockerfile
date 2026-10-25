@@ -80,6 +80,9 @@ COPY --from=web-builder /web/.next/static ./.next/static
 COPY --from=web-builder /web/public ./public
 COPY web/scripts ./scripts
 COPY web/lib ./lib
+# Operator scripts run inside the image, e.g. the Otomatis downgrade before a rollback below the
+# reframe floor (docs/editor/OPERASIONAL.md).
+COPY scripts/ops ./ops
 RUN mkdir -p /data/jobs /data/settings && chown -R node:node /data && chmod 700 /data/settings
 
 # The commit this image is built from (compose passes the deploy's IMAGE_TAG; empty otherwise),
