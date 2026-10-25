@@ -342,3 +342,33 @@ test("below 1024 px the badge is a 44 px target in the top bar; the name folds, 
   assert.match(css, /\.jobBadgeDot \{[^}]*background: var\(--accent\)/);
   assert.doesNotMatch(css, /\.jobBadgeDot \{[^}]*animation/, "the dot marks a state; it does not pulse");
 });
+
+// --- UI language ------------------------------------------------------------------------------
+
+test("the badge and its announcement are shell.badge.* descriptors, so the UI language reads them", async () => {
+  const running = jobBadgeView([job(ID.a, "processing", { progress: 42 }), job(ID.b, "queued")]);
+  assert.deepEqual(running.message, { key: "shell.badge.running", values: { count: 2, percent: 42 } });
+  assert.deepEqual(running.shortMessage, { key: "shell.badge.percent", values: { percent: 42 } });
+  const done = jobBadgeView([job(ID.a, "completed", { clips: clips(3) })]);
+  assert.deepEqual(done.message, { key: "shell.badge.latestClips", values: { count: 3 } });
+  assert.deepEqual(done.shortMessage, { key: "shell.badge.clips", values: { count: 3 } });
+  assert.deepEqual(jobBadgeView([job(ID.a, "failed")]).message, { key: "shell.badge.latestFailed" });
+  assert.deepEqual(jobBadgeView([job(ID.a, "cancelled")]).shortMessage, { key: "shell.badge.cancelled" });
+
+  let state = badgeReducer(INITIAL_BADGE_STATE, { type: "list", jobs: [job(ID.a, "processing"), job(ID.b, "processing")], at: 1 });
+  assert.deepEqual(state.outcomes, []);
+  state = badgeReducer(state, { type: "list", jobs: [job(ID.a, "completed", { clips: clips(2) }), job(ID.b, "failed")], at: 2 });
+  assert.deepEqual(state.outcomes, [
+    { key: "shell.badge.outcomeDone", values: { count: 2 } },
+    { key: "shell.badge.outcomeFailed" },
+  ]);
+
+  const keys = async (locale) => Object.keys(JSON.parse(await read(`messages/${locale}/shell.json`)).badge || {}).sort();
+  const expected = ["cancelled", "clips", "failed", "latestCancelled", "latestClips", "latestFailed", "outcomeCancelled", "outcomeDone", "outcomeFailed", "percent", "running"];
+  assert.deepEqual(await keys("id"), expected);
+  assert.deepEqual(await keys("en"), expected);
+  const component = await read("components/JobBadge.jsx");
+  assert.match(component, /msg\(t, view\.message\)/);
+  assert.match(component, /outcomes\.map\(\(outcome\) => msg\(/);
+  assert.doesNotMatch(component, /\{view\.text\}/);
+});
