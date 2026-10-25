@@ -23,13 +23,22 @@
 // bottom region, and only the side and bottom children change with the view, so a switch never
 // remounts the canvas, the player, the store or the export flow. In Lengkap the panel follows the
 // rail in the DOM, so Tab goes from a tab to its panel, then to the stage.
+//
+// The one-layout editor (rombak 06 §3, Editor F1) replaces both views behind
+// POTONGIN_EDITOR_SHELL=v2 (`shell` prop; the fakes' scenario may pick it for the specs): the
+// same workspace, store, player, dialogs and keyboard map, placed by shell/EditorShell.jsx with
+// the Klip list, the stage and its transport, the transcript, five tabs and the folded timeline.
+// The old views stay the default until the phase passes and go in F10.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useTranslations } from "use-intl";
 
 import { createApplyAll } from "../../lib/editor/apply-all.mjs";
 import { LEAVE_TEXT, clipNavHref, clipNavigation, saveBeforeLeaving } from "../../lib/editor/clip-nav.mjs";
 import { editorHref, prepareForEditor } from "../../lib/editor/open-clip.mjs";
 import { SHORTCUTS, globalShortcut } from "../../lib/editor/shortcuts.mjs";
+import { forgetLegacyView, panelHref, resolveUrlState, urlWithPanel } from "../../lib/editor/url-state.mjs";
 import { isPortrait } from "../../lib/output-frame.mjs";
+import { writeShortcutPref } from "../../lib/ui-prefs.mjs";
 import {
   PANEL_IDS, browserStorage, readStoredView, resolveView, urlWithView, viewFromUrl, writeStoredView,
 } from "../../lib/editor/view-mode.mjs";
@@ -47,10 +56,15 @@ import Rail from "./rail/Rail.jsx";
 import ReadOnlyBanner from "./ReadOnlyBanner.jsx";
 import { createEditorRuntime, createFrameBus, createPlayerFacade } from "./runtime.mjs";
 import styles from "./shell.module.css";
+import shellStyles from "./shell/editor-shell.module.css";
 import {
-  actionableChecks, badgeView, checksView, conflictParts, exportMatchesSeed, exportRevision, liveEntries, messageFor, noticesView,
-  playerView, rejectionText, selectionTrimWord,
+  actionableChecks, badgeView, checksButtonView, checksView, conflictParts, exportMatchesSeed, exportRevision, liveEntries, messageFor,
+  noticesView, outputRatio, playerView, rejectionText, selectionTrimWord,
 } from "./shell-model.mjs";
+import ClipList from "./shell/ClipList.jsx";
+import EditorShell from "./shell/EditorShell.jsx";
+import PanelTabs from "./shell/PanelTabs.jsx";
+import TimelineDetail from "./shell/TimelineDetail.jsx";
 import Scrubber from "./scrubber/Scrubber.jsx";
 import Stage from "./Stage.jsx";
 import StageBadge from "./StageBadge.jsx";
@@ -62,6 +76,7 @@ import TopBar from "./TopBar.jsx";
 import { runCommands } from "./transcript/actions.mjs";
 import { selectionStoreFor } from "./transcript/selection.mjs";
 import PillButton from "./ui/PillButton.jsx";
+import Switch from "./ui/Switch.jsx";
 
 const components = new Map();
 
@@ -100,6 +115,34 @@ function openingView(initialPanel) {
   return { view: resolveView({ url, stored: readStoredView(browserStorage()) }), panel: url.panel, card: url.card };
 }
 
+// The tab the one-layout editor opens with (rombak 06 §3.6): the address (old links land on their
+// tab), else the logo harness's `initialPanel`, else Teks. The address is rewritten to keep only
+// `?panel`, and the two-view editor's stored view is dropped.
+function openingTab(initialPanel) {
+  try {
+    const state = resolveUrlState(window.location.search, { fallback: initialPanel });
+    if (state.changed) {
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${state.search}${window.location.hash}`);
+    }
+    try {
+      forgetLegacyView(window.localStorage);
+    } catch {
+      // storage blocked: nothing was stored either
+    }
+    return state;
+  } catch {
+    return resolveUrlState("", { fallback: initialPanel });
+  }
+}
+
+function replaceUrlPanel(panel) {
+  try {
+    window.history.replaceState(window.history.state, "", urlWithPanel(window.location.href, panel));
+  } catch {
+    // a sandboxed frame may refuse; the tab still opens
+  }
+}
+
 // The address after a switch (Mode Cepat spec §4.4): `?mode=<view>`, so a reload stays in the view.
 function replaceUrlView(view) {
   try {
@@ -134,7 +177,11 @@ function StatePage({ title, children, jobId, busy = false }) {
 
 const SCOPE_NOTE = Object.freeze({ transcript: " (di transkrip)", scrubber: " (di bilah posisi)", trim: " (di gagang timeline)" });
 
-function ShortcutHelp({ open, onClose }) {
+// A character key the "Pintasan satu tombol" switch turns off (K, I, O, ', ?), not an arrow glyph.
+const isCharacterKey = (name) => Array.from(name).length === 1 && name !== "←" && name !== "→";
+
+function ShortcutHelp({ open, onClose, singleKey = true, onSingleKeyChange }) {
+  const t = useTranslations("editor.shortcuts");
   const dialogRef = useRef(null);
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -154,14 +201,28 @@ function ShortcutHelp({ open, onClose }) {
             <table className={styles.shortcutTable}>
               <thead><tr><th scope="col">Tombol</th><th scope="col">Aksi</th></tr></thead>
               <tbody>
-                {SHORTCUTS.map((shortcut) => (
-                  <tr key={shortcut.id}>
-                    <td>{shortcut.keys.map((key) => <kbd key={key} className={styles.kbd}>{key}</kbd>)}</td>
-                    <td>{shortcut.description}{SCOPE_NOTE[shortcut.scope] ?? ""}</td>
-                  </tr>
-                ))}
+                {SHORTCUTS.map((shortcut) => {
+                  const off = !singleKey && shortcut.singleKey === true;
+                  return (
+                    <tr key={shortcut.id} data-shortcut-off={off ? "" : undefined}>
+                      <td>
+                        {shortcut.keys.map((key) => (
+                          <kbd key={key} className={`${styles.kbd} ${off && isCharacterKey(key) ? styles.kbdOff : ""}`}>{key}</kbd>
+                        ))}
+                        {off ? <span className={styles.shortcutOff}>{t("off")}</span> : null}
+                      </td>
+                      <td>{shortcut.description}{SCOPE_NOTE[shortcut.scope] ?? ""}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+            {onSingleKeyChange ? (
+              <div className={styles.shortcutSwitch}>
+                <Switch label={t("singleKey")} checked={singleKey} onChange={onSingleKeyChange} describedBy="editor-single-key-help" />
+                <p id="editor-single-key-help" className={styles.muted}>{t("singleKeyHelp")}</p>
+              </div>
+            ) : null}
             <p className={styles.muted}>Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik di kolom teks.</p>
           </div>
         </>
@@ -170,8 +231,12 @@ function ShortcutHelp({ open, onClose }) {
   );
 }
 
-function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNeedsPrepare = null, singleKeyShortcuts = true }) {
+function EditorWorkspace({
+  runtime, jobId, clipId, initialPanel, features = {}, onNeedsPrepare = null, singleKeyShortcuts = true, shell = "legacy",
+}) {
   const { store, api } = runtime;
+  const oneLayout = shell === "v2";
+  const tEditor = useTranslations("editor");
   // Panels and lanes of a wave that has not landed stay hidden in the app (W2 verifier).
   const panels = useMemo(() => liveEntries(PANELS, runtime.kind), [runtime.kind]);
   const lanes = useMemo(() => liveEntries(LANES, runtime.kind), [runtime.kind]);
@@ -190,8 +255,15 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   }), [frameBus]);
   const [playerState, setPlayerState] = useState(null);
   const [media, setMedia] = useState(null);
-  const [opening] = useState(() => openingView(initialPanel));
+  const [opening] = useState(() => (oneLayout ? { view: null, panel: null, card: null } : openingView(initialPanel)));
   const [panelId, setPanelId] = useState(opening.panel ?? panels[0].id);
+  // The one-layout editor's tab (rombak 06 §3.6), and its Klip drawer below 1280 px.
+  const [openingState] = useState(() => (oneLayout ? openingTab(initialPanel) : null));
+  const [tabId, setTabId] = useState(openingState?.panel ?? "text");
+  const [clipsDrawerOpen, setClipsDrawerOpen] = useState(false);
+  // "Pintasan satu tombol" (lib/ui-prefs.mjs): the page reads it on the server; the dialog's switch
+  // writes the shared cookie and acts at once.
+  const [singleKeyOn, setSingleKeyOn] = useState(singleKeyShortcuts !== false);
   const [view, setView] = useState(opening.view);
   // A `?card=` deep link opens its card the first time Cepat shows; after a switch Caption opens.
   const openingCardRef = useRef(opening.card);
@@ -226,7 +298,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const conflict = state.save === "conflict" && conflictParts(state.conflict).length ? state.conflict : null;
   // "Klip ini terbuka di tab lain" comes from the store's own BroadcastChannel (T2.5).
   const otherTab = state.otherTab === true;
-  const modalOpen = exportOpen || helpOpen || framingOpen || splitOpen || Boolean(conflict);
+  const modalOpen = exportOpen || helpOpen || framingOpen || splitOpen || clipsDrawerOpen || Boolean(conflict);
 
   const notify = useCallback((text) => setToast({ text, id: Date.now() }), []);
   notifyRef.current = notify;
@@ -398,7 +470,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   // transcript is on screen (Lengkap's Transkrip panel), as "Mulai di sini" and "Akhiri di sini";
   // otherwise, or without a selection, the word under the playhead.
   const clipKey = state.doc?.clip_id ?? clipId;
-  const transcriptShown = view === "lengkap" && panelId === "transcript";
+  const transcriptShown = oneLayout || (view === "lengkap" && panelId === "transcript");
   const trimAtPlayhead = useCallback((edge) => {
     if (status !== "ready") return;
     const selected = transcriptShown
@@ -418,9 +490,11 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const [leaving, setLeaving] = useState(false);
   const cardRef = useRef(null);
   const onCardChange = useCallback((id) => { cardRef.current = id; }, []);
-  const goToClip = useCallback(async (side) => {
-    const target = side === "previous" ? clipNav?.previous : clipNav?.next;
-    if (!target || leavingRef.current) return;
+  // The one-layout editor opens the neighbour on the same tab (?panel), the old one in the same view.
+  const neighbourHref = useCallback((href) => (oneLayout ? panelHref(href, tabId)
+    : clipNavHref(href, { view, panel: panelId, card: cardRef.current })), [oneLayout, tabId, view, panelId]);
+  const openClip = useCallback(async (href) => {
+    if (!href || leavingRef.current) return;
     leavingRef.current = true;
     setLeaving(true);
     try {
@@ -428,7 +502,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         flush: () => store.flush(), getState: () => store.getState(), exportPhase: flowRef.current?.getState().phase ?? null,
       });
       if (result.ok) {
-        window.location.assign(clipNavHref(target.href, { view, panel: panelId, card: cardRef.current }));
+        window.location.assign(neighbourHref(href));
         return;
       }
       notify(LEAVE_TEXT[result.reason]);
@@ -436,7 +510,11 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
       leavingRef.current = false;
       setLeaving(false);
     }
-  }, [clipNav, store, view, panelId, notify]);
+  }, [store, neighbourHref, notify]);
+  const goToClip = useCallback((side) => {
+    const target = side === "previous" ? clipNav?.previous : clipNav?.next;
+    if (target) openClip(target.href);
+  }, [clipNav, openClip]);
 
   const second = Math.max(1, Math.round(fps[0] / fps[1]));
   const actions = {
@@ -461,8 +539,9 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const modalRef = useRef(modalOpen);
   modalRef.current = modalOpen;
   // "Pintasan satu tombol" (lib/ui-prefs.mjs), read by the page on the server.
-  const singleKeyRef = useRef(singleKeyShortcuts);
-  singleKeyRef.current = singleKeyShortcuts;
+  const singleKeyRef = useRef(singleKeyOn);
+  singleKeyRef.current = singleKeyOn;
+  const changeSingleKey = useCallback((on) => setSingleKeyOn(writeShortcutPref(on)), []);
 
   useEffect(() => {
     const onKey = (event) => {
@@ -482,6 +561,18 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const checks = useMemo(() => checksView({ warnings: state.warnings, plan, doc: state.doc, seed: state.seed }),
     [state.warnings, plan, state.doc, state.seed]);
   const notices = noticesView({ doc: state.doc, playerMode: playerState?.mode });
+  // "Perlu dicek n" / "Catatan n" (rombak 06 §4 #6): gone at 0; focus that was on it goes to Ekspor.
+  const checksButton = checksButtonView(checks);
+  const checksKind = oneLayout ? checksButton.kind : "legacy";
+  const checksKindRef = useRef(checksKind);
+  useEffect(() => {
+    const before = checksKindRef.current;
+    checksKindRef.current = checksKind;
+    if (!oneLayout || before === null || checksKind !== null) return;
+    setChecksOpen(false);
+    const active = document.activeElement;
+    if (!active || active === document.body) exportButtonRef.current?.focus();
+  }, [oneLayout, checksKind]);
   const unchanged = exportMatchesSeed({ plan, doc: state.doc, seed: state.seed });
   const earlier = useMemo(() => earlierExports({ history: exportState?.history ?? [], current: exportState?.render ?? null,
     latest: clipInfo?.latestRender ?? null }), [exportState, clipInfo]);
@@ -528,6 +619,12 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     document.getElementById(`editor-tab-${panelId}`)?.focus();
   }, [railFocus]); // panelId is the one showLengkap set in the same render
 
+  // A tab of the one-layout editor puts ?panel in the address, so a reload and ‹ › keep it.
+  const changeTab = useCallback((next) => {
+    setTabId(next);
+    replaceUrlPanel(next);
+  }, []);
+
   if (status === "error") {
     if (preparesNow) return <StatePage title="Menyiapkan klip untuk diedit" jobId={jobId} busy><p>Memeriksa analisis klip…</p></StatePage>;
     return (
@@ -537,139 +634,86 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     );
   }
 
-  return (
-    <div
-      className={`${tokens.tokens} ${styles.shell}`}
-      data-editor-root=""
-      data-editor-view={view}
-      data-editor-status={status}
-      data-editor-ready={isReady ? "true" : "false"}
-    >
-      <TopBar
-        ref={exportButtonRef}
-        jobId={jobId}
-        title={clipInfo?.title || "Klip"}
-        save={state.save}
-        savedAtMs={state.savedAtMs}
-        otherTab={otherTab}
-        view={view}
-        onViewChange={changeView}
-        canUndo={Boolean(state.canUndo) && !readOnly}
-        canRedo={Boolean(state.canRedo) && !readOnly}
-        onUndo={() => store.undo()}
-        onRedo={() => store.redo()}
-        onReset={() => safeDispatch("ResetToSeed", {})}
-        resetDisabled={status !== "ready"}
-        resetReason={readOnly ? "Tidak bisa saat klip baca-saja" : "Klip masih dibuka"}
-        onRetrySave={() => { Promise.resolve().then(() => store.flush()).catch(() => {}); }}
-        checksCount={actionableChecks(checks).length}
-        checksOpen={checksOpen}
-        checksButtonRef={checksButtonRef}
-        onToggleChecks={() => (checksOpen ? closeChecks() : setChecksOpen(true))}
-        onHelp={openHelp}
-        onExport={openExport}
-        exportDisabled={!ready || readOnly}
-        exportBusy={BUSY_EXPORT.has(exportState?.phase)}
-        clipNav={clipNav}
-        clipNavBusy={leaving}
-        onPreviousClip={() => goToClip("previous")}
-        onNextClip={() => goToClip("next")}
-      />
-
-      {view === "cepat" ? (
-        <aside key="cards" className={styles.quickSide} data-slot="cards" aria-label="Pengaturan klip">
-          <QuickPanel {...panelProps} frameBus={frameBus} showLengkap={showLengkap} initialCard={openingCardRef.current}
-            onCardChange={onCardChange} />
-        </aside>
-      ) : (
-        [
-          <nav key="rail" className={styles.toolRail} data-slot="rail" aria-label="Alat editor">
-            <Rail panels={panels} value={panel.id} onChange={setPanelId} />
-          </nav>,
-          <aside key="panels" className={styles.panels} data-slot="panels" aria-label="Panel editor">
-            <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
-              {/* The panel's name as the level-2 heading its sections (h3) sit under (QG-A11Y heading order). */}
-              <h2 className={styles.visuallyHidden}>{panel.label}</h2>
-              <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
-                <Panel {...panelProps} />
-              </Suspense>
-            </div>
-          </aside>,
-        ]
-      )}
-
-      <main key="stage" className={styles.stageRegion} data-slot="stage">
-        {(notices.length > 0 || readOnly) && (
-          <div className={styles.notices}>
-            {readOnly && (
-              <ReadOnlyBanner
-                reason={state.readOnlyReason ?? "transcript_changed"}
-                onStartFromSeed={() => {
-                  if (typeof store.startFromSeed === "function") store.startFromSeed();
-                  else safeDispatch("ResetToSeed", {});
-                }}
-              />
-            )}
-            {notices.filter((notice) => notice.code !== "unsupported_browser").map((notice) => (
-              <p key={notice.code} className={`${styles.notice} ${notice.tone === "warn" ? styles.notice_warn : ""}`}>{notice.text}</p>
-            ))}
-          </div>
-        )}
-        <Stage
-          output={state.doc?.output ?? plan?.output}
-          plan={plan}
-          playerMode={playerState?.mode}
-          safeZone={safeZone}
-          onMedia={onMedia}
-          overlayStart={<StageBadge view={badge} />}
-          overlayEnd={(
-            <StageToggles
-              truth={playerState?.mode === "truth"}
-              onTruth={toggleTruth}
-              safeZone={safeZone}
-              onToggleSafeZone={() => setSafeZone((value) => !value)}
-              zone={hasZone}
-              disabled={!plan}
-            />
-          )}
-          gizmos={gizmos.map((entry) => {
-            // W3 gizmos (T3.2's LogoGizmo) mount here from their registry (gizmos/index.mjs).
-            const Gizmo = lazyComponent(entry);
-            return (
-              <Suspense key={entry.id} fallback={null}>
-                <Gizmo plan={plan} state={state} dispatch={dispatch} player={player} output={state.doc?.output ?? plan?.output} readOnly={readOnly} />
-              </Suspense>
-            );
-          })}
+  const topBar = (
+    <TopBar
+      ref={exportButtonRef}
+      jobId={jobId}
+      title={clipInfo?.title || "Klip"}
+      save={state.save}
+      savedAtMs={state.savedAtMs}
+      otherTab={otherTab}
+      view={view}
+      onViewChange={oneLayout ? null : changeView}
+      checksButton={oneLayout ? checksButton : null}
+      canUndo={Boolean(state.canUndo) && !readOnly}
+      canRedo={Boolean(state.canRedo) && !readOnly}
+      onUndo={() => store.undo()}
+      onRedo={() => store.redo()}
+      onReset={() => safeDispatch("ResetToSeed", {})}
+      resetDisabled={status !== "ready"}
+      resetReason={readOnly ? "Tidak bisa saat klip baca-saja" : "Klip masih dibuka"}
+      onRetrySave={() => { Promise.resolve().then(() => store.flush()).catch(() => {}); }}
+      checksCount={actionableChecks(checks).length}
+      checksOpen={checksOpen}
+      checksButtonRef={checksButtonRef}
+      onToggleChecks={() => (checksOpen ? closeChecks() : setChecksOpen(true))}
+      onHelp={openHelp}
+      onExport={openExport}
+      exportDisabled={!ready || readOnly}
+      exportBusy={BUSY_EXPORT.has(exportState?.phase)}
+      clipNav={clipNav}
+      clipNavBusy={leaving}
+      onPreviousClip={() => goToClip("previous")}
+      onNextClip={() => goToClip("next")}
+    />
+  );
+  const stageNotices = (notices.length > 0 || readOnly) && (
+    <div className={styles.notices}>
+      {readOnly && (
+        <ReadOnlyBanner
+          reason={state.readOnlyReason ?? "transcript_changed"}
+          onStartFromSeed={() => {
+            if (typeof store.startFromSeed === "function") store.startFromSeed();
+            else safeDispatch("ResetToSeed", {});
+          }}
         />
-      </main>
-
-      {view === "cepat" ? (
-        <footer key="cepat-bottom" className={styles.quickBottom} data-slot="bottom">
-          <PlayButton playing={Boolean(playerState?.playing)} onPlayPause={playPause} disabled={!plan} />
-          <TimeReadout frameBus={frameBus} fps={fps} totalFrames={plan?.totalFrames ?? 0} />
-          <div className={styles.scrubberSlot}>
-            <Scrubber plan={plan} state={state} player={player} frameBus={frameBus} disabled={!plan} />
-          </div>
-          <PillButton variant="quiet" onClick={() => showLengkap("transcript")}>Potong per kata di Mode Lengkap →</PillButton>
-        </footer>
-      ) : (
-        // A footer, as Cepat's bottom bar: the transport row sits in a landmark (QG-A11Y "region").
-        <footer key="lengkap-bottom" className={styles.lengkapBottom} data-slot="bottom">
-          <StageControls
-            fps={fps}
-            totalFrames={plan?.totalFrames ?? 0}
-            frameBus={frameBus}
-            plan={plan}
-            playing={Boolean(playerState?.playing)}
-            onPlayPause={playPause}
-            onStep={(delta) => player.step(delta)}
-            disabled={!plan}
-          />
-          <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
-        </footer>
       )}
-
+      {notices.filter((notice) => notice.code !== "unsupported_browser").map((notice) => (
+        <p key={notice.code} className={`${styles.notice} ${notice.tone === "warn" ? styles.notice_warn : ""}`}>{notice.text}</p>
+      ))}
+    </div>
+  );
+  const stage = (
+    <Stage
+      output={state.doc?.output ?? plan?.output}
+      plan={plan}
+      playerMode={playerState?.mode}
+      safeZone={safeZone}
+      onMedia={onMedia}
+      overlayStart={<StageBadge view={badge} />}
+      overlayEnd={(
+        <StageToggles
+          truth={playerState?.mode === "truth"}
+          onTruth={toggleTruth}
+          safeZone={safeZone}
+          onToggleSafeZone={() => setSafeZone((value) => !value)}
+          zone={hasZone}
+          disabled={!plan}
+        />
+      )}
+      gizmos={gizmos.map((entry) => {
+        // W3 gizmos (T3.2's LogoGizmo) mount here from their registry (gizmos/index.mjs).
+        const Gizmo = lazyComponent(entry);
+        return (
+          <Suspense key={entry.id} fallback={null}>
+            <Gizmo plan={plan} state={state} dispatch={dispatch} player={player} output={state.doc?.output ?? plan?.output} readOnly={readOnly} />
+          </Suspense>
+        );
+      })}
+    />
+  );
+  const dialogs = (
+    <>
       <ChecksPanel
         open={checksOpen}
         checks={checks}
@@ -727,8 +771,124 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         onUndo={() => { if (!readOnly) store.undo(); }}
         onRedo={() => { if (!readOnly) store.redo(); }}
       />
-      <ShortcutHelp open={helpOpen} onClose={closeHelp} />
+      <ShortcutHelp open={helpOpen} onClose={closeHelp} singleKey={singleKeyOn} onSingleKeyChange={changeSingleKey} />
       {toast && <div key={toast.id} className={styles.toast} role="status" aria-live="polite">{toast.text}</div>}
+    </>
+  );
+
+  if (oneLayout) {
+    const transcriptEntry = panels.find((entry) => entry.id === "transcript");
+    const Transcript = transcriptEntry ? lazyComponent(transcriptEntry) : null;
+    return (
+      <EditorShell
+        rootProps={{ "data-editor-status": status, "data-editor-ready": isReady ? "true" : "false" }}
+        topBar={topBar}
+        clips={<ClipList jobId={jobId} clips={clipList} clipId={clipId} onOpen={(row) => openClip(row.href)} onDrawerChange={setClipsDrawerOpen} />}
+        stage={(
+          <>
+            {stageNotices}
+            <div className={shellStyles.stageHead}>
+              <p className={shellStyles.ratio} data-stage-ratio="">{tEditor("stage.ratio", { ratio: outputRatio(frame) })}</p>
+            </div>
+            <div className={shellStyles.stageBody}>{stage}</div>
+            <div className={shellStyles.transport}>
+              <StageControls
+                fps={fps}
+                totalFrames={plan?.totalFrames ?? 0}
+                frameBus={frameBus}
+                plan={plan}
+                playing={Boolean(playerState?.playing)}
+                onPlayPause={playPause}
+                onStep={(delta) => player.step(delta)}
+                disabled={!plan}
+              />
+              <div className={shellStyles.scrubberRow}>
+                <Scrubber plan={plan} state={state} player={player} frameBus={frameBus} disabled={!plan} />
+              </div>
+            </div>
+          </>
+        )}
+        transcript={Transcript ? (
+          <Suspense fallback={<p className={styles.muted}>{tEditor("shell.openingPanel")}</p>}>
+            <Transcript {...panelProps} />
+          </Suspense>
+        ) : null}
+        panel={<PanelTabs value={tabId} onChange={changeTab} panelProps={panelProps} />}
+        timeline={(
+          <TimelineDetail>
+            <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
+          </TimelineDetail>
+        )}
+      >
+        {dialogs}
+      </EditorShell>
+    );
+  }
+
+  return (
+    <div
+      className={`${tokens.tokens} ${styles.shell}`}
+      data-editor-root=""
+      data-editor-view={view}
+      data-editor-status={status}
+      data-editor-ready={isReady ? "true" : "false"}
+    >
+      {topBar}
+
+      {view === "cepat" ? (
+        <aside key="cards" className={styles.quickSide} data-slot="cards" aria-label="Pengaturan klip">
+          <QuickPanel {...panelProps} frameBus={frameBus} showLengkap={showLengkap} initialCard={openingCardRef.current}
+            onCardChange={onCardChange} />
+        </aside>
+      ) : (
+        [
+          <nav key="rail" className={styles.toolRail} data-slot="rail" aria-label="Alat editor">
+            <Rail panels={panels} value={panel.id} onChange={setPanelId} />
+          </nav>,
+          <aside key="panels" className={styles.panels} data-slot="panels" aria-label="Panel editor">
+            <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
+              {/* The panel's name as the level-2 heading its sections (h3) sit under (QG-A11Y heading order). */}
+              <h2 className={styles.visuallyHidden}>{panel.label}</h2>
+              <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
+                <Panel {...panelProps} />
+              </Suspense>
+            </div>
+          </aside>,
+        ]
+      )}
+
+      <main key="stage" className={styles.stageRegion} data-slot="stage">
+        {stageNotices}
+        {stage}
+      </main>
+
+      {view === "cepat" ? (
+        <footer key="cepat-bottom" className={styles.quickBottom} data-slot="bottom">
+          <PlayButton playing={Boolean(playerState?.playing)} onPlayPause={playPause} disabled={!plan} />
+          <TimeReadout frameBus={frameBus} fps={fps} totalFrames={plan?.totalFrames ?? 0} />
+          <div className={styles.scrubberSlot}>
+            <Scrubber plan={plan} state={state} player={player} frameBus={frameBus} disabled={!plan} />
+          </div>
+          <PillButton variant="quiet" onClick={() => showLengkap("transcript")}>Potong per kata di Mode Lengkap →</PillButton>
+        </footer>
+      ) : (
+        // A footer, as Cepat's bottom bar: the transport row sits in a landmark (QG-A11Y "region").
+        <footer key="lengkap-bottom" className={styles.lengkapBottom} data-slot="bottom">
+          <StageControls
+            fps={fps}
+            totalFrames={plan?.totalFrames ?? 0}
+            frameBus={frameBus}
+            plan={plan}
+            playing={Boolean(playerState?.playing)}
+            onPlayPause={playPause}
+            onStep={(delta) => player.step(delta)}
+            disabled={!plan}
+          />
+          <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
+        </footer>
+      )}
+
+      {dialogs}
     </div>
   );
 }
@@ -754,9 +914,15 @@ function PreparePage({ jobId, startedAt }) {
 
 export default function EditorApp({
   jobId, clipId: initialClipId = null, clipIndex = null, runtimeKind = "real", runtime: injected = null, initialPanel,
-  features = {}, singleKeyShortcuts = true,
+  features = {}, singleKeyShortcuts = true, shell: shellFlag = "legacy",
 }) {
   const narrow = useNarrow();
+  // On the fakes (dev and CI only) the e2e scenario may pick the shell, so one server runs the
+  // specs of both shells; the app follows POTONGIN_EDITOR_SHELL.
+  const [shell] = useState(() => {
+    const picked = runtimeKind === "fake" ? globalThis.__potonginEditorScenario?.shell : null;
+    return picked === "v2" || picked === "legacy" ? picked : shellFlag === "v2" ? "v2" : "legacy";
+  });
   const [runtime, setRuntime] = useState(injected);
   const [failure, setFailure] = useState(null);
   const [clipId, setClipId] = useState(initialClipId);
@@ -843,7 +1009,7 @@ export default function EditorApp({
     return <StatePage title="Membuka klip…" busy><p>Menyiapkan transkrip, pratinjau, dan timeline.</p></StatePage>;
   }
   return (
-    <EditorShell
+    <EditorWorkspace
       key={`${jobId}/${clipId}`}
       runtime={runtime}
       jobId={jobId}
@@ -852,6 +1018,7 @@ export default function EditorApp({
       features={features}
       onNeedsPrepare={injected || prepared ? null : onNeedsPrepare}
       singleKeyShortcuts={singleKeyShortcuts}
+      shell={shell}
     />
   );
 }

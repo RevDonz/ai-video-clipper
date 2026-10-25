@@ -5350,8 +5350,32 @@ document, plan, seed or golden changes come from the layout itself.
 `?mode=` is dropped with `history.replaceState`; `?card=hook|caption` → `?panel=text`;
 `?card=lines` → `text` with the transcript in Baris; `?card=coldopen` → `coldopen`;
 `?card=layout` → `layout`; `?card=extras` → `logo`; `?panel=transcript` → `text`;
-`?panel=music` → `audio`; `?panel=text|layout|audio|logo|coldopen` opens that tab. The
-localStorage key `potongin-editor-view` is removed on first read (try/catch).
+`?panel=music` → `audio`; `?panel=text|layout|audio|logo|coldopen` opens that tab; any other
+value opens Teks. The rewritten address keeps the other params and carries `?panel` only when the
+link named a tab; choosing a tab writes `?panel=<tab>` (replaceState), and the Klip list and ‹ ›
+open the neighbour clip on the same tab (`panelHref`). The localStorage key
+`potongin-editor-view` is removed on first read (try/catch).
+
+### Shell parts (Fase 10 F1)
+
+- `components/editor/shell/`: `EditorShell.jsx` (the grid; slots `clips`, `stage`, `transcript`,
+  `panel`, `timeline-detail`, the top bar keeping `topBar`), `PanelTabs.jsx` (React Aria `Tabs`;
+  only the chosen tab's panel is in the DOM, so exactly one `tabpanel`), `ClipList.jsx` (React Aria
+  `GridList`: number, duration, "Diubah"; the open clip marked; below 1280 px a 56 px rail whose
+  "Klip" button opens the list in a React Aria modal drawer with "Tutup"), `Advanced.jsx` (HeroUI
+  `Disclosure`
+  "Lanjutan"; the summary items are named by the panel's `editor.<tab>.summary.<key>` and joined
+  with `LIST_SEPARATOR`, none = `editor.advanced.default`), `TimelineDetail.jsx` ("Linimasa
+  detail", folded; the lanes mount only while open).
+- The open folds are per-viewer conveniences in localStorage, every access in try/catch and
+  closed when storage fails: `potongin-editor-disclosure` (`{<group>: true|false}`) and
+  `potongin-editor-timeline` (`open|closed`).
+- The top bar's checks button reads "Perlu dicek n" while an error or warning is listed,
+  "Catatan n" when only notes are, and is absent at 0 (`checksButtonView`); focus on it when it
+  goes moves to Ekspor. The stage is labelled with `doc.output`'s ratio ("Pratinjau 9:16").
+- The panels keep their one props bundle; the music panel is the `audio` tab until F5 renames
+  it. On the fakes only (dev and CI), the e2e scenario's `shell` picks the shell, so one gates
+  server runs the specs of both.
 
 ### Kit (Fase 10 F0)
 
@@ -5379,7 +5403,9 @@ localStorage key `potongin-editor-view` is removed on first read (try/catch).
 
 - "Pintasan satu tombol" (WCAG 2.1.4) turns K, I, O, ' and ? off in the editor and the dashboard
   at once: one cookie `potongin_shortcuts=on|off` (`web/lib/ui-prefs.mjs`), read by the edit page
-  for the first render; `shortcutFor(event, {singleKey})`.
+  for the first render and written by the switch in the "Pintasan keyboard" dialog;
+  `globalShortcut(event, {singleKey})` (`web/lib/editor/shortcuts.mjs`), where `SHORTCUTS` marks the
+  entries the switch turns off with `singleKey: true` (the dialog shows them off).
 - Export confirmation (amendment of §3.7, applied by the F8 PR, text approved by the owner): the
   Effect column for warnings reads "Save allowed; export asks for one acknowledgement (**Ekspor
   tetap**) for the listed warnings; each row offers Perbaiki and Lihat". Blocking errors list
@@ -5393,7 +5419,9 @@ localStorage key `potongin-editor-view` is removed on first read (try/catch).
 F0: `web/tests/ui-foundation.test.mjs` (the editor entry, its importers, the React Aria pin, the
 kit provider), `editor-ui-kit.test.mjs`, `editor-css-collisions.test.mjs`, `focus.spec.mjs`,
 contrast, forced colours per component. F1 onwards: `editor-layout-shell.spec.mjs`,
-`editor-disclosure.spec.mjs`, `editor-control-count.spec.mjs` (baseline
-`docs/editor/evidence/control-count.json`), `editor-click-budget.spec.mjs`, unit
-`editor-disclosure`, `editor-url-state`, `editor-store` (`readEditorFlags.shell`), PF-PLAY,
-PF-SEEK; `parity-text` and the `id` screenshots unchanged (rombak 08 Fase 10).
+`editor-control-count.spec.mjs` (baseline `docs/editor/evidence/control-count.json`, measured by
+the gates run), `editor-click-budget.spec.mjs` (table `web/e2e/support/click-budget.mjs`, one
+entry per 06 §10 row, checked by `editor-click-budget-table.test.mjs`), unit `editor-disclosure`,
+`editor-url-state`, `editor-layout-shell`, `editor-store` (`readEditorFlags.shell`), PF-PLAY,
+PF-SEEK; `editor-disclosure.spec.mjs` from the first panel with a Lanjutan fold (F3);
+`parity-text` and the `id` screenshots unchanged (rombak 08 Fase 10).

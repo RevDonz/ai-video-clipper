@@ -50,6 +50,7 @@ services:
       POTONGIN_EDITOR_V3: ${POTONGIN_EDITOR_V3:-on}
       POTONGIN_EDITOR_UPLOADS: ${POTONGIN_EDITOR_UPLOADS:-on}
       POTONGIN_EDITOR_LLM: ${POTONGIN_EDITOR_LLM:-on}
+      POTONGIN_EDITOR_SHELL: ${POTONGIN_EDITOR_SHELL:-legacy}
       # UI languages, comma-separated (web/lib/i18n/locales.mjs); id is always on. Only the app
       # renders UI text: the workers never get this.
       POTONGIN_LOCALES: ${POTONGIN_LOCALES:-id}

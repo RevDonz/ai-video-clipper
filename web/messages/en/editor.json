@@ -1,1 +1,40 @@
-{}
+{
+  "shell": {
+    "tabsLabel": "Clip tools",
+    "tabs": {
+      "text": "Text",
+      "layout": "Layout",
+      "audio": "Audio",
+      "logo": "Logo",
+      "coldOpen": "Cold open"
+    },
+    "openingPanel": "Opening panel…",
+    "transcript": "Transcript",
+    "timeline": "Detailed timeline",
+    "checks": {
+      "needs": "To check {count}",
+      "notes": "Notes {count}"
+    }
+  },
+  "clips": {
+    "title": "Clips",
+    "open": "Clips",
+    "number": "#{index}",
+    "edited": "Edited",
+    "current": "Open now",
+    "row": "Clip {index}, {duration}"
+  },
+  "stage": {
+    "ratio": "Preview {ratio}"
+  },
+  "shortcuts": {
+    "singleKey": "Single-key shortcuts",
+    "singleKeyHelp": "K, I, O, ' and ? work without Ctrl. Turn them off if you press them by accident. Applies to the dashboard too.",
+    "off": "Off"
+  },
+  "advanced": {
+    "label": "Advanced",
+    "summary": "{items}",
+    "default": "Default"
+  }
+}

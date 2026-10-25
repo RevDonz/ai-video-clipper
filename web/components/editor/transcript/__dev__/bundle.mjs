@@ -17,6 +17,8 @@ export const WEB_ROOT = path.resolve(here, "..", "..", "..", "..");
 const requireFromWeb = createRequire(path.join(WEB_ROOT, "package.json"));
 const EXTENSIONS = ["", ".mjs", ".js", ".jsx", "/index.mjs", "/index.js"];
 const REQUIRE = /\brequire\((["'])([^"']+)\1\)/g;
+// A static import or export statement: the module is an ES module.
+const ESM_SYNTAX = /(?:^|[\n;])\s*(?:import\s*(?:[\w{*]|["'])|export\s*(?:[\w{*]|default\b))/;
 
 let swcPromise = null;
 function swc() {
@@ -97,8 +99,21 @@ async function compile(file) {
       + `s.textContent=${JSON.stringify(css)};document.head.appendChild(s);})();module.exports=${JSON.stringify(names)};`;
   }
   if (file.endsWith(".css")) throw new Error(`harness bundle: global CSS is not supported (${file})`);
-  if (file.includes(`${path.sep}node_modules${path.sep}`)) return source;
+  // The message catalogs (web/messages/<locale>/*.json) and any other JSON a module imports.
+  if (file.endsWith(".json")) return `module.exports = ${source.trim()};`;
   const binding = await swc();
+  if (file.includes(`${path.sep}node_modules${path.sep}`)) {
+    // A CommonJS package is used as it ships; an ES-module-only one (use-intl, @heroui/react) is
+    // turned into CommonJS by the same SWC binding, so the one-script bundle can require it.
+    if (!ESM_SYNTAX.test(source)) return source;
+    const out = await binding.transform(source, {
+      filename: file,
+      jsc: { parser: { syntax: "ecmascript" }, target: "es2022" },
+      module: { type: "commonjs" },
+      sourceMaps: false,
+    });
+    return out.code;
+  }
   const out = await binding.transform(source, {
     filename: file,
     jsc: { parser: { syntax: "ecmascript", jsx: true }, transform: { react: { runtime: "automatic" } }, target: "es2022" },

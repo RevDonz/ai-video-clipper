@@ -1,1 +1,40 @@
-{}
+{
+  "shell": {
+    "tabsLabel": "Alat klip",
+    "tabs": {
+      "text": "Teks",
+      "layout": "Tata letak",
+      "audio": "Audio",
+      "logo": "Logo",
+      "coldOpen": "Cold open"
+    },
+    "openingPanel": "Membuka panel…",
+    "transcript": "Transkrip",
+    "timeline": "Linimasa detail",
+    "checks": {
+      "needs": "Perlu dicek {count}",
+      "notes": "Catatan {count}"
+    }
+  },
+  "clips": {
+    "title": "Klip",
+    "open": "Klip",
+    "number": "#{index}",
+    "edited": "Diubah",
+    "current": "Sedang dibuka",
+    "row": "Klip {index}, {duration}"
+  },
+  "stage": {
+    "ratio": "Pratinjau {ratio}"
+  },
+  "shortcuts": {
+    "singleKey": "Pintasan satu tombol",
+    "singleKeyHelp": "K, I, O, ' dan ? bekerja tanpa Ctrl. Matikan kalau sering tertekan tanpa sengaja. Berlaku juga di dashboard.",
+    "off": "Mati"
+  },
+  "advanced": {
+    "label": "Lanjutan",
+    "summary": "{items}",
+    "default": "Bawaan"
+  }
+}
