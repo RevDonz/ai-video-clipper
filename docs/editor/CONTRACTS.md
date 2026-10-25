@@ -1933,6 +1933,9 @@ the meta's sha are the committed ones. `v1.wav` is immutable: another sound or l
 
 ## 5.27 Editor views: Mode Cepat and Mode Lengkap (2026-10-05)
 
+*Views superseded by §5.69 (2026-10-25, one layout, built in Fase 10–11); the caption line key
+`<seg>:<firstWordId>` and the `captionRows` shape below stay in force.*
+
 Spec: `docs/plans/2026-10-02-editor-mode-cepat.md` (owner decisions of 2026-10-02 and the
 "Decisions during build" sections 13 to 19). No engine, Python, command, rebase, plan or seed
 changes: every plan sha and golden is unchanged.
@@ -5092,3 +5095,305 @@ Errors (flat shape): 400 `web.invalid_request`, 400 `web.locale_unsupported`, 40
 `i18n-error-codes`, `i18n-catalog`, `i18n-registry`, `i18n-resolve`, `locale-route`,
 `content-language-isolation` (rombak 07 §14); `web/tests/proxy-matcher.test.mjs` gains
 `/api/locale`; existing route and contract tests stay green unchanged.
+
+## 5.66 Several bodies in `main.segments` (2026-10-25)
+
+Allocated by the Fase 10 contract PR (rombak 06 §11.1); built in Fase 11 F6. Contract only: no
+code exists. Owner: rombak 06 §11.2–§11.4 and §11.11 (on a difference 06 wins and this section is
+corrected in the same PR). Minor-0 amendment: no new `schema_minor`. Every minor-0 document stays
+valid and means what it meant, and its plan, ASS and `render_key` stay byte-identical (the §5.11
+fixtures are the golden). An older server refuses a document with a second body with
+`range_invalid` and a third or later segment with `op_disabled` (`doc.py` `segments_rule`). The PR
+that ships the validator adds the §3.8 amendment bullet.
+
+### Document
+
+```json
+"main": {
+  "cut_fade_ms": 8,
+  "segments": [
+    {"id": "co", "role": "cold_open", "in_sf": 1200, "out_sf": 1290},
+    {"id": "s1", "role": "body", "in_sf": 900,  "out_sf": 1500},
+    {"id": "s2", "role": "body", "in_sf": 300,  "out_sf": 620},
+    {"id": "s3", "role": "body", "in_sf": 900,  "out_sf": 1100}
+  ],
+  "removals": [{"id": "r1", "seg": "s2", "in_sf": 400, "out_sf": 420, "words": [], "reason": "user", "origin": "user"}],
+  "joins": [{"after": "co", "style": "cut", "audio_fade_ms": 0}]
+}
+```
+
+- The array order is the output order. An optional cold open is always index 0. Bodies may run
+  backwards in the source and may overlap one another (s3 repeats part of s1).
+- `joins` stay for `after` = the cold open only. Body-to-body boundaries use `cut_fade_ms`
+  (G-CLICK).
+- A new segment id is made by the client: `s` + a base-36 counter, unique in the document; the
+  counter is 1 + the largest base-36 value among ids matching `^s[0-9a-z]+$` (other seed ids are
+  never renamed), so undo, redo and rebase are deterministic.
+- `MAX_BODIES = 8`, exported by `web/lib/editor/doc-model.mjs` and `edit_v2/doc.py`. It may only
+  go up after PF-SEG (`docs/editor/GATES.md`); if PF-SEG fails it goes down to the largest
+  passing value (at least 4), recorded in GATES.md.
+
+### Validation (`doc.py`)
+
+| Rule | Today | New |
+|---|---|---|
+| Number of segments | index ≥ 2 → `op_disabled` | more than `MAX_BODIES` bodies → `range_invalid` at `/main/segments/<i>`; a cold open that is not index 0, or two → `cold_open_invalid` (unchanged) |
+| A second body | `range_invalid` | allowed; `body_index` becomes `body_indices`, and `first_body` is the first body in output order |
+| Duplicate ids | not refused | `range_invalid` at the second `/main/segments/<i>` |
+| Duration 3–300 s | of the single body | of the **sum** of every body's output frames after removals (`tm.total_frames` without the cold open) → `duration_out_of_bounds` at `/main/segments` |
+| Cold open rules | against the single body | against `first_body` |
+| `removal_outside_segment`, `outside_window` | per segment | unchanged |
+| Overlapping bodies | — | allowed |
+
+### Engine
+
+- Timemap (`timemap.py`, `web/lib/editor/timemap.mjs`): pieces per segment in order, as today;
+  new vectors in `tests/fixtures/edit_v2/timemap-vectors.json` (backwards, duplicate, 8 bodies),
+  identical in JS and Python.
+- Compiler: no new graph path. `decoder_runs` (R2) already opens a run for a backwards jump or a
+  gap of 10 s or more and `picture()` joins runs with `concat`; each run is one `-ss` input under
+  `RLIMIT_AS` 3 GiB, measured by PF-SEG.
+- Captions: a cue never crosses a segment boundary; the caption line key stays
+  `<seg>:<firstWordId>` (§5.27); `word_edits` apply to every copy of a word.
+- Plates: a plate cell is keyed per source cell, so a duplicate reuses the cache;
+  `presenter.mjs` seeks a new plate on a backwards jump between pieces.
+
+### Commands (`web/lib/editor/commands.mjs`, appended at the end of `COMMANDS`)
+
+`SplitSegment {seg, atSf}`, `DuplicateSegment {seg}`, `MoveSegment {seg, toIndex}`,
+`RemoveSegment {seg}`; `TrimStart`, `TrimEnd`, `NudgeEdge`, `RemoveWords`, `EditWordText`,
+`SetWordHidden`, `SetWordEmphasis` gain an optional `seg` (default: the first body for a start,
+the last for an end). Each is pure, one undo step, `mergeKey: null`. Refusal codes join
+`COMMAND_MESSAGES` (`messageId` `editor.<code>`, §5.65): `segment_limit`, `segment_too_short`,
+`segment_last`, `segment_cold_open_fixed`, `duration_out_of_bounds`. Rebase
+(`web/lib/editor/rebase.mjs`): when base, mine or theirs has more than one body, the parts `trim`
+and `removals:body` become one part `segments`, compared and chosen whole; a one-body document
+keeps today's parts.
+
+### Gates
+
+`tests/test_edit_v2_doc.py` (2, 8 and 9 bodies, backwards, overlapping, duplicate ids, a sum of
+2.9 s and 300.1 s, the cold open against the first body), `tests/test_edit_v2_compile.py` (one
+body byte-identical to the golden; three backwards bodies give three runs and `concat=n=3`),
+`tests/test_edit_v2_timemap.py`, `tests/test_edit_v2_captions.py`, `web/tests/editor-timemap.test.mjs`,
+`editor-commands`, `editor-history`, `editor-rebase`, `editor-segments` (new), and the gates
+PF-SEG (new), P-FRAME ≥ 2,000 frames for backwards and duplicate orders, P-TIME, G-CLICK, P-PLATE.
+
+## 5.67 Derived clips: merge, extract, duplicate (2026-10-25)
+
+Allocated by the Fase 10 contract PR (rombak 06 §11.1); built in Fase 11 F7. Contract only: no
+code exists. Owner: rombak 06 §11.6 (route guards: 02 §7.2–§7.4; posting registry: 01 §4.5,
+03 §6.5–§6.6, §13.2). Minor-0 amendment of `base.origin`; an older server refuses a derived
+document with `unknown_key` (`parents`, `derived_kind`) or `range_invalid` (`kind` outside
+`{"v3_clip"}`, `doc.py`). The PR that ships it adds the §3.8 amendment bullet.
+
+### Registry `JOBS_ROOT/<job>/analysis/derived-clips.json`
+
+A file, not a table (rombak 01 §3.1, §6.4); canonical JSON, mode 0600; written under `flock` on
+`analysis/.derived-clips.lock` with `store.py`'s atomic write.
+
+```json
+{
+  "schema": "potongin.derived-clips/1",
+  "next_seq": 3,
+  "clips": [
+    {
+      "clip_id": "clip_<24 hex>",
+      "seq": 1,
+      "kind": "merge",
+      "parents": ["clip_a…", "clip_b…"],
+      "parent_revisions": [4, 0],
+      "ranges_ms": [[61200, 83400], [12000, 30500]],
+      "window_ms": [0, 143400],
+      "created_at_ms": 1761300000000,
+      "created_by": "<users.id>",
+      "idempotency_key": "<uuid>",
+      "dropped_edits": 0,
+      "state": "active",
+      "deleted_at_ms": null
+    }
+  ]
+}
+```
+
+- `clip_id = "clip_" + sha256("potongin-clip-derived-v1\0" ‖ source_content_sha256 ‖ "\0" ‖ kind ‖
+  "\0" ‖ ranges "a-b,c-d" ‖ "\0" ‖ parents "," ‖ "\0" ‖ idempotency_key)[:24]`
+  (`derived_clip_id`, new in `clip_id.py`); the pattern stays `CLIP_ID_PATTERN`, so `isClipId` is
+  unchanged. The namespace is only the hash domain; a derived clip is recognised through the clip
+  list (`derived !== null`), never by its id.
+- Window: the source span `max(out) − min(in)` above 1,200,000 ms → `merge_too_far`; the window is
+  `[min − 60,000, max + 60,000]` clipped to the source (at most 22 minutes). Same job only.
+- Seed: `seed.py`'s prepare path on that window; words, peaks and source under
+  `analysis/clips/<clip_id>/`. Parents are read at their latest saved revision (or the seed) under
+  the registry lock; `parent_revisions` records them.
+  - merge: every body of every parent in the chosen order; more than `MAX_BODIES` (§5.66) →
+    `too_many_segments`; a sum under 3 s or over 300 s → `duration_out_of_bounds`; the parents'
+    cold opens are dropped; `removals` and `layout.keyframes` go with their segments; `captions`,
+    `layout.default`, `tracks`, `watermark`, `audio` come from parent 1; `word_edits` are mapped
+    through the word's source time, unmapped ones dropped and counted in `dropped_edits`.
+  - extract: one body, the chosen segments of the parent's saved document. duplicate: a copy of
+    the saved document, cold open included.
+  - The camera plan comes along only when the parent's analysis covers the window; otherwise
+    Ikuti wajah is refused with the `camera_missing` check and the mode falls back to Latar blur.
+- `base.origin = {"kind": "derived", "derived_kind": "merge|extract|duplicate", "parents": [...]}`
+  without `selection_artifact_sha256`, `rank_at_seed`, `hook_unit_id`. In the posting registry the
+  clip is `clip_kind = 'derived'`, `selection_keys_json = NULL`, `excluded_reason = 'derived'`, so
+  the performance profile leaves it out.
+
+### Ops (`edit_v2/api.py` `OPS`, `_FIELDS`)
+
+| Op | Fields | Result | Codes |
+|---|---|---|---|
+| `merge_clips` | `jobId, clipIds, idempotencyKey` | `{clipId, seq, droppedEdits}` | `not_found`, `merge_too_far`, `too_many_segments`, `duration_out_of_bounds`, `analysis_missing`, `idempotency_conflict` |
+| `derive_clip` | `jobId, clipId, etag, segIds, idempotencyKey` (`segIds: []` duplicates the clip) | same | `not_found`, `revision_conflict`, `range_invalid`, `idempotency_conflict` |
+| `delete_derived_clip` | `jobId, clipId` | `{clipId, deleted: true}` (soft delete, `state: "deleted"`) | `not_found`, `not_derived` |
+
+`janitor.py` removes `analysis/clips/<id>/` of a derived clip deleted more than 30 days ago. New
+codes join `_MESSAGES` and every locale's `errors.json` (`edit.merge_too_far`, `edit.not_derived`,
+`edit.too_many_segments`).
+
+### Routes
+
+| Method and path | Body | Success | Errors |
+|---|---|---|---|
+| `POST /api/jobs/:id/derived-clips` | ≤ 4 KiB, exactly one of `{"kind":"merge","clipIds":[2..8]}`, `{"kind":"extract","clipId","editEtag","segIds":[1..8]}`, `{"kind":"duplicate","clipId","editEtag"}`; `Idempotency-Key` UUID required | `201 {clipId, seq, droppedEdits, editorHref}`; the same key again → `200`, same body | 400 `invalid_request`; 404 `not_found`; 409 `revision_conflict`, `idempotency_conflict`, `merge_too_far`, `analysis_missing`; 413 `payload_too_large`; 422 `too_many_segments`, `duration_out_of_bounds`; 503 `backend_unavailable`; 507 `storage_full`, `user_storage_quota` |
+| `DELETE /api/jobs/:id/derived-clips/:clipId` | — | `200 {clipId, deleted: true, cancelledPosts: n}` | 404 `not_found`; 409 `not_derived`; 503 |
+
+Both go through `secureRoute({params, owner: "job", notFound: "job", limit: "api"})` and
+`sameOriginMutation`; the 404 for "absent" and "someone else's" is identical. Before
+`delete_derived_clip` the route cancels the clip's queued renders and its publish runs
+(`cancelRunsForClip(ownerId, jobId, clipId)`, `error_code = 'social_clip_deleted'`).
+
+### Clip lists
+
+Python `_clips` (`api.py`) and JS `listJobClips(job)` (`web/lib/jobs.mjs`) add the active derived
+clips **after** the pipeline's, for v3 jobs only: `index` = the largest pipeline index + `seq`,
+`derived: {kind, parents, seq}` (`null` on a pipeline clip), `title` = parent 1's title + ` (n)`
+with `n = seq + 1`; `durationMs` and `edit` as for a pipeline clip. Consumers: the project page,
+Riwayat/Proyek (§5.32), the ZIP (§5.28), the hook toggle (§5.57), titles (§5.38), the posting
+registry.
+
+### Gates
+
+`tests/test_edit_v2_derived.py` (new: registry, flock, window, `merge_too_far`, `word_edits`
+mapping, `dropped_edits`, soft delete, `_clips`), `tests/test_edit_v2_clip_id.py`
+(`derived_clip_id`, its own domain), `tests/test_edit_v2_janitor.py`,
+`web/tests/derived-clips-route.test.mjs` (new), `web/tests/list-job-clips-parity.test.mjs`
+(fixtures `tests/fixtures/edit_v2/derived/`), `web/e2e/editor-merge.spec.mjs` (new), PF-OPEN and
+PF-SAVE unchanged with the registry.
+
+## 5.68 Render size `720p` (2026-10-25)
+
+Allocated by the Fase 10 contract PR (rombak 06 §11.1); built in Fase 11 F8. Contract only: no
+code exists. Owner: rombak 06 §11.7–§11.8a. An older route refuses a body with `size` with 400
+`invalid_request` (the single-body pattern of `clip-renders.mjs`); an older queue refuses a
+request file whose `size` is not `"output"`.
+
+- Route body (`POST /api/jobs/:id/clips/:clipId/renders`, `web/lib/clip-renders.mjs`): a strict
+  JSON parser, keys ⊆ `{editEtag, size}`, `size ∈ {"output", "720p"}`, default `"output"`; a body
+  without `size` stays valid.
+- Queue (`render_queue.py`): `size` is an optional key of `create` and `estimate` (absent =
+  `"output"`), pattern `^(output|720p)$`; a request file is valid when `size ∈ {"output",
+  "720p"}`. `720p` is accepted only when the short side of `doc.output` is 1080, else 422
+  `size_unsupported` (new, `edit.size_unsupported` in every locale). Target = short side 720 at the
+  same ratio (1080×1920 → 720×1280, 1080×1080 → 720×720). `render_key(plan, size=(w, h), …)` takes
+  the target size; R10 (`content_equals_seed`) applies to `size == "output"` only.
+  `predicted_render_ms` uses the existing `RENDER_COST_PERMILLE` entries for 720×1280 and 720×720.
+- Compiler: `scale=w:h:flags=lanczos` at the very end of the chain, after the ASS and the logo,
+  before the BT.709 `format`. ASS and graphics render at the document's size, so the preview is
+  unchanged. `verify.py` checks the requested size.
+- Batch (`POST /api/jobs/:id/renders/batch`, `Idempotency-Key` required, ≤ 8 KiB,
+  `{"clipIds": [1..50], "size": "output"|"720p"}`): in JS over `listJobClips(job)`, clip by clip
+  in order; a clip without `edit` → `skipped/not_openable`; each create uses the entry's
+  `edit.etag` and the key `uuidv5(batchKey, clipId)`; `storage_full` or `user_storage_quota` on one
+  clip skips it and every later one with that code; a seed clip at `output` completes through R10.
+  Answer `202 {batchId, items: [{clipId, state: "queued"|"completed"|"skipped", renderId|null,
+  reason|null}]}`, `reason ∈ {not_openable, size_unsupported, storage_full, user_storage_quota,
+  backend_unavailable}`; request-level errors 400, 404, 409 `idempotency_conflict`, 413, 503.
+- Active renders (`GET /api/jobs/:id/renders`): `200 {items: [dto…]}`, only requests that are not
+  final, oldest first, `Cache-Control: no-store`; 404 identical, 503 `backend_unavailable`.
+- Gates: `tests/test_render_queue.py` (`size`, R10 for `output` only, `size_unsupported`),
+  `tests/test_edit_v2_compile.py` (the scale at the end), `tests/test_edit_v2_verify.py`,
+  `web/tests/renders-batch-route.test.mjs` and `renders-list-route.test.mjs` (new),
+  `web/tests/editor-export-flow.test.mjs`, P-ENC with a down-scaled fixture; P-TXT unaffected.
+
+## 5.69 Editor: one layout (2026-10-25)
+
+Allocated by the Fase 10 contract PR (rombak 06 §11.1); built in Fase 10 (F0–F5, M8a) and
+Fase 11 (F4b, F8–F10, M8b). It **replaces** §5.27 "Editor views: Mode Cepat and Mode Lengkap" for
+everything about views; §5.27's caption line key `<seg>:<firstWordId>` and the `captionRows` shape
+stay in force. Owner: rombak 06 §2–§9, §14–§17 and DESIGN.md "Pola tata letak" (Editor). No
+document, plan, seed or golden changes come from the layout itself.
+
+### Shell
+
+- One layout, no Cepat/Lengkap choice and no other shell choice on screen. Areas: the clip list
+  on the left, the preview with its transport, the segment strip and the transcript in the
+  middle (side by side at ≥ 1440 px, stacked below), one tool panel on the right, the detailed
+  timeline folded below. Below 1024 px: tablet and phone layouts of 06 §3.1 (F9).
+- Progressive disclosure: T0 always shown (top bar, preview, segments, transcript, clip list);
+  T1 one panel open, Teks on open, clicking the open tab does not close it; T2 each panel's
+  "Lanjutan" `Disclosure`, closed by default, its title showing `advancedSummary(group, doc,
+  seed)` (`web/lib/editor/disclosure.mjs`: at most 3 items, values that differ from the seed
+  only, data not text); T3 menus, drawers (Rapikan and Ejaan, Terbitkan) and modals, one click
+  away. A common task takes at most 3 clicks, the closed list of advanced tasks at most 5
+  (06 §2.3).
+- Tabs (ids): `text` Teks, `layout` Tata letak, `audio` Audio (was `music` Musik), `logo` Logo,
+  `coldopen` Cold open. The transcript is no tab.
+- The new shell ships behind `POTONGIN_EDITOR_SHELL = legacy | v2` (server flag, read by
+  `readEditorFlags`, any other value = `legacy`, under `POTONGIN_EDITOR_V3`) until its phase
+  passes; F10 removes the flag with `quick/`, `rail/`, `ViewSwitch.jsx`, `view-mode.mjs`,
+  `FramingDialog.jsx` and `SplitDialog.jsx`.
+
+### Address (`web/lib/editor/url-state.mjs`)
+
+`?mode=` is dropped with `history.replaceState`; `?card=hook|caption` → `?panel=text`;
+`?card=lines` → `text` with the transcript in Baris; `?card=coldopen` → `coldopen`;
+`?card=layout` → `layout`; `?card=extras` → `logo`; `?panel=transcript` → `text`;
+`?panel=music` → `audio`; `?panel=text|layout|audio|logo|coldopen` opens that tab. The
+localStorage key `potongin-editor-view` is removed on first read (try/catch).
+
+### Kit (Fase 10 F0)
+
+- The editor takes HeroUI v3 and React Aria through its own CSS entry `web/app/editor.css`,
+  imported only by `web/app/projects/[id]/clips/[clipId]/edit/layout.jsx`: Tailwind v4 without
+  preflight, utilities from the editor's sources only, HeroUI's base, theme and one stylesheet per
+  HeroUI component the editor imports, every rule in a cascade layer, so every editor CSS Module
+  (unlayered) wins over it. `app/ui.css` and `components/ui/*` stay the app pages' and never reach
+  the editor. No `RouterProvider` anywhere: every link stays a full-document `<a href>` (the
+  editor's COOP/COEP headers).
+- React Aria's locale comes from `components/editor/ui/KitProvider.jsx` (`I18nProvider` with the
+  UI language of the editor's IntlProvider); the root layout carries no React Aria.
+- `react-aria-components` is an exact dependency of `web/package.json`, the very copy
+  `@heroui/react@3.2.6` takes as its peer (one React Aria in the bundle); `GridList`,
+  `FileTrigger` and drag and drop come from it.
+- The kit (`components/editor/ui/`) keeps its props: `PillGroup` and `Swatches` are React Aria
+  `RadioGroup`s (role `radiogroup`, named by their label), `Switch` React Aria's `Switch`,
+  `PillToggle` React Aria's `ToggleButton`, `AccordionCard` HeroUI's `Disclosure` (region named by
+  the card's label alone); `MenuButton` stays the kit's own WAI-ARIA menu button, because React
+  Aria's `Menu` skips a disabled item that the kit keeps focusable with its reason. Under forced
+  colours a chosen React Aria control underlines its text (`[data-rac][data-selected]`, ported
+  from the kit's `ui.module.css`).
+
+### Shortcuts, export, language
+
+- "Pintasan satu tombol" (WCAG 2.1.4) turns K, I, O, ' and ? off in the editor and the dashboard
+  at once: one cookie `potongin_shortcuts=on|off` (`web/lib/ui-prefs.mjs`), read by the edit page
+  for the first render; `shortcutFor(event, {singleKey})`.
+- Export confirmation (amendment of §3.7, applied by the F8 PR, text approved by the owner): the
+  Effect column for warnings reads "Save allowed; export asks for one acknowledgement (**Ekspor
+  tetap**) for the listed warnings; each row offers Perbaiki and Lihat". Blocking errors list
+  "Perbaiki dulu"; info notes need no acknowledgement.
+- The editor's copy comes from the catalogs (`editor`, `errors.edit`, `errors.editor`, `hints.*`,
+  `aria.editor.*`; rombak 07); content text (captions, words, hooks, titles) is never translated,
+  and documents, ASS, plans and `render_key` are identical in every locale.
+
+### Gates
+
+F0: `web/tests/ui-foundation.test.mjs` (the editor entry, its importers, the React Aria pin, the
+kit provider), `editor-ui-kit.test.mjs`, `editor-css-collisions.test.mjs`, `focus.spec.mjs`,
+contrast, forced colours per component. F1 onwards: `editor-layout-shell.spec.mjs`,
+`editor-disclosure.spec.mjs`, `editor-control-count.spec.mjs` (baseline
+`docs/editor/evidence/control-count.json`), `editor-click-budget.spec.mjs`, unit
+`editor-disclosure`, `editor-url-state`, `editor-store` (`readEditorFlags.shell`), PF-PLAY,
+PF-SEEK; `parity-text` and the `id` screenshots unchanged (rombak 08 Fase 10).
