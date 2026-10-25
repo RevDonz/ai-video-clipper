@@ -218,3 +218,19 @@ test("the files already on the catalog stay at zero", async () => {
     assert.equal(Object.hasOwn(baseline, file), false, file);
   }
 });
+
+// 08 Fase 3: every existing dashboard route (Buat klip, Proyek and one project, Pengaturan, Tren,
+// Bantuan) and the shared components those pages draw hold no copy of their own.
+const DASHBOARD_ROUTES = /^app\/(?:dashboard|projects|settings|trends|bantuan)\//;
+const DASHBOARD_SHARED = Object.freeze(["components/ClipPoster.jsx", "components/trends/TrendChips.jsx"]);
+
+test("every file of the dashboard routes stays at zero", async () => {
+  const now = await counts();
+  const baseline = JSON.parse(await readFile(BASELINE, "utf8"));
+  const files = (await listSources(["app"])).filter((file) => DASHBOARD_ROUTES.test(file) && UI_FILE.test(file));
+  assert.ok(files.length >= 25, `the dashboard routes are scanned (${files.length})`);
+  for (const file of [...files, ...DASHBOARD_SHARED]) {
+    assert.equal(now[file] ?? 0, 0, file);
+    assert.equal(Object.hasOwn(baseline, file), false, file);
+  }
+});

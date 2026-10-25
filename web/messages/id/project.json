@@ -148,5 +148,10 @@
     "transcript": "Transkrip",
     "moments": "Momen",
     "clips": "Klip"
+  },
+  "trendChips": {
+    "label": "Tren yang disebut di klip ini",
+    "kind": "{kind} · disebut di transkrip klip ini",
+    "plain": "Disebut di transkrip klip ini"
   }
 }

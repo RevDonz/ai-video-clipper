@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "use-intl";
+
 import styles from "./TrendChips.module.css";
 
 /**
@@ -6,11 +10,12 @@ import styles from "./TrendChips.module.css";
  * (React escapes them).
  */
 export default function TrendChips({ chips }) {
+  const t = useTranslations("project");
   if (!Array.isArray(chips) || chips.length === 0) return null;
   return (
-    <ul className={styles.trendChips} aria-label="Tren yang disebut di klip ini">
+    <ul className={styles.trendChips} aria-label={t("trendChips.label")}>
       {chips.map((chip) => (
-        <li key={chip.key} title={chip.kindLabel ? `${chip.kindLabel} · disebut di transkrip klip ini` : "Disebut di transkrip klip ini"}>
+        <li key={chip.key} title={chip.kindLabel ? t("trendChips.kind", { kind: chip.kindLabel }) : t("trendChips.plain")}>
           {chip.label}
         </li>
       ))}

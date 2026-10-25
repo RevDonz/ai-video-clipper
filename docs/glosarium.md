@@ -28,6 +28,7 @@ kata status). Kalau berbeda, dokumen itu yang berlaku dan tabel ini diperbarui.
 | Klasik · Karaoke · Bold · Box · Sorot · Sinar | Classic · Karaoke · Bold · Box · Highlight · Glow | Nama gaya caption |
 | Terbaik · Urutan video | Best · Video order | Urutan klip di halaman proyek |
 | Di luar fokus | Outside focus | Saring klip |
+| Diedit | Edited | Klip yang diubah di editor |
 | Proses ulang | Run again | Aksi proyek |
 | Teks | Text | Tab editor |
 | Audio ★ | Audio | Tab editor |

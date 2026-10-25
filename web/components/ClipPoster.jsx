@@ -1,6 +1,10 @@
+"use client";
+
 // One clip poster, drawn the same on the project page (inside a button that picks the clip) and
 // in the Riwayat clip grid (inside a link to the clip in its project). The wrapper takes
 // `posterFrame`; these two fill it.
+import { useTranslations } from "use-intl";
+
 import styles from "./ClipPoster.module.css";
 
 export const posterFrame = styles.frame;
@@ -25,6 +29,7 @@ export function PosterThumb({ poster, number, length, badge = null, children = n
  * `flags` on the same row (the project page's fallback notes), and an optional note line.
  */
 export function PosterText({ titleId, title, pill = null, edited = false, flags = [], note = null, children = null }) {
+  const t = useTranslations("common");
   const hasFlags = Array.isArray(flags) && flags.length > 0;
   return (
     <span className={styles.text}>
@@ -32,7 +37,7 @@ export function PosterText({ titleId, title, pill = null, edited = false, flags 
       {(pill || edited || hasFlags) && (
         <span className={styles.meta} aria-hidden="true">
           {pill && <span className={styles.scorePill} data-high={pill.high || undefined}>{pill.high && <i />}{pill.text}</span>}
-          {edited && <span className={styles.edited}>Diedit</span>}
+          {edited && <span className={styles.edited}>{t("edited")}</span>}
           {hasFlags && flags}
         </span>
       )}

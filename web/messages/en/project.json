@@ -148,5 +148,10 @@
     "transcript": "Transcript",
     "moments": "Moments",
     "clips": "Clips"
+  },
+  "trendChips": {
+    "label": "Trends named in this clip",
+    "kind": "{kind} · named in this clip's transcript",
+    "plain": "Named in this clip's transcript"
   }
 }
