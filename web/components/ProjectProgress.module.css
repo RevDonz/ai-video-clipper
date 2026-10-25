@@ -1,0 +1,35 @@
+/* The progress panel of a running project (ProjectProgress.jsx). Lime only on the bar's fill and
+   the current step's dot (progress, P9); done steps use the text colour, steps to come the muted
+   edge. The bar's width glides; with reduced motion it jumps. */
+
+.panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+}
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.title { margin: 0; min-width: 0; font: 600 15px/1.3 var(--font); }
+.status { max-width: 100%; white-space: normal; }
+.percent { flex: none; font: 700 18px/1 var(--font); font-variant-numeric: tabular-nums; }
+.bar :global(.progress-bar__fill) { background: var(--accent); transition: width var(--dur-3) var(--ease-out); }
+
+.steps { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; }
+.steps li { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; color: var(--text-muted); font-size: 14px; }
+.steps li i { flex: none; width: 10px; height: 10px; border: 2px solid var(--border-strong); border-radius: 50%; }
+.steps li[data-state="done"] { color: var(--text); }
+.steps li[data-state="done"] i { border-color: var(--text); background: var(--text); }
+.steps li[data-state="current"] { color: var(--text); font-weight: 600; }
+.steps li[data-state="current"] i { border-color: var(--accent); background: var(--accent); }
+
+.foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.queue, .ready { color: var(--text-muted); font-size: 14px; }
+.ready:empty { display: none; }
+.foot > :last-child { margin-left: auto; }
+.summary { margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar :global(.progress-bar__fill) { transition: none; }
+}

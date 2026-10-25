@@ -123,13 +123,15 @@ test("the sanitizer keeps known kinds and fields, and only real values", () => {
   }
 });
 
-test("both pages list the summaries under the progress bar", async () => {
+test("the project page lists the summaries under the progress bar", async () => {
+  // Buat klip shows no job any more (05 §2 P4); the project page shows the summaries inside the
+  // progress panel, which shows only while the job runs.
   const dashboard = await read("app/dashboard/page.jsx");
-  const project = await read("app/projects/[id]/page.jsx");
-  // Dashboard: every job, running or finished, right under its bar and live line.
-  assert.match(dashboard, /role="progressbar"[\s\S]*?<StageSummary job=\{activeJob\}/);
-  // Project page: inside the progress panel, which shows only while the job runs.
-  assert.match(project, /<section className=\{styles\.progressPanel\}[\s\S]*?<StageSummary job=\{job\}[\s\S]*?<\/section>/);
+  assert.doesNotMatch(dashboard, /<StageSummary\b/);
+  const page = await read("app/projects/[id]/page.jsx");
+  assert.match(page, /\{active && <ProjectProgress job=\{job\}/);
+  const project = await read("components/ProjectProgress.jsx");
+  assert.match(project, /<section className=\{styles\.panel\}[\s\S]*?<ProgressBar [\s\S]*?<StageSummary job=\{job\}[\s\S]*?<\/section>/);
   const component = await read("components/StageSummary.jsx");
   assert.match(component, /stageSummaryRows\(job\)/);
   assert.match(component, /<dl\b/);

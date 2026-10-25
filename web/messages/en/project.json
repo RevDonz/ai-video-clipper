@@ -1,0 +1,113 @@
+{
+  "back": "Projects",
+  "downloadAll": "Download all",
+  "more": "More actions",
+  "rerun": "Run again",
+  "cancelled": "Run cancelled",
+  "failed": "Run failed",
+  "help": "How to fix",
+  "detail": "Details",
+  "noClips": "No moments passed",
+  "loading": "Loading project",
+  "notFound": "Project not found",
+  "loadFailed": "Couldn't load project",
+  "retry": "Try again",
+  "focus": "Focus:",
+  "newTab": "(new tab)",
+  "clipCount": "{count, plural, one {# clip} other {# clips}}",
+  "select": "Select",
+  "source": {
+    "youtube": "YouTube",
+    "file": "File",
+    "open": "Open on YouTube"
+  },
+  "delete": {
+    "action": "Delete project",
+    "confirm": "Delete this project?",
+    "keep": "Cancel",
+    "yes": "Delete",
+    "offline": "Can't reach the server. Check your connection.",
+    "failed": "Couldn't delete the project. Try again."
+  },
+  "cancel": {
+    "ask": "Cancel",
+    "confirm": "Cancel this run?",
+    "keep": "Keep running",
+    "yes": "Yes, cancel",
+    "busy": "Cancelling…"
+  },
+  "zip": {
+    "checking": "Preparing ZIP…",
+    "started": "ZIP of {count, plural, one {# clip} other {# clips}} ({size}) downloading"
+  },
+  "step": {
+    "download": "Download",
+    "transcript": "Transcript",
+    "moments": "Pick moments",
+    "render": "Render"
+  },
+  "progress": {
+    "steps": "Steps",
+    "done": "done",
+    "queuePos": "#{n} in queue · ~{minutes} min",
+    "queuePosOnly": "#{n} in queue",
+    "maintenance": "Maintenance",
+    "ready": "{count, plural, one {# clip ready} other {# clips ready}}"
+  },
+  "sort": {
+    "label": "Order",
+    "best": "Best",
+    "timeline": "Video order"
+  },
+  "filter": {
+    "label": "Filter clips",
+    "all": "All",
+    "high": "Score 8+",
+    "edited": "Edited",
+    "outsideFocus": "Outside focus",
+    "allEmpty": "No clips yet",
+    "highEmpty": "No clips with score 8+",
+    "editedEmpty": "No edited clips yet",
+    "outsideFocusEmpty": "Every clip matches the focus",
+    "showAll": "Show all"
+  },
+  "bulk": {
+    "label": "Select clips to download",
+    "count": "{count} selected",
+    "all": "Select all",
+    "cancel": "Cancel",
+    "download": "Download ({n})"
+  },
+  "clips": {
+    "title": "Clips",
+    "list": "Clip list"
+  },
+  "poster": {
+    "number": "Clip {n}",
+    "failed": "render failed",
+    "score": "score {score}",
+    "edited": "edited"
+  },
+  "viewer": {
+    "position": "Clip {n} of {total}",
+    "video": "Video {clip}",
+    "copyTitle": "Copy title",
+    "copyCaption": "Copy caption",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy",
+    "titleCopied": "Title copied",
+    "captionCopied": "Caption copied",
+    "score": "Score",
+    "coldOpen": "Cold open · {seconds} s",
+    "notes": "Clip notes",
+    "hookText": "Hook text",
+    "caption": "Caption",
+    "range": "{from}–{to} in the video",
+    "layout": "Layout: {value}",
+    "why": "Why this clip",
+    "downloadMp4": "Download MP4",
+    "editClip": "Edit clip",
+    "srt": "Download SRT",
+    "srtFor": "Download SRT {clip}"
+  }
+}
