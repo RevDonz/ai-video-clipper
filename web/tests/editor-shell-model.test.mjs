@@ -17,6 +17,7 @@ import {
   actionableChecks,
   badgeHelp,
   badgeView,
+  checksButtonView,
   checksView,
   contentEqualsSeed,
   editorPageMode,
@@ -239,6 +240,18 @@ test("checks merge store and plan warnings, dedupe, sort by frame and carry jump
   assert.equal(blocking[0].severity, "error");
   assert.equal(blocking[0].message, MESSAGES.cold_open_invalid);
   assert.deepEqual(checksView({ warnings: undefined, plan: null }), []);
+});
+
+// The one-layout top bar (rombak 06 §4 #6): "Perlu dicek n" while a warning or an error is listed,
+// "Catatan n" when only notes are, and no button at all when there is nothing.
+test("the top bar's checks button: Perlu dicek for warnings and errors, Catatan for notes only, none at 0", () => {
+  const item = (severity) => ({ severity, code: "x" });
+  assert.deepEqual(checksButtonView([]), { kind: null, count: 0 });
+  assert.deepEqual(checksButtonView(undefined), { kind: null, count: 0 });
+  assert.deepEqual(checksButtonView([item("warning")]), { kind: "check", count: 1 });
+  assert.deepEqual(checksButtonView([item("error"), item("warning"), item("info")]), { kind: "check", count: 2 },
+    "the notes are not counted while there are checks");
+  assert.deepEqual(checksButtonView([item("info"), item("info")]), { kind: "note", count: 2 });
 });
 
 test("a TikTok-zone check names the caption, the hook or the logo it is about", () => {

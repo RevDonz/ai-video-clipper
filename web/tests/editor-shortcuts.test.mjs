@@ -252,3 +252,33 @@ test("with single-key shortcuts off, K, I, O, ' and ? do nothing and the rest st
   assert.equal(globalShortcut(key("i"), { singleKey: true }), "trimStart");
   assert.equal(globalShortcut(key("i"), { singleKey: undefined }), "trimStart");
 });
+
+// The Pintasan keyboard dialog marks what the switch turns off (06 §14): exactly the entries with
+// a character key, and of Putar / jeda only its K (Spasi stays).
+test("SHORTCUTS marks singleKey on the entries the switch turns off, and only those", () => {
+  const marked = SHORTCUTS.filter((entry) => entry.singleKey === true).map((entry) => entry.id);
+  assert.deepEqual(marked.sort(), ["help", "playPause", "safeZone", "trimEnd", "trimStart"]);
+  for (const entry of SHORTCUTS) {
+    if (entry.singleKey !== true) assert.equal(Object.hasOwn(entry, "singleKey"), false, entry.id);
+  }
+  // Every marked entry has a key the switch turns off, and every such key is in a marked entry.
+  // The arrows are drawn as one glyph in the dialog but are not character keys.
+  const characterKeys = (entry) => entry.keys.filter((name) => Array.from(name).length === 1 && !["←", "→"].includes(name));
+  for (const entry of SHORTCUTS) {
+    if (entry.scope !== "global") continue;
+    assert.equal(characterKeys(entry).length > 0, entry.singleKey === true, entry.id);
+  }
+  assert.deepEqual(characterKeys(SHORTCUTS.find((entry) => entry.id === "playPause")), ["K"]);
+});
+
+// The one-layout editor's Klip list is a grid (React Aria GridList, 06 §9): the arrow keys move
+// between its rows there instead of stepping frames, as in the tab list and the radio groups.
+test("the arrow keys belong to a focused grid row, as to a tab or a radio", () => {
+  const row = target("DIV", { role: "row", inside: ['[role="grid"]'] });
+  for (const name of ["ArrowLeft", "ArrowRight"]) {
+    assert.equal(globalShortcut(key(name, { on: row })), null, name);
+    assert.equal(globalShortcut(key(name, { shift: true, on: row })), null, `Shift+${name}`);
+  }
+  assert.equal(globalShortcut(key("k", { on: row })), "playPause", "K still plays");
+  assert.equal(globalShortcut(key("ArrowLeft", { on: target("DIV") })), "frameBack", "outside the grid the arrows step");
+});

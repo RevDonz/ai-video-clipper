@@ -639,10 +639,10 @@ test("truth frames are POSTed with the document and frame number", async () => {
 // --- flags ---------------------------------------------------------------------------------
 
 test("editor flags are off unless set to on; the engine is edit-v2 unless it rolls back to legacy", () => {
-  assert.deepEqual(EDITOR_FLAGS, ["POTONGIN_EDITOR_V3", "POTONGIN_EDITOR_UPLOADS", "POTONGIN_EDITOR_LLM", "POTONGIN_RENDER_ENGINE"]);
-  assert.deepEqual(readEditorFlags({}), { editorV3: false, uploads: false, llm: false, renderEngine: "edit-v2" });
+  assert.deepEqual(EDITOR_FLAGS, ["POTONGIN_EDITOR_V3", "POTONGIN_EDITOR_UPLOADS", "POTONGIN_EDITOR_LLM", "POTONGIN_RENDER_ENGINE", "POTONGIN_EDITOR_SHELL"]);
+  assert.deepEqual(readEditorFlags({}), { editorV3: false, uploads: false, llm: false, renderEngine: "edit-v2", shell: "legacy" });
   assert.deepEqual(readEditorFlags({ POTONGIN_EDITOR_V3: "on", POTONGIN_EDITOR_UPLOADS: "ON", POTONGIN_EDITOR_LLM: "on", POTONGIN_RENDER_ENGINE: "edit-v2" }),
-    { editorV3: true, uploads: true, llm: true, renderEngine: "edit-v2" });
+    { editorV3: true, uploads: true, llm: true, renderEngine: "edit-v2", shell: "legacy" });
   assert.equal(readEditorFlags({ POTONGIN_EDITOR_LLM: "on", POTONGIN_LLM: "off" }).llm, false, "POTONGIN_LLM=off wins");
   assert.equal(readEditorFlags({ POTONGIN_EDITOR_V3: "yes" }).editorV3, false);
   // The same reading as edit_v2.render_edit.engine_from_env (CONTRACTS §5.48).
@@ -651,5 +651,14 @@ test("editor flags are off unless set to on; the engine is edit-v2 unless it rol
   }
   for (const value of ["legacy", " Legacy ", "LEGACY"]) {
     assert.equal(readEditorFlags({ POTONGIN_RENDER_ENGINE: value }).renderEngine, "legacy", value);
+  }
+});
+
+// The one-layout editor (rombak 06 §17, 08 Fase 10) ships behind POTONGIN_EDITOR_SHELL: "v2" shows
+// it, anything else (unset included) keeps the shell users have now, so legacy is the rollback.
+test("readEditorFlags.shell is v2 only for POTONGIN_EDITOR_SHELL=v2, else legacy", () => {
+  for (const value of ["v2", "V2", " v2 "]) assert.equal(readEditorFlags({ POTONGIN_EDITOR_SHELL: value }).shell, "v2", value);
+  for (const value of [undefined, "", "legacy", "on", "v3", "2", "true"]) {
+    assert.equal(readEditorFlags({ POTONGIN_EDITOR_SHELL: value }).shell, "legacy", String(value));
   }
 });
