@@ -30,6 +30,7 @@ import {
   liveEntries,
   messageFor,
   noticesView,
+  outputRatio,
   playerView,
   rejectionText,
   safeApiHref,
@@ -252,6 +253,13 @@ test("the top bar's checks button: Perlu dicek for warnings and errors, Catatan 
   assert.deepEqual(checksButtonView([item("error"), item("warning"), item("info")]), { kind: "check", count: 2 },
     "the notes are not counted while there are checks");
   assert.deepEqual(checksButtonView([item("info"), item("info")]), { kind: "note", count: 2 });
+});
+
+test("the stage's ratio label follows doc.output in lowest terms", () => {
+  assert.equal(outputRatio({ w: 720, h: 1280 }), "9:16");
+  assert.equal(outputRatio({ w: 1080, h: 1920 }), "9:16");
+  assert.equal(outputRatio({ w: 1080, h: 1080 }), "1:1");
+  assert.equal(outputRatio(null), "9:16", "before the document loads");
 });
 
 test("a TikTok-zone check names the caption, the hook or the logo it is about", () => {

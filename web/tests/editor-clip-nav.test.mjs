@@ -235,13 +235,18 @@ test("the top bar shows 'Klip n/total' and the ‹ › buttons with names, short
 
 test("the shell saves through saveBeforeLeaving before it opens the neighbour, and never otherwise", () => {
   const app = read("EditorApp.jsx");
-  const go = /const goToClip = useCallback\(async \(side\) => \{([\s\S]*?)\n {2}\}, \[/.exec(app)?.[1] ?? "";
-  assert.ok(go, "goToClip");
+  // ‹ › (goToClip) and the one-layout editor's Klip list both leave through openClip.
+  const go = /const openClip = useCallback\(async \(href\) => \{([\s\S]*?)\n {2}\}, \[/.exec(app)?.[1] ?? "";
+  assert.ok(go, "openClip");
   const saved = go.indexOf("await saveBeforeLeaving(");
   const assign = go.indexOf("window.location.assign(");
   assert.ok(saved > 0 && assign > saved, "the save is awaited before the page is left");
-  assert.match(go, /if \(result\.ok\) \{\s*window\.location\.assign\(clipNavHref\(/);
+  assert.match(go, /if \(result\.ok\) \{\s*window\.location\.assign\(neighbourHref\(href\)\)/);
   assert.match(go, /notify\(LEAVE_TEXT\[result\.reason\]\)/);
+  // The old views open the neighbour in the same view (clipNavHref), the one-layout editor on the same tab.
+  assert.match(app, /const neighbourHref = useCallback\(\(href\) => \(oneLayout \? panelHref\(href, tabId\)\s*: clipNavHref\(href, \{ view, panel: panelId, card: cardRef\.current \}\)\)/);
+  assert.match(/const goToClip = useCallback\(\(side\) => \{([\s\S]*?)\n {2}\}, \[/.exec(app)?.[1] ?? "", /if \(target\) openClip\(target\.href\);/);
+  assert.match(app, /onOpen=\{\(row\) => openClip\(row\.href\)\}/);
   assert.equal(app.match(/window\.location\.assign\(/g).length, 2, "the login redirect and the neighbour, no other");
   assert.match(app, /previousClip: \(\) => goToClip\("previous"\)/);
   assert.match(app, /nextClip: \(\) => goToClip\("next"\)/);

@@ -39,10 +39,11 @@ test("five tabs in order, Musik renamed Audio and no Transkrip tab; the old shel
 
 test("the grid has the §3.5 areas and the §3.1 breakpoints, and only the clip column and the panel scroll on their own", () => {
   const css = read(SHELL, "editor-shell.module.css");
-  for (const area of ["top", "clips", "stage", "transcript", "panel", "timeline"]) {
+  // The top bar keeps its own grid-area: top (shell.module.css .topBar).
+  for (const area of ["clips", "stage", "transcript", "panel", "timeline"]) {
     assert.match(css, new RegExp(`grid-area: ${area};`), area);
   }
-  assert.match(css, /grid-template-areas:/);
+  assert.match(css, /grid-template-areas:\s*"top top top"/);
   assert.match(css, /@media \(min-width: 1440px\)/, "the transcript beside the stage from 1440 px");
   assert.match(css, /@media \(max-width: 1279px\)/, "the clip column folds into a rail below 1280 px");
   assert.match(css, /height: 100vh;/);
@@ -50,13 +51,17 @@ test("the grid has the §3.5 areas and the §3.1 breakpoints, and only the clip 
   assert.doesNotMatch(css, /--accent\b/, "lime stays on Ekspor (shell.module.css)");
 });
 
-test("the tabs are HeroUI Tabs, the clip list a React Aria GridList, Lanjutan a HeroUI Disclosure with its summary", () => {
+// React Aria directly for the tabs and the drawer: HeroUI's tab list and Drawer close button carry
+// English names (heroui-default-labels.test.mjs), and the editor never takes components/ui.
+test("the tabs are React Aria Tabs, the clip list a GridList in a React Aria drawer, Lanjutan a HeroUI Disclosure", () => {
   const tabs = read(SHELL, "PanelTabs.jsx");
-  assert.match(tabs, /import \{[^}]*\bTabs\b[^}]*\} from "@heroui\/react";/);
+  assert.match(tabs, /import \{[^}]*\bTabs\b[^}]*\} from "react-aria-components";/);
   assert.match(tabs, /SHELL_TABS/);
   assert.doesNotMatch(tabs, /shouldForceMount/, "an inactive panel is not in the DOM: one tab panel");
   const clips = read(SHELL, "ClipList.jsx");
   assert.match(clips, /import \{[^}]*\bGridList\b[^}]*\} from "react-aria-components";/);
+  assert.match(clips, /import \{[^}]*\bModalOverlay\b[^}]*\} from "react-aria-components";/);
+  assert.match(clips, /tAria\("close"\)/, "the drawer's close button is named from the catalog");
   const advanced = read(SHELL, "Advanced.jsx");
   assert.match(advanced, /import \{[^}]*\bDisclosure\b[^}]*\} from "@heroui\/react";/);
   assert.match(advanced, /readDisclosure/);
