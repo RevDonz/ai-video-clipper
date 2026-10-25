@@ -400,6 +400,9 @@ satu PR gabungan per fase, tes berat sekali di akhir fase.
   - Pemilih bahasa hanya tampil bila `POTONGIN_LOCALES` memuat lebih dari satu bahasa; produksi
     tetap `id`, jadi pengguna produksi tidak melihat perubahan bahasa sampai pemilik
     menyalakannya.
+  - CI: push ke `main` yang hanya mengubah dokumentasi (`docs/**`, `*.md` di luar `src/`,
+    `resources/`, `web/`) melewati build image, parity dan deploy; `Test and build` tetap jalan
+    (`scripts/ci/deploy_scope.py`, ragu = deploy).
 - Sisa sebelum merge (agen gerbang, sekali di akhir fase, di GitHub Actions): `ci-cd.yml`,
   `editor-gates.yml -f suite=full` dan `-f suite=image`, e2e `desktop-chromium`,
   `mobile-chromium` dan `en-smoke` (shell + login), CSS editor hasil build identik byte dan
