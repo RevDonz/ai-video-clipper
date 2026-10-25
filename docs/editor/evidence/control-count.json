@@ -3,10 +3,10 @@
   "selector": "button, [role=button], [role=tab], [role=switch], [role=radio], input, select, textarea",
   "viewport": { "width": 1366, "height": 768 },
   "fixture": "editor fakes (components/editor/__dev__/fakes.mjs), one clip",
-  "measuredAt": null,
+  "measuredAt": "2026-10-25, editor-gates suite=e2e run 40193202071 (feat/editor-i)",
   "before": {
-    "cepat": null,
-    "lengkap": { "transcript": null, "text": null, "coldopen": null, "layout": null, "logo": null, "music": null }
+    "cepat": 46,
+    "lengkap": { "transcript": 28, "text": 66, "coldopen": 35, "layout": 31, "logo": 28, "music": 29 }
   },
-  "after": { "text": null, "layout": null, "audio": null, "logo": null, "coldopen": null }
+  "after": { "text": 57, "layout": 26, "audio": 24, "logo": 23, "coldopen": 30 }
 }
