@@ -5,7 +5,7 @@
 
 import { zipHref } from "./clip-download.mjs";
 import { clipCounts, readyClips } from "./clip-status.mjs";
-import { LAYOUT_NAMES } from "./layout-names.mjs";
+import { d } from "./i18n/descriptor.mjs";
 import { clipScoreView, formatTenths } from "./selection-v3-view.mjs";
 
 export const HIGH_SCORE = 8;
@@ -45,10 +45,10 @@ export function isHighScore(clip) {
 }
 
 // The engine's per-clip fallbacks (lib/jobs.mjs CLIP_FALLBACKS) as neutral notes: `text` in the
-// detail panel, `card` on the poster only when the picture itself changed.
+// detail panel, `card` on the poster only when the picture itself changed (descriptors).
 const FALLBACK_NOTES = Object.freeze({
-  no_face: Object.freeze({ card: LAYOUT_NAMES.fill_center, text: "Wajah tidak terdeteksi · potong tengah" }),
-  engine_fallback: Object.freeze({ card: null, text: "Dirender dengan cara cadangan" }),
+  no_face: Object.freeze({ card: Object.freeze(d("layout.names.fill_center")), text: Object.freeze(d("project.fallback.noFace")) }),
+  engine_fallback: Object.freeze({ card: null, text: Object.freeze(d("project.fallback.engine")) }),
 });
 
 /** `[{code, card, text}]` for the clip's fallbacks, in a fixed order; [] without any. */

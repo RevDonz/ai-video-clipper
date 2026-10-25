@@ -3,15 +3,18 @@
 // `status: "failed"` and an `error_code`, and the job stores it as `{status: "failed",
 // errorCode}` without any file link. Every view shows it as "Gagal", with nothing to play,
 // pick, download or edit. Client-safe: no Node built-ins.
+import { d } from "./i18n/descriptor.mjs";
 
 export const CLIP_ERROR_CODES = Object.freeze(["render_failed", "render_timeout"]);
 const DEFAULT_ERROR_CODE = CLIP_ERROR_CODES[0];
 
+// The failed clip's card, as catalog descriptors.
+const FAILED_LABEL = Object.freeze(d("status.process.failed"));
 const FAILED_TEXT = Object.freeze({
-  render_failed: "Render klip ini gagal.",
-  render_timeout: "Render klip ini melewati batas waktu.",
+  render_failed: Object.freeze(d("project.failedClip.render_failed")),
+  render_timeout: Object.freeze(d("project.failedClip.render_timeout")),
 });
-const FAILED_HINT = "Klip lain tidak terpengaruh. Untuk mencoba lagi, proses ulang videonya.";
+const FAILED_HINT = Object.freeze(d("project.failedClip.hint"));
 
 /** One of the engine's codes; anything else (missing, unknown, free text) is `render_failed`. */
 export function clipErrorCode(value) {
@@ -39,8 +42,8 @@ export function clipCountText(clips) {
   return failed ? `${ready} klip · ${failed} gagal` : `${ready} klip`;
 }
 
-/** What a failed clip's card says (`{label, text, hint}`), or null for a clip that rendered. */
+/** What a failed clip's card says (`{label, text, hint}` descriptors), or null for a clip that rendered. */
 export function failedClipView(clip) {
   if (!isFailedClip(clip)) return null;
-  return { label: "Gagal", text: FAILED_TEXT[clipErrorCode(clip.errorCode)], hint: FAILED_HINT };
+  return { label: FAILED_LABEL, text: FAILED_TEXT[clipErrorCode(clip.errorCode)], hint: FAILED_HINT };
 }

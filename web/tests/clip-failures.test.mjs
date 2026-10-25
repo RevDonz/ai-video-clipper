@@ -21,6 +21,7 @@ import { historySummary, projectRowDetail } from "../lib/project-view.mjs";
 import { clipsHeading, pickAll, prunePicks } from "../lib/project-workspace.mjs";
 import { jobClipFromManifest } from "../scripts/run-job.mjs";
 import { dashboardSource, projectSource } from "./support/screen-sources.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
 
 const JOB_ID = "123e4567-e89b-42d3-a456-426614174000";
 const OUTPUT = "/data/jobs/123e4567-e89b-42d3-a456-426614174000/output";
@@ -73,14 +74,14 @@ test("the clip count names the failed clips only when there are some", () => {
 
 test("a failed clip's card says what happened and what to do; a ready clip has no such view", () => {
   assert.equal(failedClipView(readyClip(1)), null);
-  assert.deepEqual(failedClipView(failedClip(2)), {
+  assert.deepEqual(textsOf(failedClipView(failedClip(2))), {
     label: "Gagal",
     text: "Render klip ini gagal.",
     hint: "Klip lain tidak terpengaruh. Untuk mencoba lagi, proses ulang videonya.",
   });
-  assert.equal(failedClipView(failedClip(2, { errorCode: "render_timeout" })).text, "Render klip ini melewati batas waktu.");
-  assert.equal(failedClipView(failedClip(2, { errorCode: "<b>x</b>" })).text, "Render klip ini gagal.");
-  for (const view of [failedClipView(failedClip(2)), failedClipView(failedClip(2, { errorCode: "render_timeout" }))]) {
+  assert.equal(textsOf(failedClipView(failedClip(2, { errorCode: "render_timeout" }))).text, "Render klip ini melewati batas waktu.");
+  assert.equal(textsOf(failedClipView(failedClip(2, { errorCode: "<b>x</b>" }))).text, "Render klip ini gagal.");
+  for (const view of [failedClipView(failedClip(2)), failedClipView(failedClip(2, { errorCode: "render_timeout" }))].map((entry) => textsOf(entry))) {
     assert.doesNotMatch(Object.values(view).join(" "), /—/);
   }
 });
@@ -170,11 +171,11 @@ test("the project page shows a failed clip as 'Gagal' in place of the player; th
   const project = await projectSource();
   // The poster: "Gagal" in its frame (the shared poster draws the badge instead of the frame);
   // the viewer: a frame with the reason where the video would be.
-  assert.match(project, /badge=\{failed && <span className="statusPill error">\{failed\.label\}<\/span>\}>/);
+  assert.match(project, /badge=\{failed && <span className="statusPill error">\{msg\(tAll, failed\.label\)\}<\/span>\}>/);
   const poster = await readFile(new URL("../components/ClipPoster.jsx", import.meta.url), "utf8");
   assert.match(poster, /\{badge \|\| \(poster \? <img /);
   assert.match(project, /<div key=\{clip\.index\} className=\{`\$\{styles\.video\} \$\{styles\.failedFrame\}`\}>/);
-  assert.match(project, /<p><strong>\{failed\.text\}<\/strong><\/p>\s*<p>\{failed\.hint\}<\/p>/);
+  assert.match(project, /<p><strong>\{msg\(tAll, failed\.text\)\}<\/strong><\/p>\s*<p>\{msg\(tAll, failed\.hint\)\}<\/p>/);
   // The ready clips are counted without the failed ones; a failed clip has nothing to download.
   assert.match(project, /const clips = readyClips\(job\.clips\)\.length;/);
   assert.match(project, /\{clips > 0 && <span>\{t\("clipCount", \{ count: clips \}\)\}<\/span>\}/);

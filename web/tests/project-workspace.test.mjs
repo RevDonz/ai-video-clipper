@@ -25,6 +25,7 @@ import {
   stepSelection,
   togglePick,
 } from "../lib/project-workspace.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
 
 const JOB_ID = "123e4567-e89b-42d3-a456-426614174000";
 const scored = (index, score) => ({ index, score, selectionSource: "llm", title: `Klip ${index}` });
@@ -236,7 +237,7 @@ test("before the ZIP downloads, the page asks the route whether it can be made",
 });
 
 test("fallback notes: one short neutral line per code; only the framing note goes on the poster", () => {
-  assert.deepEqual(clipFallbackNotes({ fallbacks: ["no_face", "engine_fallback"] }), [
+  assert.deepEqual(textsOf(clipFallbackNotes({ fallbacks: ["no_face", "engine_fallback"] })), [
     { code: "no_face", card: "Potong tengah", text: "Wajah tidak terdeteksi · potong tengah" },
     { code: "engine_fallback", card: null, text: "Dirender dengan cara cadangan" },
   ]);
@@ -323,7 +324,7 @@ test("the page: 'Pilih' reads 'n dipilih · Pilih semua · Batal · Unduh (n)'; 
 
 test("the page: the framing note on its poster (and in its label), every note in the viewer", async () => {
   const source = await page();
-  assert.match(source, /const cardNotes = clipFallbackNotes\(clip\)\.filter\(\(note\) => note\.card\);/);
+  assert.match(source, /const cardNotes = clipFallbackNotes\(clip\)\.filter\(\(note\) => note\.card\)\.map\(\(note\) => \(\{ \.\.\.note, card: msg\(tAll, note\.card\) \}\)\);/);
   assert.match(source, /\.\.\.cardNotes\.map\(\(note\) => note\.card\.toLowerCase\(\)\)/);
   assert.match(source, /\{cardNotes\.map\(\(note\) => <span key=\{note\.code\} className=\{styles\.posterNote\}>\{note\.card\}<\/span>\)\}/);
   assert.match(source, /const notes = clipFallbackNotes\(clip\);/);
