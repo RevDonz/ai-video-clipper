@@ -150,7 +150,11 @@ test("the component overrides keep 44 px targets, Potongin's radius and selectio
 
 test("only the shell and the public card import ui.css; the editor reaches neither ui.css nor HeroUI", async () => {
   const sources = await readSources(WEB, await listFiles(WEB, ["app", "components"], [".js", ".jsx", ".mjs", ".css"]));
-  const importers = sources.filter(({ source }) => /["'][./]*(?:app\/)?ui\.css["']/.test(source)).map(({ file }) => file);
+  // An import (JS or CSS) emits ui.css; date-picker.css only @reference-s it for its @apply rules.
+  const importers = sources.filter(({ source }) => /(?:^|\s)@?import\s+["'][./]*(?:app\/)?ui\.css["']/m.test(source)).map(({ file }) => file);
+  const references = sources.filter(({ source }) => /ui\.css["']/.test(source)).map(({ file }) => file);
+  assert.deepEqual(references.sort(), [...UI_IMPORTERS, "components/ui/date-picker.css"].sort());
+  assert.match(sources.find((entry) => entry.file === "components/ui/date-picker.css").source, /^@reference "\.\.\/\.\.\/app\/ui\.css";$/m);
   assert.deepEqual(importers.sort(), [...UI_IMPORTERS].sort());
   for (const file of UI_IMPORTERS) assert.match(sources.find((entry) => entry.file === file).source, /^import "(?:\.\.\/)+app\/ui\.css";$/m, file);
   const editorSide = sources.filter(({ file }) => file.startsWith("components/editor/") || file.startsWith(EDIT_ROUTE) || file.startsWith("app/parity-harness/"));
