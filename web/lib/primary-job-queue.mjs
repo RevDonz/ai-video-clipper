@@ -325,7 +325,7 @@ async function stagedBytesExist(root, id) {
 function failedAdmissionRecord(id, code, now = new Date().toISOString()) {
   return {
     id, status: "failed", progress: 100, stage: "failed",
-    stageDetail: "Penyimpanan server tidak cukup untuk melanjutkan job", error: code,
+    stageDetail: "Penyimpanan server tidak cukup untuk melanjutkan job", stageCode: "storage_insufficient", stageParams: null, error: code,
     createdAt: now, updatedAt: now, source: { type: "upload", name: "upload tidak lengkap" },
     sourcePath: null, options: {}, clips: [], queue: { version: 1, attempts: 0 },
   };
@@ -636,7 +636,7 @@ export async function claimNextJob({ jobsRoot, workerId, leaseMs, maxAttempts, l
       if (leaseIsLive(entry.job, now)) continue;
       const attempts = queueAttempts(entry.job);
       if (attempts >= maxAttempts) {
-        await durableWriteJson(entry.jobPath, { ...entry.job, status: "failed", progress: 100, stage: "failed", stageDetail: "Proses berhenti setelah batas percobaan tercapai", error: "Primary worker maximum attempts exceeded", updatedAt: new Date(now).toISOString(), queue: { version: 1, attempts } });
+        await durableWriteJson(entry.jobPath, { ...entry.job, status: "failed", progress: 100, stage: "failed", stageDetail: "Proses berhenti setelah batas percobaan tercapai", stageCode: "max_attempts", stageParams: null, error: "Primary worker maximum attempts exceeded", updatedAt: new Date(now).toISOString(), queue: { version: 1, attempts } });
         continue;
       }
       const token = crypto.randomUUID();
@@ -701,6 +701,8 @@ export async function cancelPrimaryJob({ jobsRoot, id, now = Date.now() }) {
       status: CANCELLED_STATUS,
       stage: CANCELLED_STATUS,
       stageDetail: "Dibatalkan sebelum selesai",
+      stageCode: "canceled_before_finish",
+      stageParams: null,
       error: null,
       errorCode: null,
       cancellation: { requestedAt: at, previousStatus: current.status, safeAfter },
@@ -886,5 +888,5 @@ export async function validateClaimForExecution({ jobsRoot, claim }) {
 }
 
 export async function failClaimedJob({ jobsRoot, id, token, leaseMs, error, now = Date.now() }) {
-  return fencedUpdateJob({ jobsRoot, id, token, leaseMs, now, patch: { status: "failed", progress: 100, stage: "failed", stageDetail: "Primary worker gagal memulai proses", error: error || "Primary worker spawn failed" } });
+  return fencedUpdateJob({ jobsRoot, id, token, leaseMs, now, patch: { status: "failed", progress: 100, stage: "failed", stageDetail: "Primary worker gagal memulai proses", stageCode: "worker_spawn_failed", stageParams: null, error: error || "Primary worker spawn failed" } });
 }
