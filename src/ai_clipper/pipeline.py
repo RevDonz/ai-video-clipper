@@ -136,7 +136,10 @@ did not learn is not reported. The CLI prints each one on the current progress l
 :data:`ai_clipper.i18n_codes.STAGE_CODES` (``render_clip`` with ``{index, total}``, the
 transcription progress with ``{percent}``) for a ``progress`` callback that accepts ``code`` and
 ``params`` keywords; the CLI writes them as ``stage_code``/``stage_params`` beside the Indonesian
-``detail``. A callback of three arguments is called as before.
+``detail``. A callback of three arguments is called as before. Every V3 manifest clip also has
+``reason_codes`` (:func:`ai_clipper.reason_codes.reason_codes`, one entry per ``reasons`` item)
+and, when a warning names it (``thumbnail_failed``, ``auto_reframe_failed``), ``warning_codes``
+(:func:`ai_clipper.i18n_codes.clip_warning_codes`). The selection itself is unchanged.
 """
 
 from __future__ import annotations
@@ -172,6 +175,7 @@ from .edit_v2.transitions import AUTO_COLD_OPEN_JOIN, CUT_JOIN, ColdOpenJoin
 from .features import extract_features
 from .focus import FocusSpec
 from .highlight import select_highlights
+from .i18n_codes import clip_warning_codes
 from .llm import LLMClient, LLMError, LLMUnavailable, create_llm_client_from_env, llm_disabled
 from .media_features import analyze_media
 from .models import ClipProfile, SelectionMode, Transcription
@@ -184,6 +188,7 @@ from .ranking import (
     rank_candidates_with_breakdowns,
     write_candidates_artifact,
 )
+from .reason_codes import reason_codes
 from .render import (
     HOOK_DURATION_MAX_SECONDS,
     _create_sibling_temp,
@@ -1235,6 +1240,7 @@ def _v3_manifest_clip(
         "archetype": clip.archetype if _ARCHETYPE_CODE.fullmatch(clip.archetype) else None,
         "selection_source": clip.source,
         "reasons": list(clip.reasons),
+        "reason_codes": reason_codes(clip.reasons),  # one per reason (07 §10.4)
         "scores": {name: round(float(value), 2) for name, value in clip.scores.items()},
         "cold_open": None
         if cold_open is None
@@ -1687,6 +1693,9 @@ def _render_v3_clips(
             fallbacks = _clip_fallbacks(render_mode, no_face, rendered, engine_fallback)
             if fallbacks:
                 entry["fallbacks"] = fallbacks
+            coded = clip_warning_codes(warnings, index)
+            if coded:  # optional: only a clip a warning names (07 §10.4)
+                entry["warning_codes"] = coded
             clips.append(entry)
             if timings is not None:
                 timings[clip.rank] = time.monotonic() - started

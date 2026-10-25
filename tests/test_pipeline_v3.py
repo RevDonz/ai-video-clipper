@@ -62,6 +62,7 @@ CLIP_KEYS = {
     "archetype",
     "selection_source",
     "reasons",
+    "reason_codes",  # i18n M5: one coded entry per reason (tests/test_pipeline_i18n_codes.py)
     "scores",
     "cold_open",
     "source_start",
