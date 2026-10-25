@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-import { choose } from "./support/choice.mjs";
+import { choose, unchoose } from "./support/choice.mjs";
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
 import { L } from "./support/i18n.mjs";
 
@@ -356,7 +356,7 @@ test.describe("Buat klip composer (faked job API)", () => {
     await choose(layout.getByRole("radio", { name: L("layout.names.fill_center") }));
     await page.keyboard.press("Escape");
     const hook = await openChip(page, "hook");
-    await hook.getByRole("switch", { name: L("dashboard.hook.text") }).click();
+    await unchoose(hook.getByRole("switch", { name: L("dashboard.hook.text") }));
     await page.keyboard.press("Escape");
     await expect(chip(page, "hook")).toHaveText(L("dashboard.chip.hook", { value: L("dashboard.hook.coldOpen") }));
     subtitle = await openChip(page, "subtitle");

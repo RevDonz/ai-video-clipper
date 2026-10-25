@@ -47,6 +47,13 @@ async function fakeApi(page) {
 }
 
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+// The outermost elements whose box ends past the viewport's right edge (tag.class, right edge).
+const pastRightEdge = (page) => page.evaluate(() => {
+  const edge = document.documentElement.clientWidth;
+  const wide = [...document.body.querySelectorAll("*")].filter((element) => element.getBoundingClientRect().right > edge + 0.5);
+  return wide.filter((element) => !wide.includes(element.parentElement)).slice(0, 6)
+    .map((element) => `${element.tagName.toLowerCase()}.${[...element.classList].join(".")} ${Math.round(element.getBoundingClientRect().right)}`);
+});
 
 async function shoot(page, name) {
   await page.evaluate(() => document.fonts.ready);
@@ -101,8 +108,10 @@ for (const locale of ["id", "en"]) {
       ]) {
         await page.goto(route);
         await expect(page.getByRole("heading", { level: 1 })).toHaveText(LIn(locale, key));
-        expect(await overflow(page), name).toBeLessThanOrEqual(0);
+        // The shot first, so a page that scrolls sideways can be looked at; the message names the
+        // elements that reach past the right edge.
         await shoot(page, `${locale}-360-${name}`);
+        expect(await overflow(page), `${name}: ${JSON.stringify(await pastRightEdge(page))}`).toBeLessThanOrEqual(0);
       }
     });
   });
