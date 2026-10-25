@@ -27,6 +27,10 @@ const ZERO = Object.freeze([
   "app/trends/layout.jsx",
   "app/projects/[id]/clips/[clipId]/edit/layout.jsx",
   "components/SegmentI18n.jsx",
+  // The one-layout editor's transcript parts (rombak 06 §6, Editor F2).
+  "components/editor/transcript/LinesView.jsx",
+  "components/editor/transcript/ReviewDrawer.jsx",
+  "components/editor/transcript/TranscriptHead.jsx",
   "lib/i18n/client.jsx",
 ]);
 

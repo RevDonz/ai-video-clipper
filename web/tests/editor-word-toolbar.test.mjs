@@ -157,6 +157,82 @@ test("without a selection there is nothing to show", () => {
   assert.equal(none.range, null);
   assert.deepEqual(toolbarButtons(none), []);
   assert.deepEqual(menuItems(none), []);
+  assert.deepEqual(toolbarButtons(none, { layout: "shell" }), []);
+  assert.deepEqual(menuItems(none, { layout: "shell" }), []);
+});
+
+// --- the one-layout editor's toolbar (rombak 06 §6, §10 #22–#28) ----------------------------
+
+const SHELL = { layout: "shell" };
+
+test("one layout: the cut actions that apply, then Edit kata, Mulai and Akhiri di sini on the bar", () => {
+  const { at } = states();
+  const bar = (actions) => toolbarButtons(actions, SHELL).map((button) => button.name);
+  assert.deepEqual(bar(at(4)), ["remove", "edit", "trimStart", "trimEnd"], "a body word");
+  assert.deepEqual(bar(at(5, 8)), ["remove", "restore", "edit", "trimStart", "trimEnd"], "cut and kept words");
+  assert.deepEqual(bar(at(6, 7)), ["restore", "edit", "trimStart", "trimEnd"], "only cut words");
+  assert.deepEqual(bar(at(1)), ["extend", "edit", "trimStart", "trimEnd"], "a word before the clip");
+  // Nothing applies (read-only): the primary action stays, off, so the bar says why.
+  assert.deepEqual(bar(at(4, 4, true)), ["remove", "edit", "trimStart", "trimEnd"]);
+  const labels = toolbarButtons(at(4), SHELL).map((button) => button.label);
+  assert.deepEqual(labels, ["Hapus", "Edit kata", "Mulai di sini", "Akhiri di sini"]);
+  const primary = toolbarButtons(at(5, 8), SHELL).filter((button) => button.primary).map((button) => button.name);
+  assert.deepEqual(primary, ["remove"], "the primary action of §6.2, once");
+});
+
+test("one layout: the bar's shortcuts and reasons are the classic toolbar's", () => {
+  const { at } = states();
+  const byName = Object.fromEntries(toolbarButtons(at(4), SHELL).map((button) => [button.name, button]));
+  assert.deepEqual([byName.remove.shortcut, byName.edit.shortcut, byName.trimStart.shortcut, byName.trimEnd.shortcut],
+    ["Delete", "Enter", "I", "O"]);
+  for (const button of toolbarButtons(at(4, 4, true), SHELL)) {
+    assert.deepEqual([button.enabled, button.reason], [false, "Mode baca-saja"], button.name);
+  }
+});
+
+test("one layout: the ⋯ menu holds Kata kunci, Sembunyikan dari caption and Jadikan cold open", () => {
+  const { at } = states();
+  const items = menuItems(at(4), SHELL);
+  assert.deepEqual(items.map((item) => [item.id, item.label, item.shortcut]), [
+    ["emphasis", "Kata kunci", "Ctrl+E"],
+    ["hide", "Sembunyikan dari caption", "Ctrl+Shift+X"],
+    ["coldOpen", "Jadikan cold open", "Ctrl+Shift+H"],
+  ]);
+  // Kata kunci and Sembunyikan are checkbox items, checked when every selected word has it.
+  const checked = (actions) => Object.fromEntries(menuItems(actions, SHELL).map((item) => [item.id, item.checked]));
+  assert.deepEqual(checked(at(9, 9)), { emphasis: false, hide: true, coldOpen: undefined });
+  assert.deepEqual(checked(at(8, 9)), { emphasis: false, hide: false, coldOpen: undefined });
+  const coldOpen = menuItems(at(4), SHELL).find((item) => item.id === "coldOpen");
+  assert.equal(coldOpen.disabled, true, "too short a selection: in place, off");
+  assert.match(coldOpen.reason, /0,5 dtk/);
+});
+
+test("one layout: Kata kunci is checked when every selected word is a keyword", () => {
+  const words = fakeWords();
+  const doc = fakeDoc();
+  doc.captions.word_edits = { w048121: { emphasis: true }, w048122: { emphasis: true } };
+  const model = buildTranscriptModel(words, doc);
+  const item = (first, last) => menuItems(selectionActions(model, extendTo(selectOne(first), last)), SHELL)
+    .find((entry) => entry.id === "emphasis");
+  assert.equal(item(0, 1).checked, true);
+  assert.equal(item(0, 2).checked, false);
+});
+
+test("one layout: every action that applies is on the bar or in the menu, exactly once", () => {
+  const { at } = states();
+  for (const actions of [at(1), at(4), at(6, 7), at(5, 8), at(4, 4, true)]) {
+    const names = [...toolbarButtons(actions, SHELL).map((button) => button.name), ...menuItems(actions, SHELL).map((item) => item.id)];
+    assert.equal(new Set(names).size, names.length, "no action twice");
+    for (const name of NINE) {
+      if (actions[name].enabled) assert.ok(names.includes(name), `${name} applies and is reachable`);
+    }
+    for (const name of ["edit", "hide", "emphasis", "trimStart", "trimEnd", "coldOpen"]) assert.ok(names.includes(name), name);
+  }
+  // A cut action that does not apply is left out, not shown off (06 §2.2 rule 6).
+  assert.ok(!toolbarButtons(at(4), SHELL).some((button) => button.name === "restore" || button.name === "extend"));
+  // The classic toolbar of the old shell is unchanged.
+  assert.deepEqual(toolbarButtons(at(4), { layout: "legacy" }), toolbarButtons(at(4)));
+  assert.deepEqual(menuItems(at(4), { layout: "legacy" }), menuItems(at(4)));
 });
 
 // --- keys ----------------------------------------------------------------------------------
