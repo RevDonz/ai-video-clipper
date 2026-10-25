@@ -30,8 +30,23 @@ function outDir() {
 
 async function shot(page, dir, manifest, name) {
   for (const slot of REGIONS) await expect(page.locator(`[data-slot="${slot}"]`), slot).toBeVisible();
+  // The panels and the transcript load lazily: shoot them loaded.
+  await expect(page.locator('[data-slot="transcript"] section[data-panel="transcript"]')).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator('[data-slot="panel"] section[data-panel]')).toHaveCount(1);
   const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(sideways, `${name}: the page scrolls sideways by ${sideways} px`).toBeLessThanOrEqual(0);
+  // The status, its help and the stage toggles sit beside the 9:16 frame, never over the video,
+  // and inside the stage (06 §3.1; editor-views checks the same for the two-view editor).
+  const overlap = await page.evaluate(() => {
+    const frame = document.querySelector('[data-slot="stage"] [data-stage="canvas"]').parentElement.getBoundingClientRect();
+    const stage = document.querySelector('[data-slot="stage"]').getBoundingClientRect();
+    return [...document.querySelectorAll('[data-slot="stage"] [data-stage-overlay] :is(button, [data-testid="stage-badge"])')]
+      .map((element) => ({ name: element.textContent.trim(), box: element.getBoundingClientRect() }))
+      .filter(({ box }) => box.width > 0
+        && (!(box.right <= frame.left + 0.5 || box.left >= frame.right - 0.5) || box.left < stage.left - 0.5 || box.right > stage.right + 0.5))
+      .map(({ name }) => name);
+  });
+  expect(overlap, `${name}: stage overlays over the frame or outside the stage`).toEqual([]);
   if (!dir) return;
   const file = `${name}.png`;
   await page.screenshot({ path: path.join(dir, file), fullPage: true, animations: "disabled" });
