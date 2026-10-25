@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 
 import { login, settings, skipWithoutCredentials, test } from "./support/harness.mjs";
-import { L } from "./support/i18n.mjs";
+import { LOCALES } from "../lib/i18n/locales.mjs";
+import { L, LIn, pageTitleIn } from "./support/i18n.mjs";
 
 // The shared shell (components/AppShell.jsx, 05-ui-dashboard.md §4.2, §6.1): a flat sidebar from
 // 1024 px, a "Menu" Drawer below it, the account menu with "Pintasan satu tombol" and Keluar, and
@@ -134,6 +135,40 @@ test.describe("App shell", () => {
     await expect(page).toHaveURL(/\/bantuan/);
     await page.keyboard.press("n");
     await expect(page).toHaveURL(/\/dashboard$/);
+  });
+
+  test("Bahasa in the account menu: two clicks switch the UI language, and it stays after a reload", async ({ page, uiLocale }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await noJobs(page);
+    await login(page, "/bantuan");
+    await accountButton(page).click(); // 1
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    const languages = menu.getByRole("menuitemradio");
+    if (testInfo.project.name !== "en-smoke" && await languages.count() === 0) {
+      // A server with one UI language (production until i18n M9) shows no picker at all.
+      await expect(menu.getByRole("group", { name: L("shell.account.language") })).toHaveCount(0);
+      test.skip(true, "one UI language on this server: the picker is not rendered");
+    }
+    // Every enabled language, each named in itself; the current one is checked.
+    await expect(languages).toHaveCount(LOCALES.length);
+    const current = LOCALES.find((entry) => entry.code === uiLocale);
+    const target = LOCALES.find((entry) => entry.code !== uiLocale);
+    await expect(menu.getByRole("menuitemradio", { name: current.label, exact: true })).toHaveAttribute("aria-checked", "true");
+    for (const item of await languages.all()) await expectTarget(item, "language item");
+    // A native form post and a 303 back to this page: a full reload in the new language.
+    const posted = page.waitForResponse((response) => response.url().endsWith("/api/locale") && response.request().method() === "POST");
+    await menu.getByRole("menuitemradio", { name: target.label, exact: true }).click(); // 2
+    expect((await posted).status()).toBe(303);
+    await expect(page).toHaveURL((url) => url.pathname === "/bantuan" && !url.searchParams.has("bahasa"));
+    await expect(page.locator("html")).toHaveAttribute("lang", target.code);
+    await expect(nav(page).getByRole("link", { name: LIn(target.code, "shell.nav.help"), exact: true })).toHaveAttribute("aria-current", "page");
+    const cookie = (await page.context().cookies()).find((entry) => entry.name === "potongin_locale");
+    expect(cookie?.value).toBe(target.code);
+    expect(cookie?.httpOnly).toBe(false);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("lang", target.code);
+    await expect(page).toHaveTitle(pageTitleIn(target.code, "help"));
   });
 
   test("Keluar in the account menu signs out through the hidden form", async ({ page }) => {

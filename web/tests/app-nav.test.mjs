@@ -144,3 +144,14 @@ test("the shell data is computed on the server and handed to client pages by the
   const data = await readFile(path.join(WEB, "lib", "shell-data.mjs"), "utf8");
   assert.match(data, /uiFeatures\(user, env\)/);
 });
+
+test("the shell data carries the enabled languages, each named in itself, Indonesian first", async () => {
+  const { shellData } = await import("../lib/shell-data.mjs");
+  const { localeOptions } = await import("../lib/i18n/locales.mjs");
+  assert.deepEqual(shellData({}).locales, [{ code: "id", label: "Bahasa Indonesia" }]);
+  assert.deepEqual(shellData({ POTONGIN_LOCALES: "en,id" }).locales, [
+    { code: "id", label: "Bahasa Indonesia" },
+    { code: "en", label: "English" },
+  ]);
+  assert.deepEqual(localeOptions({ POTONGIN_LOCALES: "id,xx,EN" }).map((entry) => entry.code), ["id", "en"]);
+});

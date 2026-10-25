@@ -119,8 +119,33 @@ test("the account menu: initials and name, Pintasan satu tombol as a checked ite
   assert.match(menu, /<Dropdown\.Item id=\{LOGOUT_ITEM\} variant="danger"/);
   assert.match(menu, /if \(key === LOGOUT_ITEM\) onLogout\?\.\(\)/);
   assert.ok(menu.indexOf("id={SHORTCUTS_ITEM}") < menu.indexOf("id={LOGOUT_ITEM}"), "Keluar comes last");
-  // The next milestone's language picker has its place, first in the menu (05 §4.2).
-  assert.ok(menu.indexOf("i18n M1 adds the Bahasa section here") < menu.indexOf('selectionMode="multiple"'));
+  // The language picker is the first section (05 §4.2, 07 §9.1), only with two or more languages.
+  assert.ok(menu.indexOf('selectionMode="single"') > 0);
+  assert.ok(menu.indexOf('selectionMode="single"') < menu.indexOf('selectionMode="multiple"'));
+  assert.match(menu, /\{choosable && \(\s*<Dropdown\.Section\s+aria-label=\{t\("account\.language"\)\}\s+selectionMode="single"\s+disallowEmptySelection\s+selectedKeys=\{\[localeKey\(current\)\]\}\s+onSelectionChange=\{onLanguage\}/);
+  assert.match(menu, /const choosable = Array\.isArray\(locales\) && locales\.length > 1;/);
+  assert.match(menu, /<Header className="appAccountHeading">\{t\("account\.language"\)\}<\/Header>/);
+  assert.match(menu, /lang=\{entry\.code\}/, "each language is named in itself, and read in it");
+  // Picking one submits a hidden native form (07 §8.6: always a full reload) outside the popover.
+  assert.match(menu, /\{choosable && <LanguageMenuForm ref=\{languageFormRef\} \/>\}/);
+  assert.ok(menu.indexOf("<LanguageMenuForm") > menu.indexOf("</Dropdown>"), "the form outlives the closing popover");
+  assert.match(menu, /languageFormRef\.current\?\.submit\(code\)/);
+  const picker = await read("components/LanguageSwitcher.jsx");
+  assert.match(picker, /<form ref=\{formRef\} method="post" action="\/api\/locale" hidden>/);
+  assert.match(picker, /<input ref=\{localeRef\} type="hidden" name="locale" \/>/);
+  assert.match(picker, /<input ref=\{nextRef\} type="hidden" name="next" \/>/);
+  assert.match(picker, /nextRef\.current\.value = menuNext\(window\.location\)/);
+  assert.match(picker, /formRef\.current\.requestSubmit\(\)/);
+  // The menu comes back to this very page, without a ?bahasa left from a refused change.
+  const { menuNext } = await import("../lib/i18n/locales.mjs");
+  assert.equal(menuNext({ pathname: "/projects", search: "?filter=done" }), "/projects?filter=done");
+  assert.equal(menuNext({ pathname: "/dashboard", search: "?bahasa=gagal&x=1" }), "/dashboard?x=1");
+  assert.equal(menuNext({ pathname: "/bantuan", search: "?bahasa=gagal" }), "/bantuan");
+  // The shell hands the menu the enabled languages from the server (the client reads no env).
+  const shell = await read("components/AppShell.jsx");
+  assert.equal(shell.match(/<AccountMenu user=\{user\} locales=\{locales\} onLogout=\{logout\}/g)?.length, 2);
+  assert.match(shell, /locales=\{locales \?\? data\?\.locales \?\? \[\]\}/);
+  assert.match(await read("components/ShellData.jsx"), /value=\{\{ user, features, locales \}\}/);
   const prefs = await read("components/ui/UiPrefs.jsx");
   assert.match(prefs, /readShortcutPref\(document\.cookie\)/);
   assert.match(prefs, /writeShortcutPref\(on\)/);

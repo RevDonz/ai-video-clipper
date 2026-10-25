@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 
-import { login, settings, test } from "./support/harness.mjs";
-import { pageTitle, pageTitleIn } from "./support/i18n.mjs";
+import { LOCALES } from "../lib/i18n/locales.mjs";
+import { LOCALE_COOKIE, LOGIN_SUBMIT, login, settings, test } from "./support/harness.mjs";
+import { LIn, pageTitle, pageTitleIn } from "./support/i18n.mjs";
 
 // The UI language of a request (rombak 07 §5, §8): the potongin_locale cookie the harness sets
 // (id in desktop-chromium, en in en-smoke), else Accept-Language, else id. <html lang> and the
@@ -50,6 +51,47 @@ test.describe("UI language", () => {
       expect(page.lang, header).toBe(expected);
       expect(page.title, header).toBe(pageTitleIn(expected, "login"));
     }
+  });
+
+  test("/login switches the language without JavaScript, keeps it after a reload and through sign-in", async ({ browser, baseURL, uiLocale }, testInfo) => {
+    test.skip(testInfo.project.name !== "en-smoke", "needs a server with POTONGIN_LOCALES=id,en (the en-smoke run)");
+    test.skip(settings.allowSkip && (!settings.username || !settings.password), "Explicit local safety mode: credentials are absent and E2E_ALLOW_SKIP=1");
+    const context = await browser.newContext({ baseURL, javaScriptEnabled: false, locale: "en-US" });
+    try {
+      const page = await context.newPage();
+      await context.addCookies([{ name: LOCALE_COOKIE, value: uiLocale, url: baseURL, sameSite: "Lax", secure: baseURL.startsWith("https:") }]);
+      const target = LOCALES.find((entry) => entry.code !== uiLocale);
+      await page.goto("/login?next=%2Fbantuan");
+      await expect(page.locator("html")).toHaveAttribute("lang", uiLocale);
+      const picker = page.locator('form[action="/api/locale"]');
+      await expect(picker.getByLabel(LIn(uiLocale, "auth.locale.label"))).toHaveValue(uiLocale);
+      await picker.locator('select[name="locale"]').selectOption(target.code);
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === "/login" && url.searchParams.get("next") === "/bantuan"),
+        picker.locator('button[type="submit"]').click(),
+      ]);
+      await expect(page.locator("html")).toHaveAttribute("lang", target.code);
+      await expect(page).toHaveTitle(pageTitleIn(target.code, "login"));
+      await page.reload();
+      await expect(page.locator("html")).toHaveAttribute("lang", target.code);
+      // Signing in without JavaScript lands on next, still in the chosen language.
+      await page.locator('input[name="username"]').fill(settings.username);
+      await page.locator('input[name="password"]').fill(settings.password);
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === "/bantuan"),
+        page.locator(LOGIN_SUBMIT).click(),
+      ]);
+      await expect(page.locator("html")).toHaveAttribute("lang", target.code);
+      await expect(page).toHaveTitle(pageTitleIn(target.code, "help"));
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("a refused language change on /login says so in the page's language", async ({ page, uiLocale }, testInfo) => {
+    test.skip(testInfo.project.name !== "en-smoke", "needs a server with POTONGIN_LOCALES=id,en (the en-smoke run)");
+    await page.goto("/login?bahasa=gagal");
+    await expect(page.getByRole("main").getByRole("alert")).toHaveText(LIn(uiLocale, "auth.locale.failed"));
   });
 
   test("the cookie wins over Accept-Language", async ({ playwright, baseURL }, testInfo) => {

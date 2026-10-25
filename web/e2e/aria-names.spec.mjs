@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect } from "@playwright/test";
 
+import { LOCALES } from "../lib/i18n/locales.mjs";
 import { login, settings, skipWithoutCredentials, test } from "./support/harness.mjs";
 import { L, projectLocale } from "./support/i18n.mjs";
 
@@ -46,7 +47,12 @@ function names(snapshot) {
   return [...snapshot.matchAll(/^\s*- ([a-z]+) "((?:[^"\\]|\\.)*)"/gm)].map((match) => [match[1], match[2].replace(/\\"/g, "\"")]);
 }
 
-function problems(entries, locale) {
+// The language picker names each language in itself ("Bahasa Indonesia", "English"; 07 §9.1):
+// those names are the same in every UI language and are not copy to translate.
+const ENDONYMS = new Set(LOCALES.map((entry) => entry.label));
+
+function problems(all, locale) {
+  const entries = all.filter(([, name]) => !ENDONYMS.has(name));
   if (locale === "en") {
     const words = indonesianWords();
     const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
