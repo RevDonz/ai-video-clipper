@@ -131,10 +131,17 @@ engines answered; the summary names the first), then ``engine_fallback:<index>``
 three-letter code),
 ``moments`` after selection (``count``, ``source``: ``llm`` or ``heuristic``). A value the run
 did not learn is not reported. The CLI prints each one on the current progress line.
+
+**Stage codes** (rombak 07 §10.4): every report also names its code from
+:data:`ai_clipper.i18n_codes.STAGE_CODES` (``render_clip`` with ``{index, total}``, the
+transcription progress with ``{percent}``) for a ``progress`` callback that accepts ``code`` and
+``params`` keywords; the CLI writes them as ``stage_code``/``stage_params`` beside the Indonesian
+``detail``. A callback of three arguments is called as before.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import os
@@ -217,6 +224,37 @@ from .youtube_captions import (
     load_youtube_captions,
 )
 from .youtube_captions import SOURCE_NAME as CAPTIONS_SOURCE_NAME
+
+
+def _takes_codes(callback: Callable[..., object]) -> bool:
+    """Whether a progress callback accepts ``code`` and ``params`` keywords (07 §10.4)."""
+    try:
+        parameters = inspect.signature(callback).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    named = {
+        item.name
+        for item in parameters
+        if item.kind in (item.POSITIONAL_OR_KEYWORD, item.KEYWORD_ONLY)
+    }
+    return {"code", "params"} <= named or any(item.kind is item.VAR_KEYWORD for item in parameters)
+
+
+def _report(
+    report: Callable[..., None],
+    stage: str,
+    percent: int,
+    detail: str,
+    code: str,
+    params: Mapping[str, int] | None = None,
+) -> None:
+    """One progress report with its stage code (``i18n_codes.STAGE_CODES``); a callback that
+    takes three arguments only gets the stage, percent and Indonesian detail, as before."""
+    if _takes_codes(report):
+        report(stage, percent, detail, code=code, params=None if params is None else dict(params))
+    else:
+        report(stage, percent, detail)
+
 
 MAX_MEDIA_CANDIDATES = 100
 MAX_MEDIA_TIMEOUT = 300.0
@@ -608,7 +646,13 @@ def _run_v2_shadow(
     warnings: list[str] = []
     try:
         _archive_current_artifact(output_dir)
-        report("candidates_generating", 58, "Membuat kandidat V2 dari batas transkrip")
+        _report(
+            report,
+            "candidates_generating",
+            58,
+            "Membuat kandidat V2 dari batas transkrip",
+            "candidates_generating",
+        )
         boundaries = generate_candidates(
             segments,
             profile,
@@ -617,7 +661,7 @@ def _run_v2_shadow(
         if not boundaries:
             raise ValueError("no V2 candidates satisfy the selected profile")
 
-        report("features", 58, "Mengukur fitur teks kandidat V2")
+        _report(report, "features", 58, "Mengukur fitur teks kandidat V2", "candidates_features")
         text_inputs = [
             RankedInput(
                 f"{candidate.start_index}:{candidate.end_index}",
@@ -626,7 +670,7 @@ def _run_v2_shadow(
             )
             for candidate in boundaries
         ]
-        report("ranking", 59, "Membuat shortlist teks V2")
+        _report(report, "ranking", 59, "Membuat shortlist teks V2", "candidates_shortlist")
         shortlist = rank_candidates_with_breakdowns(
             text_inputs,
             source=str(source),
@@ -641,7 +685,7 @@ def _run_v2_shadow(
             for candidate in shortlist.candidates
         ]
 
-        report("media", 59, "Mengukur media hanya untuk shortlist V2")
+        _report(report, "media", 59, "Mengukur media hanya untuk shortlist V2", "candidates_media")
         rerank_inputs: list[RankedInput] = []
         for ordinal, item in enumerate(shortlisted_inputs, start=1):
             safe_key = _safe_candidate_key(item.input_key, ordinal)
@@ -683,7 +727,7 @@ def _run_v2_shadow(
         )
         artifact_path = output_dir / _CANDIDATES_ARTIFACT
         write_candidates_artifact(artifact_path, artifact)
-        report("candidates_ready", 60, "Kandidat bayangan V2 siap")
+        _report(report, "candidates_ready", 60, "Kandidat bayangan V2 siap", "candidates_ready")
         return {
             "mode": SelectionMode.V2_SHADOW.value,
             "status": "completed",
@@ -865,7 +909,7 @@ def _groq_transcript(
     state: _V3State,
 ) -> Transcription | None:
     """Groq's transcript, or None after a ``groq_fallback:<code>`` warning and one log line."""
-    report("transcribing", 30, "Mengirim audio ke Groq")
+    _report(report, "transcribing", 30, "Mengirim audio ke Groq", "transcribe_groq")
     try:
         transcription = transcribe_with_groq(
             source,
@@ -873,10 +917,13 @@ def _groq_transcript(
             language=language,
             word_timestamps=word_timestamps,
             media_duration=media_duration,
-            progress_callback=lambda fraction: report(
+            progress_callback=lambda fraction: _report(
+                report,
                 "transcribing",
                 30 + round(fraction * 27),
                 f"Transkripsi audio lewat Groq {round(fraction * 100)}%",
+                "transcribe_groq_progress",
+                {"percent": round(fraction * 100)},
             ),
         )
     except Exception as error:  # noqa: BLE001 - any failure means local Whisper, not a failed job
@@ -907,7 +954,7 @@ def _v3_transcript(
 ) -> tuple[Transcription, tuple[SoundEvent, ...]]:
     if subtitle_file is not None:
         state.stage = "captions"
-        report("captions", 28, "Membaca subtitle .srt yang diunggah")
+        _report(report, "captions", 28, "Membaca subtitle .srt yang diunggah", "captions_upload")
         uploaded = _load_subtitle(
             subtitle_file,
             language=language,
@@ -919,7 +966,7 @@ def _v3_transcript(
             return uploaded
     if captions_dir is not None:
         state.stage = "captions"
-        report("captions", 28, "Memeriksa subtitle YouTube")
+        _report(report, "captions", 28, "Memeriksa subtitle YouTube", "captions_check")
         captions = _load_captions(
             captions_dir,
             language=language,
@@ -943,16 +990,19 @@ def _v3_transcript(
         if hosted is not None:
             state.transcript_source = "groq"
             return hosted, ()
-    report("transcribing", 30, "Mendengarkan dan menulis transkrip")
+    _report(report, "transcribing", 30, "Mendengarkan dan menulis transkrip", "transcribe_audio")
     transcription = transcribe_video(
         source,
         model=model,
         language=language,
         word_timestamps=word_timestamps,
-        progress_callback=lambda fraction: report(
+        progress_callback=lambda fraction: _report(
+            report,
             "transcribing",
             30 + round(fraction * 27),
             f"Transkripsi audio {round(fraction * 100)}%",
+            "transcribe_progress",
+            {"percent": round(fraction * 100)},
         ),
     )
     state.transcript_source = "whisper"
@@ -1365,7 +1415,7 @@ def _run_v3(
         write_sound_events(artifact_root / SOUND_EVENTS_RELATIVE_PATH, events, source=events_source)
 
     state.stage = "audio"
-    report("audio", 58, "Menganalisis jeda dan energi audio")
+    _report(report, "audio", 58, "Menganalisis jeda dan energi audio", "audio_analysis")
     audio = _collect_audio(audio_job, state.warnings)
     if audio is not None:
         write_audio_timeline(audio, artifact_root / AUDIO_TIMELINE_RELATIVE_PATH)
@@ -1384,15 +1434,17 @@ def _run_v3(
     if not typed_only:
         client, budget, selector_mode = _v3_llm_client(llm_mode, artifact_root, state.warnings)
     if client is not None:
-        report("llm", 60, "AI (LLM) memilih momen terbaik")
+        _report(report, "llm", 60, "AI (LLM) memilih momen terbaik", "select_llm")
     else:
         state.stage = "selecting"
-        report(
+        _report(
+            report,
             "selecting",
             60,
             "Menyiapkan klip dari rentang waktu"
             if typed_only
             else "Memilih momen terbaik dengan heuristik lokal",
+            "select_ranges" if typed_only else "select_heuristic",
         )
     budget_options = (
         {} if budget is None else {"context_tokens": budget[0], "max_output_tokens": budget[1]}
@@ -1445,7 +1497,7 @@ def _run_v3(
     summarize("moments", moments)
 
     state.stage = "packaging"
-    report("packaging", 63, "Menyiapkan judul, hook, dan caption klip")
+    _report(report, "packaging", 63, "Menyiapkan judul, hook, dan caption klip", "packaging")
     plans = [(clip, clip.cold_open if cold_open else None) for clip in result.clips]
 
     state.stage = "rendering"
@@ -1548,10 +1600,13 @@ def _render_v3_clips(
             if wanted is not None and clip.rank not in wanted:
                 continue
             started = time.monotonic()
-            report(
+            _report(
+                report,
                 "rendering",
                 65 + round(((index - 1) / len(plans)) * 29),
                 f"Merender klip {index} dari {len(plans)}",
+                "render_clip",
+                {"index": index, "total": len(plans)},
             )
             clip_path = output_dir / f"clip-{index:02d}.mp4"
             engine_fields: dict[str, object] | None = None
@@ -1824,8 +1879,19 @@ def run_pipeline(
     selection_v2_summary: dict[str, object] | None = None
     v3_state: _V3State | None = None
 
-    def report(stage: str, percent: int, detail: str) -> None:
-        if progress is not None:
+    def report(
+        stage: str,
+        percent: int,
+        detail: str,
+        *,
+        code: str | None = None,
+        params: Mapping[str, int] | None = None,
+    ) -> None:
+        if progress is None:
+            return
+        if code is not None and _takes_codes(progress):
+            progress(stage, percent, detail, code=code, params=params)
+        else:
             progress(stage, percent, detail)
 
     try:
@@ -1875,7 +1941,7 @@ def run_pipeline(
             raise ValueError("ranges need selection_mode v3")
         if selection_mode is SelectionMode.V3:
             min_duration, max_duration = _clip_bounds(min_duration, max_duration)
-        report("analyzing", 26, "Memeriksa video dan memuat model AI")
+        report("analyzing", 26, "Memeriksa video dan memuat model AI", code="analyze_video")
         validate_render_mode(render_mode)
 
         if v3_state is not None:
@@ -1910,7 +1976,7 @@ def run_pipeline(
                 groq=groq,
                 subtitle_file=subtitle_file,
             )
-            report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
+            report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata", code="finalizing")
             _publish_manifest(
                 manifest_path,
                 {
@@ -1925,7 +1991,9 @@ def run_pipeline(
             )
             return manifest_path
 
-        report("transcribing", 30, "Mendengarkan dan menulis transkrip")
+        _report(
+            report, "transcribing", 30, "Mendengarkan dan menulis transkrip", "transcribe_audio"
+        )
         transcription = transcribe_video(
             source,
             model=model,
@@ -1935,6 +2003,8 @@ def run_pipeline(
                 "transcribing",
                 30 + round(fraction * 27),
                 f"Transkripsi audio {round(fraction * 100)}%",
+                code="transcribe_progress",
+                params={"percent": round(fraction * 100)},
             ),
         )
         if not transcription.segments:
@@ -1953,7 +2023,7 @@ def run_pipeline(
                 report=report,
             )
 
-        report("selecting", 60, "Menilai dan memilih momen terbaik")
+        report("selecting", 60, "Menilai dan memilih momen terbaik", code="select_moments")
         highlights = select_highlights(
             transcription.segments,
             min_duration=min_duration,
@@ -1972,6 +2042,8 @@ def run_pipeline(
                 "rendering",
                 65 + round(((index - 1) / len(highlights)) * 29),
                 f"Merender klip {index} dari {len(highlights)}",
+                code="render_clip",
+                params={"index": index, "total": len(highlights)},
             )
             clip_path = output_dir / f"clip-{index:02d}.mp4"
             render_vertical(
@@ -2000,7 +2072,7 @@ def run_pipeline(
                 clip_entry["thumbnail"] = thumbnail
             clips.append(clip_entry)
 
-        report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
+        report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata", code="finalizing")
         completed_manifest: dict[str, object] = {
             **manifest_base,
             "status": "completed",
