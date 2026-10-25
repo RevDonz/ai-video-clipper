@@ -646,9 +646,9 @@ test("every result video, now only in the project page's clip viewer, uses the c
 
 test("project page shows the packaging of every clip with one card and no version labels", async () => {
   const source = await projectSource();
-  assert.match(source, /selectionNotices\(job\)/);
+  assert.match(source, /selectionNotices\(job, \{ label: \(code\) => warningText\(tAll, code\) \}\)/);
   assert.match(source, /clipScoreView\(clip\)/);
-  assert.match(source, /clipReasons\(clip\)/);
+  assert.match(source, /clipReasonTexts\(tAll, clip\)/);
   assert.match(source, /clipCaptionText\(clip\)/);
   const id = JSON.parse(await readFile(new URL("../messages/id/project.json", import.meta.url), "utf8")).viewer;
   for (const [key, text] of [["hookText", "Teks hook"], ["why", "Kenapa dipilih"], ["copyCaption", "Salin caption"], ["coldOpen", "Cold open · {seconds} dtk"], ["downloadMp4", "Unduh MP4"], ["srt", "Unduh SRT"]]) {
