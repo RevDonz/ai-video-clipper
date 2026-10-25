@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "use-intl";
 
 import AppShell from "../../components/AppShell.jsx";
 import ClipLibrary from "../../components/ClipLibrary.jsx";
+import { apiErrorMessage } from "../../lib/api-error.mjs";
 import { historyOffersEdit } from "../../lib/clip-entry-view.mjs";
 import { browserStorage, readHistoryView, writeHistoryView } from "../../lib/clip-library-view.mjs";
 import { notifyJobsChanged } from "../../lib/job-badge.mjs";
@@ -88,6 +90,8 @@ function ProjectRow({ job, editor, confirming, busy, onAskDelete, onCancelDelete
 }
 
 export default function ProjectsPage() {
+  const t = useTranslations();
+  const locale = useLocale();
   // "projects" or "clips"; null until the remembered choice is read (the browser only).
   const [view, setView] = useState(null);
   const [clipSummary, setClipSummary] = useState("");
@@ -165,7 +169,7 @@ export default function ProjectsPage() {
         headers: { "Accept": "application/json" },
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Proyek tidak bisa dihapus. Coba lagi.");
+      if (!response.ok) throw new Error(apiErrorMessage(t, payload, response.status, { locale, fallback: "Proyek tidak bisa dihapus. Coba lagi." }));
       setConfirmingId(null);
       notifyJobsChanged();
       setJobs((current) => (payload.removed

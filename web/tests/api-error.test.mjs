@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { createTranslator } from "use-intl/core";
 
-import { apiErrorCode, apiErrorText, normalizeApiError, readApiError } from "../lib/api-error.mjs";
+import { apiErrorCode, apiErrorMessage, apiErrorText, normalizeApiError, readApiError } from "../lib/api-error.mjs";
 import { codedErrorBody, legacyErrorText, resolveMessageId, withErrorCode, withErrorCodes } from "../lib/api-error-response.mjs";
 import { loadNamespaces } from "../lib/i18n/catalog.mjs";
 
@@ -70,6 +70,32 @@ test("English falls back to the server's sentence, then to the unknown text", ()
   assert.equal(apiErrorText(t, normalizeApiError({ error: "Teks khusus", code: "no_such_code" }, 400), { locale: "en" }), "Teks khusus");
   assert.equal(apiErrorText(t, normalizeApiError(null, 418), { locale: "en" }), "Invalid request");
   assert.equal(apiErrorText(t, normalizeApiError({}, 200), { locale: "en" }), "Something went wrong");
+});
+
+test("apiErrorMessage in Indonesian is exactly body.error || fallback", () => {
+  const t = translator("id");
+  const cases = [
+    [{ error: "Pengaturan sudah diubah", code: "conflict" }, 409],
+    [{ error: "" , code: "busy" }, 429],
+    [null, 500],
+    [{ code: "auth" }, 502],
+    ["teks", 400],
+  ];
+  for (const [body, status] of cases) {
+    const before = (body && typeof body === "object" ? body.error : null) || "Gagal menyimpan pengaturan.";
+    const expected = typeof body === "string" ? "teks" : before;
+    assert.equal(apiErrorMessage(t, body, status, { locale: "id-ID", fallback: "Gagal menyimpan pengaturan." }), expected, JSON.stringify(body));
+  }
+});
+
+test("apiErrorMessage in English shows the catalog text of the code, else the same chain", () => {
+  const t = translator("en");
+  const options = { locale: "en-US", fallback: "Impor gagal.", domain: "llm" };
+  assert.equal(apiErrorMessage(t, { error: "API key ditolak penyedia", code: "auth" }, 502, options), "API key rejected");
+  assert.equal(apiErrorMessage(t, { error: "Pengaturan AI sudah ada", code: "exists", messageId: "web.exists" }, 409, options), "Settings already exist");
+  assert.equal(apiErrorMessage(t, { error: "Teks khusus", code: "no_such_code" }, 400, options), "Teks khusus");
+  assert.equal(apiErrorMessage(t, null, 503, options), "Service temporarily unavailable");
+  assert.equal(apiErrorMessage(t, {}, 200, options), "Impor gagal.");
 });
 
 // --- the server side ----------------------------------------------------------------------
