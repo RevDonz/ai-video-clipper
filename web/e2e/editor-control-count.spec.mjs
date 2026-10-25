@@ -14,7 +14,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { TAB_NAMES, openPanel, panelRegion } from "./support/editor-panels.mjs";
+import { TAB_IDS, openPanel, panelRegion } from "./support/editor-panels.mjs";
 import { expect, openShell, test, useShellDefaults } from "./support/editor-shell.mjs";
 
 useShellDefaults();
@@ -66,16 +66,16 @@ test("before: the two-view editor, Mode Cepat and every Mode Lengkap tab", async
 
 test("after: each of the five tabs as it opens, one tab panel each, never above the baseline", async ({ page }) => {
   await openShell(page);
-  for (const id of ["text", "layout", "audio", "logo", "coldopen"]) {
+  for (const id of TAB_IDS) {
     await openPanel(page, id);
     await expect(panelRegion(page).getByRole("tabpanel")).toHaveCount(1);
     await expect(page.locator('[role="tabpanel"]:visible')).toHaveCount(1);
     measured.after[id] = await countControls(page);
   }
-  const unmeasured = Object.keys(TAB_NAMES).filter((id) => !Number.isSafeInteger(BASELINE.after?.[id]));
+  const unmeasured = TAB_IDS.filter((id) => !Number.isSafeInteger(BASELINE.after?.[id]));
   expect(unmeasured, `no baseline yet for ${unmeasured.join(", ")}: record the measured counts `
     + `($EDITOR_GATES_OUT/control-count.json, now ${JSON.stringify(measured.after)}) in docs/editor/evidence/control-count.json`).toEqual([]);
-  for (const id of Object.keys(TAB_NAMES)) {
+  for (const id of TAB_IDS) {
     expect(measured.after[id], `${id}: ${measured.after[id]} controls, the baseline allows ${BASELINE.after[id]}`).toBeLessThanOrEqual(BASELINE.after[id]);
   }
 });

@@ -896,8 +896,9 @@ test("AC13: under forced colours a chosen view, pill, tile, pressed toggle, swit
   await zone.click();
 
   // The switch: a knob in system colours in both states, and a filled track when on.
+  // The kit's switch (React Aria) keeps its input in a span of its own, the track last in the label.
   const switchMark = (name) => caption.getByRole("switch", { name }).evaluate((input) => {
-    const track = input.nextElementSibling;
+    const track = input.nextElementSibling ?? input.closest("label").lastElementChild;
     const knob = getComputedStyle(track, "::after");
     return { trackAdjust: getComputedStyle(track).forcedColorAdjust, knobAdjust: knob.forcedColorAdjust, knob: knob.backgroundColor };
   });
@@ -940,8 +941,9 @@ test("the Cold open card's chosen style and whoosh switch use the neutral select
   const caption = page.locator("#card-caption-region");
   const pill = await fill(caption.getByRole("radiogroup", { name: "Ukuran" }).locator("label").filter({ hasText: "Sedang" }));
   const captionTrack = await caption.getByRole("switch", { name: "Tampilkan caption" }).evaluate((input) => {
-    const style = getComputedStyle(input.nextElementSibling);
-    return { background: style.backgroundColor, border: style.borderTopColor, knob: getComputedStyle(input.nextElementSibling, "::after").backgroundColor };
+    const track = input.nextElementSibling ?? input.closest("label").lastElementChild;
+    const style = getComputedStyle(track);
+    return { background: style.backgroundColor, border: style.borderTopColor, knob: getComputedStyle(track, "::after").backgroundColor };
   });
   const transition = (await openCard(page, "coldopen")).locator("[data-coldopen-transition]");
   await page.waitForFunction(() => document.getAnimations().every((animation) => !(animation instanceof CSSTransition)

@@ -217,6 +217,29 @@ test("the accordion animates its height over --dur-2 and hides a closed body aft
 
 // --- task B: the cards, the panels' lime and the card-sized controls (§8.1, §8.4, §9.2) -------------
 
+// React Aria draws each radio and switch as a native input inside a visually hidden span (inline
+// styles: 1 px, clip-path inset(50%)), so a point on the label never reaches the input. The kit
+// lays that span and its input invisibly over the whole label instead: the input is what a
+// pointer hits anywhere on the pill, swatch or switch, as it was before React Aria (§8.2).
+test("a pill, swatch or switch is hit on its native input, laid invisibly over the whole label", () => {
+  const source = css("ui/ui.module.css");
+  for (const control of [".pill", ".swatch", ".switch"]) {
+    assert.match(ruleOf(source, control) ?? "", /(?:^|;)\s*position:\s*relative/, `${control} holds the cover`);
+    const wrapper = ruleOf(source, `${control} > span:has(> input)`);
+    assert.ok(wrapper, `${control}: a rule for React Aria's hidden span`);
+    for (const declaration of [/position:\s*absolute\s*!important/, /inset:\s*0\s*!important/, /width:\s*auto\s*!important/,
+      /height:\s*auto\s*!important/, /margin:\s*0\s*!important/, /clip:\s*auto\s*!important/, /clip-path:\s*none\s*!important/,
+      /z-index:\s*1\b/]) {
+      assert.match(wrapper, declaration, `${control} > span: ${declaration}`);
+    }
+    const input = ruleOf(source, `${control} > span > input`);
+    assert.ok(input, `${control}: a rule for the input`);
+    for (const declaration of [/width:\s*100%/, /height:\s*100%/, /margin:\s*0/, /opacity:\s*0/, /cursor:\s*inherit/]) {
+      assert.match(input, declaration, `${control} input: ${declaration}`);
+    }
+  }
+});
+
 test("--accent appears only on the allow-listed progress fills, and nowhere in ui/, quick/, rail/ or scrubber/", () => {
   const files = cssFiles(LIME_DIRS);
   assert.ok(files.includes(path.join("panels", "panels.module.css")) && files.includes(path.join("suggestions", "suggestions.module.css")),
