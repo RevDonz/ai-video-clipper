@@ -46,7 +46,7 @@ export default function Stage({ output, plan, playerMode, safeZone = false, onMe
   return (
     <div className={styles.stageArea}>
       <div className={styles.stageSide} data-stage-overlay="start">{overlayStart}</div>
-      <div className={styles.stageFrame} style={{ aspectRatio: `${w} / ${h}` }}>
+      <div className={styles.stageFrame} style={{ aspectRatio: `${w} / ${h}`, "--stage-hw": h / w }}>
         <canvas
           ref={canvasRef}
           className={styles.stageMedia}
