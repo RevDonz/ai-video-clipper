@@ -1,16 +1,19 @@
 import { expect } from "@playwright/test";
 
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
-// The dashboard form (plan 2026-10-20 P1 #6): link or file and Buat klip in one row, the other
-// options folded under a summary, duration presets, "Bahasa video", and the last choices kept
-// in this browser. The dashboard's own API calls are faked inside the browser (page.route), so
-// these tests create no job and change no server data; only the login is real.
+// Buat klip (05-ui-dashboard.md §6.3): the link (or a file) and Buat klip first, then every
+// choice as a valued chip whose popover holds its control, and the newest projects. Enter sends
+// the form and the page goes to /projects/<id>; a field error opens its chip and focuses the
+// field. The dashboard's own API calls are faked inside the browser (page.route), so these tests
+// create no job and change no server data; only the login is real.
 
 const LINK = "https://youtu.be/rBg0ZcwjVKQ";
 const CHOICES_KEY = "potongin-dashboard-choices";
 const NOW = new Date().toISOString();
 const ACTIVE_AI = { state: "active", order: ["uji"], providers: [{ name: "uji", displayName: null }], label: "LLM aktif: uji" };
+const JOB_ID = /\/projects\/00000000-0000-4000-8000-0000000000\d\d$/;
 
 /** The text parts of a job POST, in order, as [name, value] pairs. */
 function multipartFields(request) {
@@ -24,33 +27,34 @@ function multipartFields(request) {
 }
 
 // The browser may leave a file part out of the intercepted body, so the page's own FormData is
-// recorded before it is sent: files as { filename }.
+// recorded before it is sent (the job goes out through XMLHttpRequest for its upload percent):
+// files as { filename }. Kept in sessionStorage, since the page then goes to the project.
 async function recordJobForms(page) {
   await page.addInitScript(() => {
-    window.__jobForms = [];
-    const send = window.fetch;
-    window.fetch = (input, init) => {
-      if (String(input) === "/api/jobs" && init?.method === "POST" && init.body instanceof FormData) {
-        window.__jobForms.push([...init.body.entries()].map(([name, value]) => [name, value instanceof File ? { filename: value.name } : value]));
+    const send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function recorded(body) {
+      if (body instanceof FormData) {
+        const fields = [...body.entries()].map(([name, value]) => [name, value instanceof File ? { filename: value.name } : value]);
+        window.sessionStorage.setItem("job-form", JSON.stringify(fields));
       }
-      return send(input, init);
+      return send.call(this, body);
     };
   });
-  return async () => Object.fromEntries((await page.evaluate(() => window.__jobForms)).at(-1) || []);
+  return async () => Object.fromEntries(JSON.parse(await page.evaluate(() => window.sessionStorage.getItem("job-form")) || "[]"));
 }
 
 /**
  * Fakes /api/jobs (listing `jobs`), /api/llm/status and /api/storage/status; `editor` and
- * `renderEngine` are the jobs list's flags. Returns the job POSTs.
+ * `renderEngine` are the jobs list's flags, `ai` the AI status. Returns the job POSTs.
  */
-async function fakeDashboardApi(page, { jobs = [], editor = false, renderEngine = "edit-v2" } = {}) {
+async function fakeDashboardApi(page, { jobs = [], editor = false, renderEngine = "edit-v2", ai = ACTIVE_AI } = {}) {
   const posts = [];
   const job = (id) => ({ id, status: "queued", progress: 0, createdAt: NOW, updatedAt: NOW, source: { type: "youtube", url: LINK }, options: { selectionMode: "v3" }, clips: [] });
   await page.route(/\/api\/(?:jobs|llm\/status|storage\/status)(?:[/?]|$)/, (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
     const json = (status, body) => route.fulfill({ status, contentType: "application/json", headers: { "Cache-Control": "no-store" }, body: JSON.stringify(body) });
-    if (pathname === "/api/llm/status") return json(200, { llm: ACTIVE_AI });
+    if (pathname === "/api/llm/status") return json(200, { llm: ai });
     if (pathname === "/api/storage/status") return json(200, { admission: { allowed: true, code: null } });
     if (pathname === "/api/jobs" && request.method() === "POST") {
       posts.push(multipartFields(request));
@@ -58,122 +62,173 @@ async function fakeDashboardApi(page, { jobs = [], editor = false, renderEngine 
     }
     if (pathname === "/api/jobs") return json(200, { jobs, total: jobs.length, editor, renderEngine });
     const id = pathname.split("/")[3];
+    if (pathname.endsWith("/clips")) return json(404, {});
     return json(200, { job: jobs.find((item) => item.id === id) || job(id) });
   });
   return posts;
 }
 
-// Prerendered page: the AI status line appears only after hydration, when typing is kept.
+// The page is prerendered with the defaults; the stored choices and the jobs list's flags arrive
+// after hydration, together with the jobs list.
 async function openDashboard(page) {
+  const listed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/jobs" && response.request().method() === "GET");
   await login(page, "/dashboard");
-  await expect(page.getByText("AI aktif: uji", { exact: true })).toBeVisible();
+  await listed;
+  await expect(chip(page, "count")).toBeEnabled();
 }
 
-// The three folds under the essentials; each heading button names its fold, then what is chosen.
-const fold = (page, title) => page.getByRole("button", { name: new RegExp(`^${title}`) });
-const lookFold = (page) => fold(page, "Subtitle dan hook");
-const momentsFold = (page) => fold(page, "Arahkan pilihan momen");
-const formatFold = (page) => fold(page, "Bahasa dan resolusi");
-const submitButton = (page) => page.getByRole("button", { name: "Buat klip", exact: true });
-const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-const choose = (page, text) => page.getByText(text, { exact: true }).click();
+// Back on Buat klip after a job took the page to its project.
+async function reopenDashboard(page) {
+  const listed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/jobs" && response.request().method() === "GET");
+  await page.goto("/dashboard");
+  await listed;
+  await expect(chip(page, "count")).toBeEnabled();
+}
 
-async function submitJob(page, posts) {
+const chip = (page, id) => page.locator(`[data-chip="${id}"]`);
+const popover = (page, id) => page.locator(`[data-chip-popover="${id}"]`);
+const link = (page) => page.getByLabel(L("dashboard.source.link"), { exact: true });
+const submitButton = (page) => page.getByRole("button", { name: L("dashboard.submit.idle"), exact: true });
+const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+const seconds = (min, max) => L("dashboard.chip.seconds", { min, max });
+
+async function openChip(page, id) {
+  await chip(page, id).click();
+  await expect(popover(page, id)).toBeVisible();
+  return popover(page, id);
+}
+
+/** Sends the form; the page goes to the new project. Returns the job's fields. */
+async function submitJob(page, posts, { by = "click" } = {}) {
   const before = posts.length;
-  await submitButton(page).click();
+  if (by === "enter") await link(page).press("Enter");
+  else await submitButton(page).click();
   await expect.poll(() => posts.length).toBe(before + 1);
+  await expect(page).toHaveURL(JOB_ID);
   return Object.fromEntries(posts.at(-1));
 }
 
-test.describe("Dashboard form (faked job API)", () => {
+test.describe("Buat klip composer (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
-  test("the link and Buat klip share the top row; the essentials are open; the rest fold under summaries", async ({ page }) => {
+  test("the link and Buat klip share the top row; every choice is a chip that reads its value", async ({ page }) => {
     await fakeDashboardApi(page);
     await openDashboard(page);
-    const link = await page.getByLabel("Link video").boundingBox();
+    const linkBox = await link(page).boundingBox();
     const submit = await submitButton(page).boundingBox();
-    expect(Math.abs((link.y + link.height / 2) - (submit.y + submit.height / 2))).toBeLessThan(4);
-    await expect(submitButton(page)).toHaveAccessibleDescription("Job berikutnya: 3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia");
-    // Jumlah, Rasio, Durasi and Layout need no click.
-    await expect(page.getByLabel("Jumlah klip")).toBeVisible();
-    await expect(page.getByRole("radio", { name: /^Otomatis/ })).toBeChecked();
-    await expect(page.getByRole("group", { name: "Rasio" }).getByRole("radio", { name: /^9:16/ })).toBeChecked();
-    await expect(page.getByRole("radio", { name: /^Latar blur/ })).toBeChecked();
-    // Fixed ranges need no number fields; "Atur sendiri" brings them.
-    await expect(page.getByLabel("Durasi minimum")).toHaveCount(0);
-    for (const [button, summary] of [
-      [lookFold(page), "Karaoke · Bawah, Sedang · Kalimat terkuat dulu · Teks hook"],
-      [momentsFold(page), "Otomatis"],
-      [formatFold(page), "Bahasa Indonesia · 720p"],
-    ]) {
-      await expect(button).toHaveAttribute("aria-expanded", "false");
-      await expect(button).toContainText(summary);
+    expect(Math.abs((linkBox.y + linkBox.height / 2) - (submit.y + submit.height / 2))).toBeLessThan(4);
+    // The head is the title alone: no sentence (P2), and no AI line while the AI is fine (P6).
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(L("dashboard.title"));
+    await expect(page.locator("header.pageHead p")).toHaveCount(0);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    const values = {
+      count: L("dashboard.chip.count", { count: 3 }),
+      duration: L("dashboard.chip.duration", { value: L("dashboard.duration.auto") }),
+      format: "9:16 · 720p",
+      layout: L("dashboard.chip.layout", { value: L("layout.names.fit_blur") }),
+      subtitle: L("dashboard.chip.subtitle", { value: L("dashboard.style.karaoke") }),
+      hook: L("dashboard.chip.hook", { value: L("dashboard.hook.both") }),
+      focus: L("dashboard.chip.focus"),
+      language: L("dashboard.language.id"),
+    };
+    for (const [id, text] of Object.entries(values)) {
+      await expect(chip(page, id)).toHaveText(text);
+      await expect(chip(page, id)).toHaveAttribute("aria-expanded", "false");
     }
-    await expect(page.getByLabel("Rentang waktu (opsional)")).toBeHidden();
-    await formatFold(page).click();
-    await expect(formatFold(page)).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("radio", { name: "Indonesia", exact: true })).toBeChecked();
+    await expect(chip(page, "count")).toHaveAccessibleName(`${L("dashboard.chip.countLabel")}: ${values.count}`);
+    // A chip opens its popover with the control; one popover at a time.
+    const count = await openChip(page, "count");
+    await expect(count.getByLabel(L("dashboard.chip.countLabel"), { exact: true })).toHaveValue("3");
+    await expect(chip(page, "count")).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Escape");
+    await expect(popover(page, "count")).toHaveCount(0);
+    await expect(chip(page, "count")).toBeFocused();
+    const layout = await openChip(page, "layout");
+    await expect(layout.getByRole("radio", { name: L("layout.names.fit_blur") })).toBeChecked();
+    await expect(layout.getByRole("radio")).toHaveCount(3);
+    await expect(layout.getByRole("radio", { name: L("layout.names.split") })).toHaveCount(0);
   });
 
-  test("presets and the video language reach the job; the choices and open folds come back, the link does not", async ({ page }) => {
+  test("Enter in the link sends the job and lands on its project; the choices come back, the link does not", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await page.getByLabel("Jumlah klip").fill("5");
-    await choose(page, "Pendek");
-    await formatFold(page).click();
-    await choose(page, "Inggris");
-    await page.getByLabel("Link video").fill(LINK);
-    expect(await submitJob(page, posts)).toMatchObject({ limit: "5", minDuration: "15", maxDuration: "30", videoLanguage: "en", youtubeUrl: LINK });
+    const count = await openChip(page, "count");
+    await count.getByLabel(L("dashboard.chip.countLabel"), { exact: true }).fill("5");
+    await page.keyboard.press("Escape");
+    const duration = await openChip(page, "duration");
+    await duration.getByRole("radio", { name: `${L("dashboard.duration.short")} · ${seconds(15, 30)}` }).check();
+    await page.keyboard.press("Escape");
+    const language = await openChip(page, "language");
+    await language.getByRole("radio", { name: L("dashboard.language.en") }).check();
+    await page.keyboard.press("Escape");
+    await expect(chip(page, "count")).toHaveText(L("dashboard.chip.count", { count: 5 }));
+    await link(page).fill(LINK);
+    expect(await submitJob(page, posts, { by: "enter" })).toMatchObject({ limit: "5", minDuration: "15", maxDuration: "30", videoLanguage: "en", youtubeUrl: LINK });
 
-    await page.reload();
-    await expect(page.getByText("AI aktif: uji", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Jumlah klip")).toHaveValue("5");
-    await expect(page.getByRole("radio", { name: /^Pendek/ })).toBeChecked();
-    await expect(formatFold(page)).toHaveAttribute("aria-expanded", "true");
-    await expect(formatFold(page)).toContainText("Bahasa Inggris · 720p");
-    await expect(lookFold(page)).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByLabel("Link video")).toHaveValue("");
+    await reopenDashboard(page);
+    await expect(chip(page, "count")).toHaveText(L("dashboard.chip.count", { count: 5 }));
+    await expect(chip(page, "duration")).toHaveText(L("dashboard.chip.duration", { value: L("dashboard.duration.short") }));
+    await expect(chip(page, "language")).toHaveText(L("dashboard.language.en"));
+    await expect(link(page)).toHaveValue("");
     const stored = await page.evaluate((key) => window.localStorage.getItem(key), CHOICES_KEY);
     expect(stored).not.toContain("youtu");
-
-    // "Atur sendiri" opens the two fields on the range in use; a bad range blocks the job.
-    await choose(page, "Atur sendiri");
-    await expect(page.getByLabel("Durasi minimum")).toHaveValue("15");
-    await expect(page.getByLabel("Durasi maksimum")).toHaveValue("30");
-    await page.getByLabel("Durasi minimum").fill("61");
-    await page.getByLabel("Durasi maksimum").fill("60");
-    await page.getByLabel("Link video").fill(LINK);
-    await submitButton(page).click();
-    await expect(page.getByText("Durasi maksimum tidak boleh kurang dari minimum.")).toBeVisible();
-    await expect(page.getByLabel("Durasi maksimum")).toBeFocused();
-    expect(posts).toHaveLength(1);
-    await page.getByLabel("Durasi minimum").fill("25");
-    await page.getByLabel("Durasi maksimum").fill("45");
-    expect(await submitJob(page, posts)).toMatchObject({ minDuration: "25", maxDuration: "45", videoLanguage: "en" });
   });
 
-  test("time ranges are checked before anything is sent and reach the job as typed", async ({ page }) => {
+  test("Atur sendiri opens two fields; a bad range opens the chip on the wrong field and sends nothing", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await page.getByLabel("Jumlah klip").fill("2");
-    await momentsFold(page).click();
-    const ranges = page.getByLabel("Rentang waktu (opsional)");
-    await ranges.fill("10.30-12.05, 1:00-1:30, 2:00-2:30");
-    await expect(momentsFold(page)).toContainText("3 rentang waktu");
-    await momentsFold(page).click();
-    await expect(ranges).toBeHidden();
-    await page.getByLabel("Link video").fill(LINK);
+    let duration = await openChip(page, "duration");
+    await duration.getByRole("radio", { name: L("dashboard.duration.custom") }).check();
+    await duration.getByLabel(L("dashboard.duration.min"), { exact: true }).fill("61");
+    await duration.getByLabel(L("dashboard.duration.max"), { exact: true }).fill("60");
+    await page.keyboard.press("Escape");
+    await link(page).fill(LINK);
     await submitButton(page).click();
-    // The fold opens again on the field, with the reason under it; nothing is sent.
-    await expect(momentsFold(page)).toHaveAttribute("aria-expanded", "true");
+    duration = popover(page, "duration");
+    await expect(duration).toBeVisible();
+    const max = duration.getByLabel(L("dashboard.duration.max"), { exact: true });
+    await expect(max).toBeFocused();
+    await expect(max).toHaveAttribute("aria-invalid", "true");
+    await expect(max).toHaveAccessibleDescription(L("dashboard.problem.durationOrder"));
+    await expect(chip(page, "duration")).toHaveAttribute("data-invalid", "true");
+    expect(posts).toHaveLength(0);
+    await duration.getByLabel(L("dashboard.duration.min"), { exact: true }).fill("25");
+    await max.fill("45");
+    // Enter inside the popover sends the form too.
+    await max.press("Enter");
+    await expect.poll(() => posts.length).toBe(1);
+    expect(Object.fromEntries(posts[0])).toMatchObject({ minDuration: "25", maxDuration: "45" });
+    await expect(page).toHaveURL(JOB_ID);
+  });
+
+  test("a wrong count or time range opens its chip and takes the focus; nothing is sent", async ({ page }) => {
+    const posts = await fakeDashboardApi(page);
+    await openDashboard(page);
+    let count = await openChip(page, "count");
+    await count.getByLabel(L("dashboard.chip.countLabel"), { exact: true }).fill("12");
+    await page.keyboard.press("Escape");
+    await link(page).fill(LINK);
+    await submitButton(page).click();
+    count = popover(page, "count");
+    const field = count.getByLabel(L("dashboard.chip.countLabel"), { exact: true });
+    await expect(field).toBeFocused();
+    await expect(count.getByText(L("dashboard.problem.count", { min: 1, max: 10 }), { exact: true })).toBeVisible();
+    await field.fill("2");
+    await page.keyboard.press("Escape");
+
+    const focus = await openChip(page, "focus");
+    await focus.getByLabel(L("dashboard.focus.ranges"), { exact: true }).fill("10.30-12.05, 1:00-1:30, 2:00-2:30");
+    await page.keyboard.press("Escape");
+    await expect(chip(page, "focus")).toHaveText(`${L("dashboard.chip.focus")} · 3`);
+    await submitButton(page).click();
+    const ranges = popover(page, "focus").getByLabel(L("dashboard.focus.ranges"), { exact: true });
     await expect(ranges).toBeFocused();
     await expect(ranges).toHaveAttribute("aria-invalid", "true");
-    await expect(page.getByText("Ada 3 rentang waktu, tetapi jumlah klip 2. Naikkan jumlah klip atau kurangi rentang.", { exact: true })).toBeVisible();
     expect(posts).toHaveLength(0);
 
     await ranges.fill("10.30-12.05\n1:02:10-1:03:00");
     await expect(ranges).not.toHaveAttribute("aria-invalid", "true");
+    await page.keyboard.press("Escape");
     const sent = await submitJob(page, posts);
     expect(sent.limit).toBe("2");
     expect(sent.timeRanges.replace(/\r\n/g, "\n")).toBe("10.30-12.05\n1:02:10-1:03:00");
@@ -182,22 +237,12 @@ test.describe("Dashboard form (faked job API)", () => {
     expect(stored).not.toContain("10.30");
   });
 
-  test("a problem in an open field takes the focus; one inside a closed fold opens it first", async ({ page }) => {
+  test("an empty link is named under the link field, which takes the focus", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await page.getByLabel("Jumlah klip").fill("12");
-    await page.getByLabel("Link video").fill(LINK);
     await submitButton(page).click();
-    await expect(page.getByLabel("Jumlah klip")).toBeFocused();
-    await expect(page.getByText("Isi 1 sampai 10 klip.")).toBeVisible();
-    await page.getByLabel("Jumlah klip").fill("3");
-
-    await momentsFold(page).click();
-    await page.getByLabel("Rentang waktu (opsional)").fill("besok");
-    await momentsFold(page).click();
-    await submitButton(page).click();
-    await expect(page.getByLabel("Rentang waktu (opsional)")).toBeFocused();
-    await expect(page.getByText("“besok” tidak dikenali. Contoh: 10.30-12.05 atau 1:02:10-1:03:00.")).toBeVisible();
+    await expect(link(page)).toBeFocused();
+    await expect(link(page)).toHaveAccessibleDescription(L("dashboard.problem.linkEmpty"));
     expect(posts).toHaveLength(0);
   });
 
@@ -213,12 +258,14 @@ test.describe("Dashboard form (faked job API)", () => {
     }, CHOICES_KEY);
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await expect(page.getByLabel("Jumlah klip")).toHaveValue("3");
-    await expect(page.getByRole("radio", { name: /^Otomatis/ })).toBeChecked();
-    await choose(page, "Panjang");
-    await formatFold(page).click();
-    await choose(page, "Deteksi otomatis");
-    await page.getByLabel("Link video").fill(LINK);
+    await expect(chip(page, "count")).toHaveText(L("dashboard.chip.count", { count: 3 }));
+    const duration = await openChip(page, "duration");
+    await duration.getByRole("radio", { name: `${L("dashboard.duration.long")} · ${seconds(60, 90)}` }).check();
+    await page.keyboard.press("Escape");
+    const language = await openChip(page, "language");
+    await language.getByRole("radio", { name: L("dashboard.language.auto") }).check();
+    await page.keyboard.press("Escape");
+    await link(page).fill(LINK);
     expect(await submitJob(page, posts)).toMatchObject({ limit: "3", minDuration: "60", maxDuration: "90", videoLanguage: "auto" });
   });
 
@@ -235,19 +282,20 @@ test.describe("Dashboard form (faked job API)", () => {
       for (const event of ["dragenter", "dragover", "drop"]) await page.dispatchEvent("h1", event, { dataTransfer });
     };
     await drop("catatan.txt", "text/plain");
-    await expect(page.getByText("Format tidak didukung. Pakai MP4, MOV, MKV atau WEBM.")).toBeVisible();
+    await expect(page.getByText(L("dashboard.problem.videoFormat"), { exact: true })).toBeVisible();
     await drop("podcast-ep12.mp4", "video/mp4");
     await expect(page.getByText("podcast-ep12.mp4", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Link video")).toHaveCount(0);
-    await expect(page.getByText("Format tidak didukung", { exact: false })).toHaveCount(0);
+    await expect(link(page)).toHaveCount(0);
+    await expect(page.getByText(L("dashboard.problem.videoFormat"), { exact: true })).toHaveCount(0);
+
+    await page.getByRole("button", { name: L("dashboard.source.remove", { name: "podcast-ep12.mp4" }) }).click();
+    await expect(link(page)).toBeFocused();
+    await drop("podcast-ep12.mp4", "video/mp4");
     await submitJob(page, posts);
     const form = await lastForm();
     expect(form.video).toEqual({ filename: "podcast-ep12.mp4" });
     expect(form.youtubeUrl).toBeUndefined();
     expect(form.videoLanguage).toBe("id");
-
-    await page.getByRole("button", { name: "Hapus file podcast-ep12.mp4" }).click();
-    await expect(page.getByLabel("Link video")).toBeFocused();
   });
 
   test("an uploaded video takes an optional .srt that reaches the job; removing the video drops it", async ({ page }) => {
@@ -255,185 +303,203 @@ test.describe("Dashboard form (faked job API)", () => {
     const posts = await fakeDashboardApi(page);
     const lastForm = await recordJobForms(page);
     await openDashboard(page);
-    await expect(page.getByText("Tambah subtitle .srt", { exact: true })).toHaveCount(0);
+    await expect(page.locator("#subtitle-file")).toHaveCount(0);
     await page.locator("#video-file").setInputFiles({ name: "podcast-ep12.mp4", mimeType: "video/mp4", buffer: Buffer.from("video") });
     await page.locator("#subtitle-file").setInputFiles({ name: "catatan.txt", mimeType: "text/plain", buffer: Buffer.from("x") });
-    await expect(page.getByText("Subtitle harus file .srt.", { exact: true })).toBeVisible();
+    await expect(page.getByText(L("dashboard.problem.srtType"), { exact: true })).toBeVisible();
     await page.locator("#subtitle-file").setInputFiles({ name: "podcast-ep12.srt", mimeType: "application/x-subrip", buffer: Buffer.from("1\n00:00:01,000 --> 00:00:02,000\nHalo.\n") });
     await expect(page.getByText("podcast-ep12.srt", { exact: true })).toBeVisible();
-    await expect(page.getByText("Subtitle harus file .srt.", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("Ganti .srt", { exact: true })).toBeVisible();
+    await expect(page.getByText(L("dashboard.problem.srtType"), { exact: true })).toHaveCount(0);
+    await expect(page.getByText(L("dashboard.source.replaceSrt"), { exact: true })).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
-    const small = await page.evaluate(() => [...document.querySelectorAll("label:has(> #subtitle-file), button[aria-label^=\"Hapus subtitle\"]")]
+    const small = await page.evaluate(() => [...document.querySelectorAll("label:has(> #subtitle-file), label:has(> #video-file)")]
       .map((element) => element.getBoundingClientRect()).filter((box) => box.width < 44 || box.height < 44).length);
     expect(small).toBe(0);
+    await page.getByRole("button", { name: L("dashboard.source.remove", { name: "podcast-ep12.srt" }) }).click();
+    await expect(page.getByText(L("dashboard.source.srt"), { exact: true })).toBeVisible();
+    await page.locator("#subtitle-file").setInputFiles({ name: "lagi.srt", mimeType: "application/x-subrip", buffer: Buffer.from("1\n00:00:01,000 --> 00:00:02,000\nHalo.\n") });
     await submitJob(page, posts);
     const form = await lastForm();
     expect(form.video).toEqual({ filename: "podcast-ep12.mp4" });
-    expect(form.subtitle).toEqual({ filename: "podcast-ep12.srt" });
+    expect(form.subtitle).toEqual({ filename: "lagi.srt" });
+  });
 
-    await page.getByRole("button", { name: "Hapus subtitle podcast-ep12.srt" }).click();
-    await expect(page.getByText("Tambah subtitle .srt", { exact: true })).toBeVisible();
+  test("removing the video drops its subtitle", async ({ page }) => {
+    await fakeDashboardApi(page);
+    await openDashboard(page);
+    await page.locator("#video-file").setInputFiles({ name: "podcast-ep12.mp4", mimeType: "video/mp4", buffer: Buffer.from("video") });
     await page.locator("#subtitle-file").setInputFiles({ name: "lagi.srt", mimeType: "application/x-subrip", buffer: Buffer.from("1\n00:00:01,000 --> 00:00:02,000\nHalo.\n") });
-    await page.getByRole("button", { name: "Hapus file podcast-ep12.mp4" }).click();
+    await page.getByRole("button", { name: L("dashboard.source.remove", { name: "podcast-ep12.mp4" }) }).click();
     await expect(page.getByText("lagi.srt", { exact: true })).toHaveCount(0);
     await expect(page.locator("#subtitle-file")).toHaveCount(0);
   });
 
-  test("a YouTube job whose video is not Indonesian shows the language note", async ({ page }) => {
-    const running = {
-      id: "00000000-0000-4000-8000-000000000102", status: "processing", progress: 30, stage: "analyzing", stageDetail: "Menyiapkan engine AI",
-      createdAt: NOW, updatedAt: NOW, source: { type: "youtube", url: LINK }, sourceLanguage: "en", options: { selectionMode: "v3", videoLanguage: "auto" }, clips: [],
-    };
-    await fakeDashboardApi(page, { jobs: [running] });
-    await openDashboard(page);
-    await expect(page.getByRole("complementary", { name: "Hasil" }).getByText("Bahasa video terdeteksi: Inggris. Hasil caption mengikuti bahasa ini.")).toBeVisible();
-  });
-
-  test("a running job lists what its finished stages found under the progress bar", async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 780 });
-    const running = {
-      id: "00000000-0000-4000-8000-000000000101", status: "processing", progress: 60, stage: "llm", stageDetail: "AI (LLM) memilih momen terbaik",
-      createdAt: NOW, updatedAt: NOW, source: { type: "youtube", url: LINK }, options: { selectionMode: "v3", videoLanguage: "auto" }, clips: [],
-      stageSummary: { video: { duration: 2892.4 }, transcript: { words: 2304, source: "youtube-captions", language: "en" } },
-    };
-    await fakeDashboardApi(page, { jobs: [running] });
-    await openDashboard(page);
-    const results = page.getByRole("complementary", { name: "Hasil" });
-    const summary = results.getByLabel("Hasil per tahap");
-    await expect(summary).toBeVisible();
-    await expect(summary.locator("dt")).toHaveText(["Video", "Transkrip"]);
-    await expect(summary.locator("dd")).toHaveText(["48:12", "2.304 kata · dari subtitle YouTube · bahasa Inggris"]);
-    // Under the bar and the live line, before the clips.
-    const bar = await results.getByRole("progressbar", { name: "Progres job" }).boundingBox();
-    const box = await summary.boundingBox();
-    expect(box.y).toBeGreaterThan(bar.y + bar.height);
-    expect(await overflow(page)).toBeLessThanOrEqual(0);
-  });
-
-  test("the 9:16 preview follows the layout, the subtitle style and the hook switch", async ({ page }) => {
+  test("the 9:16 preview in the Subtitle chip follows the layout, the style and the hook switch", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await lookFold(page).click();
-    const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
-    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Latar blur, subtitle Karaoke di bawah, teks hook di atas.");
+    let subtitle = await openChip(page, "subtitle");
+    const preview = subtitle.getByRole("img", { name: L("dashboard.look.label", { ratio: "9:16", layout: L("layout.names.fit_blur"), style: L("dashboard.style.karaoke") }) });
     await expect(preview).toHaveAttribute("data-layout", "fit");
-    await expect(page.getByText("Area tombol TikTok", { exact: true })).toBeVisible();
+    await expect(subtitle.getByText(L("dashboard.look.zone"), { exact: true })).toBeVisible();
     // Without the editor the note names no Edit klip.
-    await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toBeVisible();
+    await expect(subtitle.getByText(L("dashboard.look.inZone"), { exact: true })).toBeVisible();
     // Every pack's thumbnail is a real image.
-    expect(await page.evaluate(() => [...document.querySelectorAll("#look-options img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true, true, true, true, true]);
+    expect(await subtitle.evaluate((root) => [...root.querySelectorAll("label img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true, true, true, true, true]);
+    await subtitle.getByRole("radio", { name: L("dashboard.style.classic") }).check();
+    await expect(subtitle.locator("[data-look-preview]")).toHaveAttribute("data-pack", "classic");
+    await page.keyboard.press("Escape");
+    await expect(chip(page, "subtitle")).toHaveText(L("dashboard.chip.subtitle", { value: L("dashboard.style.classic") }));
 
-    await choose(page, "Klasik");
-    await expect(preview).toHaveAttribute("data-pack", "classic");
-    await choose(page, "Potong tengah");
-    await expect(preview).toHaveAttribute("data-layout", "fill");
-    await choose(page, "Teks hook di 4 detik pertama");
-    await expect(preview).toHaveAttribute("data-hook", "off");
-    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Potong tengah, subtitle Klasik di bawah, tanpa teks hook.");
-    await page.getByLabel("Link video").fill(LINK);
-    expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "classic", renderMode: "center-crop", hookOverlay: "false" });
+    const layout = await openChip(page, "layout");
+    await layout.getByRole("radio", { name: L("layout.names.fill_center") }).check();
+    await page.keyboard.press("Escape");
+    const hook = await openChip(page, "hook");
+    await hook.getByRole("switch", { name: L("dashboard.hook.text") }).click();
+    await page.keyboard.press("Escape");
+    await expect(chip(page, "hook")).toHaveText(L("dashboard.chip.hook", { value: L("dashboard.hook.coldOpen") }));
+    subtitle = await openChip(page, "subtitle");
+    await expect(subtitle.locator("[data-look-preview]")).toHaveAttribute("data-layout", "fill");
+    await expect(subtitle.locator("[data-look-preview]")).toHaveAttribute("data-hook", "off");
+    await page.keyboard.press("Escape");
+    await link(page).fill(LINK);
+    expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "classic", renderMode: "center-crop", hookOverlay: "false", coldOpen: "true" });
   });
 
   test("Rasio and Resolusi reach the job as its output size; 1:1 previews square without the TikTok zone (CONTRACTS 5.54)", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    const ratio = page.getByRole("group", { name: "Rasio" });
-    await expect(ratio.getByRole("radio", { name: /^9:16/ })).toBeChecked();
-    await formatFold(page).click();
-    const resolution = page.getByRole("group", { name: "Resolusi" });
+    const format = await openChip(page, "format");
+    const ratio = format.getByRole("radiogroup", { name: L("dashboard.format.ratio") });
+    const resolution = format.getByRole("radiogroup", { name: L("dashboard.format.resolution") });
+    await expect(ratio.getByRole("radio", { name: "9:16" })).toBeChecked();
     await expect(resolution.getByRole("radio", { name: "720p" })).toBeChecked();
-    await ratio.getByText("1:1", { exact: true }).click();
-    await resolution.getByText("1080p", { exact: true }).click();
-    await lookFold(page).click();
-    const preview = page.getByRole("img", { name: /^Pratinjau klip 1:1/ });
+    await ratio.getByRole("radio", { name: "1:1" }).click();
+    await resolution.getByRole("radio", { name: "1080p" }).click();
+    await page.keyboard.press("Escape");
+    await expect(chip(page, "format")).toHaveText("1:1 · 1080p");
+    const subtitle = await openChip(page, "subtitle");
+    const preview = subtitle.locator("[data-look-preview]");
     await expect(preview).toHaveAttribute("data-ratio", "1:1");
-    await expect(page.getByText("Area tombol TikTok", { exact: true })).toHaveCount(0);
+    await expect(subtitle.getByText(L("dashboard.look.zone"), { exact: true })).toHaveCount(0);
     const box = await preview.boundingBox();
     expect(Math.abs(box.width - box.height)).toBeLessThan(2);
-    await expect(formatFold(page)).toContainText("Bahasa Indonesia · 1080p");
-    await expect(submitButton(page)).toHaveAccessibleDescription(/1:1 · 1080p/);
-    await page.getByLabel("Link video").fill(LINK);
-    expect(await submitJob(page, posts)).toMatchObject({ outputSize: "1080x1080" });
+    await page.keyboard.press("Escape");
+    await link(page).fill(LINK);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
+    expect(await submitJob(page, posts)).toMatchObject({ outputSize: "1080x1080" });
   });
 
   test("with the editor on, the note says Edit klip changes the subtitle per clip", async ({ page }) => {
     await fakeDashboardApi(page, { editor: true });
     await openDashboard(page);
-    await lookFold(page).click();
-    await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok. Per klip bisa diubah lagi lewat Edit klip.", { exact: true })).toBeVisible();
-    await expect(page.getByRole("group", { name: "Gaya subtitle" })).toHaveAccessibleDescription(/Edit klip/);
+    const subtitle = await openChip(page, "subtitle");
+    const note = `${L("dashboard.look.inZone")} · ${L("dashboard.look.editor")}`;
+    await expect(subtitle.getByText(note, { exact: true })).toBeVisible();
+    await expect(subtitle.getByRole("radiogroup", { name: L("dashboard.chip.subtitleLabel") })).toHaveAccessibleDescription(note);
   });
 
   test("every pack, Atas/Tengah/Bawah and the size reach the job and the preview (CONTRACTS 5.48)", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await lookFold(page).click();
-    const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
-    const spot = page.getByRole("group", { name: "Posisi subtitle" });
-    const size = page.getByRole("group", { name: "Ukuran subtitle" });
-    await expect(spot.getByRole("radio", { name: "Bawah" })).toBeChecked();
-    await expect(size.getByRole("radio", { name: "Sedang" })).toBeChecked();
-    await choose(page, "Sorot");
-    await spot.getByText("Atas", { exact: true }).click();
-    await size.getByText("Besar", { exact: true }).click();
+    let subtitle = await openChip(page, "subtitle");
+    const advanced = L("dashboard.look.advanced", { position: L("dashboard.position.bottom"), size: L("dashboard.size.medium") });
+    await subtitle.getByText(advanced, { exact: true }).click();
+    const spot = subtitle.getByRole("radiogroup", { name: L("dashboard.look.position") });
+    const size = subtitle.getByRole("radiogroup", { name: L("dashboard.look.size") });
+    await expect(spot.getByRole("radio", { name: L("dashboard.position.bottom") })).toBeChecked();
+    await expect(size.getByRole("radio", { name: L("dashboard.size.medium") })).toBeChecked();
+    await subtitle.getByRole("radio", { name: L("dashboard.style.sorot") }).check();
+    await spot.getByRole("radio", { name: L("dashboard.position.top") }).click();
+    await size.getByRole("radio", { name: L("dashboard.size.large") }).click();
+    const preview = subtitle.locator("[data-look-preview]");
     await expect(preview).toHaveAttribute("data-pack", "sorot");
     await expect(preview).toHaveAttribute("data-position", "top");
     await expect(preview).toHaveAttribute("data-size", "large");
-    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Latar blur, subtitle Sorot besar di atas, teks hook di atas.");
     // Away from the bottom the subtitle is clear of the TikTok buttons, so that note goes.
-    await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toHaveCount(0);
-    await expect(lookFold(page)).toContainText("Sorot · Atas, Besar");
-    await page.getByLabel("Link video").fill(LINK);
+    await expect(subtitle.getByText(L("dashboard.look.inZone"), { exact: true })).toHaveCount(0);
+    await expect(subtitle.getByText(L("dashboard.look.advanced", { position: L("dashboard.position.top"), size: L("dashboard.size.large") }), { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await link(page).fill(LINK);
     expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "sorot", captionPosition: "top", captionSize: "large" });
 
     // The choice comes back on the next visit.
-    await page.reload();
-    await expect(page.getByText("AI aktif: uji", { exact: true })).toBeVisible();
-    await expect(lookFold(page)).toHaveAttribute("aria-expanded", "true");
-    await expect(lookFold(page)).toContainText("Sorot · Atas, Besar");
+    await reopenDashboard(page);
+    await expect(chip(page, "subtitle")).toHaveText(L("dashboard.chip.subtitle", { value: L("dashboard.style.sorot") }));
+    subtitle = await openChip(page, "subtitle");
+    await expect(subtitle.getByText(L("dashboard.look.advanced", { position: L("dashboard.position.top"), size: L("dashboard.size.large") }), { exact: true })).toBeVisible();
   });
 
   test("with the legacy engine (rollback) only Karaoke and Klasik at the bottom are offered and sent", async ({ page }) => {
     const posts = await fakeDashboardApi(page, { renderEngine: "legacy" });
     await openDashboard(page);
-    await lookFold(page).click();
-    const styles = page.getByRole("group", { name: "Gaya subtitle" }).getByRole("radio");
-    await expect(styles).toHaveCount(2);
-    await expect(page.getByRole("group", { name: "Posisi subtitle" })).toHaveCount(0);
-    await expect(page.getByRole("group", { name: "Ukuran subtitle" })).toHaveCount(0);
-    const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
-    await expect(preview).toHaveAttribute("data-position", "bottom");
-    await choose(page, "Klasik");
-    await page.getByLabel("Link video").fill(LINK);
+    const subtitle = await openChip(page, "subtitle");
+    await expect(subtitle.getByRole("radiogroup", { name: L("dashboard.chip.subtitleLabel") }).getByRole("radio")).toHaveCount(2);
+    await expect(subtitle.locator("details")).toHaveCount(0);
+    await expect(subtitle.locator("[data-look-preview]")).toHaveAttribute("data-position", "bottom");
+    await subtitle.getByRole("radio", { name: L("dashboard.style.classic") }).check();
+    await page.keyboard.press("Escape");
+    await link(page).fill(LINK);
     const sent = await submitJob(page, posts);
     expect(sent).toMatchObject({ captionStyle: "classic" });
     expect(sent).not.toHaveProperty("captionPosition");
     expect(sent).not.toHaveProperty("captionSize");
   });
 
-  test("at 360 px nothing scrolls sideways and every control is a 44 px target", async ({ page }) => {
+  test("AI not set up shows one alert with Atur AI; Proses ulang fills the chips from a job", async ({ page }) => {
+    const earlier = {
+      id: "00000000-0000-4000-8000-000000000201", status: "completed", progress: 100, createdAt: NOW, updatedAt: NOW,
+      source: { type: "youtube", url: LINK },
+      options: { selectionMode: "v3", renderMode: "face-track", limit: 6, minDuration: 30, maxDuration: 60, captionStyle: "bold", coldOpen: true, hookOverlay: false, outputSize: "1080x1920", videoLanguage: "en" },
+      clips: [],
+    };
+    await fakeDashboardApi(page, { jobs: [earlier], ai: { state: "unconfigured" } });
+    await login(page, "/dashboard");
+    await page.goto(`/dashboard?ulang=${earlier.id}`);
+    const alert = page.locator(".alert", { hasText: L("dashboard.ai.missing") });
+    await expect(alert).toBeVisible();
+    await expect(alert.getByRole("link", { name: L("dashboard.ai.setup") })).toHaveAttribute("href", "/settings#ai");
+    await expect(link(page)).toHaveValue(LINK);
+    await expect(chip(page, "count")).toHaveText(L("dashboard.chip.count", { count: 6 }));
+    await expect(chip(page, "duration")).toHaveText(L("dashboard.chip.duration", { value: L("dashboard.duration.medium") }));
+    await expect(chip(page, "format")).toHaveText("9:16 · 1080p");
+    await expect(chip(page, "layout")).toHaveText(L("dashboard.chip.layout", { value: L("layout.names.camera") }));
+    await expect(chip(page, "hook")).toHaveText(L("dashboard.chip.hook", { value: L("dashboard.hook.coldOpen") }));
+    await expect(chip(page, "language")).toHaveText(L("dashboard.language.en"));
+  });
+
+  test("Terbaru shows the newest projects as posters that open them", async ({ page }) => {
+    const jobs = [1, 2, 3, 4, 5].map((n) => ({
+      id: `00000000-0000-4000-8000-00000000030${n}`, status: n === 1 ? "processing" : "completed", progress: n === 1 ? 40 : 100,
+      createdAt: NOW, updatedAt: NOW, source: { type: "upload", name: `Podcast ${n}.mp4` }, options: { selectionMode: "v3" }, clips: [],
+    }));
+    await fakeDashboardApi(page, { jobs });
+    await openDashboard(page);
+    const recent = page.getByRole("region", { name: L("dashboard.recent") });
+    await expect(recent.getByRole("link", { name: /Podcast/ })).toHaveCount(4);
+    await expect(recent.getByRole("link", { name: /Podcast 1\.mp4/ })).toHaveAttribute("href", `/projects/${jobs[0].id}`);
+    await expect(recent.getByRole("link", { name: L("dashboard.allProjects") })).toHaveAttribute("href", "/projects");
+  });
+
+  test("at 360 px nothing scrolls sideways, every control is a 44 px target and Buat klip sits under the chips", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 780 });
     await fakeDashboardApi(page);
     await openDashboard(page);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
-    await choose(page, "Atur sendiri");
-    for (const button of [lookFold(page), momentsFold(page), formatFold(page)]) await button.click();
-    expect(await overflow(page)).toBeLessThanOrEqual(0);
-    // The controls this form adds: the source row, the folds, the presets, tiles and number fields.
     const small = await page.evaluate(() => [...document.querySelectorAll(
-      "#youtube-url, label:has(> #video-file), form[aria-label=\"Buat klip\"] button[type=submit], [aria-controls$=\"-options\"], form[aria-label=\"Buat klip\"] label:has(> input[type=radio]), form[aria-label=\"Buat klip\"] input[type=number]",
+      "#youtube-url, label:has(> #video-file), form button[type=submit], [data-chip]",
     )].filter((element) => element.getClientRects().length > 0).map((element) => {
       const box = element.getBoundingClientRect();
       return { control: element.id || element.textContent.trim().slice(0, 30), width: Math.round(box.width), height: Math.round(box.height) };
     }).filter((box) => box.width < 44 || box.height < 44));
     expect(small).toEqual([]);
-    // The link has the whole width; "Pilih file" and Buat klip share the line below it.
-    const link = await page.getByLabel("Link video").boundingBox();
-    const pick = await page.getByText("Pilih file", { exact: true }).boundingBox();
+    const lastChip = await chip(page, "language").boundingBox();
     const submit = await submitButton(page).boundingBox();
-    expect(pick.y).toBeGreaterThan(link.y + link.height - 1);
-    expect(Math.abs(pick.y - submit.y)).toBeLessThan(4);
+    expect(submit.y).toBeGreaterThan(lastChip.y + lastChip.height - 1);
+    expect(submit.width).toBeGreaterThan(300);
+    for (const id of ["duration", "subtitle", "focus"]) {
+      await openChip(page, id);
+      expect(await overflow(page)).toBeLessThanOrEqual(0);
+      await page.keyboard.press("Escape");
+    }
   });
 });

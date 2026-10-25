@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { expect } from "@playwright/test";
 
 import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
 // "Hook di video" on the project page (CONTRACTS §5.57): the switch in the caption box saves the
 // clip's document (POST …/hook) and exports the new revision (POST …/renders); the page reads the
@@ -73,7 +74,7 @@ async function fakeProject(target, { hook = { status: 200 }, second = { on: fals
 }
 
 const detail = (target) => target.locator("[data-clip-detail]");
-const caption = (target) => detail(target).getByRole("region", { name: "Caption" });
+const caption = (target) => detail(target).getByRole("region", { name: L("project.viewer.caption") });
 const hookSwitch = (target) => caption(target).getByRole("switch", { name: "Hook di video" });
 const posters = (target) => target.getByRole("article");
 const overflow = (target) => target.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -89,11 +90,13 @@ function axeSource() {
 }
 const AXE = axeSource();
 
+// The project opened on clip 1 in the clip viewer (?klip=1, 05-ui-dashboard.md §6.4).
 async function openProject(page, options) {
   const seen = await fakeProject(page, options);
   await login(page, "/projects");
-  await page.goto(`/projects/${JOB_ID}`);
+  await page.goto(`/projects/${JOB_ID}?klip=1`);
   await expect(posters(page)).toHaveCount(2);
+  await expect(detail(page)).toHaveAttribute("data-clip-detail", "1");
   return seen;
 }
 
@@ -135,7 +138,7 @@ test.describe("Hook di video (faked routes)", () => {
 
   test("a clip without a hook has no switch", async ({ page }) => {
     await openProject(page);
-    await posters(page).nth(1).getByRole("button").click();
+    await detail(page).getByRole("button", { name: L("aria.next") }).click();
     await expect(detail(page)).toHaveAttribute("data-clip-detail", "2");
     await expect(caption(page).getByRole("switch")).toHaveCount(0);
   });
@@ -155,7 +158,7 @@ test.describe("Hook di video (faked routes)", () => {
     await openProject(page);
     await expect(hookSwitch(page)).toBeVisible();
     await page.addScriptTag({ content: AXE });
-    const result = await page.evaluate(() => window.axe.run("#klip", { resultTypes: ["violations"] }));
+    const result = await page.evaluate(() => window.axe.run("[role=dialog]", { resultTypes: ["violations"] }));
     expect(result.violations.filter((violation) => ["serious", "critical"].includes(violation.impact))
       .map((violation) => violation.id)).toEqual([]);
   });

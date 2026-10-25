@@ -3,6 +3,7 @@ import { expect } from "@playwright/test";
 import {
   LOGIN_SUBMIT, expectPlaybackAdvances, login, resolveTarget, settings, skipWithoutCredentials, test,
 } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
 const projectPath = (jobId) => `/projects/${encodeURIComponent(jobId)}`;
 const RETIRED_CANDIDATE = `cand_${"0".repeat(64)}`;
@@ -34,8 +35,8 @@ test.describe("read-only production-safe flows", () => {
     const target = await resolveTarget(page);
     await page.goto(projectPath(target.jobId));
 
-    // One poster per clip; each opens its clip in the one detail panel, ready to post and saved
-    // under its "NN-judul" name.
+    // One poster per clip; each opens its clip in the clip viewer (05-ui-dashboard.md §6.4), ready
+    // to post and saved under its "NN-judul" name; Escape closes it again.
     const cards = page.getByRole("article");
     await expect(cards).toHaveCount(target.clipCount);
     const detail = page.locator("[data-clip-detail]");
@@ -43,13 +44,16 @@ test.describe("read-only production-safe flows", () => {
       const title = await card.locator("[id^='poster-'][id$='-title']").textContent();
       await card.getByRole("button").click();
       await expect(detail.getByRole("heading", { level: 3 })).toHaveText(title);
-      await expect(detail.getByRole("link", { name: "Unduh MP4" }))
+      await expect(detail.getByRole("link", { name: L("project.viewer.downloadMp4") }))
         .toHaveAttribute("href", /^\/api\/jobs\/[^/]+\/files\/output\/[^?]+\?download=1&name=\d{2,}-[a-z0-9]+(?:-[a-z0-9]+)*$/);
-      await expect(detail.getByRole("button", { name: "Salin caption" })).toBeVisible();
+      await expect(detail.getByRole("button", { name: L("project.viewer.copyCaption") })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(detail).toHaveCount(0);
     }
-    await expect(page.getByRole("button", { name: "Unduh semua" })).toBeVisible();
+    await expect(page.getByRole("button", { name: L("project.downloadAll") })).toBeVisible();
     await expect(page.getByText(/\bV[1-3]\b|Selection V|kandidat|Versi prompt|Kode peringatan/i)).toHaveCount(0);
-    await expectPlaybackAdvances(page.locator("video").first());
+    await cards.first().getByRole("button").click();
+    await expectPlaybackAdvances(detail.locator("video"));
   });
 
   test("an old candidate-editor link opens the project page", async ({ page }) => {

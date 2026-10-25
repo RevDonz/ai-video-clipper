@@ -1237,10 +1237,15 @@ async function mockProject(page, { clipsStatus = 200, context = false } = {}) {
   return posts;
 }
 
-// The project page shows one clip at a time in its detail panel (CONTRACTS §5.28): a clip's
-// poster opens it there, with everything the clip card used to hold.
+// The project page shows one clip at a time in its clip viewer (05-ui-dashboard.md §6.4): a
+// clip's poster opens it there, with everything the clip card used to hold. Escape closes an
+// open one first, since the viewer is a dialog over the page.
 async function projectClip(page, index) {
-  await page.getByRole("article").nth(index - 1).getByRole("button").click();
+  if (await page.locator("[data-clip-detail]").count()) {
+    await page.keyboard.press("Escape");
+    await expect(page.locator("[data-clip-detail]")).toHaveCount(0);
+  }
+  await page.locator(`[data-poster="${index}"]`).click();
   const detail = page.locator(`[data-clip-detail="${index}"]`);
   await expect(detail).toBeVisible();
   return detail;
@@ -1259,9 +1264,10 @@ test("project page: 'Edit klip' on every clip that can be edited, its badge and 
   await expect(detail.getByRole("link", { name: "Ekspor terakhir · revisi 3" })).toHaveAttribute("download", "klip-01-revisi-3.mp4");
   detail = await projectClip(page, 2);
   await expect(detail.getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_B}/edit`);
-  // "Edit klip" is the clip's first action.
-  const first = await detail.getByRole("link", { name: "Edit klip" }).evaluate((link) => link.parentElement.firstElementChild === link);
-  expect(first).toBe(true);
+  // "Edit klip" comes right after Unduh MP4, the viewer's one primary action (05 §6.4).
+  const afterDownload = await detail.getByRole("link", { name: "Edit klip" }).evaluate((link) => link.previousElementSibling === null
+    || (link.previousElementSibling.hasAttribute("download") && link.previousElementSibling === link.parentElement.firstElementChild));
+  expect(afterDownload).toBe(true);
   detail = await projectClip(page, 3);
   await expect(detail.getByRole("link", { name: "Edit klip" })).toHaveCount(0);
   await expect(detail.getByText("Video sumber sudah tidak ada")).toBeVisible();

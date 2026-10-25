@@ -517,7 +517,9 @@ test("Kemampuan 1, buka klip: every clip opens from its card, ids are stable, a 
   const opened = [];
   for (let index = 0; index < count; index += 1) {
     await page.goto(`/projects/${JOB_ID}`);
-    const link = page.getByRole("article").nth(index).getByRole("link", { name: "Edit klip" });
+    // A poster opens its clip in the project page's viewer, which holds Edit klip (05 §6.4).
+    await page.getByRole("article").nth(index).getByRole("button").click();
+    const link = page.locator("[data-clip-detail]").getByRole("link", { name: "Edit klip" });
     await expect(link).toBeVisible();
     const started = Date.now();
     await link.click();
@@ -548,10 +550,12 @@ test("Kemampuan 1, buka klip: every clip opens from its card, ids are stable, a 
   await page.goto(`/projects/${CLOSED_JOB_ID}`);
   const closedCard = page.getByRole("article").first();
   await expect(closedCard).toBeVisible({ timeout: 30_000 });
-  // The card names why the clip cannot be edited (the reason arrives with the clip listing).
+  // The clip's viewer names why the clip cannot be edited (the reason arrives with the clip listing).
   const anyReason = new RegExp([...CLOSED_REASONS].map((text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"));
-  await expect(closedCard).toContainText(anyReason, { timeout: 30_000 });
-  await expect(closedCard.getByRole("link", { name: "Edit klip" })).toHaveCount(0);
+  await closedCard.getByRole("button").click();
+  const closedViewer = page.locator("[data-clip-detail]");
+  await expect(closedViewer).toContainText(anyReason, { timeout: 30_000 });
+  await expect(closedViewer.getByRole("link", { name: "Edit klip" })).toHaveCount(0);
   await page.goto(`/projects/${CLOSED_JOB_ID}/clips/klip-1/edit`);
   await expect(page.getByRole("heading", { name: "Klip tidak bisa dibuka" })).toBeVisible({ timeout: 120_000 });
   const reason = (await page.locator("main p").first().textContent()).trim();
