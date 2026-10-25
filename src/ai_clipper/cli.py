@@ -338,8 +338,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = json.dumps(event, ensure_ascii=False)
             print(f"POTONGIN_PROGRESS {payload}", flush=True)
 
-        def emit_progress(stage: str, progress: int, detail: str) -> None:
+        def emit_progress(
+            stage: str,
+            progress: int,
+            detail: str,
+            *,
+            code: str | None = None,
+            params: dict[str, int] | None = None,
+        ) -> None:
+            # stage_code/stage_params (rombak 07 §10.4) only when the report has a code.
+            latest.pop("stage_code", None)
+            latest.pop("stage_params", None)
             latest.update(stage=stage, progress=progress, detail=detail)
+            if code is not None:
+                latest["stage_code"] = code
+                if params:
+                    latest["stage_params"] = params
             emit(latest)
 
         def emit_stage_summary(kind: str, values: dict[str, object]) -> None:
