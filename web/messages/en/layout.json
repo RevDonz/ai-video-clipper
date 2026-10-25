@@ -1,0 +1,9 @@
+{
+  "names": {
+    "auto": "Auto",
+    "camera": "Follow face",
+    "fill_center": "Center crop",
+    "fit_blur": "Blurred background",
+    "split": "Split screen"
+  }
+}
