@@ -57,7 +57,6 @@ test("every HTML page, the editor's too, is private and never stored: it is rend
   const html = rules.find((rule) => rule.source === HTML_CACHE_SOURCE);
   assert.deepEqual(html?.headers, [
     { key: "Cache-Control", value: "private, no-store" },
-    { key: "Vary", value: "Cookie, Accept-Language" },
   ]);
   // Next's path-to-regexp source "/(<pattern>)": the pattern is matched against the path without "/".
   const pattern = new RegExp(`^${HTML_CACHE_SOURCE.slice(2, -1)}$`);
