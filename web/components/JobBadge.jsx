@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "use-intl";
 
 import {
   INITIAL_BADGE_STATE,
@@ -10,6 +11,7 @@ import {
   badgeStateView,
   nextBadgeRequest,
 } from "../lib/job-badge.mjs";
+import { msg } from "../lib/i18n/descriptor.mjs";
 
 // The page's own requests go first: the badge starts reading once the browser is idle.
 function whenIdle(callback) {
@@ -37,6 +39,10 @@ async function read(request) {
  * link to that project; nothing without jobs. Reads only while the tab is visible.
  */
 export default function JobBadge() {
+  const t = useTranslations();
+  // The announcement is read in the UI language when the answer arrives (the reducer is pure).
+  const tRef = useRef(t);
+  tRef.current = t;
   const pathname = usePathname();
   const [state, setState] = useState(INITIAL_BADGE_STATE);
 
@@ -74,7 +80,7 @@ export default function JobBadge() {
       busy = false;
       if (!alive) return;
       current = badgeReducer(current, event);
-      setState(current);
+      setState({ ...current, announcement: current.outcomes.map((outcome) => msg(tRef.current, outcome)).join(". ") });
       if (refreshAfter) {
         refreshAfter = false;
         run({ kind: "list" });
@@ -111,11 +117,11 @@ export default function JobBadge() {
           title={view.title}
           data-kind={view.kind}
           data-tone={view.tone ?? undefined}
-          data-short={view.short}
+          data-short={msg(t, view.shortMessage)}
           aria-current={pathname === view.href ? "page" : undefined}
         >
           {view.kind === "running" && <span className="jobBadgeDot" aria-hidden="true" />}
-          <span className="jobBadgeText">{view.text}</span>
+          <span className="jobBadgeText">{msg(t, view.message)}</span>
         </a>
       )}
       <span className="visuallyHidden" aria-live="polite" aria-atomic="true">{state.announcement}</span>
