@@ -886,6 +886,20 @@ def fallback_frames(case: Case, plan: Any) -> frozenset[int]:
     return frozenset(sf for sf, shown in enumerate(flags) if shown)
 
 
+def hidden_index_frames(case: Case, plan: Any, fallback: frozenset[int]) -> frozenset[int]:
+    """Source-grid frames whose picture leaves out the barcode's index rows, so no frame index
+    can be read: a crop frame (face-track or potong tengah, not shown with the fit-blur
+    fallback) zoomed in (§5.52) crops the picture around its middle, and the index sits on the
+    source's first rows. Only the automatic layout has such frames among the P-FRAME cases (the
+    plain zoom cases are latar blur); ``p_frame_auto`` proves them md5-identical to the pure
+    chain of their mode instead."""
+    if case.zoom_pm == 1000:
+        return frozenset()
+    count = max(piece.out_sf for piece in plan.pieces)
+    return frozenset(sf for sf in range(count)
+                     if mode_at(case, sf) in ("camera", "fill_center") and sf not in fallback)
+
+
 def index_decoder(case: Case, layout: str | None = None) -> Callable[[bytes], int | None]:
     """Frame index of an output luma plane of ``case`` (``None`` when unreadable), read with
     the geometry of ``layout`` (default: the case's)."""
@@ -963,6 +977,7 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
             return grid[sf - first] if first <= sf < end else None
 
         fallback = fallback_frames(case, plan)
+        hidden = hidden_index_frames(case, plan, fallback)
         decoders = {False: index_decoder(case), True: index_decoder(case, "fit_blur")}
 
         def index_of(plane: bytes, sf: int, fallback=fallback, decoders=decoders) -> int | None:
@@ -976,7 +991,7 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
         cells = ws.cells(case)
         size = cells["cell_frames"]
         decoded: dict[int, list[int | None]] = {}
-        cell_frames = cell_mismatches = short_cells = padded = 0
+        cell_frames = cell_mismatches = short_cells = padded = hidden_cells = 0
         for k in cells["cells"]:
             path = cells["dir"] / f"c{k:07d}.mp4"
             decoded[k] = [index_of(p, k * size + i)
@@ -987,11 +1002,16 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
                 if k * size + i < low:  # below the document's window: never shown
                     padded += 1
                     continue
+                if k * size + i in hidden:  # the picture leaves the index out
+                    hidden_cells += 1
+                    continue
                 cell_frames += 1
                 cell_mismatches += value is None or value != at(k * size + i)
         plate_mismatches = 0
         for n in range(plan.total_frames):
             sf = tm.out_to_src(n, plan.pieces)[1]
+            if sf in hidden:
+                continue
             frames = decoded.get(sf // size, [])
             got = frames[sf % size] if sf % size < len(frames) else None
             plate_mismatches += got is None or got != expected[n]
@@ -1008,10 +1028,16 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
             "grid_undecodable": sum(value is None for value in grid),
             "output_frames": plan.total_frames,
             "final_frames": len(final),
+            "final_frames_checked": len(final) - sum(sources[n] in hidden
+                                                     for n in range(min(len(final), len(sources)))),
             "final_mismatches": sum(
-                a is None or a != b for a, b in zip(final, expected)
+                a is None or a != b for n, (a, b) in enumerate(zip(final, expected))
+                if sources[n] not in hidden
             ) + abs(len(final) - plan.total_frames),
             "plate_output_frames": plan.total_frames,
+            "plate_output_frames_checked": plan.total_frames - sum(sf in hidden for sf in sources),
+            "index_hidden_output_frames": sum(sf in hidden for sf in sources),
+            "index_hidden_cell_frames": hidden_cells,
             "plate_mismatches": plate_mismatches,
             "plate_cells": len(cells["cells"]),
             "plate_cell_frames_checked": cell_frames,
@@ -1036,9 +1062,12 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
         "plate_cells_with_wrong_length": sum(r["plate_cells_with_wrong_length"]
                                              for r in results),
         "grid_undecodable": sum(r["grid_undecodable"] for r in results),
+        "final_frames_checked": sum(r["final_frames_checked"] for r in results),
+        "plate_output_frames_checked": sum(r["plate_output_frames_checked"] for r in results),
+        "index_hidden_output_frames": sum(r["index_hidden_output_frames"] for r in results),
     }
-    passed = (totals["final_frames"] >= P_FRAME_MIN_FRAMES
-              and totals["plate_output_frames"] >= P_FRAME_MIN_FRAMES
+    passed = (totals["final_frames_checked"] >= P_FRAME_MIN_FRAMES
+              and totals["plate_output_frames_checked"] >= P_FRAME_MIN_FRAMES
               and not totals["final_mismatches"] and not totals["plate_mismatches"]
               and not totals["plate_cell_mismatches"]
               and not totals["plate_cells_with_wrong_length"]

@@ -98,6 +98,31 @@ def test_the_frames_an_auto_case_reads_with_the_fit_blur_geometry():
                  for sf in range(a, b)} & shown)
 
 
+def test_a_zoomed_crop_leaves_the_index_out_and_only_those_frames_go_unread():
+    from types import SimpleNamespace
+
+    from ai_clipper.edit_v2 import layouts
+
+    zoomed = next(case for case in AUTO_CASES if case.name == "auto_zoom_content")
+    pattern = media.Pattern.for_size(*zoomed.source_size)
+    # the crop starts below the index rows of the source (scaled by the picture's scale)
+    where = fi.geometry("camera", zoomed.picture, zoomed.output, zoomed.zoom_pm)
+    assert layouts.crop_y(zoomed.picture, zoomed.output, zoomed.zoom_pm) > 0
+    assert -where["top"] / where["scale"] > pattern.index_top
+    plan = SimpleNamespace(fps=fi.Fps(*zoomed.fps),
+                           pieces=[SimpleNamespace(in_sf=0, out_sf=zoomed.frames)],
+                           camera=fi.make_camera(30_000, zoomed.fps, zoomed.source_size,
+                                                 zoomed.output))
+    fallback = fi.fallback_frames(zoomed, plan)
+    hidden = fi.hidden_index_frames(zoomed, plan, fallback)
+    crops = {sf for a, b, mode in zoomed.ranges if mode != "fit_blur" for sf in range(a, b)}
+    assert hidden == crops - fallback and hidden
+    for case in (*fi.P_FRAME_CASES, *fi.SQUARE_CASES, *AUTO_CASES):
+        if case.zoom_pm == 1000:
+            assert not fi.hidden_index_frames(case, plan, frozenset()), case.name
+    assert all(case.layout == "fit_blur" for case in fi.P_FRAME_CASES if case.zoom_pm != 1000)
+
+
 @pytest.mark.parametrize("case", SPLIT_CASES, ids=[case.name for case in SPLIT_CASES])
 def test_the_top_band_shows_the_index(case):
     pattern = media.Pattern.for_size(*case.source_size)
