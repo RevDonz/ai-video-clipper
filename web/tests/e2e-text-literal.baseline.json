@@ -38,7 +38,7 @@
   "e2e/settings-logo.spec.mjs": 20,
   "e2e/settings-system.spec.mjs": 12,
   "e2e/settings-transcription.spec.mjs": 27,
-  "e2e/settings-watermark.spec.mjs": 27,
+  "e2e/settings-watermark.spec.mjs": 25,
   "e2e/settings-youtube-cookies.spec.mjs": 21,
   "e2e/smoke.spec.mjs": 2,
   "e2e/trends.spec.mjs": 95,

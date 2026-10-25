@@ -1,10 +1,11 @@
-// Pengaturan "Tentang sistem" (docs/editor/CONTRACTS.md §5.34). GET /api/settings/system is faked
+// Pengaturan → Sistem → Tentang sistem (docs/editor/CONTRACTS.md §5.34). GET /api/settings/system is faked
 // in the browser (page.route), so the values are fixed; the AI form keeps talking to the server.
 // Optional: AXE_CORE_PATH=<axe.min.js> runs axe on the section (skipped without it).
 import { expect } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 
-import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { openSettingsTab } from "./support/settings.mjs";
 
 const INFO = { ytDlp: "2026.8.19", ffmpeg: null, libass: null, whisperModel: "small", whisperModelCustom: false, commit: "becb712" };
 const AXE = process.env.AXE_CORE_PATH && existsSync(process.env.AXE_CORE_PATH) ? readFileSync(process.env.AXE_CORE_PATH, "utf8") : null;
@@ -27,7 +28,7 @@ test.describe("Tentang sistem", () => {
 
   test("shows the five values, unknown ones as 'tidak diketahui'", async ({ page }) => {
     await fakeSystem(page, [{ status: 200, body: INFO }]);
-    await login(page, "/settings");
+    await openSettingsTab(page, "system");
     const about = section(page);
     await about.scrollIntoViewIfNeeded();
     await expect(about.locator("dt")).toHaveText([/^yt-dlp/, /^FFmpeg/, /^libass/, /^Whisper/, /^Build/]);
@@ -38,7 +39,7 @@ test.describe("Tentang sistem", () => {
   test("axe finds nothing serious in the section", async ({ page }) => {
     test.skip(!AXE, "set AXE_CORE_PATH to an axe.min.js");
     await fakeSystem(page, [{ status: 200, body: INFO }]);
-    await login(page, "/settings");
+    await openSettingsTab(page, "system");
     await expect(section(page).locator("dd")).toHaveCount(5);
     await page.addScriptTag({ content: AXE });
     const violations = await page.evaluate(async () => {
@@ -59,7 +60,7 @@ test.describe("Tentang sistem after a failed load", () => {
       { status: 500, body: { error: "Info sistem tidak bisa dibaca", code: "system_info_failed" } },
       { status: 200, body: INFO },
     ]);
-    await login(page, "/settings");
+    await openSettingsTab(page, "system");
     const about = section(page);
     await expect(about.getByRole("alert")).toHaveText(/Info sistem tidak bisa dimuat\./);
     const retry = about.getByRole("button", { name: "Coba lagi" });
@@ -76,7 +77,7 @@ test.describe("Tentang sistem at 390 px", () => {
 
   test("fits the phone: no horizontal scroll, every value inside the screen", async ({ page }) => {
     await fakeSystem(page, [{ status: 200, body: { ...INFO, ytDlp: "2026.08.19.232845.dev0" } }]);
-    await login(page, "/settings");
+    await openSettingsTab(page, "system");
     const values = section(page).locator("dd");
     await expect(values).toHaveCount(5);
     await section(page).scrollIntoViewIfNeeded();

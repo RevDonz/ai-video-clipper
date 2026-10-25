@@ -1,9 +1,12 @@
-// Pengaturan "Transkripsi" (docs/operations/TRANSCRIPTION.md, "Transkripsi lewat Groq").
-// /api/settings/transcription is faked in the browser (page.route), so nothing on the server
+// Pengaturan → Transkripsi (docs/operations/TRANSCRIPTION.md, "Transkripsi lewat Groq"). Since the
+// tabbed Pengaturan (05-ui-dashboard.md §6.10) the switch and the key are drafts saved by the save
+// bar. /api/settings/transcription is faked in the browser (page.route), so nothing on the server
 // changes. Every key here is a made-up value.
 import { expect } from "@playwright/test";
 
-import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
+import { openSettingsTab, saveBar, saveSettings, unsavedTab } from "./support/settings.mjs";
 
 const ENDPOINT = "**/api/settings/transcription";
 const SAVED_AT = "2026-10-21T09:00:00.000Z";
@@ -39,15 +42,22 @@ test.describe("Transkripsi", () => {
 
   test("off by default, says where the audio goes, and saves the switch and a key", async ({ page }) => {
     const seen = await fakeTranscription(page, { ...OFF });
-    await login(page, "/settings");
+    await openSettingsTab(page, "transcription");
     const section = card(page);
     await section.scrollIntoViewIfNeeded();
-    const toggle = section.getByRole("checkbox", { name: "Transkrip lewat Groq" });
+    const toggle = section.getByRole("switch", { name: "Transkrip lewat Groq" });
     await expect(toggle).not.toBeChecked();
     await expect(section).toContainText("Audio video dikirim ke Groq, layanan pihak ketiga.");
 
-    await toggle.check();
+    // The switch's <input> is visually hidden; its label is the target (as in ui-kit.spec).
+    await section.getByText(L("settings.transcription.groq"), { exact: true }).click();
+    await expect(toggle).toBeChecked();
+    // Nothing is sent before Simpan; the tab says it has unsaved changes.
+    expect(seen.puts).toEqual([]);
+    await expect(unsavedTab(page, "transcription")).toBeVisible();
+    await saveSettings(page);
     await expect(section.getByRole("status")).toHaveText("Tersimpan. Isi API key Groq supaya Groq bisa dipakai.");
+    await expect(saveBar(page)).toHaveCount(0);
     await expect(section).toContainText("Isi API key Groq. Tanpa key, Whisper di server ini yang dipakai.");
     expect(seen.puts).toEqual([{ enabled: true, apiKey: { action: "keep" } }]);
 
@@ -59,22 +69,24 @@ test.describe("Transkripsi", () => {
     await expect(keyField(section)).toHaveCount(0);
 
     await section.getByRole("button", { name: "Hapus" }).click();
+    await expect(section).toContainText(L("settings.common.keyRemovedOnSave"));
+    await saveSettings(page);
     await expect(section.getByRole("status")).toHaveText("API key dihapus.");
     expect(seen.puts[2]).toEqual({ enabled: true, apiKey: { action: "clear" } });
   });
 
   test("a Groq key from Pengaturan AI needs no field here", async ({ page }) => {
     await fakeTranscription(page, { ...OFF, enabled: true, key: "llm", llmKey: true, updatedAt: SAVED_AT });
-    await login(page, "/settings");
+    await openSettingsTab(page, "transcription");
     const section = card(page);
     await expect(section).toContainText("Memakai API key Groq dari Pengaturan AI.");
     await expect(keyField(section)).toHaveCount(0);
-    await expect(section.getByRole("checkbox", { name: "Transkrip lewat Groq" })).toBeChecked();
+    await expect(section.getByRole("switch", { name: "Transkrip lewat Groq" })).toBeChecked();
   });
 
   test("a stored key that no longer opens asks to be filled again", async ({ page }) => {
     await fakeTranscription(page, { ...OFF, enabled: true, key: "unreadable", ownKey: true, updatedAt: SAVED_AT });
-    await login(page, "/settings");
+    await openSettingsTab(page, "transcription");
     const section = card(page);
     await expect(section.getByRole("alert")).toHaveText("API key Groq tersimpan tidak bisa dibuka. Isi ulang.");
     await section.getByRole("button", { name: "Isi ulang" }).click();
@@ -85,7 +97,7 @@ test.describe("Transkripsi", () => {
 
   test("without the sealing secret the key field stays off", async ({ page }) => {
     await fakeTranscription(page, { ...OFF, secretConfigured: false });
-    await login(page, "/settings");
+    await openSettingsTab(page, "transcription");
     const section = card(page);
     await expect(section.getByRole("alert")).toContainText("Kunci enkripsi pengaturan belum tersedia");
     await expect(section.getByLabel("API key Groq")).toBeDisabled();
@@ -100,12 +112,15 @@ test.describe("Transkripsi refusals", () => {
     await fakeTranscription(page, { ...OFF }, {
       put: { status: 422, body: { error: "API key harus berupa teks ASCII tanpa spasi (maks. 4096 karakter).", code: "invalid" } },
     });
-    await login(page, "/settings");
+    await openSettingsTab(page, "transcription");
     const section = card(page);
     await section.getByLabel("API key Groq").fill("dua kata");
-    await section.getByRole("button", { name: "Simpan key Groq" }).click();
+    await saveSettings(page);
     await expect(section.getByRole("alert")).toHaveText("API key harus berupa teks ASCII tanpa spasi (maks. 4096 karakter).");
-    await expect(section.getByRole("checkbox", { name: "Transkrip lewat Groq" })).not.toBeChecked();
+    await expect(section.getByRole("switch", { name: "Transkrip lewat Groq" })).not.toBeChecked();
+    // The bar stays, says one card failed, and the draft is kept for another try.
+    await expect(saveBar(page)).toContainText(L("settings.bar.failed", { count: 1 }));
+    await expect(section.getByLabel("API key Groq").and(section.locator("input"))).toHaveValue("dua kata");
   });
 
   test("a failed load says so, and Coba lagi loads the card", async ({ page }) => {
@@ -116,11 +131,11 @@ test.describe("Transkripsi refusals", () => {
       const body = calls === 1 ? { error: "x", code: "settings_unavailable" } : OFF;
       return route.fulfill({ status: calls === 1 ? 503 : 200, contentType: "application/json", body: JSON.stringify(body) });
     });
-    await login(page, "/settings");
+    await openSettingsTab(page, "transcription");
     const section = card(page);
     await expect(section.getByRole("alert")).toHaveText(/Pengaturan transkripsi tidak bisa dimuat\./);
     await section.getByRole("button", { name: "Coba lagi" }).click();
-    await expect(section.getByRole("checkbox", { name: "Transkrip lewat Groq" })).toBeVisible();
+    await expect(section.getByRole("switch", { name: "Transkrip lewat Groq" })).toBeVisible();
     expect(calls).toBe(2);
   });
 });
@@ -131,7 +146,7 @@ test.describe("Transkripsi at 390 px", () => {
 
   test("fits the phone: no horizontal scroll, buttons at least 44 px tall", async ({ page }) => {
     await fakeTranscription(page, { ...OFF, enabled: true, key: "own", ownKey: true, updatedAt: SAVED_AT });
-    await login(page, "/settings");
+    await openSettingsTab(page, "transcription");
     const section = card(page);
     await section.scrollIntoViewIfNeeded();
     await expect(section.getByRole("button", { name: "Ganti" })).toBeVisible();
