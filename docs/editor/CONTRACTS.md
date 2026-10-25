@@ -5377,6 +5377,30 @@ open the neighbour clip on the same tab (`panelHref`). The localStorage key
   it. On the fakes only (dev and CI), the e2e scenario's `shell` picks the shell, so one gates
   server runs the specs of both.
 
+### Transcript (Fase 10 F2)
+
+- Always on screen, never a tab: `TranscriptPanel` with `layout="shell"` (the old shell's
+  transcript is the default, unchanged until F10). Its head (`transcript/TranscriptHead.jsx`)
+  names it, has **Kata | Baris** (React Aria `ToggleButtonGroup`, one view always chosen; Kata on
+  open, Baris for an old `?card=lines` link) and the **Rapikan n** / **Ejaan n** buttons (n once
+  the list is loaded or the check done; Ejaan only with the editor's LLM).
+- The word toolbar of the one layout (`word-toolbar.mjs`, `layout: "shell"`): on the bar the cut
+  actions that apply (Hapus, Pulihkan, Perpanjang ke sini; the primary one, off with its reason,
+  when none does), then Edit kata, Mulai di sini, Akhiri di sini; behind ⋯ Kata kunci and
+  Sembunyikan dari caption (checkbox items) and Jadikan cold open. Ctrl/Cmd+click stays the
+  one-click Kata kunci. Every action runs the same command as its key.
+- Baris (`transcript/LinesView.jsx`, which Mode Cepat's Teks caption card now renders too): one
+  field per `captionRows` line; Enter, blur or Tab commits the line as word edits under one merge
+  key (one Urungkan); a deleted word is only hidden from the caption (`SetWordHidden`, the sound
+  stays) and its line shows "Disembunyikan" while it keeps such words (`hiddenIds`); retyping one
+  unhides it.
+- Rapikan and Ejaan share one drawer (`transcript/ReviewDrawer.jsx`, a React Aria modal on the
+  right edge, tabs Rapikan and Ejaan): the open tab's list is the only one that runs, the
+  transcript marks Rapikan's proposals while that tab is open, Terapkan (n) is one Urungkan,
+  Escape, a click beside it or Tutup closes it and focus returns to its button, and the editor's
+  global keys wait while it is open. Rapikan's checked defaults are unchanged (only `gap_silent`).
+- Segment separators and `seg` on the selection come with several bodies (F6, §5.66).
+
 ### Kit (Fase 10 F0)
 
 - The editor takes HeroUI v3 and React Aria through its own CSS entry `web/app/editor.css`,
@@ -5423,5 +5447,9 @@ contrast, forced colours per component. F1 onwards: `editor-layout-shell.spec.mj
 the gates run), `editor-click-budget.spec.mjs` (table `web/e2e/support/click-budget.mjs`, one
 entry per 06 §10 row, checked by `editor-click-budget-table.test.mjs`), unit `editor-disclosure`,
 `editor-url-state`, `editor-layout-shell`, `editor-store` (`readEditorFlags.shell`), PF-PLAY,
-PF-SEEK; `editor-disclosure.spec.mjs` from the first panel with a Lanjutan fold (F3);
+PF-SEEK. F2: `editor-transcript-shell.spec.mjs`, `editor-lines.spec.mjs` (the successor of
+`editor-quick-lines.spec.mjs`), the click-budget rows 10, 11, 21–32 and 78, unit
+`editor-transcript-shell` and `editor-word-toolbar`, with the old shell's `editor-transcript`,
+`editor-cleanup`, `editor-spelling`, `editor-scrubber`, `editor-markers` and `editor-acceptance`
+still green; `editor-disclosure.spec.mjs` from the first panel with a Lanjutan fold (F3);
 `parity-text` and the `id` screenshots unchanged (rombak 08 Fase 10).
