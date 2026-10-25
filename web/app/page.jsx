@@ -1,108 +1,124 @@
 import Brand from "../components/Brand.jsx";
 import LandingClip from "../components/LandingClip.jsx";
 import { PACK_IMAGES, imageSrc } from "../components/editor/panels/pack-images.js";
-import { CAPTION_STYLE_CHOICES, LAYOUT_CHOICES } from "../lib/dashboard-choices.mjs";
+import { getLocale, getT } from "../lib/i18n/server.mjs";
 import { LANDING_MEDIA } from "../lib/landing-media.mjs";
 import styles from "./landing.module.css";
 
-// What a job does today, in the order it runs (web/scripts/run-job.mjs, src/ai_clipper), and who
-// does each part: the person at both ends, the server in between.
-const steps = [
-  ["anda", "Tempel link atau unggah", "Link YouTube atau file MP4, MOV, MKV, WEBM. Pilih jumlah klip, durasi, dan layout."],
-  ["potongin", "Ambil dan transkrip", "Subtitle YouTube kalau rapi, selain itu Whisper di server sendiri."],
-  ["potongin", "Pilih momen", "AI dari penyedia yang Anda atur menilai hook tiap momen. Tanpa AI, heuristik lokal yang memilih."],
-  ["potongin", "Render", "Klip 9:16 atau 1:1 dengan subtitle, teks hook, dan kalimat terkuat di depan."],
-  ["anda", "Cek dan unduh", "Tonton di panel Hasil, rapikan di editor kalau perlu, lalu unduh MP4 dan salin caption."],
-];
-const ACTOR = { anda: "Anda", potongin: "Potongin" };
-
-// Tata letak: the three the dashboard offers (named as the editor names them), then the editor's own.
-const layouts = [
-  ...LAYOUT_CHOICES.map((layout) => [layout.id, layout.name, layout.description]),
-  ["split", "Layar terbagi", "Dua potongan bertumpuk, 30/70 atau 50/50. Diatur per klip di editor."],
-];
-
-// Smaller features, each one sentence: a list, not cards, because none needs a picture.
-const extras = [
-  ["Cari momen tentang topik", "Isi kata kunci seperti “prank” atau “tips kerja”. Klip yang membahasnya didahulukan dan diberi label."],
-  ["Rentang waktu sendiri", "Tulis 10.30-12.05 dan rentang itu jadi satu klip apa adanya; sisa slot diisi momen lain."],
-  ["Konteks Tren", "Tren yang sedang ramai ikut dipakai untuk judul, hook, dan hashtag kalau transkripnya menyebutnya."],
-  ["Kalimat terkuat di depan", "Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal."],
-];
+// The public landing (rombak 07 §8.3: a server component on getT). The copy is in
+// messages/*/landing.json, the layout names in layout.json and the caption style names in
+// dashboard.json, so the page reads in the visitor's language.
 
 // The example's footage, an open film (docs/design/LANDING.md), credited where it is shown and
 // in the footer as its licence asks.
 const FILM_PAGE = "https://commons.wikimedia.org/wiki/File:Elephants_Dream_(2006)_1080p24.webm";
+const LICENSE_PAGE = "https://creativecommons.org/licenses/by/2.5/";
 
-export default function LandingPage() {
+// The layout classes of the drawings (landing.module.css), by layout mode: the three Buat klip
+// offers, then the editor's own.
+const LAYOUT_FRAMES = Object.freeze([["fit_blur", "fit-blur"], ["camera", "face-track"], ["fill_center", "center-crop"], ["split", "split"]]);
+// The letter of the brand mark (components/Brand.jsx draws the same one): a glyph, not copy.
+const BRAND_MARK = "P";
+const STYLE_IDS = Object.freeze(["classic", "karaoke", "bold", "box", "sorot", "sinar"]);
+
+export const dynamic = "force-dynamic";
+
+export default async function LandingPage() {
   const { hasil, editor, sebelum } = LANDING_MEDIA;
+  const locale = await getLocale();
+  const t = await getT(locale, "landing");
+  const tLayout = await getT(locale, "layout");
+  const tChoice = await getT(locale, "dashboard");
+  const film = (chunks) => <a href={FILM_PAGE}>{chunks}</a>;
+
+  // What a job does today, in the order it runs (web/scripts/run-job.mjs, src/ai_clipper), and who
+  // does each part: the person at both ends, the server in between.
+  const steps = [
+    ["anda", "source", t("how.source.title"), t("how.source.text")],
+    ["potongin", "transcript", t("how.transcript.title"), t("how.transcript.text")],
+    ["potongin", "moments", t("how.moments.title"), t("how.moments.text")],
+    ["potongin", "render", t("how.render.title"), t("how.render.text")],
+    ["anda", "review", t("how.review.title"), t("how.review.text")],
+  ];
+  const actors = { anda: t("how.you"), potongin: t("how.potongin") };
+  const layoutNames = { fit_blur: tLayout("names.fit_blur"), camera: tLayout("names.camera"), fill_center: tLayout("names.fill_center"), split: tLayout("names.split") };
+  const layoutTexts = { fit_blur: t("looks.layout.fit_blur"), camera: t("looks.layout.camera"), fill_center: t("looks.layout.fill_center"), split: t("looks.layout.split") };
+  const styleNames = {
+    classic: tChoice("style.classic"), karaoke: tChoice("style.karaoke"), bold: tChoice("style.bold"),
+    box: tChoice("style.box"), sorot: tChoice("style.sorot"), sinar: tChoice("style.sinar"),
+  };
+  const styleTexts = {
+    classic: t("looks.style.classic"), karaoke: t("looks.style.karaoke"), bold: t("looks.style.bold"),
+    box: t("looks.style.box"), sorot: t("looks.style.sorot"), sinar: t("looks.style.sinar"),
+  };
+  // Smaller features, each one sentence: a list, not cards, because none needs a picture.
+  const extras = [
+    ["focus", t("features.focus.title"), t("features.focus.text")],
+    ["ranges", t("features.ranges.title"), t("features.ranges.text")],
+    ["trends", t("features.trends.title"), t("features.trends.text")],
+    ["coldOpen", t("features.coldOpen.title"), t("features.coldOpen.text")],
+  ];
+
   return (
     <main className={styles.landing}>
       <header className={`${styles.shell} ${styles.nav}`}>
         <Brand />
-        <nav className={styles.navLinks} aria-label="Bagian halaman">
-          <a href="#contoh">Contoh</a>
-          <a href="#cara-kerja">Cara kerja</a>
-          <a href="#gaya">Gaya</a>
-          <a href="#fitur">Fitur</a>
-          <a href="#privasi">Privasi</a>
+        <nav className={styles.navLinks} aria-label={t("nav.label")}>
+          <a href="#contoh">{t("nav.example")}</a>
+          <a href="#cara-kerja">{t("nav.how")}</a>
+          <a href="#gaya">{t("nav.looks")}</a>
+          <a href="#fitur">{t("nav.features")}</a>
+          <a href="#privasi">{t("nav.privacy")}</a>
         </nav>
-        <a className={styles.navCta} href="/dashboard">Buat klip</a>
+        <a className={styles.navCta} href="/dashboard">{t("nav.cta")}</a>
       </header>
 
       <section className={`${styles.shell} ${styles.hero}`} aria-labelledby="hero-title">
-        <h1 id="hero-title">Tempel link,<br /><em>klipnya menyusul.</em></h1>
+        <h1 id="hero-title">{t("hero.title1")}<br /><em>{t("hero.title2")}</em></h1>
         <div className={styles.heroCopy}>
-          <p>Potongin mencari momen dengan hook terkuat di video panjang berbahasa Indonesia atau Inggris, memotongnya ke 9:16 atau 1:1, lalu menambah subtitle, teks hook, dan caption siap salin.</p>
+          <p>{t("hero.body")}</p>
           <div className={styles.actions}>
-            <a className={styles.primary} href="/dashboard">Mulai potong video</a>
-            <a className={styles.secondary} href="#contoh">Lihat contohnya</a>
+            <a className={styles.primary} href="/dashboard">{t("hero.start")}</a>
+            <a className={styles.secondary} href="#contoh">{t("hero.see")}</a>
           </div>
         </div>
       </section>
 
       <section className={`${styles.shell} ${styles.example}`} id="contoh" aria-labelledby="contoh-title">
         <div className={styles.exampleHead}>
-          <h2 id="contoh-title">Satu adegan, sebelum dan sesudah.</h2>
-          <p>Video 16:9 masuk, klip 9:16 keluar. Potongan mengikuti wajah, teks hook di atas, subtitle menyala per kata.</p>
+          <h2 id="contoh-title">{t("example.title")}</h2>
+          <p>{t("example.body")}</p>
         </div>
         <div className={styles.stage}>
           <figure className={styles.before}>
             <div className={styles.beforeFrame}>
-              <img
-                src={sebelum.src}
-                width={sebelum.width}
-                height={sebelum.height}
-                fetchPriority="high"
-                alt="Frame 16:9 dari Elephants Dream menit 8:09: Emo membungkuk di antara kabel, di sisi kiri gambar."
-              />
+              <img src={sebelum.src} width={sebelum.width} height={sebelum.height} fetchPriority="high" alt={t("example.beforeAlt")} />
               {/* The 9:16 window the clip took from this frame: it glides from the middle to the figure. */}
               <span className={styles.crop} aria-hidden="true"><b>9:16</b></span>
             </div>
             <div className={styles.track} aria-hidden="true">
               <span className={styles.marker}><b>8:09</b></span>
             </div>
-            <figcaption className={styles.stageBar}><strong>Sebelum</strong><span>Video 16:9, menit 8:09 dari film 10:58</span></figcaption>
+            <figcaption className={styles.stageBar}><strong>{t("example.before")}</strong><span>{t("example.beforeNote")}</span></figcaption>
           </figure>
           <span className={styles.flow} aria-hidden="true" />
-          <LandingClip className={styles.after} frameClassName={styles.phone} barClassName={styles.stageBar} buttonClassName={styles.pause}>
-            <strong>Sesudah</strong><span>11 detik pertama klip 1:03</span>
+          <LandingClip className={styles.after} frameClassName={styles.phone} barClassName={styles.stageBar} buttonClassName={styles.pause}
+            labels={{ video: t("example.video"), play: t("example.play"), pause: t("example.pause") }}>
+            <strong>{t("example.after")}</strong><span>{t("example.afterNote")}</span>
           </LandingClip>
         </div>
-        <p className={styles.exampleNote}>
-          Sumber: film terbuka <a href={FILM_PAGE}>Elephants Dream</a> (2006), dialog bahasa Inggris. Klip ini dibuat tanpa AI: heuristik lokal memilih momennya, tata letak Ikuti wajah. Di halaman ini tanpa suara.
-        </p>
+        <p className={styles.exampleNote}>{t.rich("example.note", { film })}</p>
       </section>
 
       <section className={`${styles.shell} ${styles.process}`} id="cara-kerja" aria-labelledby="cara-kerja-title">
         <div className={styles.sectionHead}>
-          <h2 id="cara-kerja-title">Anda memilih, server mengerjakan.</h2>
-          <p>Dua langkah ada di tangan Anda, di awal dan di akhir. Di antaranya Potongin bekerja sendiri dan progresnya tampil per tahap.</p>
+          <h2 id="cara-kerja-title">{t("how.title")}</h2>
+          <p>{t("how.body")}</p>
         </div>
         <ol className={styles.lanes}>
-          {steps.map(([actor, title, text]) => (
-            <li key={title} data-actor={actor}>
-              <span className={styles.actor}>{ACTOR[actor]}</span>
+          {steps.map(([actor, id, title, text]) => (
+            <li key={id} data-actor={actor}>
+              <span className={styles.actor}>{actors[actor]}</span>
               <strong>{title}</strong>
               <p>{text}</p>
             </li>
@@ -112,26 +128,26 @@ export default function LandingPage() {
 
       <section className={`${styles.shell} ${styles.looks}`} id="gaya" aria-labelledby="gaya-title">
         <div className={styles.sectionHead}>
-          <h2 id="gaya-title">Gaya subtitle yang siap pakai.</h2>
-          <p>Contoh di bawah dirender dari gaya yang sama dengan klipnya. Posisi atas, tengah, atau bawah dalam tiga ukuran; per klip bisa diubah lagi di editor.</p>
+          <h2 id="gaya-title">{t("looks.title")}</h2>
+          <p>{t("looks.body")}</p>
         </div>
         <ul className={styles.styleList}>
-          {CAPTION_STYLE_CHOICES.map((style) => (
-            <li key={style.id}>
-              <img src={imageSrc(PACK_IMAGES[style.id])} width={320} height={80} loading="lazy" decoding="async" alt={`Gaya ${style.name}: tulisan “Halo semua” seperti tampil di klip.`} />
-              <strong>{style.name}</strong>
-              <span>{style.description}</span>
+          {STYLE_IDS.map((id) => (
+            <li key={id}>
+              <img src={imageSrc(PACK_IMAGES[id])} width={320} height={80} loading="lazy" decoding="async" alt={t("looks.styleAlt", { name: styleNames[id] })} />
+              <strong>{styleNames[id]}</strong>
+              <span>{styleTexts[id]}</span>
             </li>
           ))}
         </ul>
         <div className={styles.layoutRow}>
-          <h3>Tata letak</h3>
+          <h3>{t("looks.layoutsTitle")}</h3>
           <ul className={styles.layoutList}>
-            {layouts.map(([id, name, text]) => (
-              <li key={id}>
-                <span className={`${styles.frame} ${styles[id]}`} aria-hidden="true"><i /><i /></span>
-                <strong>{name}</strong>
-                <span>{text}</span>
+            {LAYOUT_FRAMES.map(([mode, frame]) => (
+              <li key={mode}>
+                <span className={`${styles.frame} ${styles[frame]}`} aria-hidden="true"><i /><i /></span>
+                <strong>{layoutNames[mode]}</strong>
+                <span>{layoutTexts[mode]}</span>
               </li>
             ))}
           </ul>
@@ -139,43 +155,29 @@ export default function LandingPage() {
       </section>
 
       <section className={`${styles.shell} ${styles.features}`} id="fitur" aria-labelledby="fitur-title">
-        <h2 id="fitur-title" className={styles.featuresTitle}>Yang dikerjakan Potongin</h2>
+        <h2 id="fitur-title" className={styles.featuresTitle}>{t("features.title")}</h2>
         <article className={styles.showcase} aria-labelledby="hasil-title">
           <div className={styles.showcaseCopy}>
-            <h3 id="hasil-title">Klip yang siap diunggah</h3>
-            <p>Setiap klip datang dengan judul, deskripsi, hashtag, teks hook, dan skornya. Salin caption atau unduh MP4 langsung dari panel Hasil.</p>
+            <h3 id="hasil-title">{t("features.results.title")}</h3>
+            <p>{t("features.results.body")}</p>
           </div>
           <div className={styles.shot}>
-            <img
-              src={hasil.src}
-              width={hasil.width}
-              height={hasil.height}
-              loading="lazy"
-              decoding="async"
-              alt="Panel Hasil Potongin: tiga klip 9:16 dari film Elephants Dream, klip kedua terbuka dengan teks hook dan skornya."
-            />
+            <img src={hasil.src} width={hasil.width} height={hasil.height} loading="lazy" decoding="async" alt={t("features.results.alt")} />
           </div>
         </article>
         <article className={`${styles.showcase} ${styles.showcaseEditor}`} aria-labelledby="editor-title">
           <div className={styles.showcaseCopy}>
-            <h3 id="editor-title">Editor</h3>
-            <p>Buka klip mana pun dari panel Hasil. Potong per kata dari transkrip, ganti teks hook dan gaya caption, atur cold open, tambah logo dan musik, lalu ekspor ulang.</p>
-            <p className={styles.editorNote}>Editor butuh layar minimal 1024 px.</p>
+            <h3 id="editor-title">{t("features.editor.title")}</h3>
+            <p>{t("features.editor.body")}</p>
+            <p className={styles.editorNote}>{t("features.editor.note")}</p>
           </div>
           <div className={styles.shot}>
-            <img
-              src={editor.src}
-              width={editor.width}
-              height={editor.height}
-              loading="lazy"
-              decoding="async"
-              alt="Editor Potongin, Mode Lengkap: ikon alat di kiri, pratinjau klip 9:16 di tengah, transkrip per kata di kanan, timeline di bawah."
-            />
+            <img src={editor.src} width={editor.width} height={editor.height} loading="lazy" decoding="async" alt={t("features.editor.alt")} />
           </div>
         </article>
         <dl className={styles.extras}>
-          {extras.map(([title, text]) => (
-            <div key={title}>
+          {extras.map(([id, title, text]) => (
+            <div key={id}>
               <dt>{title}</dt>
               <dd>{text}</dd>
             </div>
@@ -185,34 +187,34 @@ export default function LandingPage() {
 
       <section className={styles.privacy} id="privasi" aria-labelledby="privasi-title">
         <div className={`${styles.shell} ${styles.privacyInner}`}>
-          <h2 id="privasi-title">Video Anda tetap di server Anda.</h2>
+          <h2 id="privasi-title">{t("privacy.title")}</h2>
           <div className={styles.privacyCopy}>
-            <p>Video, audio, dan hasil render disimpan di server sendiri. Yang dikirim ke penyedia AI hanya teks transkrip, ditambah kata kunci fokus dan tren kalau dipakai, dan hanya ke penyedia yang Anda atur. Audio hanya keluar dari server kalau Anda menyalakan transkripsi lewat Groq di Pengaturan. Matikan AI di Pengaturan, semua pemrosesan tetap berjalan di server.</p>
+            <p>{t("privacy.body")}</p>
             <ul>
-              <li>Riwayat proyek tersimpan dan bisa dihapus.</li>
-              <li>AI bisa dibatasi ke model gratis.</li>
-              <li>Tanpa AI, momen tetap dipilih heuristik lokal.</li>
+              <li>{t("privacy.projects")}</li>
+              <li>{t("privacy.free")}</li>
+              <li>{t("privacy.local")}</li>
             </ul>
           </div>
         </div>
       </section>
 
       <section className={`${styles.shell} ${styles.final}`} aria-labelledby="final-title">
-        <span className={styles.mark} aria-hidden="true">P</span>
-        <h2 id="final-title">Lebih sedikit edit manual.<br /><em>Lebih banyak klip terbit.</em></h2>
-        <a className={styles.primary} href="/dashboard">Mulai potong video</a>
+        <span className={styles.mark} aria-hidden="true">{BRAND_MARK}</span>
+        <h2 id="final-title">{t("final.title1")}<br /><em>{t("final.title2")}</em></h2>
+        <a className={styles.primary} href="/dashboard">{t("final.cta")}</a>
       </section>
 
       <footer className={`${styles.shell} ${styles.footer}`}>
         <Brand />
-        <p>Klip pendek dari video panjang, diproses di server sendiri.</p>
-        <nav aria-label="Tautan aplikasi">
-          <a href="/dashboard">Buat klip</a>
-          <a href="/projects">Riwayat</a>
-          <a href="/bantuan">Bantuan</a>
+        <p>{t("footer.tagline")}</p>
+        <nav aria-label={t("footer.nav")}>
+          <a href="/dashboard">{t("footer.create")}</a>
+          <a href="/projects">{t("footer.projects")}</a>
+          <a href="/bantuan">{t("footer.help")}</a>
         </nav>
         <p className={styles.credits}>
-          Video contoh: <a href={FILM_PAGE}>Elephants Dream</a> (2006), © Blender Foundation dan Netherlands Media Art Institute, www.elephantsdream.org, lisensi <a href="https://creativecommons.org/licenses/by/2.5/">CC BY 2.5</a>. Potongan 16:9, klip 9:16 dan kedua tangkapan layar dibuat dengan Potongin.
+          {t.rich("footer.credits", { film, license: (chunks) => <a href={LICENSE_PAGE}>{chunks}</a> })}
         </p>
       </footer>
     </main>

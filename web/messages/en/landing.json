@@ -1,1 +1,127 @@
-{}
+{
+  "nav": {
+    "label": "Page sections",
+    "example": "Example",
+    "how": "How it works",
+    "looks": "Styles",
+    "features": "Features",
+    "privacy": "Privacy",
+    "cta": "Create clips"
+  },
+  "hero": {
+    "title1": "Paste a link,",
+    "title2": "the clips follow.",
+    "body": "Potongin finds the moments with the strongest hook in long videos in Indonesian or English, cuts them to 9:16 or 1:1, then adds captions, hook text and a caption ready to copy.",
+    "start": "Start cutting a video",
+    "see": "See the example"
+  },
+  "example": {
+    "title": "One scene, before and after.",
+    "body": "A 16:9 video goes in, a 9:16 clip comes out. The crop follows the face, hook text on top, captions lit word by word.",
+    "beforeAlt": "16:9 frame from Elephants Dream at 8:09: Emo bending among cables, on the left of the picture.",
+    "before": "Before",
+    "beforeNote": "16:9 video, minute 8:09 of a 10:58 film",
+    "after": "After",
+    "afterNote": "First 11 seconds of a 1:03 clip",
+    "video": "9:16 clip Potongin made from the same scene, without sound",
+    "play": "Play",
+    "pause": "Pause",
+    "note": "Source: the open film <film>Elephants Dream</film> (2006), English dialogue. This clip was made without AI: the local heuristic picked the moment, layout Follow face. Without sound on this page."
+  },
+  "how": {
+    "title": "You choose, the server does the work.",
+    "body": "Two steps are yours, at the start and at the end. In between Potongin works on its own and shows its progress step by step.",
+    "you": "You",
+    "potongin": "Potongin",
+    "source": {
+      "title": "Paste a link or upload",
+      "text": "A YouTube link or an MP4, MOV, MKV, WEBM file. Choose the number of clips, the length and the layout."
+    },
+    "transcript": {
+      "title": "Fetch and transcribe",
+      "text": "YouTube captions when they are clean, otherwise Whisper on the server itself."
+    },
+    "moments": {
+      "title": "Pick moments",
+      "text": "An AI from the providers you set up rates the hook of every moment. Without AI the local heuristic picks."
+    },
+    "render": {
+      "title": "Render",
+      "text": "9:16 or 1:1 clips with captions, hook text and the strongest line up front."
+    },
+    "review": {
+      "title": "Check and download",
+      "text": "Watch them on the project page, tidy up in the editor if needed, then download the MP4 and copy the caption."
+    }
+  },
+  "looks": {
+    "title": "Caption styles ready to use.",
+    "body": "The samples below are rendered from the same styles as the clips. Top, middle or bottom in three sizes; each clip can be changed again in the editor.",
+    "styleAlt": "{name} style: the words “Halo semua” as they show in a clip.",
+    "layoutsTitle": "Layout",
+    "style": {
+      "classic": "White with a black outline, no highlight.",
+      "karaoke": "The word being spoken lights up.",
+      "bold": "Big bold letters, the active word in colour.",
+      "box": "Text in a dark box.",
+      "sorot": "A colour box on the word being spoken.",
+      "sinar": "Karaoke with a soft glow."
+    },
+    "layout": {
+      "fit_blur": "The landscape video stays whole, the rest of the screen is a blurred copy.",
+      "camera": "Full screen, the crop follows the speaker's face.",
+      "fill_center": "For videos whose subject is always in the middle.",
+      "split": "Two crops stacked, 30/70 or 50/50. Set per clip in the editor."
+    }
+  },
+  "features": {
+    "title": "What Potongin does",
+    "results": {
+      "title": "Clips ready to upload",
+      "body": "Every clip comes with a title, description, hashtags, hook text and its score. Copy the caption or download the MP4 straight from the project page.",
+      "alt": "Three 9:16 clips from the film Elephants Dream; the second one open with its hook text and score."
+    },
+    "editor": {
+      "title": "Editor",
+      "body": "Open any clip from its project page. Cut word by word from the transcript, change the hook text and caption style, set the cold open, add a logo and music, then export again.",
+      "note": "The editor needs a screen of at least 1024 px.",
+      "alt": "Potongin's editor: tool icons on the left, the 9:16 clip preview in the middle, the transcript word by word on the right, the timeline below."
+    },
+    "focus": {
+      "title": "Find moments about a topic",
+      "text": "Enter keywords such as “prank” or “work tips”. Clips that talk about them come first and are labelled."
+    },
+    "ranges": {
+      "title": "Your own time ranges",
+      "text": "Write 10.30-12.05 and that range becomes one clip as it is; the rest is filled with other moments."
+    },
+    "trends": {
+      "title": "Trends",
+      "text": "Trends people talk about are used for titles, hooks and hashtags when the transcript mentions them."
+    },
+    "coldOpen": {
+      "title": "Strongest line up front",
+      "text": "The hook line plays first for a few seconds, then the clip starts from the beginning."
+    }
+  },
+  "privacy": {
+    "title": "Your videos stay on your server.",
+    "body": "Videos, audio and renders are kept on the server itself. Only the transcript text goes to the AI providers, plus focus keywords and trends when they are used, and only to the providers you set up. Audio leaves the server only when you turn on transcription through Groq in Settings. Turn AI off in Settings and everything still runs on the server.",
+    "projects": "Projects are kept and can be deleted.",
+    "free": "AI can be limited to free models.",
+    "local": "Without AI the local heuristic still picks the moments."
+  },
+  "final": {
+    "title1": "Less manual editing.",
+    "title2": "More clips published.",
+    "cta": "Start cutting a video"
+  },
+  "footer": {
+    "tagline": "Short clips from long videos, processed on your own server.",
+    "nav": "App links",
+    "create": "Create clips",
+    "projects": "Projects",
+    "help": "Help",
+    "credits": "Sample video: <film>Elephants Dream</film> (2006), © Blender Foundation and Netherlands Media Art Institute, www.elephantsdream.org, licence <license>CC BY 2.5</license>. The 16:9 still, the 9:16 clip and both screenshots were made with Potongin."
+  }
+}

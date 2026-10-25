@@ -61,6 +61,9 @@ const ZERO = Object.freeze([
   "components/CancelJob.jsx",
   "components/layout-names.jsx",
   "components/ui/AlertDialog.jsx",
+  // The landing (i18n M3 with Dashboard F3).
+  "app/page.jsx",
+  "components/LandingClip.jsx",
 ]);
 
 async function counts() {
