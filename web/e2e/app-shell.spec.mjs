@@ -162,7 +162,9 @@ test.describe("App shell", () => {
     expect((await posted).status()).toBe(303);
     await expect(page).toHaveURL((url) => url.pathname === "/bantuan" && !url.searchParams.has("bahasa"));
     await expect(page.locator("html")).toHaveAttribute("lang", target.code);
-    await expect(nav(page).getByRole("link", { name: LIn(target.code, "shell.nav.help"), exact: true })).toHaveAttribute("aria-current", "page");
+    // The page is now in the target language, its landmark name included.
+    const targetNav = page.getByRole("navigation", { name: LIn(target.code, "aria.mainMenu") });
+    await expect(targetNav.getByRole("link", { name: LIn(target.code, "shell.nav.help"), exact: true })).toHaveAttribute("aria-current", "page");
     const cookie = (await page.context().cookies()).find((entry) => entry.name === "potongin_locale");
     expect(cookie?.value).toBe(target.code);
     expect(cookie?.httpOnly).toBe(false);
