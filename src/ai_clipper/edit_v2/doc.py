@@ -31,6 +31,7 @@ from json.decoder import scanstring
 from typing import Any
 
 from . import (
+    AUTO_SPLIT,
     CAPTION_ENTRANCES,
     COMPILER_ID,
     DOC_FPS,
@@ -395,6 +396,7 @@ _ROOT = _compile(_keys(
                             "rank_at_seed", "hook_unit_id", "selection_source"),
                words=_keys("sha256", "count"),
                camera=_keys("sha256"),
+               shots=_keys("sha256"),  # optional; required by the automatic layout (§5.63)
                engine=_keys("compiler", "render_semantics")),
     output=_keys("w", "h", "fps", "sample_rate", "channels"),
     main=_keys("cut_fade_ms",
@@ -409,6 +411,10 @@ _ROOT = _compile(_keys(
     layout=_keys("zoom_pm",  # optional (CONTRACTS §5.52)
                  default=_keys("mode", "no_face"),
                  keyframes=_List(_keys("sf", "pan_e5", "move")),
+                 # optional (CONTRACTS §5.63)
+                 ranges=_List(_keys("in_sf", "out_sf", "mode", "origin",
+                                    split_xy=_keys(**dict.fromkeys(SPLIT_BANDS,
+                                                                   _keys("x_e5", "y_e5"))))),
                  split=_keys("top_pm", **dict.fromkeys(SPLIT_BANDS,
                                                        _keys("x_e5", "y_e5", "zoom_pm")))),
     tracks=_List(_Kind(_TRACKS, _TRACK_ANY)),
@@ -561,8 +567,12 @@ _REMOVAL_REASONS = ({"user", "filler", "repeat", "gap_silent"},
                     {"gap_voiced", "ai_condense", "timeline"})
 _JOIN_STYLES = (set(transitions.JOIN_STYLES), set(transitions.DISABLED_JOIN_STYLES))
 _CASES = ({"asis", "upper"}, {"lower", "sentence"})
-_LAYOUT_MODES = ({"fit_blur", "camera", "fill_center", "split"},  # split: CONTRACTS §5.45
+# split: CONTRACTS §5.45; auto (Otomatis, one mode per shot in layout.ranges): §5.63
+_LAYOUT_MODES = ({"fit_blur", "camera", "fill_center", "split", "auto"},
                  {"smart_speaker", "fit_black", "branded"})
+_RANGE_MODES = frozenset({"camera", "fill_center", "fit_blur"})  # a range's own modes (§5.63)
+_RANGE_ORIGINS = frozenset({"auto", "user"})
+MAX_RANGES = 200
 _NO_FACE = ({"center", "fit_blur"}, {"fail"})  # fit_blur: CONTRACTS §5.40
 _DETECTORS = ({"words"}, {"rms"})
 _LOGO_MODES = ({"free"}, {"pip", "cutaway", "split_top", "split_bottom"})
@@ -833,6 +843,9 @@ class _Validator:
         camera = self.field(base, "camera", path)
         if camera is not _MISSING and self.obj(camera, "/base/camera") is not None:
             self.string(camera, "sha256", "/base/camera", pattern=_SHA, nullable=True)
+        shots = base.get("shots", _MISSING)  # optional (§5.63)
+        if shots is not _MISSING and self.obj(shots, "/base/shots") is not None:
+            self.string(shots, "sha256", "/base/shots", pattern=_SHA)
         self.string(base, "seed_sha256", path, pattern=_SHA)
         engine = self.field(base, "engine", path)
         if engine is not _MISSING and self.obj(engine, "/base/engine") is not None:
@@ -1206,18 +1219,110 @@ class _Validator:
             # the split's bands carry their own zoom
             if zoom == ZOOM_RANGE[0] or (zoom is not None and mode == "split"):
                 self.error("range_invalid", "/layout/zoom_pm")
+        ranges = layout.get("ranges", _MISSING)
+        has_split = False
+        if ranges is not _MISSING:
+            has_split = self.ranges(ranges, mode, "keyframes" in layout)
+        elif mode == "auto":
+            self.error("range_invalid", "/layout/ranges")  # V6
+        if mode == "auto":
+            base = self.doc.get("base")
+            if isinstance(base, Mapping) and "shots" not in base:
+                self.error("range_invalid", "/base/shots")
         if "split" in layout:
-            self.split(layout["split"], mode)
-        elif mode == "split":
+            self.split(layout["split"], mode, ranges_split=has_split)
+        elif mode == "split" or has_split:
             self.error("range_invalid", "/layout/split")
 
-    def split(self, split: object, mode: str | None) -> None:
+    def ranges(self, ranges: object, mode: str | None, keyframes: bool) -> bool:
+        """``layout.ranges`` (CONTRACTS §5.63, rules V1–V9): 1–200 ranges partitioning the
+        window, canonical, each a range mode and origin; a split range only automatic and only
+        while the split chain exists (``AUTO_SPLIT``). Returns whether a split range is there."""
+        path = "/layout/ranges"
+        if not isinstance(ranges, list) or not 1 <= len(ranges) <= MAX_RANGES:
+            self.error("range_invalid", path)
+            return False
+        if mode == "split":
+            self.error("range_invalid", path)  # V5
+        if keyframes:
+            self.error("range_invalid", "/layout/keyframes")  # V8
+        window = None
+        if self.window_ms is not None and self.fps is not None:
+            window = (tm.sf_floor(self.window_ms[0], self.fps),
+                      tm.sf_ceil(self.window_ms[1], self.fps))
+        edge = None if window is None else window[0]
+        previous: tuple | None = None
+        has_split = False
+        for index, entry in enumerate(ranges):
+            item = f"{path}/{index}"
+            if self.obj(entry, item) is None:
+                edge = previous = None
+                continue
+            in_sf = self.integer(entry, "in_sf", item)
+            out_sf = self.integer(entry, "out_sf", item)
+            origin = self.string(entry, "origin", item, choices=_RANGE_ORIGINS)  # V4
+            value = self.field(entry, "mode", item)
+            range_mode = None
+            if value is not _MISSING:
+                if value == "split" and origin == "auto":  # V3
+                    if AUTO_SPLIT:
+                        range_mode = value
+                        has_split = True
+                    else:
+                        self.error("op_disabled", _join(item, "mode"))
+                elif isinstance(value, str) and value in _RANGE_MODES:
+                    range_mode = value
+                else:
+                    self.error("range_invalid", _join(item, "mode"))
+            if (range_mode is not None and origin == "auto" and mode in _RANGE_MODES
+                    and range_mode != mode):
+                self.error("range_invalid", _join(item, "mode"))  # V7
+            split_xy = entry.get("split_xy", _MISSING)
+            if split_xy is not _MISSING:  # V9
+                if value != "split":
+                    self.error("range_invalid", _join(item, "split_xy"))
+                else:
+                    self.split_xy(split_xy, _join(item, "split_xy"))
+            elif range_mode == "split":
+                self.error("range_invalid", _join(item, "split_xy"))
+            if in_sf is None or out_sf is None:  # V1
+                edge = previous = None
+                continue
+            if in_sf >= out_sf or (edge is not None and in_sf != edge):
+                self.error("range_invalid", item)
+            key = (value, origin,
+                   None if split_xy is _MISSING else json.dumps(split_xy, sort_keys=True))
+            if previous is not None and key == previous:
+                self.error("range_invalid", item)  # V2
+            previous, edge = key, out_sf
+        if window is not None:
+            first = ranges[0].get("in_sf") if isinstance(ranges[0], dict) else None
+            last = ranges[-1].get("out_sf") if isinstance(ranges[-1], dict) else None
+            if type(first) is int and first != window[0]:
+                self.error("range_invalid", f"{path}/0")
+            if type(last) is int and last != window[1]:
+                self.error("range_invalid", f"{path}/{len(ranges) - 1}")
+        return has_split
+
+    def split_xy(self, value: object, path: str) -> None:
+        """A split range's crops (V9): per band ``x_e5`` and ``y_e5`` in 0–100000."""
+        if self.obj(value, path) is None:
+            return
+        for band in SPLIT_BANDS:
+            crop = self.field(value, band, path)
+            item = _join(path, band)
+            if crop is _MISSING or self.obj(crop, item) is None:
+                continue
+            self.integer(crop, "x_e5", item, 0, PAN_E5_MAX)
+            self.integer(crop, "y_e5", item, 0, PAN_E5_MAX)
+
+    def split(self, split: object, mode: str | None, *, ranges_split: bool = False) -> None:
         """Layar terbagi (CONTRACTS §5.45): exactly the split layout's, ``top_pm`` one of 300,
         500 and 700, and per band ``x_e5``/``y_e5`` in 0–100000 and ``zoom_pm`` in 1000–5000."""
         path = "/layout/split"
         if self.obj(split, path) is None:
             return
-        if mode is not None and mode != "split":
+        if mode is not None and mode != "split" and not (mode == "auto" and ranges_split):
             self.error("range_invalid", path)
         self.integer(split, "top_pm", path, 0, 1000)
         if type(split.get("top_pm")) is int and split["top_pm"] not in SPLIT_TOP_PM:

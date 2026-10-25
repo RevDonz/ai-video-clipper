@@ -43,6 +43,7 @@ from typing import Any
 from . import CAMERA_SCHEMA, COMPILER_VERSION, RENDER_SEMANTICS, errors
 from . import timemap as tm
 from .plan import RenderPlan, Resources
+from .shots import layout_ranges, uses_camera
 from .timemap import Fps, Piece
 
 PLATE_SCHEMA = "potongin.plate/1"
@@ -75,7 +76,8 @@ def plate_key(doc: Mapping[str, Any], *, camera_sha256: str | None = None,
     for name, value in (("camera_sha256", camera_sha256), ("toolchain_sha256", toolchain_sha256)):
         if value is not None and not (isinstance(value, str) and _HEX64.fullmatch(value)):
             raise ValueError(f"{name} must be 64 lowercase hex digits")
-    if layout == "camera" and camera_sha256 is None:
+    follows_camera = uses_camera(doc)
+    if follows_camera and camera_sha256 is None:
         raise ValueError("the camera layout needs its camera plan")
     fps = Fps.from_json(doc["output"]["fps"])
     identity = {
@@ -90,14 +92,23 @@ def plate_key(doc: Mapping[str, Any], *, camera_sha256: str | None = None,
         "fps": fps.to_json(),
         "output": [doc["output"]["w"], doc["output"]["h"]],
         "layout": layout,
-        "camera": camera_sha256 if layout == "camera" else None,
+        "camera": camera_sha256 if follows_camera else None,
         "toolchain": toolchain_sha256,
     }
     # Only the blur fallback of face-track, manual framing and the split's bands add a key, so
     # every other plate keeps its key. Keyframes set every frame's crop and turn the fallback
     # off (§5.44).
     keyframes = doc["layout"].get("keyframes")
-    if layout == "split":
+    ranges = layout_ranges(doc)
+    if ranges or layout == "auto":
+        # the automatic layout (§5.63): its shot plan and the mode of every frame, plus the
+        # no-face fallback of its camera ranges; no key of another layout changes
+        shots = doc["base"].get("shots")
+        identity["shots"] = None if shots is None else shots["sha256"]
+        identity["layout_ranges"] = [list(entry) for entry in ranges]
+        if follows_camera and doc["layout"]["default"]["no_face"] == "fit_blur":
+            identity["no_face"] = "fit_blur"
+    elif layout == "split":
         from .layouts import split_lane
 
         identity["split"] = split_lane(doc["layout"]["split"])
@@ -179,8 +190,9 @@ def _matches(plan: Mapping[str, Any], doc: Mapping[str, Any]) -> bool:
 def camera_for(clip_dir: Path, doc: Mapping[str, Any]) -> tuple[dict | None, str | None]:
     """``(camera plan, its sha256)`` for ``doc``'s layout; ``(None, None)`` for the layouts
     without a camera. Raises ``AnalysisMissing`` (``ref="camera"``) when the face-track layout
-    has no usable plan yet (``prepare`` with ``layout: "camera"`` builds it)."""
-    if doc["layout"]["default"]["mode"] != "camera":
+    has no usable plan yet (``prepare`` with ``layout: "camera"`` builds it). A ``camera``
+    range of the automatic layout needs it too (§5.63)."""
+    if not uses_camera(doc):
         return None, None
     found = _find_plan(clip_dir, doc)
     if found is None:
@@ -193,7 +205,7 @@ def faces_for(clip_dir: Path, doc: Mapping[str, Any]) -> dict | None:
     """A camera plan of ``doc``'s window for its ``faces`` only (``build_plan(faces=…)``, the
     caption check of CONTRACTS §5.50) under a layout that does not crop with it: the one
     face-track would use, when one was built; ``None`` otherwise. Never builds one."""
-    if doc["layout"]["default"]["mode"] == "camera":
+    if uses_camera(doc):
         return None
     found = _find_plan(clip_dir, doc)
     return None if found is None else found[0]
@@ -230,11 +242,10 @@ def plate_plan(doc: Mapping[str, Any], *, camera: Mapping[str, Any] | None,
     fps = Fps.from_json(doc["output"]["fps"])
     pieces = tm.pieces(doc)
     total = tm.total_frames(pieces)
-    layout = doc["layout"]["default"]["mode"]
     return RenderPlan(doc=doc, fps=fps, output=(doc["output"]["w"], doc["output"]["h"]),
                       pieces=pieces, total_frames=total, total_samples=tm.smp(total, fps),
                       speech_spans=(), assets={}, plan_sha256="",
-                      camera=camera if layout == "camera" else None, resources=resources)
+                      camera=camera if uses_camera(doc) else None, resources=resources)
 
 
 def lane_threads(job: Any, threads: int = LANE_THREADS) -> Any:

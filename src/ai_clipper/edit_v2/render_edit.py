@@ -94,6 +94,7 @@ from . import cleanup as _cleanup
 from . import loudness as _loudness
 from . import plates as _plates
 from . import seed as _seed
+from . import shots as _shots
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, manifest_clip_id
 from .doc import (
@@ -290,8 +291,13 @@ def load_render_inputs(job_dir: Path, doc: Mapping[str, Any], *,
         seed_doc: Mapping[str, Any] | None = store.seed(clip_dir)[0]
     except errors.NotFound:
         seed_doc = None
-    camera = (_load_camera(clip_dir, doc)
-              if doc["layout"]["default"]["mode"] == "camera" else None)
+    # face-track, or a camera range of the automatic layout (§5.63)
+    camera = _load_camera(clip_dir, doc) if _shots.uses_camera(doc) else None
+    if doc["layout"]["default"]["mode"] == "auto":
+        shots = doc["base"].get("shots")
+        if not isinstance(shots, Mapping):
+            raise errors.AnalysisMissing("analysis_missing", path="/base/shots", ref="shots")
+        _shots.load_shot_plan(clip_dir, shots["sha256"])  # its shot plan must be there
     assets = store.load_assets(clip_dir, doc.get("assets", {}).keys())
     if validate:
         validation = validate_doc(doc, words=words, assets=assets, seed=seed_doc)
