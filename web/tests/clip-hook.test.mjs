@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { projectSource } from "./support/screen-sources.mjs";
+
 import { clipEntryView, entriesExporting } from "../lib/clip-entry-view.mjs";
 import { HOOK_COPY, hookSwitchView, switchHook } from "../lib/clip-hook.mjs";
 
@@ -145,7 +147,8 @@ test("the page polls the listing while an export of a shown clip runs", () => {
 });
 
 test("the project page wires the switch beside the caption's Ubah and Tulis ulang", async () => {
-  const page = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  // The project page's files (page, clips, viewer): the switch sits in the viewer's caption box.
+  const page = await projectSource();
   assert.match(page, /<HookSwitch /);
   assert.match(page, /entriesExporting\(entries\)/);
   const caption = page.slice(page.indexOf("<ClipText "), page.indexOf("</section>", page.indexOf("<ClipText ")));

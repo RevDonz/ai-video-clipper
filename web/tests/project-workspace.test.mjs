@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { projectSource } from "./support/screen-sources.mjs";
+
 import { CLIP_FALLBACKS } from "../lib/jobs.mjs";
 import {
   arrowDelta,
@@ -106,6 +108,38 @@ test("the edited clips come from the same entry that shows the 'Diedit' badge", 
   assert.equal(editedIndexes(CLIPS, () => entry(null, null)), null);
   assert.equal(editedIndexes([], () => entry("edited")), null);
   assert.equal(editedIndexes(null, () => entry("edited")), null);
+});
+
+test("'Di luar fokus' shows the clips outside a project's focus, only when there is one", async () => {
+  const { clipFilterView: view } = await import("../lib/project-workspace.mjs");
+  assert.equal(view(CLIPS, "all").filters.some((item) => item.value === "outsideFocus"), false, "no focus: no chip");
+  assert.equal(view(CLIPS, "all", null, new Set()).filters.some((item) => item.value === "outsideFocus"), false, "every clip matched");
+  const outside = view(CLIPS, "outsideFocus", null, new Set([2, 5]));
+  assert.equal(outside.active, "outsideFocus");
+  assert.deepEqual(indexes(outside.visible), [2, 5]);
+  assert.deepEqual(outside.filters.map((item) => [item.value, item.count]), [["all", 5], ["high", 3], ["outsideFocus", 2]]);
+});
+
+test("Terbaik sorts by the shown score, Urutan video by where the clip starts; ties keep the number order", async () => {
+  const { sortClips } = await import("../lib/project-workspace.mjs");
+  assert.deepEqual(indexes(sortClips(CLIPS, "best")), [4, 1, 3, 5, 2]);
+  const timed = [{ index: 1, sourceStart: 300 }, { index: 2, sourceStart: 20 }, { index: 3, start: 100 }, { index: 4 }];
+  assert.deepEqual(indexes(sortClips(timed, "timeline")), [2, 3, 1, 4]);
+  // Unscored (old) clips keep their number order under Terbaik, after any scored one.
+  assert.deepEqual(indexes(sortClips([{ index: 2 }, scored(3, 7), { index: 1 }], "best")), [3, 1, 2]);
+  const original = [...CLIPS];
+  sortClips(CLIPS, "best");
+  assert.deepEqual(CLIPS, original, "the job's list is not changed");
+  assert.deepEqual(sortClips(null, "best"), []);
+});
+
+test("?klip=N is set and cleared without touching the rest of the query", async () => {
+  const { withClipParam } = await import("../lib/project-workspace.mjs");
+  assert.equal(withClipParam("", 3), "?klip=3");
+  assert.equal(withClipParam("?klip=2&x=1", 4), "?klip=4&x=1");
+  assert.equal(withClipParam("?klip=2&x=1", null), "?x=1");
+  assert.equal(withClipParam("?klip=2", null), "");
+  assert.equal(withClipParam("", 0), "");
 });
 
 test("an empty filter says which clips are missing", () => {
@@ -214,15 +248,19 @@ test("fallback notes: one short neutral line per code; only the framing note goe
   for (const code of CLIP_FALLBACKS) assert.equal(clipFallbackNotes({ fallbacks: [code] }).length, 1, code);
 });
 
-const page = () => readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+// The project page's files (page, ClipsSection, ClipViewer, ...): Dashboard F3 split the page into
+// the clips section and the clip viewer (05-ui-dashboard.md §6.4).
+const page = () => projectSource();
 const stylesheet = () => readFile(new URL("../app/projects/[id]/project.module.css", import.meta.url), "utf8");
+const viewerStylesheet = () => readFile(new URL("../components/ClipViewer.module.css", import.meta.url), "utf8");
 
-test("the page: one poster button per clip, the current one marked, a toggle in 'Pilih', one tab stop", async () => {
+test("the page: one poster button per clip that opens the viewer, a toggle in 'Pilih'", async () => {
   const source = await page();
-  assert.match(source, /<ul className=\{styles\.posterGrid\} aria-label="Daftar klip">/);
+  assert.match(source, /<ul className=\{styles\.posterGrid\} aria-label=\{t\("clips\.list"\)\}/);
   assert.match(source, /<article className=\{styles\.poster\} aria-labelledby=\{titleId\}/);
-  assert.match(source, /tabIndex=\{selected \? 0 : -1\}/);
-  assert.match(source, /aria-current=\{!picking && selected \? "true" : undefined\}/);
+  // Outside Pilih a poster opens the clip viewer (a dialog), so it says so; Tab reaches each one.
+  assert.match(source, /aria-haspopup=\{picking \? undefined : "dialog"\}/);
+  assert.doesNotMatch(source, /tabIndex=\{selected/);
   // A clip that failed to render is no toggle in 'Pilih': it has no file to zip.
   assert.match(source, /const pickable = picking && !failed;/);
   assert.match(source, /aria-pressed=\{pickable \? picked : undefined\}/);
@@ -242,52 +280,56 @@ test("the page: one poster button per clip, the current one marked, a toggle in 
   assert.match(poster, /<img src=\{poster\} alt="" loading="lazy" decoding="async" \/>/);
 });
 
-test("the page: filters as pressed buttons, the arrows step the shown clips, Escape leaves 'Pilih'", async () => {
+test("the page: one-of filters, the arrows step the shown clips in the viewer, Escape leaves 'Pilih'", async () => {
   const source = await page();
-  assert.match(source, /role="group" aria-label="Saring klip"/);
-  assert.match(source, /aria-pressed=\{item\.active\} onClick=\{\(\) => changeFilter\(item\.value\)\}/);
+  assert.match(source, /<ToggleButtonGroup aria-label=\{t\("filter\.label"\)\} disallowEmptySelection selectedKeys=\{\[view\.active\]\}/);
+  assert.match(source, /if \(key\) changeFilter\(String\(key\)\);/);
   // "Diedit" counts the clips whose entry shows the badge; an empty filter says which clips are missing.
   assert.match(source, /const edited = editedIndexes\(clips, entryFor\);/);
-  assert.match(source, /const view = clipFilterView\(clips, filter, edited\);/);
-  assert.match(source, /prunePicks\(previous, clipFilterView\(clips, value, edited\)\.visible\)/);
-  assert.match(source, /<p>\{filterEmptyText\(view\.active\)\}<\/p>/);
+  assert.match(source, /const view = clipFilterView\(sortClips\(clips, sort\), filter, edited, outside\);/);
+  assert.match(source, /prunePicks\(previous, clipFilterView\(clips, value, edited, outside\)\.visible\)/);
+  assert.match(source, /<span>\{emptyText\[view\.active\]\}<\/span>/);
+  // The viewer steps through the clips the grid shows, in its order.
+  assert.match(source, /<ClipViewer job=\{job\} clips=\{visible\}/);
   assert.match(source, /const delta = arrowDelta\(event\);/);
-  assert.match(source, /const next = stepSelection\(visible, currentIndex, delta\);/);
-  assert.match(source, /event\.key === "Escape" && picking/);
+  assert.match(source, /const next = clips\[at \+ delta\];/);
+  assert.match(source, /event\.key === "Escape" && !event\.defaultPrevented\) stopPicking\(\)/);
   assert.match(source, /document\.addEventListener\("keydown", listener\)/);
   assert.match(source, /document\.removeEventListener\("keydown", listener\)/);
-  assert.match(source, /aria-label="Klip sebelumnya"/);
-  assert.match(source, /aria-label="Klip berikutnya"/);
+  assert.match(source, /aria-label=\{tAria\("prev"\)\}/);
+  assert.match(source, /aria-label=\{tAria\("next"\)\}/);
 });
 
-test("the page: 'Pilih' reads 'n dipilih · Pilih semua · Batal · Unduh (n)', next to 'Unduh semua'", async () => {
+test("the page: 'Pilih' reads 'n dipilih · Pilih semua · Batal · Unduh (n)'; 'Unduh semua' heads the page", async () => {
   const source = await page();
-  for (const text of [">Pilih</button>", ">Pilih semua</button>", ">Batal</button>", ">Unduh semua</button>"]) {
-    assert.ok(source.includes(text), text);
-  }
-  assert.match(source, /\{pickSummary\(picks\.size\)\}/);
-  assert.match(source, /Unduh \(\{picks\.size\}\)/);
-  assert.match(source, /disabled=\{!picks\.size\} aria-disabled=\{busy \|\| undefined\} onClick=\{\(\) => download\(pickedInOrder\(clips, picks\)\)\}/);
-  // While the ZIP is checked the buttons only say they are busy: a disabled button would drop the
-  // keyboard focus. download() ignores a second press.
-  assert.match(source, /aria-disabled=\{busy \|\| undefined\} onClick=\{\(\) => download\(null\)\}>Unduh semua/);
-  assert.match(source, /const download = async \(indexes\) => \{\n\s*if \(busy\) return;/);
+  for (const key of ['t("select")', 't("bulk.all")', 't("bulk.cancel")', 't("downloadAll")']) assert.ok(source.includes(key), key);
+  const id = JSON.parse(await readFile(new URL("../messages/id/project.json", import.meta.url), "utf8"));
+  assert.deepEqual([id.select, id.bulk.all, id.bulk.cancel, id.downloadAll, id.bulk.count, id.bulk.download],
+    ["Pilih", "Pilih semua", "Batal", "Unduh semua", "{count} dipilih", "Unduh ({n})"]);
+  assert.match(source, /\{t\("bulk\.count", \{ count: picks\.size \}\)\}/);
+  assert.match(source, /\{t\("bulk\.download", \{ n: picks\.size \}\)\}/);
+  // While the ZIP is checked the buttons are pending (they keep the keyboard focus); download()
+  // ignores a second press.
+  assert.match(source, /<Button variant="primary" isDisabled=\{!picks\.size\} isPending=\{busy\}/);
+  assert.match(source, /onPress=\{async \(\) => \{ if \(await onDownload\(pickedInOrder\(clips, picks\)\)\) stopPicking\(\); \}\}/);
+  assert.match(source, /isPending=\{zip\.state === "checking"\} onPress=\{\(\) => download\(null\)\}>\s*\{t\("downloadAll"\)\}/);
+  assert.match(source, /const download = async \(indexes\) => \{\n\s*if \(zip\.state === "checking"\) return false;/);
   assert.match(source, /result = await checkZip\(job\.id, indexes, \{ signal: controller\.signal \}\);/);
   assert.match(source, /role="alert">\{zip\.message\}/);
   // The ZIP buttons only on a finished project with a clip that rendered.
   assert.match(source, /const downloadable = job\.status === "completed" && readyClips\(clips\)\.length > 0;/);
+  assert.match(source, /const downloadable = job\.status === "completed" && readyClips\(job\.clips\)\.length > 0;/);
 });
 
-test("the page: the framing note on its poster (and in its label), every note in the detail panel", async () => {
+test("the page: the framing note on its poster (and in its label), every note in the viewer", async () => {
   const source = await page();
   assert.match(source, /const cardNotes = clipFallbackNotes\(clip\)\.filter\(\(note\) => note\.card\);/);
   assert.match(source, /\.\.\.cardNotes\.map\(\(note\) => note\.card\.toLowerCase\(\)\)/);
   assert.match(source, /\{cardNotes\.map\(\(note\) => <span key=\{note\.code\} className=\{styles\.posterNote\}>\{note\.card\}<\/span>\)\}/);
   assert.match(source, /const notes = clipFallbackNotes\(clip\);/);
-  assert.match(source, /<ul className=\{styles\.clipNotes\} aria-label="Catatan klip">/);
+  assert.match(source, /<ul className=\{styles\.clipNotes\} aria-label=\{t\("viewer\.notes"\)\}>/);
   // Neutral: muted text, no colour or badge of its own.
-  const css = await stylesheet();
-  for (const rule of ["posterNote", "clipNotes"]) {
+  for (const [css, rule] of [[await stylesheet(), "posterNote"], [await viewerStylesheet(), "clipNotes"]]) {
     const block = new RegExp(`\\.${rule} \\{([^}]*)\\}`).exec(css)?.[1] || "";
     assert.match(block, /color: var\(--text-muted\);/, rule);
     assert.doesNotMatch(block, /background|border/, rule);
@@ -301,17 +343,19 @@ test("the page and its view model never call a score hot or viral", async () => 
   }
 });
 
-test("phones get one column, posters two across, and 44 px targets for every new control", async () => {
+test("phones get one column in the viewer, posters two across, and 44 px targets for every control", async () => {
   const css = await stylesheet();
   const phone = /@media \(max-width: 720px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] || "";
-  assert.match(phone, /\.workspace \{\s*grid-template-columns: minmax\(0, 1fr\);/);
-  assert.match(phone, /\.detail \{\s*position: static;\s*max-height: none;\s*overflow: visible;/);
-  assert.match(phone, /\.posterGrid \{\s*grid-template-columns: repeat\(auto-fill, minmax\(132px, 1fr\)\);/);
-  for (const rule of [".filters button", ".step"]) {
-    const block = new RegExp(`${rule.replace(".", "\\.")} \\{([^}]*)\\}`).exec(css)?.[1] || "";
-    assert.match(block, /min-height: 44px;/, rule);
-  }
-  assert.match(/\.step \{([^}]*)\}/.exec(css)[1], /min-width: 44px;/);
+  assert.match(phone, /\.posterGrid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  const viewer = await viewerStylesheet();
+  const compact = /@media \(max-width: 767px\) \{([\s\S]*?)\n\}/.exec(viewer)?.[1] || "";
+  assert.match(compact, /\.body \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  // The filters and the viewer's arrows are HeroUI ToggleButtons and Buttons: 44 px in app/ui.css.
+  const kit = await readFile(new URL("../app/ui.css", import.meta.url), "utf8");
+  assert.match(kit, /\.button, \.tabs__tab, \.menu-item, \.list-box-item, \.close-button,\s*\.toggle-button, [^{]*\{ min-height: 44px; min-width: 44px; \}/);
+  const source = await page();
+  assert.match(source, /<ToggleButton key=\{item\.value\} id=\{item\.value\}>/);
+  assert.match(source, /<Button variant="ghost" isIconOnly aria-label=\{tAria\("prev"\)\}/);
 });
 
 // ClipText and HookSwitch sit side by side in the caption box and each is keyed by the clip, so

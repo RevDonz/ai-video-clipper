@@ -20,6 +20,7 @@ import { serializePublicJob, sanitizeStoredClip } from "../lib/jobs.mjs";
 import { historySummary, projectRowDetail } from "../lib/project-view.mjs";
 import { clipsHeading, pickAll, prunePicks } from "../lib/project-workspace.mjs";
 import { jobClipFromManifest } from "../scripts/run-job.mjs";
+import { dashboardSource, projectSource } from "./support/screen-sources.mjs";
 
 const JOB_ID = "123e4567-e89b-42d3-a456-426614174000";
 const OUTPUT = "/data/jobs/123e4567-e89b-42d3-a456-426614174000/output";
@@ -163,21 +164,24 @@ test("the history offers 'Edit klip' only when a clip is ready", () => {
   assert.equal(historyOffersEdit({ ...base, clips: [failedClip(1)] }, true), false);
 });
 
-test("the project page and the dashboard show a failed clip as 'Gagal' in place of the player", async () => {
-  const project = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+// Buat klip no longer shows jobs or clips (05-ui-dashboard.md §2 P4): the clips are on the
+// project page only, where a failed one is drawn as before.
+test("the project page shows a failed clip as 'Gagal' in place of the player; the dashboard shows no clips", async () => {
+  const project = await projectSource();
   // The poster: "Gagal" in its frame (the shared poster draws the badge instead of the frame);
-  // the detail: a frame with the reason where the video would be.
+  // the viewer: a frame with the reason where the video would be.
   assert.match(project, /badge=\{failed && <span className="statusPill error">\{failed\.label\}<\/span>\}>/);
   const poster = await readFile(new URL("../components/ClipPoster.jsx", import.meta.url), "utf8");
   assert.match(poster, /\{badge \|\| \(poster \? <img /);
   assert.match(project, /<div key=\{clip\.index\} className=\{`\$\{styles\.video\} \$\{styles\.failedFrame\}`\}>/);
   assert.match(project, /<p><strong>\{failed\.text\}<\/strong><\/p>\s*<p>\{failed\.hint\}<\/p>/);
-  assert.match(project, /<h2 id="clips-title">\{clipsHeading\(clips, job\.status\)\}<\/h2>/);
-  assert.match(project, /\{clipCount > 0 && <span>\{clipCountLabel\}<\/span>\}/);
+  // The ready clips are counted without the failed ones; a failed clip has nothing to download.
+  assert.match(project, /const clips = readyClips\(job\.clips\)\.length;/);
+  assert.match(project, /\{clips > 0 && <span>\{t\("clipCount", \{ count: clips \}\)\}<\/span>\}/);
+  assert.match(project, /if \(failed\) return null;/, "the viewer's actions (download, edit) are gone for a failed clip");
   // Its title and description cannot be changed ("Ubah", "Tulis ulang"): there is no video to post.
-  assert.match(project, /editable=\{job\.status === "completed" && !failed\}/);
-  const dashboard = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
-  assert.match(dashboard, /if \(failed\) return <FailedClipCard clip=\{clip\} failed=\{failed\} \/>;/);
-  const card = dashboard.slice(dashboard.indexOf("function FailedClipCard"), dashboard.indexOf("function ClipCard"));
-  assert.doesNotMatch(card, /<video|downloadUrl|onCopy/);
+  assert.match(project, /const editable = job\.status === "completed" && !failed;/);
+  assert.match(project, /<ClipText [^>]*editable=\{editable\}/);
+  const dashboard = await dashboardSource();
+  assert.doesNotMatch(dashboard, /<video|failedClipView|FailedClipCard|clip\.downloadUrl/);
 });

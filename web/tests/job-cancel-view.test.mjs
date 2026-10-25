@@ -88,17 +88,24 @@ test("a cancelled job reads as Dibatalkan, finished and distinct from a failure"
 
 const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
 
-test("the dashboard and the project page offer Batalkan with an in-page confirmation", async () => {
+// The project page's progress panel offers Batalkan (Buat klip shows no job any more, 05 §2 P4):
+// an AlertDialog inside the page, whose focus starts on Lanjutkan proses; React Aria closes it
+// on Escape and returns the focus to Batalkan.
+test("the project page offers Batalkan with an in-page confirmation", async () => {
   const component = await read("../components/CancelJob.jsx");
   assert.match(component, /cancelJob\(/);
-  assert.match(component, /Batalkan proses ini\?/);
-  assert.match(component, /Ya, batalkan/);
-  assert.match(component, /event\.key === "Escape"/);
+  assert.match(component, /<AlertDialog isOpen=\{open\} onOpenChange=\{change\}>/);
+  assert.match(component, /<AlertDialog\.Heading>\{t\("cancel\.confirm"\)\}<\/AlertDialog\.Heading>/);
+  assert.match(component, /<Button variant="secondary" autoFocus isDisabled=\{busy\} onPress=\{\(\) => change\(false\)\}>\{t\("cancel\.keep"\)\}<\/Button>/);
+  assert.match(component, /\{busy \? t\("cancel\.busy"\) : t\("cancel\.yes"\)\}/);
+  const id = JSON.parse(await read("../messages/id/project.json")).cancel;
+  assert.deepEqual([id.ask, id.confirm, id.keep, id.yes], ["Batalkan", "Batalkan proses ini?", "Lanjutkan proses", "Ya, batalkan"]);
   assert.doesNotMatch(component, /(?<![\w.])confirm\(/, "a modal confirm() blocks the page");
-  for (const page of ["../app/dashboard/page.jsx", "../app/projects/[id]/page.jsx"]) {
-    const source = await read(page);
-    assert.match(source, /<CancelJob\b/, page);
-    assert.match(source, /jobCancellable\(/, page);
-    assert.doesNotMatch(source, /(?<![\w.])confirm\(/, page);
+  const panel = await read("../components/ProjectProgress.jsx");
+  assert.match(panel, /<CancelJob\b/);
+  assert.match(panel, /jobCancellable\(/);
+  for (const page of ["../app/dashboard/page.jsx", "../app/projects/[id]/page.jsx", "../components/ProjectProgress.jsx"]) {
+    assert.doesNotMatch(await read(page), /(?<![\w.])confirm\(/, page);
   }
+  assert.doesNotMatch(await read("../app/dashboard/page.jsx"), /<CancelJob\b/);
 });

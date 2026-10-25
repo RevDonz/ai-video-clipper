@@ -6,6 +6,8 @@ import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+
+import { PROJECT_FILES, projectSource } from "./support/screen-sources.mjs";
 import { fileURLToPath } from "node:url";
 
 import { GET as getJobDetail } from "../app/api/jobs/[id]/route.js";
@@ -351,9 +353,15 @@ test("the project page's progress title and failure notice drop a stage text tha
     assert.equal(projectStageText({ status: "processing", stageDetail }), "Sedang diproses", stageDetail);
     assert.equal(projectStageText({ status: "failed", stageDetail }), "Proyek ini berhenti sebelum klip selesai.", stageDetail);
   }
-  const source = await read("app/projects/[id]/page.jsx");
-  assert.doesNotMatch(source, /job\.stageDetail/, "the page reads the stage only through projectStageText");
-  assert.match(source, /<h2 id="progress-title">\{projectStageText\(job\)\}<\/h2>/);
+  // The project page's files read the stage only through the helpers: stageText (the catalog's
+  // stage.<code>, else the stored text through shownStageDetail) in the progress panel, and
+  // projectStageText in the failure notice.
+  const source = await projectSource();
+  assert.doesNotMatch(source, /job\.stageDetail/, "the page reads the stage only through the helpers");
+  assert.match(source, /const stage = job\.status === "queued" \? null : stageText\(tAll, job\);/);
+  assert.match(source, /<h2 id="progress-title" className=\{styles\.title\}>\s*<ProcessStatus job=\{job\} detail=\{detail\}/);
+  assert.match(source, /<Alert\.Description>\{projectStageText\(job\)\}<\/Alert\.Description>/);
+  assert.match(await read("lib/i18n/stage-text.mjs"), /return shownStageDetail\(job\);/);
 });
 
 // --- The retired candidate editor -------------------------------------------------------------
@@ -394,7 +402,7 @@ test("an old candidate-editor link lands on its project page", async () => {
 });
 
 test("the history and project pages carry no version wording and no candidate requests", async () => {
-  for (const file of ["app/projects/page.jsx", "app/projects/[id]/page.jsx", "lib/project-view.mjs"]) {
+  for (const file of ["app/projects/page.jsx", ...PROJECT_FILES, "lib/project-view.mjs"]) {
     const source = await read(file);
     // Module paths (selection-v3-view.mjs) are code, not words on the screen.
     const text = source.replace(/^import [\s\S]*?;$/gm, "");
@@ -405,11 +413,12 @@ test("the history and project pages carry no version wording and no candidate re
   }
 });
 
-test("every clip of every job is shown with the same poster and detail panel, whatever made it", async () => {
-  const source = await read("app/projects/[id]/page.jsx");
+test("every clip of every job is shown with the same poster and clip viewer, whatever made it", async () => {
+  const source = await projectSource();
   assert.doesNotMatch(source, /isV3Job|const v3\b/);
   assert.match(source, /visible\.map\(\(clip\) => \(\s*<PosterCard key=\{clip\.index\} clip=\{clip\}/);
-  assert.match(source, /<ClipDetail clip=\{current\} job=\{job\}/);
+  assert.match(source, /<ClipViewer job=\{job\} clips=\{visible\}/);
+  assert.match(source, /<Body clip=\{clip\} job=\{job\}/);
   assert.match(source, /<video [^>]*src=\{clip\.videoUrl\} poster=\{clipPosterUrl\(clip\)\}/);
   // Both downloads save under the clip's "NN-judul" name (A5).
   assert.match(source, /const downloads = clipDownloads\(clip\);/);
@@ -419,14 +428,15 @@ test("every clip of every job is shown with the same poster and detail panel, wh
   assert.doesNotMatch(source, /<track\b/);
   assert.match(source, /clipCaptionText\(clip\)/);
   assert.match(source, /selectionNotices\(job\)/);
-  assert.match(source, /selectionNotes\(job\)/);
+  // The closed "Catatan pemilihan" list is gone (05 §6.4 Dihapus); reasons come per clip.
+  assert.doesNotMatch(source, /selectionNotes\(job\)/);
   assert.match(source, /focusSummaryLine\(job\)/);
   assert.match(source, /clipFocusChip\(clip, job\)/);
   assert.match(source, /clipTrendChips\(clip\)/);
 });
 
 test("the project page cancels its request when left and keeps every state announced", async () => {
-  const source = await read("app/projects/[id]/page.jsx");
+  const source = await projectSource();
   assert.match(source, /const controller = new AbortController\(\)/);
   assert.match(source, /loadProjectDetail\(id, \{ signal: controller\.signal \}\)/);
   assert.match(source, /if \(!active\) return/);
@@ -434,15 +444,18 @@ test("the project page cancels its request when left and keeps every state annou
   assert.match(source, /loadError\?\.name === "AbortError"/);
   assert.match(source, /role="status" aria-live="polite"/);
   assert.match(source, /role="alert"/);
-  assert.match(source, /role="progressbar"/);
+  // The progress bar is React Aria's (role=progressbar), named by the panel's title.
+  assert.match(source, /<ProgressBar value=\{progress\} aria-labelledby="progress-title"/);
   // SRT is a download, never an HTML <track> (browsers want WebVTT), and its link says so.
-  assert.match(source, /aria-label=\{`Unduh subtitle SRT \$\{label\}`\}>Subtitle SRT<\/a>/);
+  assert.match(source, /aria-label=\{t\("viewer\.srtFor", \{ clip: clipLabel\(clip\) \}\)\}>\{t\("viewer\.srt"\)\}<\/a>/);
 });
 
-test("the explained warnings sit in a closed list under the notices, as plain text", async () => {
-  const source = await read("app/projects/[id]/page.jsx");
-  assert.match(source, /<details className=\{styles\.notes\}>/);
-  assert.match(source, /<summary>Catatan pemilihan \(\{notes\.length\}\)<\/summary>/);
+// 05-ui-dashboard.md §6.4 removes the closed "Catatan pemilihan" list; the notices that need an
+// action stay, and nothing shows a raw code.
+test("the explained warnings no longer sit in a closed list; the notices stay, as plain text", async () => {
+  const source = await projectSource();
+  assert.doesNotMatch(source, /className=\{styles\.notes\}|Catatan pemilihan/);
+  assert.match(source, /notices\.map\(\(notice\) => <Notice key=/);
   assert.doesNotMatch(source, /<code\b/);
 });
 
@@ -462,12 +475,13 @@ test("a failed project shows the worker's own message when it is words, not a co
   }
 });
 
-test("a failed project says why it stopped: the worker's message under the notice", async () => {
+test("a failed project says why it stopped: the worker's message in the Detail disclosure", async () => {
   const source = await read("app/projects/[id]/page.jsx");
   assert.match(source, /job\.status === "failed"/);
   assert.match(source, /const serverError = failureDetail\(job\);/);
   assert.match(source, /const hint = failureHint\(job\);/);
-  assert.match(source, /<span>\{projectStageText\(job\)\}<\/span>\s*\{hint && <span>\{hint\}<\/span>\}\s*\{serverError && <span className=\{styles\.errorDetail\}>Pesan dari server: \{serverError\}<\/span>\}/);
+  assert.match(source, /<Alert\.Description>\{projectStageText\(job\)\}<\/Alert\.Description>\s*\{hint && <Alert\.Description>\{hint\}<\/Alert\.Description>\}/);
+  assert.match(source, /\{serverError && \(\s*<details className=\{styles\.errorDetail\}>\s*<summary>\{t\("detail"\)\}<\/summary>\s*<span>\{serverError\}<\/span>/);
 });
 
 test("a failed download names its reason and one suggestion from the stored code", () => {
@@ -496,14 +510,15 @@ test("a failed download names its reason and one suggestion from the stored code
   assert.equal(failureHint(null), null);
 });
 
-test("every clip's detail offers 'Edit klip' from the clips listing; the page has no prepare step", async () => {
-  const source = await read("app/projects/[id]/page.jsx");
+test("every clip's viewer offers 'Edit klip' from the clips listing; the page has no prepare step", async () => {
+  const source = await projectSource();
   assert.match(source, /loadClipEntries\(id, \{ signal: controller\.signal \}\)/);
   // Every clip that rendered; a clip that failed to render has no editor entry.
   assert.match(source, /const entryFor = \(clip\) => \(isFailedClip\(clip\) \? null : clipEntryFor\(entries, job, clip\.index\)\);/);
-  assert.match(source, /<ClipDetail clip=\{current\} job=\{job\} entry=\{entryFor\(current\)\}/);
+  assert.match(source, /const entry = clip \? entryFor\(clip\) : null;/);
   assert.match(source, /<PosterCard key=\{clip\.index\} clip=\{clip\} entry=\{entryFor\(clip\)\}/);
-  assert.match(source, /<a className=\{`btn \$\{styles\.edit\}`\} href=\{entry\.editHref\}>Edit klip<\/a>/);
+  // A plain link, so the editor loads as a whole document with its COOP/COEP headers (P12).
+  assert.match(source, /<a className=\{buttonVariants\(\{ variant: "secondary" \}\)\} href=\{entry\.editHref\}>\{t\("viewer\.editClip"\)\}<\/a>/);
   assert.match(source, /<section id="klip" className=\{styles\.clips\}/);
   assert.doesNotMatch(source, /Siapkan untuk editor|prepareClipEntries|method: "POST"/);
   assert.doesNotMatch(source, /engineLegacy|mesin/i);

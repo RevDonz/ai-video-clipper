@@ -49,6 +49,22 @@ const ZERO = Object.freeze([
   "lib/not-found-view.mjs",
   "components/LanguageSwitcher.jsx",
   "components/ui/PublicCard.jsx",
+  // Buat klip and the project page (Dashboard F2/F3, i18n M3 part, 08 Fase 2: ratchet 0 per file touched).
+  "app/dashboard/page.jsx",
+  "app/dashboard/FocusField.jsx",
+  "app/dashboard/RecentProjects.jsx",
+  "app/dashboard/LookPreview.jsx",
+  "app/projects/[id]/layout.jsx",
+  "app/projects/[id]/page.jsx",
+  "app/projects/[id]/ClipsSection.jsx",
+  "app/projects/[id]/DeleteProject.jsx",
+  "components/ChoiceChip.jsx",
+  "components/ClipViewer.jsx",
+  "components/ProjectProgress.jsx",
+  "components/ProcessStatus.jsx",
+  "components/CancelJob.jsx",
+  "components/layout-names.jsx",
+  "components/ui/AlertDialog.jsx",
 ]);
 
 async function counts() {

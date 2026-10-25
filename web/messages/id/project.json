@@ -1,0 +1,113 @@
+{
+  "back": "Proyek",
+  "downloadAll": "Unduh semua",
+  "more": "Aksi lain",
+  "rerun": "Proses ulang",
+  "cancelled": "Proses dibatalkan",
+  "failed": "Proses gagal",
+  "help": "Cara memperbaiki",
+  "detail": "Detail",
+  "noClips": "Tidak ada momen yang lolos",
+  "loading": "Memuat proyek",
+  "notFound": "Proyek tidak ditemukan",
+  "loadFailed": "Proyek gagal dimuat",
+  "retry": "Coba lagi",
+  "focus": "Fokus:",
+  "newTab": "(tab baru)",
+  "clipCount": "{count, plural, other {# klip}}",
+  "select": "Pilih",
+  "source": {
+    "youtube": "YouTube",
+    "file": "File",
+    "open": "Buka di YouTube"
+  },
+  "delete": {
+    "action": "Hapus proyek",
+    "confirm": "Hapus proyek ini?",
+    "keep": "Batal",
+    "yes": "Hapus",
+    "offline": "Server tidak terjangkau. Periksa koneksi.",
+    "failed": "Proyek gagal dihapus. Coba lagi."
+  },
+  "cancel": {
+    "ask": "Batalkan",
+    "confirm": "Batalkan proses ini?",
+    "keep": "Lanjutkan proses",
+    "yes": "Ya, batalkan",
+    "busy": "Membatalkan…"
+  },
+  "zip": {
+    "checking": "Menyiapkan ZIP…",
+    "started": "ZIP {count, plural, other {# klip}} ({size}) mulai diunduh"
+  },
+  "step": {
+    "download": "Unduh",
+    "transcript": "Transkrip",
+    "moments": "Pilih momen",
+    "render": "Render"
+  },
+  "progress": {
+    "steps": "Tahap",
+    "done": "selesai",
+    "queuePos": "Antre ke-{n} · ± {minutes} mnt",
+    "queuePosOnly": "Antre ke-{n}",
+    "maintenance": "Pemeliharaan",
+    "ready": "{count, plural, other {# klip siap}}"
+  },
+  "sort": {
+    "label": "Urutan",
+    "best": "Terbaik",
+    "timeline": "Urutan video"
+  },
+  "filter": {
+    "label": "Saring klip",
+    "all": "Semua",
+    "high": "Skor 8+",
+    "edited": "Diedit",
+    "outsideFocus": "Di luar fokus",
+    "allEmpty": "Belum ada klip",
+    "highEmpty": "Belum ada klip skor 8+",
+    "editedEmpty": "Belum ada klip yang diedit",
+    "outsideFocusEmpty": "Semua klip cocok dengan fokus",
+    "showAll": "Tampilkan semua"
+  },
+  "bulk": {
+    "label": "Pilih klip untuk diunduh",
+    "count": "{count} dipilih",
+    "all": "Pilih semua",
+    "cancel": "Batal",
+    "download": "Unduh ({n})"
+  },
+  "clips": {
+    "title": "Klip",
+    "list": "Daftar klip"
+  },
+  "poster": {
+    "number": "Klip {n}",
+    "failed": "gagal dirender",
+    "score": "skor {score}",
+    "edited": "diedit"
+  },
+  "viewer": {
+    "position": "Klip {n} dari {total}",
+    "video": "Video {clip}",
+    "copyTitle": "Salin judul",
+    "copyCaption": "Salin caption",
+    "copied": "Tersalin",
+    "copyFailed": "Gagal menyalin",
+    "titleCopied": "Judul tersalin",
+    "captionCopied": "Caption tersalin",
+    "score": "Skor",
+    "coldOpen": "Cold open · {seconds} dtk",
+    "notes": "Catatan klip",
+    "hookText": "Teks hook",
+    "caption": "Caption",
+    "range": "{from}–{to} di video",
+    "layout": "Tata letak: {value}",
+    "why": "Kenapa dipilih",
+    "downloadMp4": "Unduh MP4",
+    "editClip": "Edit klip",
+    "srt": "Unduh SRT",
+    "srtFor": "Unduh SRT {clip}"
+  }
+}
