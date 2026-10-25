@@ -35,6 +35,16 @@ const ZERO = Object.freeze([
   "components/ShellData.jsx",
   "components/ui/UiPrefs.jsx",
   "components/ui/Providers.jsx",
+  // i18n M1 (08 Fase 1: ratchet 0 for login, not-found, error) and the language picker.
+  "app/login/page.jsx",
+  "app/login/layout.jsx",
+  "lib/login-view.mjs",
+  "app/not-found.jsx",
+  "app/error.jsx",
+  "components/NotFoundActions.jsx",
+  "lib/not-found-view.mjs",
+  "components/LanguageSwitcher.jsx",
+  "components/ui/PublicCard.jsx",
 ]);
 
 async function counts() {
