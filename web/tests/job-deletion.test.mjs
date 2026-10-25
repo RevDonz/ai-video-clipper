@@ -307,7 +307,12 @@ test("the purge runs from the primary worker poll loop", async () => {
 test("the project history offers deletion without a blocking browser dialog", async () => {
   const source = await readFile(new URL("../app/projects/page.jsx", import.meta.url), "utf8");
   assert.match(source, /method: "DELETE"/);
-  assert.match(source, /Hapus permanen\?/);
+  // The confirmation is an in-page AlertDialog (05 §6.8) whose words come from the catalog.
+  assert.match(source, /<AlertDialog\b/);
+  assert.match(source, /t\("delete\.confirm", \{ count: jobs\.length \}\)/);
+  const projects = JSON.parse(await readFile(new URL("../messages/id/projects.json", import.meta.url), "utf8"));
+  assert.equal(projects.delete.confirm, "{count, plural, other {Hapus # proyek?}}");
+  assert.equal(projects.delete.submit, "Hapus permanen");
   assert.match(await readFile(new URL("../lib/project-view.mjs", import.meta.url), "utf8"), /deleting: "Menghapus"/);
   assert.doesNotMatch(source, /(?<![\w.])confirm\(/, "a modal confirm() blocks the page and the extension");
 });

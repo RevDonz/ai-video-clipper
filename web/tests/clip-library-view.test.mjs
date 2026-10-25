@@ -24,6 +24,7 @@ import {
   writeHistoryView,
 } from "../lib/clip-library-view.mjs";
 import { clipFromParam, scorePillFor } from "../lib/project-workspace.mjs";
+import { textOf } from "./support/catalog-t.mjs";
 
 const JOB_ID = "8c2e4f60-7a1b-4c3d-9e5f-0a1b2c3d4e5f";
 const read = (relative) => readFile(new URL(`../${relative}`, import.meta.url), "utf8");
@@ -90,7 +91,10 @@ test("the grid groups clips under 'Hari ini', 'Minggu ini' and 'Lebih lama', in 
   const keys = (group) => group.items.map((item) => `${item.jobId}#${item.index}`);
   const grouped = groupClipsByDay(items, now);
   assert.equal(grouped.headings, true);
-  assert.deepEqual(grouped.groups.map((group) => [group.key, group.label]), [["today", "Hari ini"], ["week", "Minggu ini"], ["earlier", "Lebih lama"]]);
+  assert.deepEqual(grouped.groups.map((group) => [group.key, group.label]),
+    [["today", { key: "projects.clips.day.today" }], ["week", { key: "projects.clips.day.week" }], ["earlier", { key: "projects.clips.day.earlier" }]]);
+  assert.deepEqual(grouped.groups.map((group) => textOf(group.label)), ["Hari ini", "Minggu ini", "Lebih lama"]);
+  assert.deepEqual(grouped.groups.map((group) => textOf(group.label, "en")), ["Today", "This week", "Earlier"]);
   assert.deepEqual(grouped.groups.map(keys), [["a#1", "a#2"], ["b#1"], ["c#1", "d#1"]]);
   // Only groups that hold a clip; one group of today still says "Hari ini".
   const today = groupClipsByDay(items.slice(0, 2), now);
@@ -134,10 +138,12 @@ test("a page loads; a lost session goes to login; refusals and network errors re
   assert.deepEqual(login, { type: "redirect", location: `/login?next=${encodeURIComponent("/projects")}` });
 
   await assert.rejects(loadClipLibrary({}, { fetchImpl: async () => Response.json({ error: "x" }, { status: 503 }) }),
-    (error) => error instanceof ClipLibraryLoadError && /Klip tidak bisa dimuat/.test(error.message));
+    (error) => error instanceof ClipLibraryLoadError && textOf(error.reason) === "Coba lagi sebentar lagi.");
   await assert.rejects(loadClipLibrary({}, { fetchImpl: async () => Response.json({ clips: "x" }) }), ClipLibraryLoadError);
   await assert.rejects(loadClipLibrary({}, { fetchImpl: async () => { throw new TypeError("offline"); } }),
-    (error) => error instanceof ClipLibraryLoadError && /Periksa koneksi/.test(error.message));
+    (error) => error instanceof ClipLibraryLoadError && /Periksa koneksi/.test(textOf(error.reason)));
+  // The alert's title names the failure; the reason under it says what to do.
+  assert.equal(textOf({ key: "projects.clips.loadFailed" }), "Klip tidak bisa dimuat");
   const aborted = new DOMException("stop", "AbortError");
   await assert.rejects(loadClipLibrary({}, { fetchImpl: async () => { throw aborted; } }), (error) => error === aborted);
 });
@@ -167,16 +173,20 @@ test("the card reads like the project page's poster, plus its project and day", 
   assert.deepEqual(view.pill, { text: "8,4", high: true });
   assert.equal(view.project, "Podcast 12.mp4");
   assert.equal(view.day, "20 Okt");
-  assert.equal(view.meta, "Klip 03, 0:45, skor 8,4, Podcast 12.mp4, 20 Okt");
+  const meta = (parts, locale) => parts.map((part) => textOf(part, locale)).join(", ");
+  assert.equal(meta(view.meta), "Klip 03, 0:45, skor 8,4, Podcast 12.mp4, 20 Okt");
   assert.equal(clipCardView({ ...item, createdAt: new Date(2025, 0, 2).toISOString() }, new Date(2026, 9, 21)).day, "2 Jan 2025");
+  // English names the clip and the day in English.
+  const en = clipCardView({ ...item, score: null }, new Date(2026, 9, 21, 9, 0), "en");
+  assert.equal(meta(en.meta, "en"), "Clip 03, 0:45, Podcast 12.mp4, Oct 20");
 
   const bare = clipCardView({ jobId: JOB_ID, index: 1, title: null, duration: null, posterUrl: null, score: null, projectName: "Proyek", createdAt: null });
-  assert.equal(bare.title, "Klip 01");
+  assert.equal(textOf(bare.title), "Klip 01");
   assert.equal(bare.length, null);
   assert.equal(bare.pill, null);
   assert.equal(bare.day, null);
-  assert.equal(bare.meta, "Klip 01, Proyek");
-  for (const value of [view.meta, bare.meta]) assert.doesNotMatch(value, /hot|viral/i);
+  assert.equal(meta(bare.meta), "Klip 01, Proyek");
+  for (const value of [meta(view.meta), meta(bare.meta), meta(en.meta, "en")]) assert.doesNotMatch(value, /hot|viral/i);
 });
 
 test("the pill comes from the shown total: one decimal, a mark from 8,0", () => {
@@ -186,11 +196,14 @@ test("the pill comes from the shown total: one decimal, a mark from 8,0", () => 
 });
 
 test("the summaries count clips and projects without inventing anything", () => {
-  assert.equal(librarySummary({ total: 128, projects: 40 }), "128 klip dari 40 proyek");
-  assert.equal(librarySummary({ total: 1, projects: 1 }), "1 klip dari 1 proyek");
-  assert.equal(librarySummary({ total: 0, projects: 0 }), "Belum ada klip");
-  assert.equal(shownSummary({ shown: 24, matched: 128 }), "24 dari 128 klip");
-  assert.equal(shownSummary({ shown: 3, matched: 3 }), "3 klip");
+  assert.equal(textOf(librarySummary({ total: 128, projects: 40 })), "128 klip dari 40 proyek");
+  assert.equal(textOf(librarySummary({ total: 1, projects: 1 })), "1 klip dari 1 proyek");
+  assert.equal(textOf(librarySummary({ total: 0, projects: 0 })), "Belum ada klip");
+  assert.equal(textOf(shownSummary({ shown: 24, matched: 128 })), "24 dari 128 klip");
+  assert.equal(textOf(shownSummary({ shown: 3, matched: 3 })), "3 klip");
+  assert.equal(textOf(librarySummary({ total: 1, projects: 1 }), "en"), "1 clip from 1 project");
+  assert.equal(textOf(librarySummary({ total: 128, projects: 40 }), "en"), "128 clips from 40 projects");
+  assert.equal(textOf(shownSummary({ shown: 1, matched: 1 }), "en"), "1 clip");
 });
 
 test("the project page opens on the clip a link names", () => {
@@ -200,19 +213,26 @@ test("the project page opens on the clip a link names", () => {
   assert.equal(clipFromParam(["3"]), 3);
 });
 
-test("Riwayat switches between 'Proyek' and 'Klip' and remembers the choice", async () => {
+test("Proyek switches between 'Proyek' and 'Klip' tabs and remembers the choice", async () => {
   const page = await read("app/projects/page.jsx");
-  assert.match(page, /aria-label="Tampilan riwayat"/);
-  assert.match(page, />Proyek</);
-  assert.match(page, />Klip</);
-  assert.match(page, /readHistoryView\(browserStorage\(\)\)/);
+  // The tabs are HeroUI Tabs named from the catalog; the URL (?tab=) wins over the remembered one.
+  assert.match(page, /<Tabs\.List aria-label=\{t\("tab\.label"\)\}>/);
+  assert.match(page, /<Tabs\.Tab id="projects">\{t\("tab\.projects"\)\}<\/Tabs\.Tab>/);
+  assert.match(page, /<Tabs\.Tab id="clips">\{t\("tab\.clips"\)\}<\/Tabs\.Tab>/);
+  const projects = JSON.parse(await read("messages/id/projects.json"));
+  assert.equal(projects.tab.projects, "Proyek");
+  assert.equal(projects.tab.clips, "Klip");
+  assert.match(page, /parsed\.tab \?\? readHistoryView\(browserStorage\(\)\)/);
   assert.match(page, /writeHistoryView\(browserStorage\(\), next\)/);
   assert.match(page, /<ClipLibrary\b/);
   const library = await read("components/ClipLibrary.jsx");
   assert.match(library, /href=\{clipHref\(item\)\}/);
-  assert.match(library, /Muat lagi/);
-  assert.match(library, /Skor 8\+/);
-  assert.match(library, /Minggu ini/);
+  assert.match(library, /tc\("loadMore"\)/);
+  assert.match(library, /tc\("score8"\)/);
+  assert.match(library, /tc\("thisWeek"\)/);
+  assert.equal(projects.clips.loadMore, "Muat lagi");
+  assert.equal(projects.clips.score8, "Skor 8+");
+  assert.equal(projects.clips.thisWeek, "Minggu ini");
   // Grouped by day with the moment the first page loaded, so "Muat lagi" never regroups what shows.
   assert.match(library, /groupClipsByDay\(page\.clips, page\.loadedAt\)/);
   assert.match(library, /<PosterThumb\b/);

@@ -71,6 +71,11 @@ const ZERO = Object.freeze([
   "components/ClipText.jsx",
   "components/HookSwitch.jsx",
   "components/StageSummary.jsx",
+  // Dashboard F4 (08 Fase 3): Proyek and its Klip tab.
+  "app/projects/page.jsx",
+  "components/ClipLibrary.jsx",
+  "lib/clip-library-view.mjs",
+  "lib/projects-list-view.mjs",
 ]);
 
 async function counts() {

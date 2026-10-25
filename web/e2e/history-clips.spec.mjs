@@ -1,8 +1,9 @@
 import { expect } from "@playwright/test";
 
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
-// Riwayat's "Klip" view (plan A7): the "Proyek | Klip" switch, remembered across reloads; a grid of
+// Proyek's "Klip" tab (plan A7, 05 §6.8): the "Proyek | Klip" tabs, in the URL and remembered; a grid of
 // the project page's posters across projects, grouped under "Hari ini" and "Lebih lama"; search,
 // "Skor 8+" and "Minggu ini" asked of the server; "Muat lagi"; each card opening its clip in its
 // project (?klip=N). The clip listing and the job API are faked inside the browser (page.route),
@@ -76,7 +77,9 @@ async function fakeLibrary(target, { fail = false } = {}) {
 }
 
 const cards = (target) => target.getByRole("list", { name: "Klip" }).getByRole("article");
-const views = (target) => target.getByRole("group", { name: "Tampilan riwayat" });
+// Proyek | Klip are tabs since Fase 3 (05-ui-dashboard.md §6.8); names come from the catalog.
+const views = (target) => target.getByRole("tablist", { name: L("projects.tab.label") });
+const clipTab = (target) => views(target).getByRole("tab", { name: L("projects.tab.clips") });
 const chips = (target) => target.getByRole("group", { name: "Saring klip" });
 const overflow = (target) => target.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
@@ -86,12 +89,13 @@ test.describe("Riwayat: Klip view (faked clip listing)", () => {
   test("the switch opens the clip grid and remembers it; 'Muat lagi' appends; a card opens its clip", async ({ page }) => {
     const requests = await fakeLibrary(page);
     await login(page, "/projects");
-    await expect(page.getByRole("heading", { level: 1, name: "Riwayat proyek" })).toBeVisible();
-    await views(page).getByRole("button", { name: "Klip" }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Riwayat klip" })).toBeVisible();
-    await expect(views(page).getByRole("button", { name: "Klip" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("heading", { level: 1, name: L("projects.title") })).toBeVisible();
+    await expect(views(page).getByRole("tab", { name: L("projects.tab.projects") })).toHaveAttribute("aria-selected", "true");
+    await clipTab(page).click();
+    await expect(clipTab(page)).toHaveAttribute("aria-selected", "true");
+    await expect.poll(() => new URL(page.url()).searchParams.get("tab")).toBe("klip");
     await expect(cards(page)).toHaveCount(3);
-    await expect(page.getByText("5 klip dari 2 proyek")).toBeVisible();
+    await expect(page.getByText(L("projects.clips.shownOf", { shown: 3, matched: 5 }), { exact: true })).toBeVisible();
     // Neutral score pills; only 8 and up carry the mark. No score is called hot or viral.
     for (const [position, high] of [[0, 1], [1, 0], [2, 1]]) await expect(cards(page).nth(position).locator("[data-high]")).toHaveCount(high);
     await expect(page.getByText(/\bhot\b|viral/i)).toHaveCount(0);
@@ -107,8 +111,9 @@ test.describe("Riwayat: Klip view (faked clip listing)", () => {
     await expect(page.getByRole("button", { name: "Muat lagi" })).toHaveCount(0);
     expect(requests.at(-1).searchParams.get("cursor")).toBe("3");
 
-    await page.reload();
-    await expect(page.getByRole("heading", { level: 1, name: "Riwayat klip" })).toBeVisible();
+    // Without ?tab= the remembered tab opens.
+    await page.goto("/projects");
+    await expect(clipTab(page)).toHaveAttribute("aria-selected", "true");
     await expect(cards(page)).toHaveCount(3);
 
     await page.getByRole("searchbox", { name: "Cari klip" }).fill("ngopi");
@@ -116,7 +121,7 @@ test.describe("Riwayat: Klip view (faked clip listing)", () => {
     expect(requests.at(-1).searchParams.get("q")).toBe("ngopi");
     await chips(page).getByRole("button", { name: "Skor 8+" }).click();
     await expect(chips(page).getByRole("button", { name: "Skor 8+" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("strong", { hasText: "Tidak ada klip yang cocok" })).toBeVisible();
+    await expect(page.locator("strong", { hasText: L("projects.clips.notFound") })).toBeVisible();
     await page.getByRole("button", { name: "Tampilkan semua klip" }).click();
     await expect(cards(page)).toHaveCount(3);
     await expect(page.getByRole("searchbox", { name: "Cari klip" })).toHaveValue("");
@@ -141,8 +146,8 @@ test.describe("Riwayat: Klip view (faked clip listing)", () => {
     probe.on("pageerror", (error) => errors.push(error.message));
     await fakeLibrary(probe, { fail: true });
     await probe.goto("/projects");
-    await views(probe).getByRole("button", { name: "Klip" }).click();
-    await expect(probe.getByRole("alert").filter({ hasText: "Klip tidak bisa dimuat" })).toBeVisible();
+    await clipTab(probe).click();
+    await expect(probe.getByRole("alert").filter({ hasText: L("projects.clips.loadFailed") })).toBeVisible();
     await probe.getByRole("button", { name: "Coba lagi" }).click();
     await expect(cards(probe)).toHaveCount(3);
     expect(errors).toEqual([]);
@@ -157,7 +162,7 @@ test.describe("Riwayat: Klip view at 390 px", () => {
   test("posters two across, 44 px targets, no horizontal scroll", async ({ page }) => {
     await fakeLibrary(page);
     await login(page, "/projects");
-    await views(page).getByRole("button", { name: "Klip" }).tap();
+    await clipTab(page).tap();
     await expect(cards(page)).toHaveCount(3);
     const first = await cards(page).nth(0).boundingBox();
     const second = await cards(page).nth(1).boundingBox();
@@ -165,7 +170,7 @@ test.describe("Riwayat: Klip view at 390 px", () => {
     expect(second.x).toBeGreaterThan(first.x);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
     const targets = [
-      ...await views(page).getByRole("button").all(),
+      ...await views(page).getByRole("tab").all(),
       ...await chips(page).getByRole("button").all(),
       page.getByRole("button", { name: "Muat lagi" }),
     ];

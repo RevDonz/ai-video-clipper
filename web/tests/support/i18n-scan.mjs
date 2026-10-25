@@ -120,6 +120,17 @@ export function translatorCalls(ast) {
   const bindings = new Map();
   const factories = [];
   walk(ast.program, (node) => {
+    // d("ns.key", values) from lib/i18n/descriptor.mjs names a full key, like a translator
+    // without a namespace: view modules return descriptors that a component translates later.
+    if (node.type === "ImportDeclaration" && /(^|\/)i18n\/descriptor\.mjs$/.test(node.source.value)) {
+      for (const specifier of node.specifiers) {
+        if (specifier.type === "ImportSpecifier" && specifier.imported.name === "d") {
+          bindings.set(specifier.local.name, { namespace: "", literal: true });
+          factories.push({ name: specifier.local.name, namespace: "", literal: true, line: node.loc.start.line });
+        }
+      }
+      return;
+    }
     if (node.type !== "VariableDeclarator" || node.id.type !== "Identifier") return;
     const found = factoryNamespace(node.init);
     if (!found) return;
