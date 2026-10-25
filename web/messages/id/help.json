@@ -1,0 +1,423 @@
+{
+  "title": "Bantuan",
+  "search": {
+    "label": "Pesan error",
+    "placeholder": "Tempel pesan error",
+    "submit": "Cari",
+    "hint": "Pesan lengkap atau kodenya, misalnya download_bot_check",
+    "empty": "Tempel pesan error atau kodenya dulu",
+    "noMatch": "Belum ada entri yang cocok. Coba potongan yang lebih pendek, atau kodenya saja.",
+    "best": "Paling cocok:",
+    "maybe": "Mungkin cocok:"
+  },
+  "guide": {
+    "title": "Panduan",
+    "topics": {
+      "mulai": {
+        "title": "Membuat klip pertama",
+        "intro": "Satu video panjang jadi beberapa klip pendek, dari satu halaman.",
+        "steps": {
+          "1": "Buka Buat klip, lalu tempel link YouTube atau pilih file video (MP4, MOV, MKV, WEBM). File juga bisa ditarik ke halaman.",
+          "2": "Cek Jumlah klip, Durasi klip, Rasio, dan Layout. Pilihan ini diingat untuk job berikutnya di browser ini.",
+          "3": "Tekan Buat klip. Progres per tahap tampil di halaman dan di menu samping; job tetap berjalan di server walau halamannya ditutup.",
+          "4": "Setelah selesai, tonton klipnya, unduh MP4, atau salin caption. Semua proyek tersimpan di Proyek."
+        }
+      },
+      "pilihan": {
+        "title": "Pilihan di Buat klip",
+        "intro": "Yang selalu terlihat dipakai hampir setiap kali; sisanya dilipat dengan ringkasan pilihannya.",
+        "terms": {
+          "count": {
+            "title": "Jumlah klip",
+            "text": "{countMin} sampai {countMax} klip per video."
+          },
+          "duration": {
+            "title": "Durasi klip",
+            "text": "Otomatis {autoMin}–{autoMax} detik, Pendek {shortMin}–{shortMax} detik, Sedang {mediumMin}–{mediumMax} detik, Panjang {longMin}–{longMax} detik, atau Atur sendiri antara {secondsMin}–{secondsMax} detik."
+          },
+          "ratio": {
+            "title": "Rasio",
+            "text": "9:16 untuk TikTok, Reels, dan Shorts; 1:1 untuk feed."
+          },
+          "layout": {
+            "title": "Layout",
+            "text": "Latar blur: video landscape tetap utuh, sisa layar diisi versi blur. Ikuti wajah: layar penuh, potongan mengikuti wajah pembicara. Potong tengah: untuk video yang subjeknya selalu di tengah. Layar terbagi diatur per klip di editor."
+          },
+          "look": {
+            "title": "Subtitle dan hook",
+            "text": "{styles} gaya subtitle dengan posisi dan ukurannya, kalimat terkuat diputar di depan, dan teks hook di 4 detik pertama. Pratinjau 9:16 di sampingnya mengikuti pilihan Anda."
+          },
+          "moments": {
+            "title": "Arahkan pilihan momen",
+            "text": "Kata kunci fokus mendahulukan momen yang membahasnya. Rentang waktu, misalnya 10.30-12.05, menjadikan bagian itu satu klip apa adanya. Kosongkan keduanya untuk pemilihan otomatis."
+          },
+          "format": {
+            "title": "Bahasa dan resolusi",
+            "text": "Bahasa yang diucapkan di video (Indonesia, Inggris, atau deteksi otomatis) dan resolusi 720p atau 1080p. 1080p lebih tajam, tapi render lebih lama."
+          },
+          "srt": {
+            "title": "Subtitle .srt",
+            "text": "Untuk file unggahan, tambahkan .srt (maksimal 2 MB) supaya transkrip diambil dari file itu, bukan dari audio."
+          }
+        }
+      },
+      "riwayat": {
+        "title": "Proyek",
+        "intro": "Semua hasil ada di Proyek, per video atau per klip.",
+        "steps": {
+          "1": "Tab Proyek: satu baris per video, dengan pencarian dan saringan status. Tab Klip: semua klip dari semua proyek.",
+          "2": "Buka proyek untuk menonton tiap klip, menyalin judul atau caption, dan mengunduh satu klip atau semuanya sebagai ZIP.",
+          "3": "Judul dan deskripsi bisa diubah langsung, atau ditulis ulang dengan Tulis ulang.",
+          "4": "Hapus proyek menghapus video sumber dan semua klipnya dari server. Tidak bisa dibatalkan."
+        }
+      },
+      "editor": {
+        "title": "Editor klip",
+        "intro": "Buka dari tombol Edit klip di proyek. Editor butuh layar minimal 1024 px.",
+        "terms": {
+          "quick": {
+            "title": "Cepat",
+            "text": "Kartu Hook, Caption, Teks caption, Cold open, Tata letak, serta Logo & Musik di samping pratinjau. Cocok untuk merapikan kemasan."
+          },
+          "full": {
+            "title": "Lengkap",
+            "text": "Ikon alat di kiri (Transkrip, Teks, Cold open, Tata letak, Logo, Musik), panel alat yang dipilih di kanan pratinjau, timeline di bawah. Potong per kata dari transkrip di sini."
+          },
+          "save": {
+            "title": "Simpan dan ekspor",
+            "text": "Perubahan tersimpan otomatis. Perlu dicek menunjukkan hal yang sebaiknya diperiksa sebelum ekspor; Ekspor membuat file MP4 dari hasil edit."
+          }
+        }
+      },
+      "tren": {
+        "title": "Tren",
+        "intro": "Daftar topik, orang, jokes, dan hashtag yang sedang ramai, dikirim agen Anda atau ditambah manual.",
+        "steps": {
+          "1": "Tren aktif ikut dipakai untuk judul, hook, deskripsi, dan hashtag klip.",
+          "2": "Momen yang menyebut tren di transkripnya naik sedikit; momen bagus tanpa tren tetap bisa terpilih.",
+          "3": "Matikan Pakai konteks tren kalau job berikutnya tidak perlu tren.",
+          "4": "Token agen hanya tampil sekali saat dibuat. Simpan di agen Anda, jangan di chat atau repo."
+        }
+      },
+      "pengaturan": {
+        "title": "Pengaturan",
+        "intro": "Berlaku untuk job berikutnya.",
+        "steps": {
+          "1": "AI pemilih momen: penyedia dicoba dari atas; kalau semua gagal, heuristik lokal yang memilih. Hanya model gratis bisa dinyalakan.",
+          "2": "Transkripsi, logo dan watermark teks bawaan, serta cookies YouTube untuk video yang meminta login.",
+          "3": "Tentang sistem: komponen yang dipakai server ini, untuk disertakan saat melaporkan masalah.",
+          "4": "Bahasa tampilan dipilih di menu akun bila ada lebih dari satu. Perangkat lain ikut berganti saat masuk berikutnya."
+        }
+      }
+    }
+  },
+  "shortcuts": {
+    "title": "Pintasan",
+    "key": "Tombol",
+    "does": "Fungsi",
+    "or": "atau",
+    "app": "Halaman aplikasi",
+    "appNote": "Saat Pintasan satu tombol menyala di menu akun",
+    "editor": "Editor",
+    "editorNote": "Tekan ? di editor untuk daftar lengkap",
+    "space": "Spasi",
+    "appKeys": {
+      "create": "Buka Buat klip",
+      "search": "Ke kolom cari halaman"
+    },
+    "editorKeys": {
+      "playPause": "Putar / jeda",
+      "frameBack": "Mundur satu frame",
+      "frameForward": "Maju satu frame",
+      "undo": "Urungkan",
+      "redo": "Ulangi",
+      "trimStart": "Mulai klip di pilihan atau playhead",
+      "trimEnd": "Akhiri klip di pilihan atau playhead",
+      "export": "Ekspor",
+      "help": "Bantuan pintasan"
+    }
+  },
+  "errors": {
+    "title": "Pesan error",
+    "groups": "Kelompok pesan error",
+    "count": "{count, plural, other {# entri}}"
+  },
+  "entry": {
+    "shown": "Di layar",
+    "cause": "Penyebab",
+    "fix": "Perbaikan"
+  },
+  "actions": {
+    "create": "Buka Buat klip",
+    "projects": "Buka Proyek",
+    "settings": "Buka Pengaturan",
+    "trends": "Buka Tren"
+  },
+  "groups": {
+    "unduhan": {
+      "title": "Unduhan YouTube",
+      "intro": "Server gagal mengambil video dari link YouTube. Pesannya muncul di Buat klip dan di halaman proyek."
+    },
+    "penyimpanan": {
+      "title": "Penyimpanan server",
+      "intro": "Server menolak job baru, atau menghentikannya, karena ruang penyimpanan."
+    },
+    "ai": {
+      "title": "AI pemilih momen",
+      "intro": "Penyedia AI di Pengaturan gagal dipakai. Job tetap jalan: momen dipilih dengan heuristik lokal."
+    }
+  },
+  "entries": {
+    "download_private": {
+      "title": "Video privat",
+      "cause": "Pemilik video menyetelnya privat. Server hanya bisa mengunduh video yang bisa ditonton tanpa login.",
+      "fix": {
+        "1": "Buka link-nya di jendela penyamaran. Kalau YouTube meminta login, videonya memang privat.",
+        "2": "Minta pemiliknya mengubah visibilitas ke Publik atau Tidak publik, lalu buat ulang proyeknya.",
+        "3": "Atau unggah file videonya langsung lewat Pilih file di Buat klip."
+      }
+    },
+    "download_unavailable": {
+      "title": "Video dihapus atau tidak tersedia",
+      "cause": "Videonya sudah dihapus, kanalnya ditutup, atau link-nya terpotong sehingga ID videonya tidak lengkap.",
+      "fix": {
+        "1": "Buka link-nya di browser dan pastikan videonya masih bisa diputar.",
+        "2": "Salin ulang link dari tombol Bagikan di YouTube, lalu buat ulang proyeknya.",
+        "3": "Kalau videonya memang sudah hilang, unggah file aslinya."
+      }
+    },
+    "download_age_restricted": {
+      "title": "Video dibatasi usia",
+      "cause": "YouTube meminta login untuk video yang dibatasi usia. Tanpa cookies YouTube, server mengunduh tanpa akun, jadi permintaan itu tidak bisa dipenuhi.",
+      "fix": {
+        "1": "Unggah file videonya langsung lewat Pilih file di Buat klip.",
+        "2": "Atau unggah cookies YouTube di Pengaturan, dari akun yang sudah lolos verifikasi usia."
+      }
+    },
+    "download_members_only": {
+      "title": "Video khusus member atau berbayar",
+      "cause": "Video ini hanya untuk member kanal atau pembelinya. Server tidak punya akses itu.",
+      "fix": {
+        "1": "Unggah file videonya langsung lewat Pilih file di Buat klip.",
+        "2": "Kalau file-nya tidak ada, pilih video yang bisa ditonton semua orang."
+      }
+    },
+    "download_geo_blocked": {
+      "title": "Video diblokir di wilayah server",
+      "cause": "Pemilik video membatasinya ke negara tertentu, dan server berada di luar negara itu. Video yang bisa diputar di perangkat Anda belum tentu bisa diunduh server.",
+      "fix": {
+        "1": "Unggah file videonya langsung lewat Pilih file di Buat klip."
+      }
+    },
+    "download_bot_check": {
+      "title": "YouTube menahan unduhan dari server",
+      "cause": "YouTube menahan permintaan dari alamat IP server: meminta bukti bukan bot atau membatasi jumlah permintaan (HTTP 429). Cookies dari akun YouTube membantu server lolos pemeriksaan itu.",
+      "fix": {
+        "1": "Unggah cookies YouTube di Pengaturan: ekspor cookies.txt dari browser yang sudah masuk ke YouTube.",
+        "2": "Pakai akun Google terpisah, bukan akun utama Anda. Kalau unduhan ditahan lagi, ekspor ulang cookies-nya.",
+        "3": "Atau unggah file videonya langsung lewat Pilih file di Buat klip.",
+        "4": "Atau buat ulang proyeknya nanti."
+      }
+    },
+    "download_ytdlp_outdated": {
+      "title": "Pengunduh YouTube perlu diperbarui",
+      "cause": "YouTube mengubah cara videonya disajikan, dan versi yt-dlp di server belum mengikutinya. Gejalanya: format tidak tersedia, data gagal diekstrak, atau HTTP 403.",
+      "fix": {
+        "1": "Sementara itu, unggah file videonya langsung lewat Pilih file di Buat klip.",
+        "2": "Pemilik server: naikkan versi yt-dlp lewat PR pembaruan mingguan, atau ikuti langkah “YouTube rusak: naikkan yt-dlp” di panduan operasional."
+      }
+    },
+    "download_stalled": {
+      "title": "Unduhan macet",
+      "cause": "Progres unduhan berhenti dan tidak bergerak selama 2 menit (bawaan), jadi worker menghentikan unduhannya. Biasanya koneksi server ke YouTube melambat atau terputus.",
+      "fix": {
+        "1": "Buat ulang proyeknya beberapa menit lagi.",
+        "2": "Kalau terus macet, unggah file videonya langsung lewat Pilih file di Buat klip."
+      }
+    },
+    "download_failed": {
+      "title": "Unduhan gagal karena sebab lain",
+      "cause": "yt-dlp berhenti dengan pesan yang belum dikenali Potongin.",
+      "fix": {
+        "1": "Buka link-nya di browser dan pastikan videonya bisa diputar.",
+        "2": "Buat ulang proyeknya.",
+        "3": "Kalau gagal lagi, tempel pesan teknis dari Buat klip atau halaman proyek ke kolom cari di halaman ini."
+      }
+    },
+    "storage_quota_exhausted": {
+      "title": "Kuota penyimpanan server penuh",
+      "cause": "Proyek yang tersimpan sudah memakai seluruh kuota penyimpanan job. Potongin tidak pernah menghapus proyek sendiri, jadi job baru ditolak sampai ada ruang.",
+      "fix": {
+        "1": "Unduh klip yang masih dibutuhkan, lalu hapus proyek yang tidak dipakai lagi di Proyek. Penghapusan ini permanen.",
+        "2": "Tekan Periksa lagi di Buat klip, lalu buat ulang proyeknya.",
+        "3": "Pemilik server: naikkan JOBS_STORAGE_QUOTA_BYTES atau perbesar volume penyimpanan."
+      }
+    },
+    "storage_free_space_low": {
+      "title": "Ruang kosong disk server terlalu sedikit",
+      "cause": "Ruang kosong di disk server turun di bawah batas aman. Disk itu juga bisa terisi oleh hal lain di server, bukan hanya proyek Potongin.",
+      "fix": {
+        "1": "Hapus proyek yang tidak dipakai lagi di Proyek.",
+        "2": "Pemilik server: kosongkan disk (misalnya cache build Docker dan image lama) atau perbesar volume, lalu tekan Periksa lagi di Buat klip."
+      }
+    },
+    "storage_admission_unavailable": {
+      "title": "Status penyimpanan tidak bisa diperiksa",
+      "cause": "Server gagal menghitung pemakaian penyimpanan, misalnya karena pemindaian folder job melewati batas waktu atau catatan reservasinya hilang. Job baru ditolak supaya disk tidak penuh tanpa ketahuan.",
+      "fix": {
+        "1": "Tunggu sebentar, tekan Periksa lagi di Buat klip, lalu coba lagi.",
+        "2": "Pemilik server: kalau terus terjadi, periksa log worker. Folder job harus berada di satu mount."
+      }
+    },
+    "llm_quota_exhausted": {
+      "title": "Kuota gratis AI habis",
+      "cause": "Penyedia membatasi jumlah permintaan gratis, biasanya per hari. Model itu dilewati sementara, lalu model atau penyedia berikutnya dicoba.",
+      "fix": {
+        "1": "Tunggu kuota harian pulih.",
+        "2": "Tambahkan penyedia gratis lain di Urutan penyedia supaya job berikutnya tetap memakai AI.",
+        "3": "Atau isi Model cadangan dengan model gratis lain dari penyedia yang sama."
+      }
+    },
+    "llm_rate_limited": {
+      "title": "Kena rate limit penyedia AI",
+      "cause": "Terlalu banyak permintaan dalam waktu singkat untuk model itu (HTTP 429). Potongin menunggu dan mencoba lagi sebelum pindah ke model berikutnya.",
+      "fix": {
+        "1": "Tunggu sebentar, lalu jalankan Tes koneksi lagi.",
+        "2": "Turunkan Batas permintaan/menit penyedia itu di Pengaturan.",
+        "3": "Tambahkan penyedia gratis lain di Urutan penyedia sebagai cadangan."
+      }
+    },
+    "llm_auth": {
+      "title": "API key ditolak",
+      "cause": "Penyedia menolak API key (HTTP 401 atau 403): key-nya salah, sudah dicabut, atau milik penyedia lain.",
+      "fix": {
+        "1": "Buat key baru di situs penyedia lewat tautan Ambil API key di kartunya.",
+        "2": "Tekan Ganti di kolom API key, tempel key baru, lalu Simpan.",
+        "3": "Jalankan Tes koneksi."
+      }
+    },
+    "llm_missing_api_key": {
+      "title": "API key belum diisi",
+      "cause": "Penyedia ini butuh API key, tetapi kolomnya kosong. Kalau ada penyedia lain di daftar, penyedia ini dilewati.",
+      "fix": {
+        "1": "Ambil API key di situs penyedia lewat tautan Ambil API key.",
+        "2": "Tempel di kolom API key. Simpan, lalu jalankan Tes koneksi."
+      }
+    },
+    "llm_key_unreadable": {
+      "title": "API key tersimpan tidak bisa dibuka",
+      "cause": "Key disimpan terenkripsi dengan rahasia sesi server (APP_SESSION_SECRET). Kalau rahasia itu berganti, key lama tidak bisa dibuka lagi.",
+      "fix": {
+        "1": "Tekan Isi ulang di kolom API key, tempel key-nya lagi, lalu Simpan.",
+        "2": "Pemilik server: jangan ganti APP_SESSION_SECRET kecuali memang perlu."
+      }
+    },
+    "llm_payment_required": {
+      "title": "Model butuh kredit berbayar",
+      "cause": "Model atau penyedia ini tidak gratis, atau Hanya model gratis menyala sementara modelnya berbayar.",
+      "fix": {
+        "1": "Pilih model gratis lewat Ambil daftar model. Di OpenRouter, namanya berakhiran :free.",
+        "2": "Atau pakai penyedia gratis lain di Urutan penyedia."
+      }
+    },
+    "llm_model_not_found": {
+      "title": "Model tidak ditemukan",
+      "cause": "ID modelnya salah atau sudah dipensiunkan penyedia. Untuk model gratis OpenRouter, penyebabnya bisa juga setelan privasi akun yang belum mengizinkan endpoint gratis.",
+      "fix": {
+        "1": "Tekan Ambil daftar model dan pilih model yang tersedia.",
+        "2": "OpenRouter: izinkan endpoint gratis di pengaturan privasi akun OpenRouter.",
+        "3": "Simpan, lalu jalankan Tes koneksi."
+      }
+    },
+    "llm_timeout": {
+      "title": "AI terlalu lama menjawab",
+      "cause": "Penyedia tidak menjawab dalam batas waktu permintaan, atau seluruh pemilihan momen dengan AI melewati 20 menit. Momen lalu dipilih tanpa AI.",
+      "fix": {
+        "1": "Naikkan Batas waktu (detik) penyedia itu.",
+        "2": "Untuk model reasoning, set Penalaran (reasoning effort) ke none supaya jawabannya jauh lebih cepat.",
+        "3": "Atau pilih model atau penyedia yang lebih cepat."
+      }
+    },
+    "llm_network": {
+      "title": "Server penyedia tidak bisa dihubungi",
+      "cause": "Server Potongin gagal terhubung ke alamat penyedia: Base URL salah, server sendiri (misalnya Hermes, 9Router atau Ollama) mati, atau koneksi internet server terputus.",
+      "fix": {
+        "1": "Periksa Base URL di kartu penyedia.",
+        "2": "Untuk server sendiri, pastikan servernya menyala dan bisa dicapai dari server Potongin.",
+        "3": "Jalankan Tes koneksi lagi."
+      }
+    },
+    "llm_context_length": {
+      "title": "Transkrip terlalu panjang untuk model",
+      "cause": "Potongan transkrip yang dikirim melebihi batas konteks model, atau permintaannya terlalu besar untuk penyedia (HTTP 413).",
+      "fix": {
+        "1": "Turunkan Batas konteks (token) penyedia itu sampai sesuai batas modelnya.",
+        "2": "Atau pilih model dengan konteks lebih panjang."
+      }
+    },
+    "llm_context_too_small": {
+      "title": "Batas konteks terlalu kecil",
+      "cause": "Batas konteks yang diatur terlalu kecil untuk memuat instruksi dan potongan transkrip sekaligus.",
+      "fix": {
+        "1": "Naikkan Batas konteks (token), atau turunkan Maks. token jawaban.",
+        "2": "Simpan, lalu jalankan Tes koneksi."
+      }
+    },
+    "llm_truncated": {
+      "title": "Jawaban AI terpotong",
+      "cause": "Model mencapai batas token jawaban sebelum selesai. Model reasoning paling sering kena karena fase berpikirnya ikut memakai token.",
+      "fix": {
+        "1": "Naikkan Maks. token jawaban.",
+        "2": "Untuk model reasoning, set Penalaran (reasoning effort) ke none."
+      }
+    },
+    "llm_bad_response": {
+      "title": "Jawaban AI tidak bisa dibaca",
+      "cause": "Model menjawab, tetapi bukan JSON yang diminta, atau respons servernya rusak.",
+      "fix": {
+        "1": "Ubah Mode JSON penyedia itu (Aktif atau Nonaktif), lalu jalankan Tes koneksi.",
+        "2": "Kalau tetap gagal, pilih model lain."
+      }
+    },
+    "llm_content_filter": {
+      "title": "Jawaban diblokir filter konten",
+      "cause": "Filter keamanan penyedia memblokir jawaban model, biasanya karena isi transkripnya dianggap sensitif.",
+      "fix": {
+        "1": "Pindahkan penyedia lain ke urutan teratas, atau pilih model lain."
+      }
+    },
+    "llm_no_moments": {
+      "title": "AI tidak menemukan momen yang valid",
+      "cause": "AI menjawab, tetapi tidak satu pun momennya muat di batas durasi klip setelah dirapikan ke batas kalimat.",
+      "fix": {
+        "1": "Longgarkan durasi minimum dan maksimum klip di Buat klip.",
+        "2": "Periksa videonya: video dengan sedikit ucapan memberi sedikit bahan untuk AI."
+      }
+    },
+    "llm_config_invalid": {
+      "title": "Pengaturan AI tidak valid",
+      "cause": "Ada isian penyedia yang ditolak, misalnya Base URL tidak valid, ID model berisi spasi, atau angka di luar rentang.",
+      "fix": {
+        "1": "Buka Pengaturan dan perbaiki isian yang ditandai.",
+        "2": "Simpan, lalu jalankan Tes koneksi."
+      }
+    },
+    "llm_not_configured": {
+      "title": "AI mati atau belum diatur",
+      "cause": "AI dimatikan di Pengaturan, atau belum ada penyedia yang lengkap. Momen dipilih dengan heuristik lokal.",
+      "fix": {
+        "1": "Nyalakan Aktifkan AI (LLM) di Pengaturan.",
+        "2": "Tambah minimal satu penyedia gratis dan isi API key-nya.",
+        "3": "Simpan, lalu jalankan Tes koneksi."
+      }
+    },
+    "llm_http": {
+      "title": "Penyedia AI mengembalikan error",
+      "cause": "Penyedia menjawab dengan kode HTTP lain. Kode 5xx berarti server penyedia sedang bermasalah; kode 4xx biasanya karena pengaturan.",
+      "fix": {
+        "1": "Untuk 5xx: tunggu sebentar, lalu jalankan Tes koneksi lagi.",
+        "2": "Untuk 4xx: periksa model, Base URL dan Mode JSON, lalu jalankan Tes koneksi."
+      }
+    }
+  }
+}

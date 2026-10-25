@@ -1,15 +1,23 @@
 # Halaman bantuan (`/bantuan`): satu entri per kode error
 
-Terakhir diperbarui: 2026-10-21.
+Terakhir diperbarui: 2026-10-25.
 
-`/bantuan` menjelaskan setiap kode error yang bisa ditemui pengguna: judul, pesan yang tampil di
-layar (kalau ada), penyebab, dan langkah perbaikan. Halaman ini di balik login seperti halaman
-lain (`web/proxy.js`) dan bisa dibuka dari tautan "Bantuan" di header.
+`/bantuan` punya tiga bagian: **Panduan** (cara memakai Potongin, satu topik per bagian produk,
+terlipat dengan `Disclosure`), **Pintasan** (tombol satu huruf halaman aplikasi dan tombol editor
+yang paling sering dipakai), dan **Pesan error** (setiap kode error yang bisa ditemui pengguna:
+judul, pesan yang tampil di layar, penyebab, dan langkah perbaikan; selalu terbuka). Halaman ini di
+balik login seperti halaman lain (`web/proxy.js`) dan bisa dibuka dari "Bantuan" di sidebar.
+
+Teksnya ada di katalog `web/messages/<locale>/help.json` (namespace `help`, i18n M4), jadi
+halaman tampil dalam bahasa pengguna. Jangkar sama di semua bahasa. Topik yang cocok dengan alamat
+(`/bantuan#editor`) terbuka sendiri; tanpa JavaScript semua topik tampil terbuka.
 
 ## Satu sumber kebenaran
 
-Semua entri ada di `web/lib/help-catalog.mjs`. Kodenya diambil dari tiga tempat, dan tes gagal
-kalau ada kode tanpa entri:
+Daftar entri, kodenya, jangkarnya dan potongan pesannya ada di `web/lib/help-catalog.mjs`; kata
+setiap entri (`help.entries.<id>.{title,cause,fix}`) ada di katalog setiap bahasa, dibaca oleh
+`web/lib/help-view.mjs`. Panduan dan pintasan: `web/lib/help-guide.mjs` + `help.guide`,
+`help.shortcuts`. Kodenya diambil dari tiga tempat, dan tes gagal kalau ada kode tanpa entri:
 
 | Sumber kode | Konstanta | Jangkar | Tes yang menjaga |
 |---|---|---|---|
@@ -26,10 +34,11 @@ jangkar sendiri di entri itu, jadi `/bantuan#llm_bad_json` juga mendarat di entr
 
 1. Tambahkan kodenya di sumbernya (mis. `PATTERNS` dan `MESSAGES` di `download-errors.mjs`, atau
    `LLMError("kode_baru", ...)` lalu `ERROR_CODES` di `llm.py`).
-2. Tambahkan entri di `ENTRIES` (`help-catalog.mjs`): judul, penyebab, 1–4 langkah, dan potongan
-   pesan yang dikenal (`fragments`) kalau pesannya tidak memuat kodenya.
+2. Tambahkan entri di `ENTRIES` (`help-catalog.mjs`) dengan potongan pesan yang dikenal
+   (`fragments`) kalau pesannya tidak memuat kodenya, lalu `help.entries.<id>` (judul, penyebab,
+   1–4 langkah `fix.1`…) di `web/messages/id/help.json` dan `web/messages/en/help.json`.
 3. Jalankan `uv run pytest tests/test_llm_error_codes.py` dan
-   `cd web && node --test tests/help-catalog.test.mjs`.
+   `cd web && node --test tests/help-catalog.test.mjs tests/i18n-catalog.test.mjs`.
 
 ## Kolom cari
 
@@ -39,10 +48,15 @@ entrinya naik ke permukaan bertepi terang dan mendapat fokus). Urutannya:
 1. **Kode.** Kode yang ditandai (`[quota_exhausted]`, `kode: timeout`, `#download_private`,
    `llm_failed:rate_limited`) menang, lalu token bergaris bawah apa pun yang dikenal
    (`download_bot_check`, `http_503`). Kode satu kata (`timeout`) hanya dihitung kalau ditandai.
-2. **Potongan pesan.** Pesan yang tampil di layar, pesan mesin, dan balasan penyedia yang umum,
-   ditambah pola klasifikasi unduhan dari `download-errors.mjs`. Entri dengan bukti terpanjang
-   menang.
-3. **Kata.** Kalau tidak ada yang cocok, entri yang memuat paling sedikit 60 % kata pencarian.
+2. **Potongan pesan.** Pesan yang tampil di layar dalam **semua** bahasa (teks Indonesia dari
+   modul kodenya, ditambah `errors.<domain>.<kode>` tiap katalog bila ada), pesan mesin, dan balasan
+   penyedia yang umum, ditambah pola klasifikasi unduhan dari `download-errors.mjs`. Entri dengan
+   bukti terpanjang menang.
+3. **Kata.** Kalau tidak ada yang cocok, entri yang teksnya (judul, penyebab, langkah, di semua
+   bahasa) memuat paling sedikit 60 % kata pencarian.
+
+Indeksnya dibangun server dari katalog semua bahasa (`helpSearchIndex`, sekali per proses) dan
+dikirim ke kolom cari, jadi pesan Indonesia yang ditempel di UI Inggris tetap ketemu.
 
 Teks dibandingkan tanpa beda huruf besar, tanda kutip, atau spasi ganda. Tempelan panjang hanya
 dibaca 4000 karakter terakhirnya, tempat log menaruh baris error.

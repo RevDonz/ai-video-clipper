@@ -302,6 +302,12 @@ test("the kit guard catches palette classes, a Button without variant, banned va
   assert.deepEqual(findKitViolations("components/ok.jsx", `
 import { Button } from "@heroui/react";
 const a = <div className="flex gap-4 p-2 text-muted bg-surface"><Button variant="secondary">Ok</Button></div>;`), []);
+  // A self-closing PageHead has no body: a <p> after it belongs to the page; one inside an open
+  // PageHead is still caught.
+  assert.deepEqual(findKitViolations("app/ok/page.jsx", `
+const a = (<main><PageHead title={t("title")} /><p className="intro">{t("intro")}</p></main>);`), []);
+  assert.deepEqual(findKitViolations("app/planted/page.jsx", `
+const a = (<main><PageHead title={t("title")}><p>{t("intro")}</p></PageHead></main>);`).map((hit) => hit.rule), ["pagehead-sentence"]);
   // A Button that is not HeroUI's (no import from @heroui/react or components/ui) is left alone.
   assert.deepEqual(findKitViolations("components/editor/x.jsx", `const a = <Button onClick={go}>Ok</Button>;`), []);
 });

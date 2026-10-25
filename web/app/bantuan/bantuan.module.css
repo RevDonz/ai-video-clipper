@@ -1,24 +1,58 @@
 /* Bantuan (/bantuan): reference text in one reading column, like /licenses. The search box is
    the focal point; the entry it opens (the address's #code) lifts onto a surface with the light
-   edge active choices use elsewhere (docs/design/TOKENS.md: not lime). The guide comes first,
-   then the error reference. Topics and entries are split by hairlines, not cards: they are text
-   to read, not objects to act on. The heading is the shared .pageHead. Tokens from
-   app/globals.css. */
+   edge active choices use elsewhere (docs/design/TOKENS.md: not lime). The guide comes first as
+   folded topics, then the shortcuts, then the error reference, always open. Topics and entries
+   are split by hairlines, not cards: they are text to read, not objects to act on. The heading
+   is the shared .pageHead. Tokens from app/globals.css. */
 
 .page {
   max-width: 820px;
   padding: 0 0 72px;
 }
 
+/* The search: label over the field, the button beside it, the result line under both. */
 .search {
   padding: 16px;
 }
+.searchRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.searchField {
+  flex: 1;
+  min-width: 0;
+}
+.searchLabel {
+  display: block;
+  margin-bottom: 8px;
+  font: 600 14px/1.4 var(--font);
+}
+.searchGroup {
+  min-height: 44px;
+}
+.searchSubmit {
+  flex: none;
+}
+.result {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.result a {
+  font-weight: 600;
+}
 
-/* Panduan: one topic per part of the product, steps or terms, then the topic's page. */
-.guide {
+/* Panduan: one folded topic per part of the product; its title is the 44 px trigger. */
+.guide,
+.shortcuts {
   margin-top: 40px;
 }
-.guide > h2, .referenceTitle {
+.guide > h2,
+.shortcuts > h2,
+.referenceTitle {
   margin: 0;
   scroll-margin-top: 16px;
   font: 700 26px/1.2 var(--font);
@@ -34,16 +68,36 @@
   margin-top: 8px;
 }
 .topic {
-  padding: 20px 0;
   border-bottom: 1px solid var(--border);
   scroll-margin-top: 16px;
 }
-.topic h3 {
+.topicHeading {
   margin: 0;
   font: 600 18px/1.35 var(--font);
 }
+.topicTrigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  transition: color var(--dur-1) var(--ease-out);
+}
+.topicTrigger:hover {
+  color: var(--text-muted);
+}
+.topicBody {
+  padding: 0 0 20px;
+}
 .topicIntro {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--text-muted);
   line-height: 1.6;
 }
@@ -61,19 +115,32 @@
 .terms .row {
   grid-template-columns: 176px minmax(0, 1fr);
 }
+/* Without JS the topics cannot be opened, so they are shown open; the error entries never fold. */
+@media (scripting: none) {
+  .topicPanel,
+  .topicPanel[hidden] {
+    display: block;
+    height: auto;
+    opacity: 1;
+  }
+  .topicTrigger svg {
+    display: none;
+  }
+}
+
+/* Pintasan: one table, the app pages' keys then the editor's; it scrolls inside itself on a phone. */
+.keysScroll {
+  margin-top: 12px;
+  overflow-x: auto;
+}
 .keys {
   width: 100%;
-  margin-top: 14px;
+  min-width: 320px;
   border-collapse: collapse;
   font-size: 14px;
 }
-.keys caption {
-  padding-bottom: 8px;
-  color: var(--text-muted);
-  text-align: left;
-}
 .keys th {
-  padding: 6px 0;
+  padding: 6px 12px 6px 0;
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-weight: 600;
@@ -83,6 +150,14 @@
   padding: 8px 12px 8px 0;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
+}
+.keys .keysGroup {
+  padding-top: 18px;
+  color: var(--text);
+}
+.keysGroup span {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 .keys kbd {
   display: inline-block;
@@ -95,36 +170,8 @@
   font: 600 13px/1.5 var(--font);
   text-align: center;
 }
-.search label {
-  display: block;
-  margin-bottom: 8px;
-  font: 600 14px/1.4 var(--font);
-}
-.searchRow {
-  display: flex;
-  gap: 8px;
-}
-.searchRow input {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
-  padding: 10px 12px;
-  font-size: 15px;
-}
-.searchRow :global(.btn) {
-  flex: none;
-}
-.result {
-  margin: 10px 0 0;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.result a {
-  font-weight: 600;
-}
 
+/* Pesan error: the groups as one row of links with their counts, then every entry. */
 .index {
   display: flex;
   flex-wrap: wrap;

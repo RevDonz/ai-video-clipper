@@ -130,7 +130,7 @@ In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command
 
 ## Bantuan
 
-`e2e/bantuan.spec.mjs` covers the help page (`/bantuan`, `docs/operations/BANTUAN.md`). It needs no server data; the failed project it opens is faked inside the browser, so it changes nothing and runs against any target. It checks that a pasted yt-dlp line opens its entry (the address gets `#<code>`, the entry is the `:target` and takes the focus), that a text nothing fits says so and keeps the focus in the box, that anchors and the search work with JavaScript off (the GET form is redirected to the entry), that the "Cara memperbaiki" link of a failed download leads to its entry, keyboard reach, and no horizontal scroll at 390 px.
+`e2e/bantuan.spec.mjs` covers the help page (`/bantuan`, `docs/operations/BANTUAN.md`). It needs no server data; the failed project it opens is faked inside the browser, so it changes nothing and runs against any target. Every name and text comes from the catalog (`L()`), so it runs in each UI language. It checks that a pasted yt-dlp line opens its entry (the address gets `#<code>`, the entry is the `:target` and takes the focus), that a text nothing fits says so and keeps the focus in the box, that the Indonesian message of a code is found in every UI language, that the guide topics are folded and the one the address names opens by itself (also on a later `#topic` link), that anchors, the guide and the search work with JavaScript off (the GET form is redirected to the entry, the topics read open), that the "Cara memperbaiki" link of a failed download leads to its entry, keyboard reach, and no horizontal scroll at 390 px.
 
 ```bash
 E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \

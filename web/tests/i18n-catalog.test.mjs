@@ -11,7 +11,10 @@ import { LOCALES, SOURCE_LOCALE } from "../lib/i18n/locales.mjs";
 import { catalogFiles, catalogLocales, flatten, keyPaths, listSources, readCatalog, readParsed, translatorCalls } from "./support/i18n-scan.mjs";
 
 // Subtrees filled through helpers that map codes to keys (07 §7.2): no literal t("…") names them.
-const HELPER_SUBTREES = ["errors", "hints", "stage", "reason", "status", "aria", "meta"];
+const HELPER_SUBTREES = ["errors", "hints", "stage", "reason", "status", "aria", "meta",
+  // The help page's entries, groups, guide, shortcuts and links: read per code by lib/help-view.mjs;
+  // help-catalog.test.mjs holds every one of them to the code lists, in both directions.
+  "help.entries", "help.groups", "help.guide", "help.shortcuts", "help.actions"];
 // Keys the i18n glue itself reads, with where.
 const GLUE_KEYS = Object.freeze({
   "common.unavailable": "lib/i18n/handlers.mjs fallback text, read by lib/i18n/client.jsx and server.mjs",

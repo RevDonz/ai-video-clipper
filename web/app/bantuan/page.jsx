@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 
 import AppShell from "../../components/AppShell.jsx";
-import { HELP_ENTRIES, HELP_GROUPS, HELP_PATH, findHelpEntry, helpAnchors } from "../../lib/help-catalog.mjs";
-import { GUIDE_SHORTCUTS, GUIDE_TOPICS } from "../../lib/help-guide.mjs";
-import { routeMetadata } from "../../lib/i18n/server.mjs";
+import PageHead from "../../components/ui/PageHead.jsx";
+import { HELP_PATH, findHelpEntry } from "../../lib/help-catalog.mjs";
+import { guideView, helpGroupsView, helpSearchIndex, helpTitles, shortcutsView } from "../../lib/help-view.mjs";
+import { getLocale, getT, routeMetadata } from "../../lib/i18n/server.mjs";
 import { shellData } from "../../lib/shell-data.mjs";
+import HelpGuide from "./HelpGuide.jsx";
 import HelpSearch from "./HelpSearch.jsx";
 import styles from "./bantuan.module.css";
 
@@ -12,51 +14,11 @@ export async function generateMetadata() {
   return routeMetadata("help");
 }
 
-// One topic of the guide: steps to follow, or terms with what each means; the editor's topic
-// adds the keys worth learning first. Sections, not articles: the error entries are the articles.
-function GuideTopic({ topic }) {
-  return (
-    <section id={topic.id} className={styles.topic} aria-labelledby={`${topic.id}-judul`} tabIndex={-1}>
-      <h3 id={`${topic.id}-judul`}>{topic.title}</h3>
-      <p className={styles.topicIntro}>{topic.intro}</p>
-      {topic.steps && (
-        <ol className={styles.guideSteps}>
-          {topic.steps.map((step) => <li key={step}>{step}</li>)}
-        </ol>
-      )}
-      {topic.terms && (
-        <dl className={styles.terms}>
-          {topic.terms.map((entry) => (
-            <div key={entry.title} className={styles.row}>
-              <dt>{entry.title}</dt>
-              <dd>{entry.text}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {topic.id === "editor" && (
-        <table className={styles.keys}>
-          <caption>Pintasan yang paling sering dipakai. Tekan ? di editor untuk daftar lengkapnya.</caption>
-          <thead><tr><th scope="col">Tombol</th><th scope="col">Fungsi</th></tr></thead>
-          <tbody>
-            {GUIDE_SHORTCUTS.map((shortcut) => (
-              <tr key={shortcut.id}>
-                <td>{shortcut.keys.map((key, index) => <span key={key}>{index > 0 && " atau "}<kbd>{key}</kbd></span>)}</td>
-                <td>{shortcut.description}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {topic.action && <a className={styles.action} href={topic.action.href}>{topic.action.label}</a>}
-    </section>
-  );
-}
-
-function Entry({ entry }) {
+// One error entry. The entry's other codes are anchors too, so /bantuan#<any code> lands here
+// without JS; the entry is always rendered, never folded.
+function Entry({ entry, labels }) {
   const titleId = `${entry.id}-judul`;
-  // The entry's other codes are anchors too, so /bantuan#<any code> lands here without JS.
-  const [, ...aliases] = helpAnchors(entry);
+  const [, ...aliases] = entry.anchors;
   return (
     <article id={entry.id} className={styles.entry} tabIndex={-1} aria-labelledby={titleId}>
       {aliases.map((anchor) => <span key={anchor} id={anchor} className={styles.alias} />)}
@@ -67,16 +29,16 @@ function Entry({ entry }) {
       <dl className={styles.facts}>
         {entry.shown.length > 0 && (
           <div className={styles.row}>
-            <dt>Di layar</dt>
-            <dd>{entry.shown.map((text) => <span key={text} className={styles.shown}>“{text}”</span>)}</dd>
+            <dt>{labels.shown}</dt>
+            <dd>{entry.shown.map((text) => <q key={text} className={styles.shown}>{text}</q>)}</dd>
           </div>
         )}
         <div className={styles.row}>
-          <dt>Penyebab</dt>
+          <dt>{labels.cause}</dt>
           <dd>{entry.cause}</dd>
         </div>
         <div className={styles.row}>
-          <dt>Perbaikan</dt>
+          <dt>{labels.fix}</dt>
           <dd>
             <ol className={styles.steps}>
               {entry.steps.map((step) => <li key={step}>{step}</li>)}
@@ -89,53 +51,93 @@ function Entry({ entry }) {
   );
 }
 
+// The search index over every locale's catalog; the catalogs are read once per process.
+let indexOnce = null;
+function searchIndex() {
+  indexOnce ??= helpSearchIndex(getT).catch((error) => {
+    indexOnce = null;
+    throw error;
+  });
+  return indexOnce;
+}
+
 export default async function HelpPage({ searchParams }) {
   const params = await searchParams;
   const raw = Array.isArray(params?.q) ? params.q[0] : params?.q;
   const query = typeof raw === "string" ? raw : "";
+  const index = await searchIndex();
   // The search form without JS (and a link to /bantuan?q=…): open the best entry directly.
-  const found = query.trim() ? findHelpEntry(query) : null;
+  const found = query.trim() ? findHelpEntry(query, index) : null;
   if (found) redirect(`${HELP_PATH}#${found.entry.id}`);
+
+  const locale = await getLocale();
+  const t = await getT(locale, "help");
+  const te = await getT(locale, "errors");
+  const groups = helpGroupsView(t, te);
+  const shortcuts = shortcutsView(t);
+  const facts = { shown: t("entry.shown"), cause: t("entry.cause"), fix: t("entry.fix") };
+  const search = {
+    label: t("search.label"),
+    placeholder: t("search.placeholder"),
+    submit: t("search.submit"),
+    hint: t("search.hint"),
+    empty: t("search.empty"),
+    noMatch: t("search.noMatch"),
+    best: t("search.best"),
+    maybe: t("search.maybe"),
+  };
 
   return (
     <AppShell current="/bantuan" {...shellData()}>
       <div className={`shell ${styles.page}`}>
-        <header className="pageHead">
-          <div>
-            <h1>Bantuan</h1>
-            <p>Cara memakai Potongin, lalu arti setiap pesan error. Tempel pesan error di kotak ini untuk langsung ke perbaikannya.</p>
-          </div>
-        </header>
+        <PageHead title={t("title")} />
 
-        <HelpSearch initialQuery={query} missed={Boolean(query.trim())} />
+        <HelpSearch initialQuery={query} missed={Boolean(query.trim())} index={index} titles={helpTitles(t)} labels={search} />
 
-        <section className={styles.guide} aria-labelledby="panduan">
-          <h2 id="panduan">Panduan</h2>
-          <nav className={styles.index} aria-label="Topik panduan">
-            {GUIDE_TOPICS.map((topic) => <a key={topic.id} href={`#${topic.id}`}>{topic.title}</a>)}
-          </nav>
-          <div className={styles.topics}>
-            {GUIDE_TOPICS.map((topic) => <GuideTopic key={topic.id} topic={topic} />)}
+        <HelpGuide title={t("guide.title")} topics={guideView(t)} />
+
+        <section id={shortcuts.anchor} className={styles.shortcuts} aria-labelledby={`${shortcuts.anchor}-judul`} tabIndex={-1}>
+          <h2 id={`${shortcuts.anchor}-judul`}>{t("shortcuts.title")}</h2>
+          <div className={styles.keysScroll}>
+            <table className={styles.keys}>
+              <thead><tr><th scope="col">{t("shortcuts.key")}</th><th scope="col">{t("shortcuts.does")}</th></tr></thead>
+              {shortcuts.groups.map((group) => (
+                <tbody key={group.id}>
+                  <tr>
+                    <th scope="rowgroup" colSpan={2} className={styles.keysGroup}>
+                      {group.title} <span>{group.note}</span>
+                    </th>
+                  </tr>
+                  {group.rows.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.keys.map((key, place) => <span key={key}>{place > 0 && ` ${t("shortcuts.or")} `}<kbd>{key}</kbd></span>)}</td>
+                      <td>{row.text}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              ))}
+            </table>
           </div>
         </section>
 
-        <h2 className={styles.referenceTitle}>Pesan error</h2>
+        <h2 className={styles.referenceTitle}>{t("errors.title")}</h2>
 
-        <nav className={styles.index} aria-label="Kelompok bantuan">
-          {HELP_GROUPS.map((group) => (
-            <a key={group.id} href={`#grup-${group.id}`}>
+        <nav className={styles.index} aria-label={t("errors.groups")}>
+          {groups.map((group) => (
+            <a key={group.id} href={`#${group.anchor}`}>
               {group.title}{" "}
-              <span>{HELP_ENTRIES.filter((entry) => entry.group === group.id).length}<span className="visuallyHidden"> entri</span></span>
+              <span aria-hidden="true">{group.entries.length}</span>
+              <span className="visuallyHidden">{t("errors.count", { count: group.entries.length })}</span>
             </a>
           ))}
         </nav>
 
-        {HELP_GROUPS.map((group) => (
-          <section key={group.id} className={styles.group} aria-labelledby={`grup-${group.id}`}>
-            <h2 id={`grup-${group.id}`}>{group.title}</h2>
+        {groups.map((group) => (
+          <section key={group.id} className={styles.group} aria-labelledby={group.anchor}>
+            <h2 id={group.anchor}>{group.title}</h2>
             <p className={styles.intro}>{group.intro}</p>
             <div className={styles.entries}>
-              {HELP_ENTRIES.filter((entry) => entry.group === group.id).map((entry) => <Entry key={entry.id} entry={entry} />)}
+              {group.entries.map((entry) => <Entry key={entry.id} entry={entry} labels={facts} />)}
             </div>
           </section>
         ))}

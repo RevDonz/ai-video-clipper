@@ -45,6 +45,11 @@ const ZERO = Object.freeze([
   "lib/not-found-view.mjs",
   "components/LanguageSwitcher.jsx",
   "components/ui/PublicCard.jsx",
+  // Bantuan (Dashboard F10, i18n M4; 08 Fase 3).
+  "app/bantuan/page.jsx",
+  "app/bantuan/HelpSearch.jsx",
+  "app/bantuan/HelpGuide.jsx",
+  "lib/help-view.mjs",
 ]);
 
 async function counts() {
