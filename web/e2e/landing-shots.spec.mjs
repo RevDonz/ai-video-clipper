@@ -72,10 +72,14 @@ test.describe("landing screenshots", () => {
     await video.evaluate((element) => new Promise((resolve) => {
       const show = () => { element.pause(); resolve(); };
       element.muted = true;
+      element.preload = "auto";
       if (element.readyState >= 2) element.currentTime = 3.2;
       element.addEventListener("seeked", show, { once: true });
       element.addEventListener("loadeddata", () => { element.currentTime = 3.2; }, { once: true });
     }));
+    // The whole file in, so the player shows no loading ring; then the dialog's own transition.
+    await expect.poll(() => video.evaluate((element) => element.readyState), { timeout: 15_000 }).toBe(4);
+    await page.waitForTimeout(800);
     await settle(page);
     await saveWebp(page, "hasil");
   });
