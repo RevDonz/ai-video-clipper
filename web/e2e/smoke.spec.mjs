@@ -8,7 +8,7 @@ test.describe("authenticated read-only smoke", () => {
 
   test("the history and the newest completed project render", async ({ page }) => {
     await login(page, "/projects");
-    await expect(page.getByRole("heading", { name: "Riwayat proyek" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: L("projects.title") })).toBeVisible();
 
     const target = await resolveTarget(page);
     await page.goto(`/projects/${encodeURIComponent(target.jobId)}`);

@@ -13,7 +13,7 @@
     "description": "Paste a video link or upload a file, then set up the clips."
   },
   "projects": {
-    "title": "History",
+    "title": "Projects",
     "description": "Every project and its clips: search, watch, copy captions, download or delete."
   },
   "editor": {
@@ -25,7 +25,7 @@
     "description": "Set up AI, transcription, logo, watermark and YouTube cookies without editing the server's .env."
   },
   "trends": {
-    "title": "Trend context",
+    "title": "Trends",
     "description": "Trends, people, jokes and hashtags your agent reports, for clip packaging that fits."
   },
   "help": {
