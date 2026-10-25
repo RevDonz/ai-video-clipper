@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 
+import { choose as tick, unchoose as untick } from "./support/choice.mjs";
 import { login, settings, skipWithoutCredentials, test } from "./support/harness.mjs";
 import { L } from "./support/i18n.mjs";
 
@@ -160,7 +161,7 @@ test.describe("Tren page (faked API)", () => {
     await adder.getByRole("textbox", { name: L("trends.form.title") }).fill("Meme Kucing Oren");
     await adder.getByRole("textbox", { name: L("trends.form.keywords") }).fill("kucing oren, oren");
     await adder.getByRole("textbox", { name: L("trends.form.hashtags") }).fill("KucingOren");
-    await adder.getByRole("checkbox", { name: "Instagram", exact: true }).check();
+    await tick(adder.getByRole("checkbox", { name: "Instagram", exact: true }));
     await adder.getByRole("button", { name: L("trends.form.submitAdd") }).click();
     await expect(adder).toHaveCount(0);
     await expect(row(page, "Meme Kucing Oren")).toBeVisible();
@@ -183,7 +184,7 @@ test.describe("Tren page (faked API)", () => {
     expect(patch.body).toEqual({ title: "Kabur Aja Dulu (edit)", sensitivity: "sensitive" });
 
     // The on/off switch of one item.
-    await row(page, "Jokes Nonaktif").getByRole("switch", { name: L("trends.item.use", { title: "Jokes Nonaktif" }) }).check();
+    await tick(row(page, "Jokes Nonaktif").getByRole("switch", { name: L("trends.item.use", { title: "Jokes Nonaktif" }) }));
     await expect.poll(() => api.calls.filter((call) => call.method === "PATCH").at(-1)?.body).toEqual({ enabled: true });
 
     // Hapus asks in an AlertDialog; Batal keeps the item.
@@ -202,7 +203,7 @@ test.describe("Tren page (faked API)", () => {
     await expect(page.getByText(L("trends.toast.deleted", { title: "Nama Orang Viral" }))).toBeVisible();
 
     // The switch for the next jobs.
-    await usage.uncheck();
+    await untick(usage);
     await expect(page.getByText(L("trends.toast.off"))).toBeVisible();
     expect(api.calls.find((call) => call.method === "PUT").body).toEqual({ enabled: false });
 

@@ -25,7 +25,13 @@ const topicButton = (page, id) => page.getByRole("button", { name: L(`help.guide
 
 // The search is a client component: typing before hydration would be lost.
 async function openHelp(page, path = "/bantuan") {
-  await login(page, path);
+  // The login lands on a path (its check reads the pathname); a #topic then loads the page anew.
+  if (path.includes("#")) {
+    await login(page);
+    await page.goto(path);
+  } else {
+    await login(page, path);
+  }
   await expect(page.getByRole("heading", { level: 1, name: L("help.title") })).toBeVisible();
   await page.waitForFunction(() => document.querySelector("#bantuan-q") && Object.keys(document.querySelector("#bantuan-q")).some((key) => key.startsWith("__react")));
 }

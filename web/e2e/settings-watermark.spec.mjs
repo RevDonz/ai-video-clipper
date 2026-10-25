@@ -28,8 +28,9 @@ async function fakeWatermark(page, state) {
 }
 
 const card = (page) => page.getByRole("region", { name: "Watermark", exact: true });
-// The Select's trigger names itself after the label and the value shown ("Posisi Tengah atas").
-const position = (section) => section.getByRole("button", { name: /^Posisi/ });
+// The Select's trigger names itself after the value shown and the label ("Tengah atas Posisi":
+// React Aria puts the value first in its aria-labelledby).
+const position = (section) => section.getByRole("button", { name: /Posisi$/ });
 
 async function pickPosition(page, section, name) {
   await position(section).click();

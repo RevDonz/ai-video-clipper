@@ -95,7 +95,8 @@ test.describe("Riwayat: Klip view (faked clip listing)", () => {
     await expect(clipTab(page)).toHaveAttribute("aria-selected", "true");
     await expect.poll(() => new URL(page.url()).searchParams.get("tab")).toBe("klip");
     await expect(cards(page)).toHaveCount(3);
-    await expect(page.getByText(L("projects.clips.shownOf", { shown: 3, matched: 5 }), { exact: true })).toBeVisible();
+    // The line under the grid; the same words are also in the page's live region (role=status).
+    await expect(page.getByText(L("projects.clips.shownOf", { shown: 3, matched: 5 }), { exact: true }).and(page.locator("span"))).toBeVisible();
     // Neutral score pills; only 8 and up carry the mark. No score is called hot or viral.
     for (const [position, high] of [[0, 1], [1, 0], [2, 1]]) await expect(cards(page).nth(position).locator("[data-high]")).toHaveCount(high);
     await expect(page.getByText(/\bhot\b|viral/i)).toHaveCount(0);

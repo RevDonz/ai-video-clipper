@@ -1375,17 +1375,42 @@ test("history: 'Edit klip' on a finished project opens its clip list, only while
   // The header badge reads a running job on its own.
   await page.route(`**/api/jobs/${running.id}`, (route) => route.fulfill({ json: { job: running } }));
   await page.route(`**/api/jobs/${PROJECT_JOB}/files/**`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
+  // Proyek (rombak Dashboard F4): a table with ⋯ per row on a laptop, a card list on a phone;
+  // "Edit klip" is an item of ⋯ that opens the project's first clip in the editor.
+  const editHref = `/projects/${PROJECT_JOB}/clips/klip-1/edit`;
+  const editItem = () => page.getByRole("menu").getByRole("menuitem", { name: "Edit klip", exact: true });
+  const openMore = async (scope) => {
+    await scope.getByRole("button", { name: "Aksi lain untuk Podcast uji", exact: true }).click();
+    await expect(page.getByRole("menu")).toBeVisible();
+  };
+  const closeMore = async () => {
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+  };
   await page.goto("/projects");
-  const rows = page.getByRole("list", { name: "Proyek" }).getByRole("listitem");
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(0).getByRole("link", { name: "Edit klip Podcast uji" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}#klip`);
-  await expect(rows.nth(1).getByRole("link", { name: /^Edit klip/ })).toHaveCount(0);
+  const rows = page.getByRole("grid", { name: "Daftar proyek" }).getByRole("row");
+  await expect(rows).toHaveCount(3);
+  await openMore(rows.nth(1));
+  await expect(editItem()).toHaveAttribute("href", editHref);
+  await closeMore();
+  await openMore(rows.nth(2));
+  await expect(editItem()).toHaveCount(0);
+  await closeMore();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(rows.nth(0).getByRole("link", { name: "Edit klip Podcast uji" })).toBeVisible();
+  const cards = page.getByRole("list", { name: "Daftar proyek" }).getByRole("listitem");
+  await expect(cards).toHaveCount(2);
+  await openMore(cards.nth(0));
+  await expect(editItem()).toBeVisible();
+  await expect(editItem()).toHaveAttribute("href", editHref);
+  await closeMore();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  // There is no reload button: coming back to the browser tab reads the list again.
   editor = false;
-  await page.getByRole("button", { name: "Muat ulang" }).click();
-  await expect(page.getByRole("link", { name: /^Edit klip/ })).toHaveCount(0);
+  const listed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/jobs");
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await listed;
+  await openMore(cards.nth(0));
+  await expect(editItem()).toHaveCount(0);
 });
 
 // CONTRACTS §5.50: a caption over the speaker's face is a check with its one-click fix, in Perlu

@@ -80,7 +80,8 @@ async function axeSerious(target) {
   if (!(await target.evaluate(() => Boolean(window.axe)))) await target.addScriptTag({ content: AXE });
   const result = await target.evaluate(() => window.axe.run("[role=dialog]", { resultTypes: ["violations"] }));
   return result.violations.filter((violation) => ["serious", "critical"].includes(violation.impact))
-    .map((violation) => ({ id: violation.id, nodes: violation.nodes.length }));
+    // The offending markup too, so a failure names the element.
+    .map((violation) => ({ id: violation.id, nodes: violation.nodes.length, html: violation.nodes.map((node) => `${node.html.slice(0, 160)} ${node.failureSummary || ""}`.trim()) }));
 }
 
 // The project opened on clip 1 in the viewer (?klip=1).
