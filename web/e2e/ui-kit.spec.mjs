@@ -54,6 +54,38 @@ async function smallTargets(page, root) {
   }, root);
 }
 
+/**
+ * The open calendar's grid: its weekday headers and day cells, and the cells that are under 44 px,
+ * outside the popover, or not the element at their own centre (cut off, so not clickable).
+ */
+async function calendarGrid(page) {
+  return page.evaluate(() => {
+    const popover = document.querySelector(".date-picker__popover");
+    if (!popover) return { headers: -1, cells: 0, bad: ["no popover"] };
+    const frame = popover.getBoundingClientRect();
+    const inside = (box) => box.left >= frame.left - 0.5 && box.right <= frame.right + 0.5
+      && box.top >= frame.top - 0.5 && box.bottom <= frame.bottom + 0.5
+      && box.left >= 0 && box.right <= window.innerWidth;
+    const shown = (element) => {
+      const box = element.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 && getComputedStyle(element).visibility !== "hidden";
+    };
+    const headers = [...popover.querySelectorAll(".calendar__header-cell")].filter(shown);
+    const cells = [...popover.querySelectorAll(".calendar__cell")].filter(shown);
+    const bad = [];
+    for (const header of headers) if (!inside(header.getBoundingClientRect())) bad.push(`header "${header.textContent}" outside`);
+    for (const cell of cells) {
+      const box = cell.getBoundingClientRect();
+      const name = `cell "${cell.textContent}" ${Math.round(box.width)}x${Math.round(box.height)}`;
+      if (box.width < 44 || box.height < 44) bad.push(`${name} small`);
+      if (!inside(box)) bad.push(`${name} outside`);
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      if (!hit || !cell.contains(hit)) bad.push(`${name} covered`);
+    }
+    return { headers: headers.length, cells: cells.length, bad };
+  });
+}
+
 /** Elements painted with the lime accent that are not (inside) a primary button or the brand marks. */
 async function stray(page) {
   return page.evaluate((lime) => {
@@ -148,6 +180,15 @@ test.describe("UI kit test page", () => {
     await login(page, PAGE);
     await expect(page.getByRole("checkbox", { name: "Pilih semua" })).toHaveCount(1);
     await expect(page.getByRole("checkbox", { name: "Pilih baris Podcast Senin" })).toHaveCount(1);
+    // The selection boxes are square checkboxes (not radio-like circles) in a narrow column.
+    const selection = await page.evaluate(() => {
+      const column = document.querySelector(".table__column:has(.checkbox)");
+      const control = document.querySelector(".table__cell .checkbox__control");
+      const box = control.getBoundingClientRect();
+      return { column: column.getBoundingClientRect().width, radius: parseFloat(getComputedStyle(control).borderTopLeftRadius), size: Math.min(box.width, box.height) };
+    });
+    expect(selection.column).toBeLessThanOrEqual(64);
+    expect(selection.radius).toBeLessThanOrEqual(selection.size / 4);
 
     const opener = page.getByRole("button", { name: "Buka dialog" });
     await opener.click();
@@ -168,6 +209,11 @@ test.describe("UI kit test page", () => {
     await expect(page.getByRole("button", { name: "Bulan berikutnya" })).toBeVisible();
     await settle(page);
     expect(await stray(page)).toEqual([]);
+    // Seven weekday columns, every day a whole 44 px target inside the popover.
+    const grid = await calendarGrid(page);
+    expect(grid.headers).toBe(7);
+    expect(grid.cells).toBeGreaterThanOrEqual(28);
+    expect(grid.bad).toEqual([]);
     await page.screenshot({ path: path.join(dir, "calendar.png") });
     await page.keyboard.press("Escape");
     await expect(calendar).toBeFocused();
@@ -209,6 +255,14 @@ test.describe("UI kit test page", () => {
     expect(overflow).toBeLessThanOrEqual(0);
     expect(await smallTargets(page, "main")).toEqual([]);
     await page.screenshot({ path: path.join(dir, "phone.png"), fullPage: true });
+    // The calendar keeps its seven columns on a phone too.
+    await page.getByRole("button", { name: "Kalender" }).click();
+    await expect(page.getByRole("button", { name: "Bulan berikutnya" })).toBeVisible();
+    await settle(page);
+    const grid = await calendarGrid(page);
+    expect(grid.headers).toBe(7);
+    expect(grid.bad).toEqual([]);
+    await page.screenshot({ path: path.join(dir, "calendar-phone.png") });
   });
 
   test("axe finds no critical or serious violation on the test page", async ({ page }) => {
