@@ -38,6 +38,8 @@
 .appAccountItemText { display: grid; flex: 1 1 auto; gap: 4px; min-width: 0; }
 .appAccountKeys { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
 .appAccountKeys kbd { min-width: 20px; padding: 1px 5px; font: 600 11px/1.4 var(--font); }
+/* "Bahasa" above the language names: a quiet group title, not an item. */
+.appAccountHeading { padding: 8px 12px 4px; color: var(--text-muted); font: 600 12px/1.4 var(--font); }
 
 /* The Menu drawer: the sidebar's list on the panel colour, the page dimmed behind it. */
 .appDrawerBackdrop { background: var(--shadow); }

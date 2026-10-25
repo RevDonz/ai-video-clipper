@@ -49,7 +49,7 @@ function useAppShortcuts() {
   }, []);
 }
 
-function Frame({ current, className, user, features, children }) {
+function Frame({ current, className, user, features, locales, children }) {
   const t = useTranslations("shell");
   const tAria = useTranslations("aria");
   const [open, setOpen] = useState(false);
@@ -90,7 +90,7 @@ function Frame({ current, className, user, features, children }) {
                   </Drawer.Header>
                   <Drawer.Body className="appDrawerBody">
                     <NavList current={current} role={role} features={features} />
-                    <AccountMenu user={user} onLogout={logout} placement="top" />
+                    <AccountMenu user={user} locales={locales} onLogout={logout} placement="top" />
                   </Drawer.Body>
                   <Drawer.CloseTrigger className="appDrawerClose" aria-label={tAria("close")} />
                 </Drawer.Dialog>
@@ -101,7 +101,7 @@ function Frame({ current, className, user, features, children }) {
         {!open && (
           <div className="appSideBody">
             <NavList current={current} role={role} features={features} />
-            <AccountMenu user={user} onLogout={logout} />
+            <AccountMenu user={user} locales={locales} onLogout={logout} />
           </div>
         )}
       </header>
@@ -111,11 +111,17 @@ function Frame({ current, className, user, features, children }) {
   );
 }
 
-export default function AppShell({ current, className, user, features, children }) {
+export default function AppShell({ current, className, user, features, locales, children }) {
   const data = useShellData();
   return (
     <Providers>
-      <Frame current={current} className={className} user={user ?? data?.user} features={features ?? data?.features ?? {}}>
+      <Frame
+        current={current}
+        className={className}
+        user={user ?? data?.user}
+        features={features ?? data?.features ?? {}}
+        locales={locales ?? data?.locales ?? []}
+      >
         {children}
       </Frame>
     </Providers>

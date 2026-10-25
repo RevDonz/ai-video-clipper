@@ -1,8 +1,11 @@
+import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
+
 import Brand from "../../components/Brand.jsx";
+import LanguageSwitcher from "../../components/LanguageSwitcher.jsx";
 import PublicCard from "../../components/ui/PublicCard.jsx";
-import { LANDING_MEDIA } from "../../lib/landing-media.mjs";
-import { routeMetadata } from "../../lib/i18n/server.mjs";
-import { loginErrorMessage, safeNextPath } from "../../lib/login-view.mjs";
+import { localeOptions } from "../../lib/i18n/locales.mjs";
+import { getLocale, getT, routeMetadata } from "../../lib/i18n/server.mjs";
+import { loginErrorCode, loginLocaleNext, safeNextPath } from "../../lib/login-view.mjs";
 import styles from "./login.module.css";
 
 export const dynamic = "force-dynamic";
@@ -10,37 +13,42 @@ export async function generateMetadata() {
   return routeMetadata("login");
 }
 
+// A card without the app shell (05-ui-dashboard.md §6.2): the native login form, which works
+// without JavaScript, and below it the language picker as a second native form.
 export default async function LoginPage({ searchParams }) {
   const params = await searchParams;
-  const error = loginErrorMessage(params?.error);
+  const locale = await getLocale();
+  const t = await getT(locale, "auth");
+  const tErrors = await getT(locale, "errors");
+  const code = loginErrorCode(params?.error);
+  const error = code === "invalid" ? tErrors("web.login_invalid") : code === "limited" ? t("login.limited") : null;
+  const languageFailed = params?.bahasa === "gagal";
   const next = safeNextPath(params?.next);
-  // The landing's real clip poster: one of the files the proxy serves without a session.
-  const poster = LANDING_MEDIA.sesudah;
+  const locales = localeOptions();
   return (
     <PublicCard>
       <main className={styles.page}>
         <section className={styles.card} aria-labelledby="login-title">
           <Brand />
-          <div className={styles.intro}>
-            <h1 id="login-title">Masuk</h1>
-            <p>Buat, pantau, dan unduh klip dari video panjang.</p>
-          </div>
+          <h1 id="login-title">{t("login.title")}</h1>
           <form className={styles.form} method="post" action="/api/auth/login" autoComplete="on">
             <input type="hidden" name="next" value={next} />
-            <label htmlFor="username"><span>Nama pengguna</span><input id="username" name="username" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} required autoFocus aria-describedby={error ? "login-error" : undefined} /></label>
-            <label htmlFor="password"><span>Kata sandi</span><input id="password" name="password" type="password" autoComplete="current-password" required /></label>
+            <TextField name="username" type="text" isRequired autoFocus>
+              <Label>{t("login.username")}</Label>
+              <Input autoComplete="username" autoCapitalize="none" spellCheck={false} aria-describedby={error ? "login-error" : undefined} />
+              <FieldError />
+            </TextField>
+            <TextField name="password" type="password" isRequired>
+              <Label>{t("login.password")}</Label>
+              <Input autoComplete="current-password" />
+              <FieldError />
+            </TextField>
             {error && <p id="login-error" className={styles.error} role="alert">{error}</p>}
-            <button type="submit" className={styles.submit}>Masuk</button>
+            <Button type="submit" variant="primary" className={styles.submit}>{t("login.submit")}</Button>
           </form>
-          <p className={styles.note}>Sesi tersimpan 30 hari di perangkat ini.</p>
+          {languageFailed && <p className={styles.error} role="alert">{t("locale.failed")}</p>}
+          <LanguageSwitcher variant="form" locales={locales} current={locale} next={loginLocaleNext(params)} className={styles.language} />
         </section>
-        <aside className={styles.visual} aria-hidden="true">
-          <div className={styles.phone}>
-            <img src={poster.poster} width={poster.width} height={poster.height} alt="" />
-          </div>
-          <p className={styles.visualTitle}>Video panjang jadi klip yang layak ditonton.</p>
-          <p className={styles.visualNote}>Contoh klip dari film terbuka Elephants Dream. Diproses di server Anda sendiri.</p>
-        </aside>
       </main>
     </PublicCard>
   );

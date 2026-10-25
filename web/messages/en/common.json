@@ -1,3 +1,10 @@
 {
-  "unavailable": "—"
+  "unavailable": "—",
+  "retry": "Try again",
+  "page": {
+    "notFoundBody": "The address is wrong, or the page no longer exists.",
+    "failedBody": "Try again. If it still fails, reload the page or open Projects.",
+    "openProject": "Open this project",
+    "openProjects": "Open Projects"
+  }
 }
