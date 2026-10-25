@@ -109,5 +109,44 @@
     "editClip": "Edit clip",
     "srt": "Download SRT",
     "srtFor": "Download SRT {clip}"
+  },
+  "hook": {
+    "label": "Hook on video",
+    "hint": "Changing it exports the clip again",
+    "saving": "Saving…",
+    "onExporting": "Hook shown. The clip is being exported again.",
+    "offExporting": "Hook hidden. The clip is being exported again.",
+    "onReady": "Hook shown on the video.",
+    "offReady": "Hook hidden from the video.",
+    "conflict": "This clip was changed in the editor. Try again.",
+    "failed": "Hook not saved. Try again.",
+    "exportFailed": "Saved, but the export did not start. Export from the editor."
+  },
+  "text": {
+    "edit": "Edit",
+    "editLabel": "Edit title and description",
+    "rewrite": "Rewrite",
+    "rewriting": "Writing…",
+    "pending": "The AI is writing a new title and description from this clip's transcript…",
+    "suggestion": "AI suggestion",
+    "use": "Use",
+    "discard": "Discard",
+    "titleLabel": "Title",
+    "descriptionLabel": "Description",
+    "descriptionHint": "Hashtags on the last line",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "saved": "Title and description saved.",
+    "failed": "Rewrite failed",
+    "help": "How to fix",
+    "settings": "Open Settings"
+  },
+  "summary": {
+    "label": "Results per step",
+    "video": "Video",
+    "transcript": "Transcript",
+    "moments": "Moments",
+    "clips": "Clips"
   }
 }

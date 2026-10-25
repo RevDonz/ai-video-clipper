@@ -109,5 +109,44 @@
     "editClip": "Edit klip",
     "srt": "Unduh SRT",
     "srtFor": "Unduh SRT {clip}"
+  },
+  "hook": {
+    "label": "Hook di video",
+    "hint": "Mengubahnya mengekspor ulang klip",
+    "saving": "Menyimpan…",
+    "onExporting": "Hook tampil. Klip sedang diekspor ulang.",
+    "offExporting": "Hook disembunyikan. Klip sedang diekspor ulang.",
+    "onReady": "Hook tampil di video.",
+    "offReady": "Hook disembunyikan dari video.",
+    "conflict": "Klip ini sudah diubah di editor. Coba lagi.",
+    "failed": "Hook belum tersimpan. Coba lagi.",
+    "exportFailed": "Tersimpan, tapi ekspor belum jalan. Ekspor dari editor."
+  },
+  "text": {
+    "edit": "Ubah",
+    "editLabel": "Ubah judul dan deskripsi",
+    "rewrite": "Tulis ulang",
+    "rewriting": "Menulis…",
+    "pending": "AI sedang menulis judul dan deskripsi baru dari transkrip klip ini…",
+    "suggestion": "Saran AI",
+    "use": "Pakai",
+    "discard": "Buang",
+    "titleLabel": "Judul",
+    "descriptionLabel": "Deskripsi",
+    "descriptionHint": "Tagar di baris terakhir",
+    "save": "Simpan",
+    "saving": "Menyimpan…",
+    "cancel": "Batal",
+    "saved": "Judul dan deskripsi tersimpan.",
+    "failed": "Tulis ulang gagal",
+    "help": "Cara memperbaiki",
+    "settings": "Buka Pengaturan"
+  },
+  "summary": {
+    "label": "Hasil per tahap",
+    "video": "Video",
+    "transcript": "Transkrip",
+    "moments": "Momen",
+    "clips": "Klip"
   }
 }

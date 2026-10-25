@@ -2,14 +2,32 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import { useTranslations } from "use-intl";
+
 import { HOOK_COPY as COPY, hookSwitchView, switchHook } from "../lib/clip-hook.mjs";
 import styles from "./HookSwitch.module.css";
+
+// The switch's words in the UI language (project.hook.*), found by the HOOK_COPY entry that
+// lib/clip-hook.mjs answers with; one literal key each. A text it does not know shows as it is.
+function useHookWords() {
+  const t = useTranslations("project");
+  const words = {
+    label: t("hook.label"), hint: t("hook.hint"), saving: t("hook.saving"), onExporting: t("hook.onExporting"),
+    offExporting: t("hook.offExporting"), onReady: t("hook.onReady"), offReady: t("hook.offReady"),
+    conflict: t("hook.conflict"), failed: t("hook.failed"), exportFailed: t("hook.exportFailed"),
+  };
+  return (text) => {
+    const key = Object.keys(COPY).find((name) => COPY[name] === text);
+    return key ? words[key] : text;
+  };
+}
 
 // "Hook di video" in the caption box of the project page's detail panel (CONTRACTS §5.57). The
 // switch shows the clip's hook state from the clips listing; a change saves the clip's document
 // and exports it, then asks the page to reload the listing (the new revision and its export).
 // Keyed by the clip, like ClipText: showing another clip starts from its own state.
 export default function HookSwitch({ jobId, entry, editable, onChanged }) {
+  const word = useHookWords();
   const view = hookSwitchView(entry, { editable });
   const [pending, setPending] = useState(null);
   // The answer of the last switch, used while the listing still shows the revision it saved from.
@@ -69,12 +87,12 @@ export default function HookSwitch({ jobId, entry, editable, onChanged }) {
           }}
         />
         <span className={styles.track} aria-hidden="true" />
-        <span className={styles.label}>{COPY.label}</span>
+        <span className={styles.label}>{word(COPY.label)}</span>
       </label>
-      <p id={`${ids}-hint`} className={styles.hint}>{COPY.hint}</p>
+      <p id={`${ids}-hint`} className={styles.hint}>{word(COPY.hint)}</p>
       <p id={`${ids}-status`} className={styles.status} data-warning={status.warning || undefined} role="status" aria-live="polite">
         {busy && <span className={`pulse ${styles.pending}`} aria-hidden="true" />}
-        {status.text}
+        {word(status.text)}
       </p>
     </div>
   );
