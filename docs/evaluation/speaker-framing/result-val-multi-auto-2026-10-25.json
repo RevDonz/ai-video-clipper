@@ -1,0 +1,1157 @@
+{
+ "schema": "potongin.speaker-framing-result/1",
+ "set": "set-val.json",
+ "split": "val",
+ "opencv": "4.14.0",
+ "python": "3.11.2",
+ "output": [
+  720,
+  1280
+ ],
+ "skipped": [],
+ "summary": {
+  "kinds": {
+   "multi": {
+    "windows": 24,
+    "error": {
+     "haar": 0.36456324056213835,
+     "largest": 0.35050978230917607,
+     "speaker": 0.21328189583907411
+    },
+    "cuts_per_min": {
+     "haar": 3.125,
+     "speaker": 10.5
+    },
+    "pans_per_min": {
+     "haar": 12.75,
+     "speaker": 0.625
+    },
+    "bootstrap_95": [
+     -0.2417289220917823,
+     -0.06933911159263272
+    ]
+   },
+   "single": {
+    "windows": 0,
+    "error": {
+     "haar": null,
+     "largest": null,
+     "speaker": null
+    },
+    "cuts_per_min": {
+     "haar": null,
+     "speaker": null
+    },
+    "pans_per_min": {
+     "haar": null,
+     "speaker": null
+    },
+    "bootstrap_95": null
+   }
+  },
+  "better_windows": [
+   "053oq2xB3oU-multi",
+   "2qQs3Y9OJX0-multi",
+   "7YpF6DntOYw-multi",
+   "C25wkwAMB-w-multi",
+   "HV0H6oc4Kvs-multi",
+   "PmElx9ZVByw-multi",
+   "UrsCy6qIGoo-multi",
+   "g1wyIcLPbq0-multi",
+   "qrkff49p4E4-multi",
+   "xJmRNZVDDCY-multi",
+   "yn9WN9lsHRE-multi",
+   "z-fsLpGHq6o-multi"
+  ],
+  "worse_windows": [
+   "IzvOYVMltkI-multi",
+   "kMy-6RtoOVU-multi"
+  ],
+  "seconds": {
+   "haar": 53.2,
+   "speaker": 29.82
+  },
+  "gates": {
+   "multi_relative": 0.8,
+   "multi_ci_upper": 0.0,
+   "single_tolerance": 0.01,
+   "clip_ratio": 3,
+   "clip_points": 0.1
+  },
+  "checks": {
+   "multi_relative": true,
+   "multi_ci_upper": true,
+   "clip_ratio": true,
+   "time": true
+  },
+  "pass": true,
+  "auto_reframe": {
+   "windows": 24,
+   "multi_error": 0.1777893639207508,
+   "max": 0.217,
+   "camera_share": 0.528125,
+   "pass": true
+  }
+ },
+ "windows": [
+  {
+   "id": "053oq2xB3oU-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    480,
+    360
+   ],
+   "seconds": {
+    "haar": 1.175,
+    "speaker": 0.535
+   },
+   "haar": {
+    "missed": 81,
+    "speech": 168,
+    "cuts": 0,
+    "pans": 4,
+    "framed": 20
+   },
+   "largest": {
+    "missed": 0,
+    "speech": 168,
+    "cuts": 0,
+    "pans": 1,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 41,
+    "speech": 168,
+    "cuts": 4,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "2qQs3Y9OJX0-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    480,
+    360
+   ],
+   "seconds": {
+    "haar": 1.138,
+    "speaker": 0.575
+   },
+   "haar": {
+    "missed": 54,
+    "speech": 148,
+    "cuts": 0,
+    "pans": 6,
+    "framed": 7
+   },
+   "largest": {
+    "missed": 23,
+    "speech": 148,
+    "cuts": 0,
+    "pans": 1,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 18,
+    "speech": 148,
+    "cuts": 1,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "4ZpjKfu6Cl8-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1280,
+    620
+   ],
+   "seconds": {
+    "haar": 2.842,
+    "speaker": 1.19
+   },
+   "haar": {
+    "missed": 62,
+    "speech": 158,
+    "cuts": 2,
+    "pans": 3,
+    "framed": 24
+   },
+   "largest": {
+    "missed": 62,
+    "speech": 158,
+    "cuts": 2,
+    "pans": 3,
+    "framed": 24
+   },
+   "speaker": {
+    "missed": 48,
+    "speech": 158,
+    "cuts": 3,
+    "pans": 0,
+    "framed": 24
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 48,
+    "speech": 157,
+    "camera_steps": 184,
+    "steps": 200,
+    "modes": [
+     "camera",
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "5milLu-6bWI-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    788,
+    480
+   ],
+   "seconds": {
+    "haar": 1.749,
+    "speaker": 0.916
+   },
+   "haar": {
+    "missed": 73,
+    "speech": 147,
+    "cuts": 0,
+    "pans": 2,
+    "framed": 10
+   },
+   "largest": {
+    "missed": 14,
+    "speech": 147,
+    "cuts": 0,
+    "pans": 4,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 63,
+    "speech": 147,
+    "cuts": 2,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "7YpF6DntOYw-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1920,
+    1080
+   ],
+   "seconds": {
+    "haar": 3.839,
+    "speaker": 2.079
+   },
+   "haar": {
+    "missed": 49,
+    "speech": 158,
+    "cuts": 1,
+    "pans": 5,
+    "framed": 26
+   },
+   "largest": {
+    "missed": 30,
+    "speech": 158,
+    "cuts": 1,
+    "pans": 0,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 30,
+    "speech": 158,
+    "cuts": 1,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 30,
+    "speech": 158,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "C25wkwAMB-w-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1920,
+    1080
+   ],
+   "seconds": {
+    "haar": 4.502,
+    "speaker": 2.031
+   },
+   "haar": {
+    "missed": 125,
+    "speech": 164,
+    "cuts": 0,
+    "pans": 3,
+    "framed": 25
+   },
+   "largest": {
+    "missed": 101,
+    "speech": 164,
+    "cuts": 0,
+    "pans": 7,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 17,
+    "speech": 164,
+    "cuts": 2,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "HKjR70GCRPE-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    640,
+    480
+   ],
+   "seconds": {
+    "haar": 1.359,
+    "speaker": 0.838
+   },
+   "haar": {
+    "missed": 10,
+    "speech": 190,
+    "cuts": 0,
+    "pans": 2,
+    "framed": 9
+   },
+   "largest": {
+    "missed": 127,
+    "speech": 190,
+    "cuts": 0,
+    "pans": 6,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 13,
+    "speech": 190,
+    "cuts": 0,
+    "pans": 2,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 13,
+    "speech": 190,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "HV0H6oc4Kvs-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    640,
+    346
+   ],
+   "seconds": {
+    "haar": 1.569,
+    "speaker": 0.72
+   },
+   "haar": {
+    "missed": 87,
+    "speech": 165,
+    "cuts": 0,
+    "pans": 2,
+    "framed": 20
+   },
+   "largest": {
+    "missed": 79,
+    "speech": 165,
+    "cuts": 0,
+    "pans": 4,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 35,
+    "speech": 165,
+    "cuts": 6,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "IKdBLciu_-A-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    656,
+    480
+   ],
+   "seconds": {
+    "haar": 1.79,
+    "speaker": 1.001
+   },
+   "haar": {
+    "missed": 41,
+    "speech": 146,
+    "cuts": 0,
+    "pans": 15,
+    "framed": 21
+   },
+   "largest": {
+    "missed": 21,
+    "speech": 146,
+    "cuts": 0,
+    "pans": 4,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 42,
+    "speech": 146,
+    "cuts": 15,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "IzvOYVMltkI-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    640,
+    360
+   ],
+   "seconds": {
+    "haar": 1.323,
+    "speaker": 0.692
+   },
+   "haar": {
+    "missed": 29,
+    "speech": 158,
+    "cuts": 1,
+    "pans": 5,
+    "framed": 26
+   },
+   "largest": {
+    "missed": 28,
+    "speech": 158,
+    "cuts": 1,
+    "pans": 1,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 53,
+    "speech": 158,
+    "cuts": 1,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 53,
+    "speech": 158,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "JNb4nWexD0I-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    640,
+    480
+   ],
+   "seconds": {
+    "haar": 1.277,
+    "speaker": 0.839
+   },
+   "haar": {
+    "missed": 33,
+    "speech": 166,
+    "cuts": 1,
+    "pans": 4,
+    "framed": 27
+   },
+   "largest": {
+    "missed": 62,
+    "speech": 166,
+    "cuts": 1,
+    "pans": 9,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 27,
+    "speech": 166,
+    "cuts": 2,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "KHHgQ_Pe4cI-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1920,
+    1080
+   ],
+   "seconds": {
+    "haar": 2.44,
+    "speaker": 1.826
+   },
+   "haar": {
+    "missed": 3,
+    "speech": 151,
+    "cuts": 3,
+    "pans": 2,
+    "framed": 27
+   },
+   "largest": {
+    "missed": 1,
+    "speech": 151,
+    "cuts": 3,
+    "pans": 0,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 1,
+    "speech": 151,
+    "cuts": 3,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 1,
+    "speech": 151,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "P60OxWahxBQ-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1920,
+    1080
+   ],
+   "seconds": {
+    "haar": 2.654,
+    "speaker": 1.869
+   },
+   "haar": {
+    "missed": 21,
+    "speech": 128,
+    "cuts": 0,
+    "pans": 1,
+    "framed": 25
+   },
+   "largest": {
+    "missed": 96,
+    "speech": 128,
+    "cuts": 0,
+    "pans": 0,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 13,
+    "speech": 128,
+    "cuts": 2,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 13,
+    "speech": 128,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "PmElx9ZVByw-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    656,
+    480
+   ],
+   "seconds": {
+    "haar": 1.167,
+    "speaker": 0.945
+   },
+   "haar": {
+    "missed": 61,
+    "speech": 145,
+    "cuts": 0,
+    "pans": 3,
+    "framed": 19
+   },
+   "largest": {
+    "missed": 30,
+    "speech": 145,
+    "cuts": 0,
+    "pans": 3,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 46,
+    "speech": 145,
+    "cuts": 2,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "UrsCy6qIGoo-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    640,
+    360
+   ],
+   "seconds": {
+    "haar": 1.151,
+    "speaker": 0.741
+   },
+   "haar": {
+    "missed": 78,
+    "speech": 150,
+    "cuts": 2,
+    "pans": 3,
+    "framed": 12
+   },
+   "largest": {
+    "missed": 43,
+    "speech": 150,
+    "cuts": 2,
+    "pans": 2,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 45,
+    "speech": 150,
+    "cuts": 3,
+    "pans": 1,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 36,
+    "speech": 86,
+    "camera_steps": 107,
+    "steps": 200,
+    "modes": [
+     "camera",
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "ax3q-RkVIt4-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    640,
+    480
+   ],
+   "seconds": {
+    "haar": 1.355,
+    "speaker": 0.876
+   },
+   "haar": {
+    "missed": 6,
+    "speech": 139,
+    "cuts": 0,
+    "pans": 2,
+    "framed": 26
+   },
+   "largest": {
+    "missed": 139,
+    "speech": 139,
+    "cuts": 0,
+    "pans": 1,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 0,
+    "speech": 139,
+    "cuts": 1,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 139,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "g1wyIcLPbq0-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    622,
+    480
+   ],
+   "seconds": {
+    "haar": 1.747,
+    "speaker": 0.89
+   },
+   "haar": {
+    "missed": 57,
+    "speech": 139,
+    "cuts": 0,
+    "pans": 2,
+    "framed": 27
+   },
+   "largest": {
+    "missed": 66,
+    "speech": 139,
+    "cuts": 0,
+    "pans": 0,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 11,
+    "speech": 139,
+    "cuts": 1,
+    "pans": 2,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 11,
+    "speech": 139,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "kMy-6RtoOVU-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1920,
+    1080
+   ],
+   "seconds": {
+    "haar": 3.591,
+    "speaker": 2.327
+   },
+   "haar": {
+    "missed": 29,
+    "speech": 130,
+    "cuts": 4,
+    "pans": 4,
+    "framed": 24
+   },
+   "largest": {
+    "missed": 42,
+    "speech": 130,
+    "cuts": 4,
+    "pans": 5,
+    "framed": 23
+   },
+   "speaker": {
+    "missed": 59,
+    "speech": 130,
+    "cuts": 7,
+    "pans": 0,
+    "framed": 23
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "qrkff49p4E4-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    640,
+    480
+   ],
+   "seconds": {
+    "haar": 1.842,
+    "speaker": 1.0
+   },
+   "haar": {
+    "missed": 62,
+    "speech": 151,
+    "cuts": 3,
+    "pans": 4,
+    "framed": 21
+   },
+   "largest": {
+    "missed": 57,
+    "speech": 151,
+    "cuts": 3,
+    "pans": 6,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 46,
+    "speech": 151,
+    "cuts": 8,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 0,
+    "speech": 0,
+    "camera_steps": 0,
+    "steps": 200,
+    "modes": [
+     "fit_blur"
+    ]
+   }
+  },
+  {
+   "id": "rJKeqfTlAeY-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1920,
+    1080
+   ],
+   "seconds": {
+    "haar": 4.282,
+    "speaker": 2.026
+   },
+   "haar": {
+    "missed": 65,
+    "speech": 165,
+    "cuts": 0,
+    "pans": 6,
+    "framed": 27
+   },
+   "largest": {
+    "missed": 36,
+    "speech": 165,
+    "cuts": 0,
+    "pans": 10,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 52,
+    "speech": 165,
+    "cuts": 1,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 52,
+    "speech": 165,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "xJmRNZVDDCY-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1920,
+    1080
+   ],
+   "seconds": {
+    "haar": 3.082,
+    "speaker": 1.806
+   },
+   "haar": {
+    "missed": 85,
+    "speech": 116,
+    "cuts": 0,
+    "pans": 6,
+    "framed": 27
+   },
+   "largest": {
+    "missed": 23,
+    "speech": 116,
+    "cuts": 0,
+    "pans": 2,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 10,
+    "speech": 116,
+    "cuts": 4,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 10,
+    "speech": 116,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "yn9WN9lsHRE-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    854,
+    480
+   ],
+   "seconds": {
+    "haar": 1.617,
+    "speaker": 0.872
+   },
+   "haar": {
+    "missed": 48,
+    "speech": 148,
+    "cuts": 0,
+    "pans": 7,
+    "framed": 17
+   },
+   "largest": {
+    "missed": 26,
+    "speech": 148,
+    "cuts": 0,
+    "pans": 1,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 33,
+    "speech": 148,
+    "cuts": 1,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 33,
+    "speech": 148,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "z-fsLpGHq6o-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1280,
+    720
+   ],
+   "seconds": {
+    "haar": 2.317,
+    "speaker": 1.193
+   },
+   "haar": {
+    "missed": 127,
+    "speech": 164,
+    "cuts": 1,
+    "pans": 4,
+    "framed": 23
+   },
+   "largest": {
+    "missed": 139,
+    "speech": 164,
+    "cuts": 1,
+    "pans": 2,
+    "framed": 27
+   },
+   "speaker": {
+    "missed": 33,
+    "speech": 164,
+    "cuts": 1,
+    "pans": 0,
+    "framed": 27
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 33,
+    "speech": 164,
+    "camera_steps": 200,
+    "steps": 200,
+    "modes": [
+     "camera"
+    ]
+   }
+  },
+  {
+   "id": "zR725veL-DI-multi",
+   "kind": "multi",
+   "duration": 20.0,
+   "size": [
+    1920,
+    1080
+   ],
+   "seconds": {
+    "haar": 3.393,
+    "speaker": 2.032
+   },
+   "haar": {
+    "missed": 37,
+    "speech": 135,
+    "cuts": 7,
+    "pans": 7,
+    "framed": 26
+   },
+   "largest": {
+    "missed": 27,
+    "speech": 135,
+    "cuts": 7,
+    "pans": 2,
+    "framed": 26
+   },
+   "speaker": {
+    "missed": 38,
+    "speech": 135,
+    "cuts": 13,
+    "pans": 0,
+    "framed": 26
+   },
+   "samples": 27,
+   "auto_camera": {
+    "missed": 8,
+    "speech": 19,
+    "camera_steps": 44,
+    "steps": 200,
+    "modes": [
+     "camera",
+     "fit_blur"
+    ]
+   }
+  }
+ ]
+}
