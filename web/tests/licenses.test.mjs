@@ -198,7 +198,10 @@ test("the page renders the notices with Indonesian copy and no em dash", async (
   const source = (await read(WEB_ROOT, "app", "licenses", "page.jsx")).toString();
   assert.match(source, /from "\.\/notices\.mjs"/);
   for (const name of ["JASSUB", "MEDIABUNNY", "FONTS", "WEB", "UI", "FREETYPE_CREDIT"]) assert.match(source, new RegExp(`\\b${name}\\b`), name);
-  assert.match(source, /<h1[^>]*>Lisensi pihak ketiga<\/h1>/);
+  // The page's words come from the catalog (help.licenses.*), in the UI language.
+  assert.match(source, /<h1[^>]*>\{t\("licenses\.title"\)\}<\/h1>/);
+  const help = JSON.parse((await read(WEB_ROOT, "messages", "id", "help.json")).toString());
+  assert.equal(help.licenses.title, "Lisensi pihak ketiga");
   const notices = (await read(WEB_ROOT, "app", "licenses", "notices.mjs")).toString();
   for (const text of [source, notices]) assert.doesNotMatch(text.replace(/\/\/.*$/gm, ""), /—/);
 });

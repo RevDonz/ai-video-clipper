@@ -1,5 +1,5 @@
 import AppShell from "../../components/AppShell.jsx";
-import { routeMetadata } from "../../lib/i18n/server.mjs";
+import { getLocale, getT, routeMetadata } from "../../lib/i18n/server.mjs";
 import { shellData } from "../../lib/shell-data.mjs";
 import { FONTS, FREETYPE_CREDIT, JASSUB, MEDIABUNNY, UI, WEB } from "./notices.mjs";
 import styles from "./licenses.module.css";
@@ -25,17 +25,16 @@ function Row({ label, children }) {
   );
 }
 
-export default function LicensesPage() {
+// The page's own words are help.licenses.* in the UI language; the notices (names, versions,
+// licence names and texts, what each part does) are notices.mjs, kept as published.
+export default async function LicensesPage() {
+  const t = await getT(await getLocale(), "help");
   return (
     <AppShell {...shellData()}>
       <div className={`shell ${styles.page}`}>
         <header className="pageHead">
           <div>
-            <h1>Lisensi pihak ketiga</h1>
-            <p>
-              Potongin memakai perangkat lunak dan font dari pihak lain. Di sini tercantum lisensinya, versi
-              persisnya, dan tempat kode sumbernya.
-            </p>
+            <h1>{t("licenses.title")}</h1>
           </div>
         </header>
 
@@ -43,41 +42,38 @@ export default function LicensesPage() {
           <h2 id="jassub">{JASSUB.name} {JASSUB.version}</h2>
           <p className={styles.use}>{JASSUB.use}</p>
           <dl className={styles.facts}>
-            <Row label="Lisensi">{JASSUB.license}</Row>
-            <Row label="Paket">npm {JASSUB.name.toLowerCase()}@{JASSUB.version}<span className={styles.hash}>{JASSUB.integrity}</span></Row>
-            <Row label="Dikirim ke browser">{JASSUB.files.join(", ")}, tanpa diubah</Row>
-            <Row label="Kode sumber">
-              <a href={JASSUB.source} className={styles.file}>commit {JASSUB.commit.slice(0, 7)}</a>
+            <Row label={t("licenses.license")}>{JASSUB.license}</Row>
+            <Row label={t("licenses.package")}>{t("licenses.npm", { name: JASSUB.name.toLowerCase(), version: JASSUB.version })}<span className={styles.hash}>{JASSUB.integrity}</span></Row>
+            <Row label={t("licenses.shipped")}>{t("licenses.shippedFiles", { files: JASSUB.files.join(", ") })}</Row>
+            <Row label={t("licenses.source")}>
+              <a href={JASSUB.source} className={styles.file}>{t("licenses.commit", { commit: JASSUB.commit.slice(0, 7) })}</a>
               <span className={styles.note}>{JASSUB.sourceNote}</span>
             </Row>
-            <Row label="Skrip build">
+            <Row label={t("licenses.buildScripts")}>
               <span className={styles.links}>
                 {JASSUB.buildScripts.map((script) => <a key={script.href} href={script.href}>{script.label}</a>)}
               </span>
             </Row>
           </dl>
 
-          <h3>Komponen di dalam file WebAssembly</h3>
+          <h3>{t("licenses.wasmParts")}</h3>
           <ul className={styles.items}>
             {JASSUB.components.map((component) => (
               <li key={component.name}>
                 <span className={styles.name}>{component.name}</span>
                 <span className={styles.licence}>{component.license}</span>
                 <span className={styles.links}>
-                  <a href={component.source}>Kode sumber</a>
+                  <a href={component.source}>{t("licenses.source")}</a>
                   <Texts hrefs={component.texts} />
                 </span>
               </li>
             ))}
           </ul>
           <p className={styles.text}>
-            Teks lengkap semua lisensinya, seperti yang dikumpulkan JASSUB:{" "}
+            {t("licenses.fullNotice")}{" "}
             <a href={JASSUB.fullNotice} className={styles.file}>{fileName(JASSUB.fullNotice)}</a>
           </p>
-          <p className={styles.text}>
-            FriBidi berlisensi LGPL-2.1. Kode sumber setiap komponen dan skrip build JASSUB ada di tautan di
-            atas, jadi file WebAssembly ini bisa dibangun ulang, termasuk dengan FriBidi yang sudah diubah.
-          </p>
+          <p className={styles.text}>{t("licenses.fribidi")}</p>
           <p className={styles.credit} lang="en">{FREETYPE_CREDIT}</p>
         </section>
 
@@ -85,21 +81,18 @@ export default function LicensesPage() {
           <h2 id="mediabunny">{MEDIABUNNY.name} {MEDIABUNNY.version}</h2>
           <p className={styles.use}>{MEDIABUNNY.use}</p>
           <dl className={styles.facts}>
-            <Row label="Lisensi">{MEDIABUNNY.license}</Row>
-            <Row label="Paket">npm {MEDIABUNNY.name.toLowerCase()}@{MEDIABUNNY.version}<span className={styles.hash}>{MEDIABUNNY.integrity}</span></Row>
-            <Row label="Kode sumber">
-              <a href={MEDIABUNNY.source} className={styles.file}>tag {MEDIABUNNY.tag}</a>
-              <span className={styles.note}>
-                Commit {MEDIABUNNY.commit.slice(0, 7)}. Kodenya tidak diubah; browser menerimanya di dalam bundel
-                aplikasi web.
-              </span>
+            <Row label={t("licenses.license")}>{MEDIABUNNY.license}</Row>
+            <Row label={t("licenses.package")}>{t("licenses.npm", { name: MEDIABUNNY.name.toLowerCase(), version: MEDIABUNNY.version })}<span className={styles.hash}>{MEDIABUNNY.integrity}</span></Row>
+            <Row label={t("licenses.source")}>
+              <a href={MEDIABUNNY.source} className={styles.file}>{t("licenses.tag", { tag: MEDIABUNNY.tag })}</a>
+              <span className={styles.note}>{t("licenses.bundled", { commit: MEDIABUNNY.commit.slice(0, 7) })}</span>
             </Row>
-            <Row label="Teks lisensi"><Texts hrefs={MEDIABUNNY.texts} /></Row>
+            <Row label={t("licenses.licenseText")}><Texts hrefs={MEDIABUNNY.texts} /></Row>
           </dl>
         </section>
 
         <section className={styles.block} aria-labelledby="fonts">
-          <h2 id="fonts">Font</h2>
+          <h2 id="fonts">{t("licenses.fonts")}</h2>
           <ul className={styles.items}>
             {FONTS.map((font) => (
               <li key={font.name}>
@@ -107,7 +100,7 @@ export default function LicensesPage() {
                 <span className={styles.licence}>{font.license}</span>
                 <span className={styles.detail}>{font.use} {font.copyright}.</span>
                 <span className={styles.links}>
-                  <a href={font.source}>Sumber</a>
+                  <a href={font.source}>{t("licenses.fontSource")}</a>
                   <Texts hrefs={font.texts} />
                 </span>
               </li>
@@ -116,14 +109,14 @@ export default function LicensesPage() {
         </section>
 
         <section className={styles.block} aria-labelledby="web">
-          <h2 id="web">Aplikasi web</h2>
+          <h2 id="web">{t("licenses.web")}</h2>
           <ul className={styles.items}>
             {WEB.map((item) => (
               <li key={item.name}>
                 <span className={styles.name}>{item.name} {item.version}</span>
                 <span className={styles.licence}>{item.license}</span>
                 <span className={styles.links}>
-                  <a href={item.source}>Kode sumber</a>
+                  <a href={item.source}>{t("licenses.source")}</a>
                   <Texts hrefs={item.texts} />
                 </span>
               </li>
@@ -132,7 +125,7 @@ export default function LicensesPage() {
         </section>
 
         <section className={styles.block} aria-labelledby="ui">
-          <h2 id="ui">Komponen antarmuka</h2>
+          <h2 id="ui">{t("licenses.ui")}</h2>
           <ul className={styles.items}>
             {UI.map((item) => (
               <li key={item.name}>
@@ -143,7 +136,7 @@ export default function LicensesPage() {
                   {item.licenseNote ? ` ${item.licenseNote}` : ""}
                 </span>
                 <span className={styles.links}>
-                  <a href={item.source}>Kode sumber</a>
+                  <a href={item.source}>{t("licenses.source")}</a>
                   <Texts hrefs={item.texts} />
                 </span>
               </li>
