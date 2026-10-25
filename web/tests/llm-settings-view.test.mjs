@@ -19,6 +19,10 @@ import {
   serverTemplateFor,
   subscriptionModels,
 } from "../lib/llm-settings-view.mjs";
+import { settingsText } from "./support/settings-text.mjs";
+
+// The draft's errors are descriptors now (rombak 07 §8.3); their Indonesian text is what the field shows.
+const text = (descriptor) => settingsText(descriptor);
 
 const SECRET = "view-secret-".padEnd(40, "v");
 
@@ -58,12 +62,12 @@ test("the draft validates like the server and marks the field that is wrong", ()
   draft.providers.push({ ...providerDraft("custom"), baseUrl: "http://remote.example/v1", keyAction: "replace", keyValue: "  " });
   draft.providers.push({ ...providerDraft("groq"), model: "has space", contextTokens: "100", timeout: "abc", fallbackText: "ok, bad\u0000model" });
   const { errors } = draftToPayload(draft);
-  assert.match(errors["providers[0].baseUrl"], /http:\/\/ hanya diizinkan/);
-  assert.match(errors["providers[0].model"], /wajib/);
-  assert.match(errors["providers[0].apiKey"], /Isi API key baru/);
+  assert.match(text(errors["providers[0].baseUrl"]), /http:\/\/ hanya diizinkan/);
+  assert.match(text(errors["providers[0].model"]), /wajib/);
+  assert.match(text(errors["providers[0].apiKey"]), /Isi API key baru/);
   assert.ok(errors["providers[1].model"]);
-  assert.match(errors["providers[1].contextTokens"], /Konteks token harus antara 512/);
-  assert.match(errors["providers[1].timeout"], /angka/);
+  assert.match(text(errors["providers[1].contextTokens"]), /Konteks token harus antara 512/);
+  assert.match(text(errors["providers[1].timeout"]), /angka/);
   assert.ok(errors["providers[1].fallbackModels"]);
 
   const replaced = draftToPayload({ enabled: true, freeOnly: false, providers: [{ ...providerDraft("groq"), keyAction: "replace", keyValue: " gsk_new \n", temperature: "0,5" }] });
@@ -99,8 +103,11 @@ test("list helpers keep the failover order explicit", () => {
   assert.equal(parseModelList(""), null);
   assert.deepEqual(parseModelList(" none "), []);
   assert.deepEqual(parseModelList("a, b\nc,a"), ["a", "b", "c"]);
-  assert.deepEqual(providerStatusLine({ usable: true }), { tone: "ok", text: "Siap dipakai" });
-  assert.deepEqual(providerStatusLine({ usable: false, reason: "key_unreadable" }), { tone: "error", text: "Key tersimpan tidak bisa dibuka. Isi ulang." });
+  assert.deepEqual(providerStatusLine({ usable: true }), { tone: "ok", key: "ai.status.ready" });
+  assert.equal(text(providerStatusLine({ usable: true })), "Siap dipakai");
+  assert.deepEqual(providerStatusLine({ usable: false, reason: "key_unreadable" }), { tone: "error", key: "ai.status.keyUnreadable" });
+  assert.equal(text(providerStatusLine({ usable: false, reason: "key_unreadable" })), "Key tersimpan tidak bisa dibuka. Isi ulang.");
+  assert.equal(text(providerStatusLine({ usable: false, reason: "something_new" })), "Belum siap");
   assert.equal(providerStatusLine(null), null);
   assert.equal(baseUrlHost("https://hermes.example:8443/v1"), "hermes.example:8443");
   assert.equal(baseUrlHost("http://remote.example/v1"), null);
@@ -146,8 +153,8 @@ test("the draft checks server names like the server does", () => {
   draft.providers[2] = { ...draft.providers[2], name: "hermes" };
   draft.providers[3] = { ...draft.providers[3], name: "x".repeat(41) };
   const { errors } = draftToPayload(draft);
-  assert.match(errors["providers[2].name"], /sudah dipakai/);
-  assert.match(errors["providers[3].name"], /1–40 karakter/);
+  assert.match(text(errors["providers[2].name"]), /sudah dipakai/);
+  assert.match(text(errors["providers[3].name"]), /1–40 karakter/);
   draft.providers[1] = { ...draft.providers[1], name: "ignored for presets" };
   assert.equal(draftToPayload(draft).payload.providers[1].name, undefined);
 });

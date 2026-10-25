@@ -1,24 +1,28 @@
 "use client";
 
-// Pengaturan "Teks watermark bawaan" (CONTRACTS §5.43): one line of text with its place, size and
-// opacity, written into the clips of every new job. Loaded on its own, like "Logo bawaan".
+// Pengaturan → Tampilan → Watermark (CONTRACTS §5.43): one line of text with its place, size and
+// opacity, written into the clips of every new job. A draft card of the save bar; Hapus removes
+// the stored text at once (the bar's Batalkan could not bring it back).
+import { Button, Description, Input, Label, ListBox, Select, TextField } from "@heroui/react";
 import { useEffect, useId, useRef, useState } from "react";
-import { useLocale, useTranslations } from "use-intl";
+import { useFormatter, useLocale, useTranslations } from "use-intl";
 
-import { WATERMARK_MAX, WATERMARK_PLACES, percentLabel, watermarkPoints } from "../../components/editor/panels/watermark-model.mjs";
+import { WATERMARK_MAX, watermarkPoints } from "../../components/editor/panels/watermark-model.mjs";
+import { apiErrorMessage } from "../../lib/api-error.mjs";
 import {
   defaultWatermarkCopy,
   defaultWatermarkForm,
   defaultWatermarkPayload,
   defaultWatermarkState,
-  formMatches,
+  watermarkDirty,
 } from "../../lib/default-watermark-view.mjs";
-import { apiErrorMessage } from "../../lib/api-error.mjs";
-import { WATERMARK_OPACITY_RANGE, WATERMARK_SIZE_RANGE } from "../../lib/editor/doc-model.mjs";
+import { WATERMARK_OPACITY_RANGE, WATERMARK_POSITIONS, WATERMARK_SIZE_RANGE } from "../../lib/editor/doc-model.mjs";
+import { CardLoadError, CardLoading, CardNotice } from "./CardState.jsx";
+import { cardDomId, useSaveAll, useSettingsCard } from "./SettingsSave.jsx";
+import { useViewText } from "./view-text.jsx";
 
 const ENDPOINT = "/api/settings/watermark";
-const SESSION_TEXT = "Sesi login berakhir. Muat ulang halaman untuk masuk lagi.";
-const LOAD_FAILED = "Teks watermark bawaan tidak bisa dimuat.";
+const CARD = "watermark";
 
 async function send(method, body) {
   const response = await fetch(ENDPOINT, {
@@ -32,15 +36,32 @@ async function send(method, body) {
 }
 
 export default function DefaultWatermarkCard() {
+  const t = useTranslations("settings");
+  const format = useFormatter();
+  const tRoot = useTranslations();
+  const locale = useLocale();
+  const text = useViewText();
+  const saveAll = useSaveAll();
   const [phase, setPhase] = useState("loading");
   const [state, setState] = useState(() => defaultWatermarkState(null));
   const [form, setForm] = useState(() => defaultWatermarkForm(null));
-  const [busy, setBusy] = useState(null);
+  const [removing, setRemoving] = useState(false);
   const [message, setMessage] = useState(null);
   const alive = useRef(true);
   const id = useId();
-  const t = useTranslations();
-  const locale = useLocale();
+
+  const placeName = (place) => ({
+    top_left: t("appearance.place.top_left"),
+    top_center: t("appearance.place.top_center"),
+    top_right: t("appearance.place.top_right"),
+    middle_left: t("appearance.place.middle_left"),
+    middle_center: t("appearance.place.middle_center"),
+    middle_right: t("appearance.place.middle_right"),
+    bottom_left: t("appearance.place.bottom_left"),
+    bottom_center: t("appearance.place.bottom_center"),
+    bottom_right: t("appearance.place.bottom_right"),
+  })[place] ?? place;
+  const percent = (pm) => format.number(pm / 1000, { style: "percent", maximumFractionDigits: 1 });
 
   async function load() {
     setPhase("loading");
@@ -54,12 +75,12 @@ export default function DefaultWatermarkCard() {
         setForm(defaultWatermarkForm(next.watermark));
         setPhase("ready");
       } else {
-        setMessage({ tone: "error", text: answer.status === 401 ? SESSION_TEXT : LOAD_FAILED });
+        setMessage({ tone: "error", text: answer.status === 401 ? t("common.error.session") : t("appearance.watermarkLoadFailed") });
         setPhase("error");
       }
     } catch {
       if (!alive.current) return;
-      setMessage({ tone: "error", text: LOAD_FAILED });
+      setMessage({ tone: "error", text: t("appearance.watermarkLoadFailed") });
       setPhase("error");
     }
   }
@@ -72,45 +93,43 @@ export default function DefaultWatermarkCard() {
 
   const copy = defaultWatermarkCopy({ autoClips: state.autoClips });
   const saved = state.watermark;
-  const unchanged = formMatches(form, saved);
+  const dirty = phase === "ready" && watermarkDirty(form, saved);
   const points = watermarkPoints(form.text.trim());
   const edit = (patch) => {
     setForm((current) => ({ ...current, ...patch }));
     setMessage(null);
   };
 
-  async function save(event) {
-    event.preventDefault();
-    if (busy) return;
+  async function save() {
     const result = defaultWatermarkPayload(form);
     if (result.error) {
-      setMessage({ tone: "error", text: result.error });
-      return;
+      setMessage({ tone: "error", text: text(result.error) });
+      return { ok: false };
     }
-    setBusy("save");
     setMessage(null);
     try {
       const answer = await send("PUT", result.payload);
-      if (!alive.current) return;
+      if (!alive.current) return { ok: false };
       if (answer.ok && answer.payload) {
         const next = defaultWatermarkState(answer.payload);
         setState(next);
         setForm(defaultWatermarkForm(next.watermark));
-        setMessage({ tone: "ok", text: "Teks watermark bawaan tersimpan." });
-      } else {
-        const text = answer.status === 401 ? SESSION_TEXT : apiErrorMessage(t, answer.payload, answer.status, { locale, fallback: "Teks watermark gagal disimpan. Coba lagi." });
-        setMessage({ tone: "error", text });
+        setMessage({ tone: "ok", text: t("appearance.watermarkSaved") });
+        return { ok: true };
       }
+      const failed = answer.status === 401 ? t("common.error.session") : apiErrorMessage(tRoot, answer.payload, answer.status, { locale, fallback: t("appearance.watermarkSaveFailed") });
+      setMessage({ tone: "error", text: failed });
     } catch {
-      if (alive.current) setMessage({ tone: "error", text: "Koneksi terputus. Coba lagi." });
-    } finally {
-      if (alive.current) setBusy(null);
+      if (alive.current) setMessage({ tone: "error", text: t("common.error.offline") });
     }
+    return { ok: false };
   }
 
+  useSettingsCard(CARD, "tampilan", { dirty, save, discard: () => { setForm(defaultWatermarkForm(saved)); setMessage(null); } });
+
   async function remove() {
-    if (busy || !saved) return;
-    setBusy("remove");
+    if (removing || !saved) return;
+    setRemoving(true);
     setMessage(null);
     try {
       const answer = await send("DELETE");
@@ -118,77 +137,83 @@ export default function DefaultWatermarkCard() {
       if (answer.ok && answer.payload) {
         setState(defaultWatermarkState(answer.payload));
         setForm(defaultWatermarkForm(null));
-        setMessage({ tone: "ok", text: "Teks watermark bawaan dihapus. Klip yang sudah dibuat tetap memakai teksnya." });
+        setMessage({ tone: "ok", text: t("appearance.watermarkRemoved") });
       } else {
-        setMessage({ tone: "error", text: answer.status === 401 ? SESSION_TEXT : "Teks watermark bawaan gagal dihapus. Coba lagi." });
+        setMessage({ tone: "error", text: answer.status === 401 ? t("common.error.session") : t("appearance.watermarkRemoveFailed") });
       }
     } catch {
-      if (alive.current) setMessage({ tone: "error", text: "Koneksi terputus. Coba lagi." });
+      if (alive.current) setMessage({ tone: "error", text: t("common.error.offline") });
     } finally {
-      if (alive.current) setBusy(null);
+      if (alive.current) setRemoving(false);
     }
   }
 
-  return (
-    <section className="panel settingsCard watermarkCard" aria-labelledby={`${id}-title`} aria-busy={Boolean(busy) || phase === "loading"}>
-      <div className="settingsCardHead">
-        <h2 id={`${id}-title`}>Teks watermark bawaan</h2>
-        <p>{copy.where}</p>
-      </div>
+  const onSubmit = (event) => {
+    event.preventDefault();
+    if (dirty) void saveAll();
+  };
 
-      {phase === "loading" && <p className="systemState" role="status">Memuat teks watermark bawaan…</p>}
-      {phase === "error" && (
-        <div className="systemState error" role="alert">
-          <p>{message?.text}</p>
-          <button type="button" className="btn" onClick={() => void load()}>Coba lagi</button>
-        </div>
-      )}
+  return (
+    <section id={cardDomId(CARD)} tabIndex={-1} className="settingsCard" aria-labelledby={`${id}-title`} aria-busy={removing || phase === "loading"}>
+      <h2 id={`${id}-title`} className="settingsCardTitle">{t("appearance.watermark")}</h2>
+
+      {phase === "loading" && <CardLoading label={t("common.loading")} />}
+      {phase === "error" && <CardLoadError message={message?.text} onRetry={() => void load()} />}
 
       {phase === "ready" && (
-        <form onSubmit={save} noValidate>
-          <div className="providerFields">
-            <div className="settingsField wide">
-              <label htmlFor={`${id}-text`}>Teks</label>
-              <input id={`${id}-text`} type="text" value={form.text} maxLength={WATERMARK_MAX} placeholder="@akun"
-                autoComplete="off" spellCheck={false} aria-describedby={`${id}-count`} onChange={(event) => edit({ text: event.target.value })} />
-              <small id={`${id}-count`}>{`${points}/${WATERMARK_MAX} karakter, satu baris.`}</small>
-            </div>
+        <form className="settingsStack" onSubmit={onSubmit} noValidate>
+          <div className="settingsGrid">
+            <TextField value={form.text} onChange={(value) => edit({ text: value })} maxLength={WATERMARK_MAX} className="settingsTextField settingsWide">
+              <Label>{t("appearance.watermarkText")}</Label>
+              <Input placeholder={t("appearance.watermarkPlaceholder")} autoComplete="off" spellCheck={false} />
+              <Description>{t("appearance.watermarkCount", { count: points, max: WATERMARK_MAX })}</Description>
+            </TextField>
+            <Select value={form.pos} onChange={(value) => value && edit({ pos: String(value) })} className="settingsSelect">
+              <Label>{t("appearance.watermarkPos")}</Label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Description>{t("appearance.watermarkPosHelp")}</Description>
+              <Select.Popover>
+                <ListBox>
+                  {WATERMARK_POSITIONS.map((place) => (
+                    <ListBox.Item key={place} id={place} textValue={placeName(place)}>
+                      {placeName(place)}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
             <div className="settingsField">
-              <label htmlFor={`${id}-pos`}>Posisi</label>
-              <select id={`${id}-pos`} value={form.pos} aria-describedby={`${id}-pos-help`} onChange={(event) => edit({ pos: event.target.value })}>
-                {WATERMARK_PLACES.map((place) => <option key={place.id} value={place.id}>{place.name}</option>)}
-              </select>
-              <small id={`${id}-pos-help`}>Setiap posisi ada di luar area tombol TikTok/Reels.</small>
-            </div>
-            <div className="settingsField">
-              <span id={`${id}-size`}>{`Ukuran ${percentLabel(form.size_pm)}`}</span>
-              <input type="range" min={WATERMARK_SIZE_RANGE[0]} max={WATERMARK_SIZE_RANGE[1]} step={50} value={form.size_pm}
-                aria-labelledby={`${id}-size`} aria-valuetext={percentLabel(form.size_pm)}
+              <span id={`${id}-size`} className="settingsLabel">{t("appearance.watermarkSize", { value: percent(form.size_pm) })}</span>
+              <input className="settingsRange" type="range" min={WATERMARK_SIZE_RANGE[0]} max={WATERMARK_SIZE_RANGE[1]} step={50} value={form.size_pm}
+                aria-labelledby={`${id}-size`} aria-valuetext={percent(form.size_pm)}
                 onChange={(event) => edit({ size_pm: Number(event.target.value) })} />
             </div>
             <div className="settingsField">
-              <span id={`${id}-opacity`}>{`Opasitas ${percentLabel(form.opacity_pm)}`}</span>
-              <input type="range" min={WATERMARK_OPACITY_RANGE[0]} max={WATERMARK_OPACITY_RANGE[1]} step={10} value={form.opacity_pm}
-                aria-labelledby={`${id}-opacity`} aria-valuetext={percentLabel(form.opacity_pm)}
+              <span id={`${id}-opacity`} className="settingsLabel">{t("appearance.watermarkOpacity", { value: percent(form.opacity_pm) })}</span>
+              <input className="settingsRange" type="range" min={WATERMARK_OPACITY_RANGE[0]} max={WATERMARK_OPACITY_RANGE[1]} step={10} value={form.opacity_pm}
+                aria-labelledby={`${id}-opacity`} aria-valuetext={percent(form.opacity_pm)}
                 onChange={(event) => edit({ opacity_pm: Number(event.target.value) })} />
             </div>
           </div>
-          <div className="watermarkActions">
-            <button type="submit" className="btn" disabled={Boolean(busy) || unchanged}>{busy === "save" ? "Menyimpan…" : "Simpan watermark"}</button>
-            {saved && (
-              <button type="button" className="btn danger" onClick={remove} disabled={Boolean(busy)}>
-                {busy === "remove" ? "Menghapus…" : "Hapus"}
-              </button>
-            )}
-          </div>
+          {saved && (
+            <div className="settingsRow">
+              <Button variant="danger" onPress={remove} isDisabled={removing}>
+                {removing ? t("common.removing") : t("common.remove")}
+              </Button>
+            </div>
+          )}
 
           {message && (message.tone === "error"
-            ? <p className="notice error settingsNotice" role="alert">{message.text}</p>
-            : <p className="logoStatus ok" role="status">{message.text}</p>)}
+            ? <CardNotice tone="error">{message.text}</CardNotice>
+            : <p className="settingsStatus" data-tone="ok" role="status">{message.text}</p>)}
 
-          <ul className="logoFacts">
-            <li>{copy.reach}</li>
-            <li>{copy.perClip}</li>
+          <ul className="settingsFacts">
+            <li>{text(copy.reach)}</li>
+            <li>{text(copy.perClip)}</li>
           </ul>
         </form>
       )}

@@ -22,7 +22,8 @@ import {
   readDefaultLogo,
   snapshotDefaultLogo,
 } from "../lib/default-logo.mjs";
-import { DEFAULT_LOGO_ACCEPT, defaultLogoCopy, defaultLogoState } from "../lib/default-logo-view.mjs";
+import { DEFAULT_LOGO_ACCEPT, defaultLogoCopy, defaultLogoState, defaultLogoUploadError, logoSize } from "../lib/default-logo-view.mjs";
+import { settingsText } from "./support/settings-text.mjs";
 import { createUploadClient } from "../lib/editor/upload-client.mjs";
 import { applyCommand, CommandRejected } from "../lib/editor/commands.mjs";
 import { createContext } from "../lib/editor/doc-model.mjs";
@@ -476,16 +477,26 @@ test("the card's state and copy", () => {
   assert.deepEqual(defaultLogoState({ logo: { ...logo, url: "https://evil/x.png" }, enabled: true, autoClips: false }).logo, null);
   assert.deepEqual(defaultLogoState(null), { logo: null, enabled: false, autoClips: false });
   assert.deepEqual(defaultLogoState({ logo: { ...logo, w: "300" } }).logo, null);
+  // The copy is descriptors now (rombak 07 §8.3); the card's head sentence ("where") went with the
+  // tabbed Pengaturan (05 §6.10: no <p> card heads), the facts stay.
   const legacy = defaultLogoCopy({ autoClips: false });
   const auto = defaultLogoCopy({ autoClips: true });
-  assert.match(legacy.where, /klip baru/);
-  assert.match(legacy.where, /tidak berubah/);
-  assert.match(legacy.reach, /editor/);
-  assert.match(legacy.reach, /tanpa logo/);
-  assert.doesNotMatch(auto.reach, /tanpa logo/);
-  for (const copy of [legacy, auto]) {
-    for (const text of Object.values(copy)) {
-      assert.doesNotMatch(text, /—|\bV[1-3]\b|\bbaru\b.*\bfitur\b|mesin|legacy|edit-v2/i, text);
+  assert.deepEqual(legacy, { reach: { key: "appearance.logoReach.editor" }, perClip: { key: "appearance.logoPerClip" }, hint: { key: "appearance.logoHint" } });
+  assert.deepEqual(auto.reach, { key: "appearance.logoReach.auto" });
+  assert.match(settingsText(legacy.reach), /editor/);
+  assert.match(settingsText(legacy.reach), /tanpa logo/);
+  assert.doesNotMatch(settingsText(auto.reach), /tanpa logo/);
+  assert.equal(settingsText(legacy.hint), "PNG, JPEG, atau WebP, maksimal 10 MB. PNG berlatar transparan hasilnya paling rapi.");
+  assert.equal(settingsText(logoSize({ w: 300, h: 100 })), "300 × 100 px");
+  for (const code of ["id", "en"]) {
+    for (const copy of [legacy, auto]) {
+      for (const descriptor of Object.values(copy)) {
+        const text = settingsText(descriptor, code);
+        assert.ok(text.length > 0, descriptor.key);
+        assert.doesNotMatch(text, /—|\bV[1-3]\b|\bbaru\b.*\bfitur\b|mesin|legacy|edit-v2/i, text);
+      }
     }
   }
+  assert.deepEqual(defaultLogoUploadError({ code: "settings_unavailable" }), { code: "settings_unavailable", cancelled: false, key: "common.error.settingsUnavailable" });
+  assert.equal(settingsText(defaultLogoUploadError({ status: 401 })), "Sesi login berakhir. Muat ulang halaman untuk masuk lagi.");
 });

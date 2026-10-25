@@ -1,22 +1,26 @@
 "use client";
 
-// Pengaturan "Transkripsi": the opt-in switch that sends a video's audio to Groq, and the Groq key
-// when Pengaturan AI has none for api.groq.com. Loaded on its own, like "Cookies YouTube": the AI
-// form failing must not hide it. Every change saves at once; the server never sends a key back.
+// Pengaturan → Transkripsi: the opt-in switch that sends a video's audio to Groq, and the Groq key
+// when Pengaturan AI has none for api.groq.com. A draft card of the one save bar: the switch and
+// the key change nothing until Simpan (or Enter in the key field). The server never sends a key back.
+import { Button, Description, Input, Label, Switch, TextField } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "use-intl";
 
 import {
   GROQ_KEY_URL,
-  transcriptionCopy,
   transcriptionErrorMessage,
   transcriptionNotice,
   transcriptionSavedMessage,
   transcriptionState,
 } from "../../lib/transcription-settings-view.mjs";
+import { CardLoadError, CardLoading, CardNotice } from "./CardState.jsx";
+import { cardDomId, useSaveAll, useSettingsCard } from "./SettingsSave.jsx";
+import { useViewText } from "./view-text.jsx";
 
 const ENDPOINT = "/api/settings/transcription";
-const COPY = transcriptionCopy();
-const LOAD_FAILED = "Pengaturan transkripsi tidak bisa dimuat.";
+const CARD = "transcription";
+const KEEP = Object.freeze({ enabled: null, keyAction: "keep", keyValue: "" });
 
 async function send(method, body) {
   const response = await fetch(ENDPOINT, {
@@ -30,12 +34,13 @@ async function send(method, body) {
 }
 
 export default function TranscriptionCard() {
+  const t = useTranslations("settings");
+  const text = useViewText();
+  const saveAll = useSaveAll();
   const [phase, setPhase] = useState("loading");
   const [state, setState] = useState(() => transcriptionState(null));
-  const [busy, setBusy] = useState(null);
-  const [pending, setPending] = useState(null);
-  const [keyValue, setKeyValue] = useState("");
-  const [replacing, setReplacing] = useState(false);
+  // `enabled: null` keeps the stored switch; keyAction "replace" opens the field, "clear" removes on save.
+  const [draft, setDraft] = useState(KEEP);
   const [message, setMessage] = useState(null);
   const alive = useRef(true);
 
@@ -47,14 +52,15 @@ export default function TranscriptionCard() {
       if (!alive.current) return;
       if (answer.ok && answer.payload) {
         setState(transcriptionState(answer.payload));
+        setDraft(KEEP);
         setPhase("ready");
       } else {
-        setMessage({ tone: "error", text: answer.status === 401 ? transcriptionErrorMessage({ status: 401 }) : LOAD_FAILED });
+        setMessage({ tone: "error", text: answer.status === 401 ? transcriptionErrorMessage({ status: 401 }) : { key: "transcription.loadFailed" } });
         setPhase("error");
       }
     } catch {
       if (!alive.current) return;
-      setMessage({ tone: "error", text: LOAD_FAILED });
+      setMessage({ tone: "error", text: { key: "transcription.loadFailed" } });
       setPhase("error");
     }
   }
@@ -67,129 +73,127 @@ export default function TranscriptionCard() {
     };
   }, []);
 
-  async function save(kind, enabled, apiKey, done) {
-    if (busy !== null) return;
+  const enabled = draft.enabled ?? state.enabled;
+  const keyValue = draft.keyValue.trim();
+  const dirty = phase === "ready" && (enabled !== state.enabled || draft.keyAction === "clear" || (draft.keyAction === "replace" && keyValue !== ""));
+
+  async function save() {
+    const apiKey = draft.keyAction === "clear" ? { action: "clear" } : draft.keyAction === "replace" && keyValue ? { action: "replace", value: keyValue } : { action: "keep" };
     setMessage(null);
-    setBusy(kind);
-    if (kind === "toggle") setPending(enabled);
     try {
       const answer = await send("PUT", { enabled, apiKey });
-      if (!alive.current) return;
+      if (!alive.current) return { ok: false };
       if (answer.ok && answer.payload) {
         const next = transcriptionState(answer.payload);
         setState(next);
-        setKeyValue("");
-        setReplacing(false);
-        setMessage({ tone: "ok", text: done ?? transcriptionSavedMessage(next) });
-      } else {
-        setMessage({ tone: "error", text: transcriptionErrorMessage({ status: answer.status, code: answer.payload?.code, error: answer.payload?.error }) });
+        setDraft(KEEP);
+        const done = apiKey.action === "replace" ? { key: "transcription.keyStored" } : apiKey.action === "clear" ? { key: "transcription.keyRemoved" } : transcriptionSavedMessage(next);
+        setMessage({ tone: "ok", text: done });
+        return { ok: true };
       }
+      setMessage({ tone: "error", text: transcriptionErrorMessage({ status: answer.status, code: answer.payload?.code, error: answer.payload?.error }) });
     } catch {
       if (alive.current) setMessage({ tone: "error", text: transcriptionErrorMessage({ status: 0 }) });
-    } finally {
-      if (alive.current) {
-        setBusy(null);
-        setPending(null);
-      }
     }
+    return { ok: false };
   }
 
-  const onToggle = (event) => void save("toggle", event.target.checked, { action: "keep" });
-  const onSaveKey = (event) => {
-    event.preventDefault();
-    const value = keyValue.trim();
-    if (value) void save("key", state.enabled, { action: "replace", value }, "API key tersimpan.");
+  useSettingsCard(CARD, "transkripsi", { dirty, save, discard: () => { setDraft(KEEP); setMessage(null); } });
+
+  const edit = (patch) => {
+    setDraft((current) => ({ ...current, ...patch }));
+    setMessage(null);
   };
-  const onRemoveKey = () => void save("remove", state.enabled, { action: "clear" }, "API key dihapus.");
+  const onSubmit = (event) => {
+    event.preventDefault();
+    if (dirty) void saveAll();
+  };
 
   const notice = phase === "ready" ? transcriptionNotice(state) : null;
   const unreadable = state.key === "unreadable" && state.ownKey;
-  const showSaved = state.ownKey && !replacing;
+  const showSaved = state.ownKey && draft.keyAction !== "replace";
+  const keyText = (value) => (
+    value === "clear" ? t("common.keyRemovedOnSave") : unreadable ? t("common.keyUnreadable") : t("transcription.keySaved")
+  );
+  const viewMessage = (key) => (key === "transcription.keyStored" ? t("transcription.keyStored") : key === "transcription.keyRemoved" ? t("transcription.keyRemoved") : key === "transcription.loadFailed" ? t("transcription.loadFailed") : null);
+  const messageText = message ? viewMessage(message.text?.key) ?? text(message.text) : "";
 
   return (
-    <section className="panel settingsCard transcriptionCard" aria-labelledby="transcription-title" aria-busy={busy !== null || phase === "loading"}>
-      <div className="settingsCardHead">
-        <h2 id="transcription-title">Transkripsi</h2>
-        <p>{COPY.where}</p>
-      </div>
-
-      {phase === "loading" && <p className="systemState" role="status">Memuat pengaturan transkripsi…</p>}
-      {phase === "error" && (
-        <div className="systemState error" role="alert">
-          <p>{message?.text}</p>
-          <button type="button" className="btn" onClick={() => void load()}>Coba lagi</button>
-        </div>
-      )}
+    <section id={cardDomId(CARD)} tabIndex={-1} className="settingsCard" aria-label={t("tab.transcription")} aria-busy={phase === "loading"}>
+      {phase === "loading" && <CardLoading label={t("common.loading")} />}
+      {phase === "error" && <CardLoadError message={messageText} onRetry={() => void load()} />}
 
       {phase === "ready" && (
-        <>
-          <label className="settingsToggle">
-            <input type="checkbox" checked={pending ?? state.enabled} disabled={busy !== null} onChange={onToggle} aria-describedby="transcription-privacy" />
-            <span>
-              <strong>{COPY.toggle}</strong>
-              <small id="transcription-privacy">{COPY.privacy}</small>
-            </span>
-          </label>
+        <form className="settingsStack" onSubmit={onSubmit} noValidate>
+          <Switch isSelected={enabled} onChange={(value) => edit({ enabled: value })} className="settingsSwitch">
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              {t("transcription.groq")}
+            </Switch.Content>
+            <Description>{t("transcription.privacy")}</Description>
+          </Switch>
 
-          <div className="transcriptionKey">
-            {state.llmKey ? (
-              <div className="transcriptionKeySource">
-                <p>{COPY.llmKey}</p>
-                {state.ownKey && (
-                  <button type="button" className="btn" onClick={onRemoveKey} disabled={busy !== null}>
-                    {busy === "remove" ? "Menghapus…" : "Hapus key di sini"}
-                  </button>
+          {state.llmKey ? (
+            <div className="settingsRow">
+              <span className="settingsMuted">{t("transcription.llmKey")}</span>
+              {state.ownKey && draft.keyAction !== "clear" && (
+                <Button variant="secondary" onPress={() => edit({ keyAction: "clear", keyValue: "" })}>{t("transcription.removeHere")}</Button>
+              )}
+              {draft.keyAction === "clear" && (
+                <>
+                  <span className="settingsMuted">{t("common.keyRemovedOnSave")}</span>
+                  <Button variant="secondary" onPress={() => edit({ keyAction: "keep" })}>{t("common.cancel")}</Button>
+                </>
+              )}
+            </div>
+          ) : showSaved ? (
+            <div className="settingsField">
+              <span id="transcription-key-label" className="settingsLabel">{t("transcription.key")}</span>
+              <div className="settingsKeyState" data-tone={draft.keyAction === "clear" ? "warning" : unreadable ? "error" : "ok"} role="group" aria-labelledby="transcription-key-label">
+                <span>{keyText(draft.keyAction)}</span>
+                {draft.keyAction === "clear" ? (
+                  <Button variant="secondary" onPress={() => edit({ keyAction: "keep" })}>{t("common.cancel")}</Button>
+                ) : (
+                  <>
+                    <Button variant="secondary" onPress={() => edit({ keyAction: "replace", keyValue: "" })} isDisabled={!state.secretConfigured}>
+                      {unreadable ? t("common.refill") : t("common.replace")}
+                    </Button>
+                    <Button variant="danger" onPress={() => edit({ keyAction: "clear", keyValue: "" })}>{t("common.remove")}</Button>
+                  </>
                 )}
               </div>
-            ) : showSaved ? (
-              <div className="settingsField">
-                <span id="transcription-key-label">{COPY.keyLabel}</span>
-                <div className={`keyState ${unreadable ? "error" : "ok"}`} role="group" aria-labelledby="transcription-key-label">
-                  <span>{unreadable ? "Tidak bisa dibuka" : COPY.keySaved}</span>
-                  <button type="button" className="btn" onClick={() => setReplacing(true)} disabled={busy !== null || !state.secretConfigured}>
-                    {unreadable ? "Isi ulang" : "Ganti"}
-                  </button>
-                  <button type="button" className="btn" onClick={onRemoveKey} disabled={busy !== null}>
-                    {busy === "remove" ? "Menghapus…" : "Hapus"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form className="settingsField" onSubmit={onSaveKey}>
-                <label htmlFor="transcription-key">{COPY.keyLabel}</label>
-                <div className="inlineRow">
-                  <input
-                    id="transcription-key"
-                    type="password"
-                    value={keyValue}
-                    placeholder={state.ownKey ? "Tempel API key baru" : "Tempel API key"}
-                    autoComplete="new-password"
-                    spellCheck={false}
-                    autoCapitalize="off"
-                    disabled={!state.secretConfigured || busy !== null}
-                    aria-describedby="transcription-key-help"
-                    onChange={(event) => setKeyValue(event.target.value)}
-                  />
-                  <button type="submit" className="btn" disabled={!keyValue.trim() || busy !== null}>
-                    {busy === "key" ? "Menyimpan…" : "Simpan key Groq"}
-                  </button>
+            </div>
+          ) : (
+            <div className="settingsField">
+              <TextField
+                type="password"
+                value={draft.keyValue}
+                onChange={(value) => edit({ keyAction: "replace", keyValue: value })}
+                isDisabled={!state.secretConfigured}
+                className="settingsTextField"
+              >
+                <Label>{t("transcription.key")}</Label>
+                <div className="settingsRow">
+                  <Input placeholder={state.ownKey ? t("common.pasteNewKey") : t("common.pasteKey")} autoComplete="new-password" spellCheck={false} autoCapitalize="off" />
                   {state.ownKey && (
-                    <button type="button" className="btn" onClick={() => { setReplacing(false); setKeyValue(""); }} disabled={busy !== null}>Batal</button>
+                    <Button variant="secondary" onPress={() => edit({ keyAction: "keep", keyValue: "" })}>{t("common.cancel")}</Button>
                   )}
                 </div>
-                <small id="transcription-key-help">
-                  {COPY.keyHelp}{" "}
-                  <a href={GROQ_KEY_URL} target="_blank" rel="noopener noreferrer">Ambil API key ↗</a>
-                </small>
-              </form>
-            )}
-          </div>
+                <Description>
+                  {t("transcription.keyHelp")}{" "}
+                  <a className="settingsLink" href={GROQ_KEY_URL} target="_blank" rel="noopener noreferrer">{t("common.getKey")}</a>
+                </Description>
+              </TextField>
+            </div>
+          )}
 
-          {notice && <p className={`notice ${notice.tone} settingsNotice`} role={notice.tone === "error" ? "alert" : undefined}>{notice.text}</p>}
+          {notice && <CardNotice tone={notice.tone}>{text(notice)}</CardNotice>}
           {message && (message.tone === "error"
-            ? <p className="notice error settingsNotice" role="alert">{message.text}</p>
-            : <p className="transcriptionStatus ok" role="status">{message.text}</p>)}
-        </>
+            ? <CardNotice tone="error">{messageText}</CardNotice>
+            : <p className="settingsStatus" data-tone="ok" role="status">{messageText}</p>)}
+        </form>
       )}
     </section>
   );

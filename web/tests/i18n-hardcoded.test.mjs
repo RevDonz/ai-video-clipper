@@ -84,6 +84,24 @@ const ZERO = Object.freeze([
   "components/trends/TrendAgentPanel.jsx",
   "components/trends/TrendFormModal.jsx",
   "components/trends/TrendList.jsx",
+  // Pengaturan (Dashboard F5, 08 Fase 3: ratchet 0 for every dashboard route) and its view modules.
+  "app/settings/page.jsx",
+  "app/settings/AiSettings.jsx",
+  "app/settings/AddProviderModal.jsx",
+  "app/settings/CardState.jsx",
+  "app/settings/DefaultLogoCard.jsx",
+  "app/settings/DefaultWatermarkCard.jsx",
+  "app/settings/SettingsSave.jsx",
+  "app/settings/SystemCard.jsx",
+  "app/settings/TranscriptionCard.jsx",
+  "app/settings/YoutubeCookiesCard.jsx",
+  "app/settings/view-text.jsx",
+  "lib/llm-settings-view.mjs",
+  "lib/transcription-settings-view.mjs",
+  "lib/default-logo-view.mjs",
+  "lib/default-watermark-view.mjs",
+  "lib/youtube-cookies-view.mjs",
+  "lib/system-info-view.mjs",
 ]);
 
 async function counts() {

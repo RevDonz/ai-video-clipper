@@ -23,6 +23,7 @@ import {
   whisperModel,
 } from "../lib/system-info.mjs";
 import { UNKNOWN, systemInfoRows } from "../lib/system-info-view.mjs";
+import { settingsText } from "./support/settings-text.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const ROOT = path.resolve(WEB, "..");
@@ -214,7 +215,8 @@ test("readSystemInfo collects every value and never throws", async (t) => {
 // --- The view -------------------------------------------------------------------------------
 
 test("every row shows 'tidak diketahui' for a value nobody could read", () => {
-  assert.equal(UNKNOWN, "tidak diketahui");
+  assert.deepEqual(UNKNOWN, { key: "system.unknown" });
+  assert.equal(settingsText(UNKNOWN), "tidak diketahui");
   for (const info of [undefined, null, {}, { ytDlp: null, ffmpeg: null, libass: null, whisperModel: null, commit: null }]) {
     const rows = systemInfoRows(info);
     assert.deepEqual(rows.map((row) => row.id), ["ytDlp", "ffmpeg", "libass", "whisper", "commit"]);
@@ -236,17 +238,26 @@ test("the rows carry the values, a custom Whisper model by name only", () => {
     ["Whisper", "small", true],
     ["Build", "becb712", true],
   ]);
-  for (const row of rows) assert.ok(row.hint.length > 0 && row.hint.length <= 32, row.hint);
+  for (const code of ["id", "en"]) {
+    for (const row of rows) {
+      const hint = settingsText(row.hint, code);
+      assert.ok(hint.length > 0 && hint.length <= 32, `${code}: ${hint}`);
+    }
+  }
+  assert.equal(settingsText(rows[0].hint), "Pengunduh video");
   const custom = systemInfoRows({ whisperModel: null, whisperModelCustom: true }).find((row) => row.id === "whisper");
-  assert.deepEqual([custom.value, custom.known], ["Model kustom", true]);
+  assert.deepEqual([settingsText(custom.value), custom.known], ["Model kustom", true]);
   // A value the server did not vouch for is not shown as is.
   const odd = systemInfoRows({ ytDlp: 42, ffmpeg: "x".repeat(200), commit: ["becb712"] });
   for (const row of odd) assert.equal(row.value, UNKNOWN, row.id);
 });
 
 test("the rows carry no version wording, no em dash and no 'kamu'", () => {
-  const text = JSON.stringify(systemInfoRows({}));
-  assert.doesNotMatch(text, /\bversi\b|\bmesin\b|\bV[1-3]\b|—|\bkamu\b/i);
+  for (const code of ["id", "en"]) {
+    const rows = [...systemInfoRows({}), ...systemInfoRows({ whisperModelCustom: true })];
+    const text = rows.map((row) => `${row.label} ${settingsText(row.hint, code)} ${settingsText(row.value, code)}`).join("\n");
+    assert.doesNotMatch(text, /\bversi\b|\bmesin\b|\bV[1-3]\b|—|\bkamu\b/i);
+  }
 });
 
 // --- The route ------------------------------------------------------------------------------
@@ -315,14 +326,23 @@ test("compose hands the deployed commit to the image build, and the Dockerfile k
 // --- The page -------------------------------------------------------------------------------
 
 test("Pengaturan shows Tentang sistem from the route, with loading and error states", async () => {
+  // Tab Sistem (05 §6.10): the card is its own component, its words come from the catalog.
   const page = await read("app/settings/page.jsx");
-  assert.match(page, /"\/api\/settings\/system"/);
-  assert.match(page, /systemInfoRows\(/);
-  assert.match(page, /<h2 id="system-title">Tentang sistem<\/h2>/);
-  assert.match(page, /aria-labelledby="system-title"/);
-  assert.match(page, /<dl className="systemList">/);
-  assert.match(page, /role="status"[^>]*>Memuat info sistem…</);
-  assert.match(page, /Info sistem tidak bisa dimuat\./);
-  // The retry is a plain button: lime stays on Simpan.
-  assert.match(page, /<button type="button" className="btn" onClick=\{loadSystem\}>Coba lagi<\/button>/);
+  assert.match(page, /<Tabs\.Panel id="sistem" shouldForceMount[^>]*>\s*<SystemCard \/>/);
+  const card = await read("app/settings/SystemCard.jsx");
+  assert.match(card, /"\/api\/settings\/system"/);
+  assert.match(card, /systemInfoRows\(/);
+  assert.match(card, /<h2 id="system-title"[^>]*>\{t\("system\.about"\)\}<\/h2>/);
+  assert.match(card, /aria-labelledby="system-title"/);
+  assert.match(card, /<dl className="settingsSystemList">/);
+  assert.match(card, /system\.phase === "loading" && <CardLoading label=\{t\("common\.loading"\)\}/);
+  assert.match(card, /t\("system\.loadFailed"\)/);
+  // The retry is the load error's secondary button: lime stays on Simpan.
+  assert.match(card, /<CardLoadError message=\{system\.error\} onRetry=\{loadSystem\} \/>/);
+  const state = await read("app/settings/CardState.jsx");
+  assert.match(state, /<Button variant="secondary" onPress=\{onRetry\}>\{tCommon\("retry"\)\}<\/Button>/);
+  const id = JSON.parse(await read("messages/id/settings.json"));
+  assert.equal(id.system.about, "Tentang sistem");
+  assert.equal(id.system.loadFailed, "Info sistem tidak bisa dimuat.");
+  assert.equal(JSON.parse(await read("messages/id/common.json")).retry, "Coba lagi");
 });
