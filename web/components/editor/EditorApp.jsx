@@ -170,7 +170,7 @@ function ShortcutHelp({ open, onClose }) {
   );
 }
 
-function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNeedsPrepare = null }) {
+function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNeedsPrepare = null, singleKeyShortcuts = true }) {
   const { store, api } = runtime;
   // Panels and lanes of a wave that has not landed stay hidden in the app (W2 verifier).
   const panels = useMemo(() => liveEntries(PANELS, runtime.kind), [runtime.kind]);
@@ -460,12 +460,15 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   actionsRef.current = actions;
   const modalRef = useRef(modalOpen);
   modalRef.current = modalOpen;
+  // "Pintasan satu tombol" (lib/ui-prefs.mjs), read by the page on the server.
+  const singleKeyRef = useRef(singleKeyShortcuts);
+  singleKeyRef.current = singleKeyShortcuts;
 
   useEffect(() => {
     const onKey = (event) => {
       // A focused panel (the transcript) handles its own keys and prevents their default.
       if (modalRef.current || event.defaultPrevented) return;
-      const id = globalShortcut(event);
+      const id = globalShortcut(event, { singleKey: singleKeyRef.current });
       const action = id ? actionsRef.current[id] : null;
       if (!action) return;
       event.preventDefault();
@@ -751,7 +754,7 @@ function PreparePage({ jobId, startedAt }) {
 
 export default function EditorApp({
   jobId, clipId: initialClipId = null, clipIndex = null, runtimeKind = "real", runtime: injected = null, initialPanel,
-  features = {},
+  features = {}, singleKeyShortcuts = true,
 }) {
   const narrow = useNarrow();
   const [runtime, setRuntime] = useState(injected);
@@ -848,6 +851,7 @@ export default function EditorApp({
       initialPanel={initialPanel}
       features={features}
       onNeedsPrepare={injected || prepared ? null : onNeedsPrepare}
+      singleKeyShortcuts={singleKeyShortcuts}
     />
   );
 }

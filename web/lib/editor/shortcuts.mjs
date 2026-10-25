@@ -119,14 +119,23 @@ function insideArrowWidget(target) {
   return typeof target?.closest === "function" && Boolean(target.closest(ARROW_CONTAINERS));
 }
 
+// A character key pressed on its own (K, I, O, ', ?): what WCAG 2.1.4 lets the user turn off.
+// Space, arrows, Delete and Enter are not characters; Ctrl/⌘ shortcuts are not single keys.
+function isCharacterKey(event) {
+  return !(event.ctrlKey || event.metaKey || event.altKey) && typeof event.key === "string"
+    && Array.from(event.key).length === 1 && event.key !== " ";
+}
+
 /**
  * The shell's action for a keydown on the page, or null when the event belongs to someone else:
  * a text field, the transcript panel (transcript-scope keys), a focused control whose own
  * Space/arrow behaviour wins, an IME composition, or a handler that already called
- * preventDefault().
+ * preventDefault(). `singleKey: false` is "Pintasan satu tombol" turned off (lib/ui-prefs.mjs):
+ * the character keys then do nothing.
  */
-export function globalShortcut(event) {
+export function globalShortcut(event, { singleKey = true } = {}) {
   if (!event || event.defaultPrevented || event.isComposing) return null;
+  if (singleKey === false && isCharacterKey(event)) return null;
   const target = event.target ?? null;
   if (isEditableTarget(target)) return null;
   const id = shortcutFor(event);
