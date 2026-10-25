@@ -9,6 +9,7 @@ docs-only". The workflow keeps no ``paths-ignore``, so ``Test and build`` report
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -60,6 +61,10 @@ def _git(repo: Path, *args: str) -> str:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
+    # The classifier runs on the CI runner, which has git. The production image (suite=image)
+    # has none: there test_without_git_every_push_deploys covers it instead.
+    if shutil.which("git") is None:
+        pytest.skip("git is not available here")
     _git(tmp_path, "init", "-q", "-b", "main")
     _git(tmp_path, "config", "user.email", "ci@example.invalid")
     _git(tmp_path, "config", "user.name", "ci")
@@ -108,6 +113,15 @@ def test_every_doubt_deploys(repo, event, before, forced):
                                             forced, repo=repo)
     assert docs_only is False
     assert reason
+
+
+def test_without_git_every_push_deploys(tmp_path, monkeypatch):
+    """No git binary (as in the production image): the diff cannot be read, so it deploys."""
+    monkeypatch.setenv("PATH", str(tmp_path / "no-bin"))
+    assert shutil.which("git") is None
+    assert deploy_scope.changed_paths("a" * 40, "b" * 40, tmp_path) is None
+    assert deploy_scope.decide("push", "a" * 40, "b" * 40, "false", repo=tmp_path) == \
+        (False, "git diff failed")
 
 
 def test_the_cli_writes_a_github_output_line(repo):
