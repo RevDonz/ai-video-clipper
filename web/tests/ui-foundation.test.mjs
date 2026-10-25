@@ -87,7 +87,10 @@ test("ui.css brings Tailwind without preflight and HeroUI per component, every i
     "./ui-theme-reset.css layer(theme)",
     "tailwindcss/utilities.css layer(utilities)",
     "tw-animate-css",
-    "@heroui/styles/base layer(base)",
+    // A sub-layer of base: HeroUI's `* { border-color }` loads after globals.css, so in base
+    // itself it would beat Potongin's equally specific :where(input…) border (seen in the
+    // main-vs-branch screenshots). Rules directly in base outrank its sub-layers.
+    "@heroui/styles/base layer(base.heroui)",
   ]);
   assert.ok(!list.some((entry) => entry.spec === "tailwindcss" || /preflight/.test(entry.spec)), "no preflight");
   const components = list.filter((entry) => entry.spec.startsWith("@heroui/styles/components/"));
@@ -143,7 +146,9 @@ test("the component overrides keep 44 px targets, Potongin's radius and selectio
   assert.ok(find(".tabs__panel[data-inert=\"true\"]").some((rule) => rule.decls.some((decl) => decl.prop === "display" && decl.value === "none")));
   // Every class the overrides name is one HeroUI 3.2.6 ships, so a rename on upgrade fails here.
   const shipped = (await Promise.all(HEROUI_COMPONENTS.map((name) => read(`node_modules/@heroui/styles/dist/components/${name}.css`)))).join("\n");
-  const names = new Set([...css.matchAll(/\.([a-z][a-z0-9-]*(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?)/g)].map((match) => match[1]));
+  // The @import lines name files and layers (`base.heroui`), not classes.
+  const ruleText = css.replace(/^@import[^\n]*$/gm, "");
+  const names = new Set([...ruleText.matchAll(/\.([a-z][a-z0-9-]*(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?)/g)].map((match) => match[1]));
   for (const name of names) {
     if (["statusPill"].includes(name)) continue;
     assert.ok(new RegExp(`\\.${name.replace(/[-_]/g, "[-_]")}\\b|&${name.slice(name.search(/__|--/))}\\b`).test(shipped), `.${name} is a HeroUI 3.2.6 class`);

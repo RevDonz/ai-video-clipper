@@ -6,7 +6,7 @@
 @import "./ui-theme-reset.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
-@import "@heroui/styles/base" layer(base);
+@import "@heroui/styles/base" layer(base.heroui);
 @import "@heroui/styles/themes/default" layer(theme);
 /* One stylesheet per component in use; ui-foundation.test.mjs keeps the list. */
 /* Actions and navigation */
