@@ -28,6 +28,13 @@ const ZERO = Object.freeze([
   "app/projects/[id]/clips/[clipId]/edit/layout.jsx",
   "components/SegmentI18n.jsx",
   "lib/i18n/client.jsx",
+  // The shell (Dashboard F1, 08 Fase 1: ratchet 0 for AppShell).
+  "components/AppShell.jsx",
+  "components/NavList.jsx",
+  "components/AccountMenu.jsx",
+  "components/ShellData.jsx",
+  "components/ui/UiPrefs.jsx",
+  "components/ui/Providers.jsx",
 ]);
 
 async function counts() {
