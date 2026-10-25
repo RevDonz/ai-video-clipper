@@ -737,9 +737,12 @@ test("the trends UI never renders HTML, never uses browser dialogs, and hardens 
   for (const anchor of examples) assert.match(anchor, /rel="noopener noreferrer nofollow"/);
 });
 
-test("the dashboard's sidebar links to Konteks Tren", async () => {
+// The sidebar's label is "Tren" since the G0 amendment (navigation in Fase 1, the page in Fase 3).
+test("the dashboard's sidebar links to the trends page as Tren", async () => {
   const dashboard = await readFile(path.join(WEB, "app", "dashboard", "page.jsx"), "utf8");
   assert.match(dashboard, /<AppShell current="\/dashboard">/);
-  const { navItems } = await import("../lib/app-nav.mjs");
-  assert.ok(navItems("/dashboard").some((item) => item.href === "/trends" && item.label === "Konteks Tren"));
+  const { navLinks } = await import("../lib/app-nav.mjs");
+  assert.ok(navLinks("/dashboard").some((item) => item.href === "/trends" && item.labelKey === "shell.nav.trends"));
+  const shell = JSON.parse(await readFile(path.join(WEB, "messages", "id", "shell.json"), "utf8"));
+  assert.equal(shell.nav.trends, "Tren");
 });

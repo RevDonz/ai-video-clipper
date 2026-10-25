@@ -108,7 +108,7 @@ test("the editor page opens a clip id or klip-<n>, passes the uploads and LLM fl
   const source = await readFile(new URL("../app/projects/[id]/clips/[clipId]/edit/page.jsx", import.meta.url), "utf8");
   assert.match(source, /const ref = clipRefFromSegment\(segment\);/);
   assert.match(source, /if \(mode === "off" \|\| !here\) notFound\(\);/);
-  assert.match(source, /<EditorApp jobId=\{id\} clipId=\{ref\.clipId\} clipIndex=\{ref\.index\} runtimeKind=\{mode\} features=\{\{ uploads: flags\.uploads, llm: flags\.llm \}\} \/>/);
+  assert.match(source, /<EditorApp jobId=\{id\} clipId=\{ref\.clipId\} clipIndex=\{ref\.index\} runtimeKind=\{mode\} features=\{\{ uploads: flags\.uploads, llm: flags\.llm \}\} singleKeyShortcuts=\{singleKeyShortcuts\} \/>/);
   // The title comes from meta.editor (rombak 07 §8.4); the root template adds " · Potongin" once.
   assert.match(source, /return routeMetadata\("editor", \{ robots: \{ index: false, follow: false \} \}\);/);
   const meta = JSON.parse(await readFile(new URL("../messages/id/meta.json", import.meta.url), "utf8"));

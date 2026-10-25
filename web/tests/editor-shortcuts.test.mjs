@@ -231,3 +231,24 @@ test("the help lists the trim handle's own keys, which no global shortcut takes 
     for (const name of ["ArrowLeft", "ArrowRight"]) assert.equal(globalShortcut(key(name, { shift, on: handle })), null, `${shift} ${name}`);
   }
 });
+
+// "Pintasan satu tombol" off (05 §3.9, 06 §14, WCAG 2.1.4): the character keys K, I, O, ' and ?
+// stop; Space, the arrows and every shortcut with Ctrl/⌘ keep working.
+test("with single-key shortcuts off, K, I, O, ' and ? do nothing and the rest still acts", () => {
+  const off = { singleKey: false };
+  for (const [name, shift] of [["k", false], ["K", false], ["i", false], ["o", false], ["'", false], ["?", true]]) {
+    assert.notEqual(globalShortcut(key(name, { shift })), null, `${name} is a shortcut while on`);
+    assert.equal(globalShortcut(key(name, { shift }), off), null, name);
+  }
+  assert.equal(globalShortcut(key(" "), off), "playPause");
+  assert.equal(globalShortcut(key("ArrowLeft"), off), "frameBack");
+  assert.equal(globalShortcut(key("ArrowRight", { shift: true }), off), "secondForward");
+  assert.equal(globalShortcut(key("z", { ctrl: true }), off), "undo");
+  assert.equal(globalShortcut(key("E", { ctrl: true, shift: true }), off), "export");
+  assert.equal(globalShortcut(key("ArrowRight", { ctrl: true, shift: true }), off), "nextClip");
+  // The default, and anything but an explicit false, is on.
+  assert.equal(globalShortcut(key("i")), "trimStart");
+  assert.equal(globalShortcut(key("i"), {}), "trimStart");
+  assert.equal(globalShortcut(key("i"), { singleKey: true }), "trimStart");
+  assert.equal(globalShortcut(key("i"), { singleKey: undefined }), "trimStart");
+});

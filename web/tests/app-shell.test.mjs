@@ -8,84 +8,31 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { APP_ICONS } from "../lib/app-icons.mjs";
-import { INITIAL_MENU, MENU_BREAKPOINT_PX, MENU_QUERY, menuButtonView, menuReducer } from "../lib/app-menu.mjs";
-import { APP_LINKS, NAV_GROUPS, PRIMARY_LINK, navGroups, navItems } from "../lib/app-nav.mjs";
+import { MENU_BREAKPOINT_PX, MENU_QUERY } from "../lib/app-menu.mjs";
+import { NAV_LINKS, navLinks } from "../lib/app-nav.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const read = (relative) => readFile(path.join(WEB, relative), "utf8");
 
-// --- Navigation data ------------------------------------------------------------------------
+// --- Navigation data (the list itself: tests/app-nav.test.mjs) ------------------------------
 
-test("the sidebar starts with Buat klip, then groups the work pages and the system pages", () => {
-  assert.deepEqual([PRIMARY_LINK.href, PRIMARY_LINK.label], ["/dashboard", "Buat klip"]);
-  assert.deepEqual(NAV_GROUPS.map((group) => [group.label, group.links.map((entry) => [entry.href, entry.label])]), [
-    ["Kerja", [["/projects", "Riwayat"], ["/trends", "Konteks Tren"]]],
-    ["Sistem", [["/settings", "Pengaturan"], ["/bantuan", "Bantuan"]]],
-  ]);
-  assert.deepEqual(APP_LINKS.map((entry) => entry.href), ["/dashboard", "/projects", "/trends", "/settings", "/bantuan"]);
-});
-
-test("every destination is a real page and has an icon drawn for it", async () => {
-  for (const entry of APP_LINKS) {
+test("every destination shown today is a real page and has an icon drawn for it", async () => {
+  for (const entry of navLinks("/dashboard")) {
     await access(path.join(WEB, "app", entry.href.slice(1), "page.jsx"));
-    assert.ok(APP_ICONS[entry.icon], `${entry.href}: icon ${entry.icon}`);
   }
-  for (const name of ["logout", "menu", "close"]) assert.ok(APP_ICONS[name], name);
+  for (const entry of NAV_LINKS) assert.ok(APP_ICONS[entry.icon], `${entry.href}: icon ${entry.icon}`);
+  for (const name of ["logout", "menu", "close", "chevron"]) assert.ok(APP_ICONS[name], name);
+  assert.equal(APP_ICONS.history, undefined, "Proyek's icon replaced the Riwayat clock");
   for (const [name, parts] of Object.entries(APP_ICONS)) {
     assert.ok(parts.length > 0, name);
     for (const part of parts) assert.match(part.d, /^M[\d.\s,a-zA-Z-]+$/, `${name}: a path`);
   }
 });
 
-test("navItems and navGroups mark exactly the page the user is on, including pages under it", () => {
-  const current = (pathname) => navItems(pathname).filter((item) => item.current).map((item) => item.href);
-  assert.deepEqual(current("/dashboard"), ["/dashboard"]);
-  assert.deepEqual(current("/trends"), ["/trends"]);
-  assert.deepEqual(current("/bantuan"), ["/bantuan"]);
-  assert.deepEqual(current("/projects/job-123"), ["/projects"]);
-  assert.deepEqual(current("/projectsx"), []);
-  assert.deepEqual(current("/login"), []);
-  assert.deepEqual(current(undefined), []);
-  assert.equal(navItems("/settings").length, APP_LINKS.length);
-  const drawn = navGroups("/projects/job-123");
-  assert.equal(drawn.primary.current, false);
-  assert.deepEqual(drawn.groups.flatMap((group) => group.links.filter((entry) => entry.current).map((entry) => entry.href)), ["/projects"]);
-  assert.equal(navGroups("/dashboard").primary.current, true);
-  assert.equal(navGroups(null).groups.flatMap((group) => group.links).some((entry) => entry.current), false);
-});
-
 // --- The phone and tablet drawer ------------------------------------------------------------
-
-test("the Menu button opens the drawer and closes it again, giving focus back", () => {
-  const open = menuReducer(INITIAL_MENU, { type: "toggle" });
-  assert.deepEqual(open, { open: true, returnFocus: false });
-  assert.deepEqual(menuReducer(open, { type: "toggle" }), { open: false, returnFocus: true });
-  assert.deepEqual(INITIAL_MENU, { open: false, returnFocus: false }, "the start state is never changed");
-});
-
-test("Escape, the close button and the dimmed page close it with focus back on Menu", () => {
-  const open = menuReducer(INITIAL_MENU, { type: "toggle" });
-  for (const type of ["escape", "close"]) {
-    assert.deepEqual(menuReducer(open, { type }), { open: false, returnFocus: true }, type);
-    assert.equal(menuReducer(INITIAL_MENU, { type }), INITIAL_MENU, `${type} on a closed menu changes nothing`);
-  }
-});
-
-test("following a link or widening the window closes it without moving focus", () => {
-  const open = menuReducer(INITIAL_MENU, { type: "toggle" });
-  for (const type of ["navigate", "wide"]) {
-    assert.deepEqual(menuReducer(open, { type }), { open: false, returnFocus: false }, type);
-    assert.equal(menuReducer(INITIAL_MENU, { type }), INITIAL_MENU);
-  }
-  assert.equal(menuReducer(open, { type: "nope" }), open);
-  assert.equal(menuReducer(open, undefined), open);
-});
-
-test("the Menu button names what it does next", () => {
-  assert.deepEqual(menuButtonView(INITIAL_MENU), { label: "Menu", icon: "menu", expanded: false });
-  assert.deepEqual(menuButtonView({ open: true }), { label: "Tutup", icon: "close", expanded: true });
-  for (const view of [menuButtonView(INITIAL_MENU), menuButtonView({ open: true })]) assert.ok(APP_ICONS[view.icon]);
-});
+// Opening, Escape, Tutup, the backdrop, focus back on Menu and the page inert behind it are
+// checked in the browser (e2e/app-shell.spec.mjs, desktop and mobile projects): HeroUI's Drawer
+// (React Aria) owns that state now, so the old menuReducer and its unit tests are gone (05 §4.1).
 
 test("the drawer's breakpoint is the one the stylesheet folds the sidebar at", async () => {
   assert.equal(MENU_BREAKPOINT_PX, 1024);
@@ -93,6 +40,11 @@ test("the drawer's breakpoint is the one the stylesheet folds the sidebar at", a
   const css = await read("app/globals.css");
   assert.match(css, /@media \(max-width: 1023px\) \{\n  \.appFrame/);
   assert.match(css, /@media \(min-width: 1024px\) \{\n  \.appFrame/);
+  const shell = await read("components/app-shell.css");
+  assert.match(shell, /@media \(max-width: 1023px\) \{/);
+  assert.match(shell, /@media \(min-width: 1024px\) \{/);
+  const module = await read("lib/app-menu.mjs");
+  assert.doesNotMatch(module, /menuReducer|menuButtonView|INITIAL_MENU/, "the hand-made drawer state is gone");
 });
 
 // --- Shared sidebar markup ------------------------------------------------------------------
@@ -118,38 +70,67 @@ test("every signed-in page renders inside the shared shell instead of its own na
   await assert.rejects(access(path.join(WEB, "components", "AppHeader.jsx")), "the old top header is gone");
 });
 
-test("the shell has one labelled nav, marks the current page and keeps logout", async () => {
+test("the shell has one labelled nav, marks the current page and keeps a hidden logout form", async () => {
   const shell = await read("components/AppShell.jsx");
+  const list = await read("components/NavList.jsx");
   assert.match(shell, /^"use client";/);
-  assert.match(shell, /navGroups\(current\)/);
-  assert.equal(shell.match(/<nav\b/g)?.length, 1, "exactly one navigation landmark");
-  assert.match(shell, /<nav [^>]*aria-label="Menu utama"/);
-  assert.match(shell, /aria-current=\{(entry|item|link)\.current \? "page" : undefined\}/);
-  assert.match(shell, /<form [^>]*method="post" action="\/api\/auth\/logout"/);
+  assert.match(list, /^"use client";/);
+  // One <nav> in the source, drawn by NavList; the shell draws NavList in the sidebar and in the
+  // drawer, and the sidebar's copy is not rendered while the drawer is open (05 §4.2).
+  assert.doesNotMatch(shell, /<nav\b/);
+  assert.equal(list.match(/<nav\b/g)?.length, 1, "exactly one navigation landmark");
+  assert.match(list, /<nav [^>]*aria-label=\{tAria\("mainMenu"\)\}/);
+  assert.match(list, /navLinks\(current, \{ role, features \}\)/);
+  assert.equal(list.match(/aria-current=\{(?:primary|link)\.current \? "page" : undefined\}/g)?.length, 2);
+  assert.equal(shell.match(/<NavList current=\{current\} role=\{role\} features=\{features\} \/>/g)?.length, 2);
+  assert.match(shell, /\{!open && \(\s*<div className="appSideBody">\s*<NavList/);
+  // Keluar is a menu item now (05 §4.2): it submits the hidden form, so logout stays a POST.
+  assert.match(shell, /<form ref=\{logoutFormRef\} method="post" action="\/api\/auth\/logout" hidden \/>/);
+  assert.match(shell, /logoutFormRef\.current\?\.requestSubmit\(\)/);
+  assert.equal(shell.match(/<form\b/g)?.length, 1);
   assert.match(shell, /<Brand \/>\s*<JobBadge \/>/, "the badge sits right after the brand");
   // Landmarks: the sidebar is the banner, the page is <main id="konten"> with a skip link to it.
-  assert.match(shell, /<a className="skipLink" href="#konten">/);
+  assert.match(shell, /<a className="skipLink" href="#konten">\{t\("skip"\)\}<\/a>/);
   assert.match(shell, /<main id="konten"/);
 });
 
-test("the Menu drawer is a labelled toggle that Escape closes and that gives focus back", async () => {
+test("the Menu drawer is HeroUI's Drawer from the left: labelled, closed past 1024 px, the page inert", async () => {
   const shell = await read("components/AppShell.jsx");
-  assert.match(shell, /aria-controls="app-menu"/);
-  assert.match(shell, /aria-expanded=\{button\.expanded\}/);
-  assert.match(shell, /id="app-menu"/);
-  assert.match(shell, /\{button\.label\}/, "the button shows its word, not only an icon");
-  assert.match(shell, /event\.key === "Escape"/);
+  assert.match(shell, /import Drawer from "\.\/ui\/Drawer\.jsx";/, "through the wrapper that names its close button");
+  assert.match(shell, /<Drawer isOpen=\{open\} onOpenChange=\{setOpen\}>/);
+  assert.match(shell, /<Drawer\.Trigger className="appMenuToggle">\s*<AppIcon name="menu" \/>\s*<span>\{t\("menu"\)\}<\/span>/,
+    "the button shows its word, not only an icon");
+  assert.match(shell, /<Drawer\.Content placement="left"/);
+  assert.match(shell, /<Drawer\.Heading[^>]*>\{t\("menu"\)\}<\/Drawer\.Heading>/);
+  assert.match(shell, /<Drawer\.CloseTrigger [^>]*aria-label=\{tAria\("close"\)\}/);
   assert.match(shell, /matchMedia\(MENU_QUERY\)/);
-  assert.match(shell, /type: "wide"/);
-  assert.match(shell, /toggleRef\.current\?\.focus\(\)/);
-  // While open the page behind it takes no focus or clicks.
-  assert.match(shell, /inert=\{menu\.open \|\| undefined\}/);
-  assert.doesNotMatch(shell, /outline:\s*none/);
+  assert.match(shell, /if \(!event\.matches\) setOpen\(false\)/);
+  // While open the page behind it takes no focus or clicks (React Aria also hides the rest).
+  assert.match(shell, /<main id="konten" className=\{className\} inert=\{open \|\| undefined\}>/);
+  assert.doesNotMatch(shell, /outline:\s*none|RouterProvider/);
+});
+
+test("the account menu: initials and name, Pintasan satu tombol as a checked item, Keluar last", async () => {
+  const menu = await read("components/AccountMenu.jsx");
+  assert.match(menu, /<Dropdown\.Trigger className="appAccount" aria-label=\{label\}>/);
+  assert.match(menu, /t\("account\.named", \{ name \}\)/, "the visible name is part of the accessible name");
+  assert.match(menu, /<Dropdown\.Section\s+selectionMode="multiple"\s+selectedKeys=\{shortcuts \? \[SHORTCUTS_ITEM\] : \[\]\}/);
+  assert.match(menu, /useShortcutPref\(\)/);
+  assert.match(menu, /<Dropdown\.Item id=\{LOGOUT_ITEM\} variant="danger"/);
+  assert.match(menu, /if \(key === LOGOUT_ITEM\) onLogout\?\.\(\)/);
+  assert.ok(menu.indexOf("id={SHORTCUTS_ITEM}") < menu.indexOf("id={LOGOUT_ITEM}"), "Keluar comes last");
+  // The next milestone's language picker has its place, first in the menu (05 §4.2).
+  assert.ok(menu.indexOf("i18n M1 adds the Bahasa section here") < menu.indexOf('selectionMode="multiple"'));
+  const prefs = await read("components/ui/UiPrefs.jsx");
+  assert.match(prefs, /readShortcutPref\(document\.cookie\)/);
+  assert.match(prefs, /writeShortcutPref\(on\)/);
+  assert.match(await read("components/ui/Providers.jsx"), /<UiPrefsProvider>/);
 });
 
 test("the shell, sidebar data and brand carry no version wording and no invented status", async () => {
-  const sources = await Promise.all(["components/AppShell.jsx", "components/Brand.jsx", "lib/app-nav.mjs", "lib/app-menu.mjs"].map(read));
-  for (const source of sources) {
+  const files = ["components/AppShell.jsx", "components/NavList.jsx", "components/AccountMenu.jsx", "components/Brand.jsx",
+    "lib/app-nav.mjs", "lib/app-menu.mjs", "lib/app-shortcuts.mjs", "lib/ui-prefs.mjs", "messages/id/shell.json", "messages/en/shell.json"];
+  for (const source of await Promise.all(files.map(read))) {
     assert.doesNotMatch(source, /\bV[1-3]\b|Selection V|\bversi\b|mesin (lama|baru)|Mode lama/i);
     assert.doesNotMatch(source, /Worker lokal siap|—/);
   }
@@ -319,18 +300,27 @@ test("the brand link is a 44 px target even when only its letter mark shows", as
   assert.match(cssRule(css, ".brand"), /min-height:\s*44px/);
 });
 
-test("the sidebar's links, Buat klip, Keluar and the Menu button are 44 px targets", async () => {
+test("the sidebar's links, Buat klip, the account button and the Menu button are 44 px targets", async () => {
   const css = (await read("app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
-  for (const selector of [".appNavLink", ".appCreate", ".appLogout button", ".appMenuToggle"]) {
+  for (const selector of [".appNavLink", ".appCreate", ".appMenuToggle"]) {
     assert.match(cssRule(css, selector), /min-height:\s*44px/, selector);
   }
   assert.match(cssRule(css, ".appNavLink"), /white-space:\s*nowrap/, "a label never wraps under its icon");
   assert.match(cssRule(css, ".skipLink:focus"), /clip:\s*auto|position:\s*fixed/);
-  // The closed drawer is gone for everyone (not only visually) until Menu opens it.
-  const narrow = /@media \(max-width: 1023px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-  assert.match(narrow, /\.appFrame:not\(\[data-menu-open\]\) \.appMenu \{ display: none; \}/);
-  assert.match(narrow, /\.appMenu \{[^}]*overflow-y: auto/);
-  assert.match(narrow, /\.appScrim \{/);
+  const shell = (await read("components/app-shell.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(cssRule(shell, ".appAccount"), /min-height:\s*44px/);
+  assert.match(cssRule(shell, ".appDrawerHead"), /min-height:\s*44px/);
+  // The drawer's close button and the menu items get HeroUI's 44 px override (app/ui.css).
+  const ui = await read("app/ui.css");
+  assert.match(ui, /\.menu-item, \.list-box-item, \.close-button,[^{]*\{ min-height: 44px; min-width: 44px; \}/);
+  // HeroUI's trigger class is inline-block: the Menu button keeps its flex row, and is gone past
+  // the breakpoint; the sidebar body is gone below it (the drawer holds the list there).
+  assert.match(cssRule(shell, ".appMenuToggle"), /display:\s*inline-flex/);
+  const wide = /@media \(min-width: 1024px\) \{([\s\S]*?)\n\}/.exec(shell)?.[1] ?? "";
+  assert.match(wide, /\.appMenuToggle \{ display: none; \}/);
+  const narrow = /@media \(max-width: 1023px\) \{([\s\S]*?)\n\}/.exec(shell)?.[1] ?? "";
+  assert.match(narrow, /\.appSideBody \{ display: none; \}/);
+  assert.doesNotMatch(shell, /@layer|outline:\s*none/, "unlayered, so it wins over HeroUI's component layer");
 });
 
 test("the editor's state page links back to the project with a 44 px target", async () => {
