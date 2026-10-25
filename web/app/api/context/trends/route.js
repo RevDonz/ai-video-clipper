@@ -9,6 +9,7 @@ import {
   readTrendContextView,
   trendErrorResponse,
 } from "../../../../lib/trend-context.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,10 +42,13 @@ export function createContextTrendsRoute({ authorize = requireAuth, env = proces
 
 const route = createContextTrendsRoute();
 
-export async function GET(request) {
+async function handleGET(request) {
   return route.GET(request);
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   return route.POST(request);
 }
+
+export const GET = withErrorCodes(handleGET);
+export const POST = withErrorCodes(handlePOST);

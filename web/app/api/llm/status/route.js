@@ -1,5 +1,6 @@
 import { requireAuth } from "../../../../lib/auth.mjs";
 import { readEffectiveLlmStatus } from "../../../../lib/llm-settings.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,9 +20,9 @@ export function createLlmStatusHandler({ authorize = requireAuth, env = process.
     try {
       return Response.json({ llm: await readStatus(env) }, { headers: NO_STORE });
     } catch {
-      return Response.json({ llm: { state: "invalid", label: "Status LLM tidak dapat dibaca. Memakai heuristik lokal." } }, { status: 500, headers: NO_STORE });
+      return Response.json({ llm: { state: "invalid", label: "Status LLM tidak dapat dibaca. Memakai heuristik lokal." }, code: "llm_status_unreadable", messageId: "web.llm_status_unreadable" }, { status: 500, headers: NO_STORE });
     }
   };
 }
 
-export const GET = createLlmStatusHandler();
+export const GET = withErrorCodes(createLlmStatusHandler());

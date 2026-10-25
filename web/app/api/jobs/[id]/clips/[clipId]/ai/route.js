@@ -4,10 +4,11 @@
 // (`llm.state: "rate_limited"`), with the same wait as Retry-After.
 import { createAiRoute } from "../../../../../../../lib/editor-ai.mjs";
 import { llmRetryAfter, secureRoute } from "../../../../../../../lib/security-headers.mjs";
+import { withErrorCodes } from "../../../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const route = createAiRoute();
 
-export const POST = secureRoute(route.POST, { params: ["id", "clipId"], limit: "api", after: llmRetryAfter });
+export const POST = withErrorCodes(secureRoute(route.POST, { params: ["id", "clipId"], limit: "api", after: llmRetryAfter }), { domains: ["editor_ai", "edit"] });

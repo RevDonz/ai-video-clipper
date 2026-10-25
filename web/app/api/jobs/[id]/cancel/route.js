@@ -4,6 +4,7 @@ import { requireAuth } from "../../../../../lib/auth.mjs";
 import { serializePublicJob } from "../../../../../lib/jobs.mjs";
 import { cancelPrimaryJob } from "../../../../../lib/primary-job-queue.mjs";
 import { sameOriginMutation } from "../../../../../lib/request-security.mjs";
+import { withErrorCodes } from "../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,14 +25,14 @@ function noStore(denied) {
 // "Batalkan" on a queued or running job. The answer is immediate: the job is marked cancelled
 // and its lease revoked under the queue lock, and the runner stops its processes within seconds
 // (scripts/run-job.mjs). Cancelling twice answers the same; a finished job is left alone (409).
-export async function POST(request, { params }) {
+async function handlePOST(request, { params }) {
   const denied = requireAuth(request);
   if (denied) return noStore(denied);
   if (!sameOriginMutation(request)) {
     return response({ error: "Origin permintaan tidak diizinkan", code: "csrf_rejected" }, 403);
   }
   const { id } = await params;
-  if (!UUID.test(id)) return response({ error: "Job ID tidak valid" }, 400);
+  if (!UUID.test(id)) return response({ error: "Job ID tidak valid", code: "job_id_invalid", messageId: "web.job_id_invalid" }, 400);
   const root = path.resolve(process.env.JOBS_ROOT || "/data/jobs");
   let result;
   try {
@@ -58,6 +59,8 @@ export async function POST(request, { params }) {
         job: serializePublicJob(result.job),
       }, 409);
     default:
-      return response({ error: "Job tidak ditemukan" }, 404);
+      return response({ error: "Job tidak ditemukan", code: "job_not_found", messageId: "web.job_not_found" }, 404);
   }
 }
+
+export const POST = withErrorCodes(handlePOST);

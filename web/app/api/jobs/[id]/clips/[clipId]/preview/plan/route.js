@@ -3,9 +3,10 @@
 // own bucket); a newer request for the clip cancels the superseded one.
 import { planResponse } from "../../../../../../../../lib/preview-lane.mjs";
 import { secureRoute } from "../../../../../../../../lib/security-headers.mjs";
+import { withErrorCodes } from "../../../../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export const POST = secureRoute(async (request, { params }) => planResponse(request, await params),
-  { params: ["id", "clipId"] });
+export const POST = withErrorCodes(secureRoute(async (request, { params }) => planResponse(request, await params),
+  { params: ["id", "clipId"] }), { domains: ["edit"] });

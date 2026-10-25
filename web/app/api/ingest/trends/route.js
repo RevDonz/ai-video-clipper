@@ -13,6 +13,7 @@ import {
   readJsonRequestBody,
   trendErrorResponse,
 } from "../../../../lib/trend-context.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -116,15 +117,15 @@ export function createIngestTrendsRoute({
 
 const route = createIngestTrendsRoute();
 
-export async function GET(request) {
+async function handleGET(request) {
   return route.GET(request);
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   return route.POST(request);
 }
 
-export async function DELETE(request) {
+async function handleDELETE(request) {
   return route.DELETE(request);
 }
 
@@ -138,10 +139,16 @@ function methodNotAllowed() {
   );
 }
 
-export async function PUT() {
+async function handlePUT() {
   return methodNotAllowed();
 }
 
-export async function PATCH() {
+async function handlePATCH() {
   return methodNotAllowed();
 }
+
+export const GET = withErrorCodes(handleGET);
+export const POST = withErrorCodes(handlePOST);
+export const DELETE = withErrorCodes(handleDELETE);
+export const PUT = withErrorCodes(handlePUT);
+export const PATCH = withErrorCodes(handlePATCH);

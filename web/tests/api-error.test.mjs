@@ -83,15 +83,16 @@ test("a messageId names the first route domain whose catalog has the code, else 
   assert.equal(legacyErrorText("unauthorized"), "Sesi login diperlukan");
 });
 
-test("codedErrorBody only adds fields", () => {
+test("codedErrorBody adds a code and a messageId to a body without a code, and leaves a coded body alone", () => {
   assert.deepEqual(codedErrorBody({ error: "Job tidak ditemukan" }, 404), { error: "Job tidak ditemukan", code: "not_found", messageId: "web.not_found" });
-  assert.deepEqual(codedErrorBody({ error: "x", code: "busy", retry: 5 }, 429), { error: "x", code: "busy", retry: 5, messageId: "web.busy" });
-  assert.deepEqual(codedErrorBody({ error: { code: "superseded" } }, 409, ["edit", "web"]), { error: { code: "superseded", messageId: "edit.superseded" } });
   assert.deepEqual(codedErrorBody({ error: null }, 500), { error: null, code: "internal_error", messageId: "web.internal_error" });
-  assert.deepEqual(codedErrorBody({ error: "x", code: "peak_reduced:-3", messageId: "edit.peak_reduced" }, 422), null, "complete already");
-  assert.deepEqual(codedErrorBody({ error: "x", code: "glyph_unsupported:U+1F602" }, 422, ["edit", "web"]), {
-    error: "x", code: "glyph_unsupported:U+1F602", messageId: "edit.glyph_unsupported", params: { detail: "U+1F602" },
+  assert.deepEqual(codedErrorBody({ error: { ref: "x" } }, 409, ["edit", "web"]), { error: { ref: "x", code: "conflict", messageId: "web.conflict" } });
+  assert.deepEqual(codedErrorBody({ errors: [{ code: "range_invalid" }] }, 422, ["edit", "web"]), {
+    errors: [{ code: "range_invalid" }], code: "invalid_request", messageId: "edit.invalid_request",
   });
+  assert.equal(codedErrorBody({ error: "x", code: "busy", retry: 5 }, 429), null, "a coded body keeps its bytes");
+  assert.equal(codedErrorBody({ error: { code: "superseded" } }, 409, ["edit", "web"]), null);
+  assert.equal(codedErrorBody({ error: "x", code: "peak_reduced:-3", messageId: "edit.peak_reduced" }, 422), null);
 });
 
 test("withErrorCode keeps the status, the headers and every old field", async () => {
@@ -106,13 +107,15 @@ test("withErrorCode keeps the status, the headers and every old field", async ()
   assert.deepEqual(await coded.json(), { error: "Origin permintaan tidak diizinkan", jobId: null, code: "forbidden", messageId: "web.forbidden" });
 });
 
-test("withErrorCode turns a text error into the flat shape and leaves success, HEAD and complete bodies alone", async () => {
+test("withErrorCode turns a text error into the flat shape and leaves success, HEAD, empty and coded bodies alone", async () => {
   const text = await withErrorCode(new Response("File not found", { status: 404, headers: { "Cache-Control": "private, no-store" } }));
   assert.match(text.headers.get("content-type"), /application\/json/);
   assert.equal(text.headers.get("cache-control"), "private, no-store");
   assert.deepEqual(await text.json(), { error: "File not found", code: "not_found", messageId: "web.not_found" });
-  const empty = await withErrorCode(new Response(null, { status: 503 }));
-  assert.deepEqual(await empty.json(), { error: "Layanan sementara tidak tersedia", code: "service_unavailable", messageId: "web.service_unavailable" });
+  const empty = new Response(null, { status: 416, headers: { "Content-Range": "bytes */10", "Content-Length": "0" } });
+  assert.equal(await withErrorCode(empty), empty, "an empty body stays empty (the client reads http.s<status>)");
+  const coded = Response.json({ error: "x", code: "busy" }, { status: 429 });
+  assert.equal(await withErrorCode(coded), coded);
 
   const ok = Response.json({ fine: true });
   assert.equal(await withErrorCode(ok), ok);
@@ -123,8 +126,8 @@ test("withErrorCode turns a text error into the flat shape and leaves success, H
 });
 
 test("withErrorCodes wraps a handler and puts web last in its domains", async () => {
-  const handler = withErrorCodes(async () => Response.json({ error: { code: "not_found" } }, { status: 404 }), { domains: ["edit"] });
+  const handler = withErrorCodes(async () => Response.json({ error: "Data tidak ditemukan" }, { status: 404 }), { domains: ["edit"] });
   assert.deepEqual(handler.errorDomains, ["edit", "web"]);
   const answer = await handler(new Request("http://local/x"), {});
-  assert.deepEqual(await answer.json(), { error: { code: "not_found", messageId: "edit.not_found" } });
+  assert.deepEqual(await answer.json(), { error: "Data tidak ditemukan", code: "not_found", messageId: "edit.not_found" });
 });

@@ -2,6 +2,7 @@ import { requireAuth } from "../../../../../lib/auth.mjs";
 import { revokeIngestToken } from "../../../../../lib/ingest-tokens.mjs";
 import { sameOriginMutation } from "../../../../../lib/request-security.mjs";
 import { guardDashboardRequest, jsonNoStore, trendErrorResponse } from "../../../../../lib/trend-context.mjs";
+import { withErrorCodes } from "../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,6 +26,8 @@ export function createIngestTokenItemRoute({ authorize = requireAuth, env = proc
 
 const route = createIngestTokenItemRoute();
 
-export async function DELETE(request, context) {
+async function handleDELETE(request, context) {
   return route.DELETE(request, context);
 }
+
+export const DELETE = withErrorCodes(handleDELETE);

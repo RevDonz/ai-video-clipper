@@ -10,6 +10,7 @@ import {
   trendErrorResponse,
   updateTrendItem,
 } from "../../../../../lib/trend-context.mjs";
+import { withErrorCodes } from "../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -45,10 +46,13 @@ export function createContextTrendItemRoute({ authorize = requireAuth, env = pro
 
 const route = createContextTrendItemRoute();
 
-export async function PATCH(request, context) {
+async function handlePATCH(request, context) {
   return route.PATCH(request, context);
 }
 
-export async function DELETE(request, context) {
+async function handleDELETE(request, context) {
   return route.DELETE(request, context);
 }
+
+export const PATCH = withErrorCodes(handlePATCH);
+export const DELETE = withErrorCodes(handleDELETE);

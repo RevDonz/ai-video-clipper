@@ -3,11 +3,12 @@
 // the shared guard of the editor routes first (session, origin, ids, the api bucket, headers).
 import { createRenderStatusRoute } from "../../../../../../lib/clip-renders.mjs";
 import { secureRoute } from "../../../../../../lib/security-headers.mjs";
+import { withErrorCodes } from "../../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const route = createRenderStatusRoute();
 
-export const GET = secureRoute(route.GET, { params: ["id", "renderId"], limit: "api" });
-export const DELETE = secureRoute(route.DELETE, { params: ["id", "renderId"], limit: "api" });
+export const GET = withErrorCodes(secureRoute(route.GET, { params: ["id", "renderId"], limit: "api" }), { domains: ["edit"] });
+export const DELETE = withErrorCodes(secureRoute(route.DELETE, { params: ["id", "renderId"], limit: "api" }), { domains: ["edit"] });

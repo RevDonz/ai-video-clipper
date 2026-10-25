@@ -5025,9 +5025,9 @@ Source codes and their `messageId` (§5.65): `web.source_host_not_allowed`,
 
 ## 5.65 UI language: message ids on errors, stage and reason codes (2026-10-24)
 
-Contract only; no code exists. Owner: rombak 07 §3, §5, §9.2 and §10. Built in Fase 1 (i18n M0,
-M1) and Fase 2 (M2, M5); the full `stage_code` and `reason_codes` lists are fixed in the M5 PR,
-which amends this section.
+Owner: rombak 07 §3, §5, §9.2 and §10. Built in Fase 1 (i18n M0, M1) and Fase 2 (M2, M5); the
+full `stage_code` and `reason_codes` lists are fixed in the M5 PR, which amends this section. The
+error bodies below are built (M2, 2026-10-25; "Error bodies: how the routes code them").
 
 ### Error bodies (additive)
 
@@ -5050,6 +5050,44 @@ Domains: `web` (`web/lib/error-codes.mjs`), `http` (no known body; key `http.s<s
 `editor_ai`, `social` and `performance` (§5.60–§5.62), `account` (rombak 02 §16), `global`
 (`global-error.jsx`). A new code from any plan needs `errors.<messageId>` (and `hints.<messageId>`
 when there is a hint) in every locale and a Help entry; `i18n-error-codes` enforces it.
+
+### Error bodies: how the routes code them (M2, 2026-10-25)
+
+- Every exported method of the 50 `web/app/api/**/route.js` files is
+  `withErrorCodes(handler, { domains })` (`web/lib/api-error-response.mjs`). On an answer of 400
+  or more (not HEAD) it only adds fields, and only to a body without a code: a flat body gets the
+  code of its status (`STATUS_CODES` in `web/lib/error-codes.mjs`: 400 `invalid_request`, 401
+  `unauthorized`, 403 `forbidden`, 404 `not_found`, 409 `conflict`, 413 `request_too_large`, 429
+  `rate_limited`, 500 `internal_error`, 503 `service_unavailable`, …) and its `messageId`; a
+  nested body gets `error.code` and `error.messageId`; a text body becomes the flat shape with
+  that text as `error`. A body that already has its code, an empty body (a 416 of a media
+  range), a success and a HEAD answer leave unchanged, byte for byte: the old route and contract
+  tests compare whole bodies, so a coded body without `messageId` stays as it is and the client
+  reads `<domain>.<code>` for it (`normalizeApiError(body, status, { domain })`), an empty one
+  `http.s<status>`. The `messageId` the wrapper adds names the first of the route's `domains`
+  whose Indonesian catalog has the code, else `web`.
+- Route domains: the editor routes (`jobs/:id/clips/**`, `assets`, `renders`, `apply-all`,
+  `settings/logo`, `resources`) `edit`; the editor's AI routes `editor_ai` then `edit`;
+  `settings/llm/**` `llm`; `POST /api/jobs` `storage`; every other route `web`.
+- The bodies the route files wrote without a code now name it, with its `messageId`:
+  `job_id_invalid`, `job_not_found`, `job_read_failed` (`jobs/:id`, `cancel`), `csrf_rejected`
+  and `invalid_request` (`auth/*`), `llm_status_unreadable` (`llm/status`), and the former text
+  answers `job_id_invalid`, `path_forbidden`, `file_not_found`, `file_invalid`,
+  `file_unavailable` (`jobs/:id/files`) and `not_found` (`media`, `resources`,
+  `parity-fixtures`). The Indonesian (or English) `error` strings are unchanged.
+- `web/lib/api-error.mjs` is the client side: `normalizeApiError(body, status, {domain})` →
+  `{code, messageId, params, legacyText, status}` (string, flat, nested, none → `http.s<status>`);
+  `readApiError(response)`; `apiErrorText(t, err, {locale})` shows the server's Indonesian
+  sentence in `id` (the most specific text, as before) and `errors.<messageId>` in any other
+  language, then the server's sentence, then `errors.web.unknown`.
+- Web-only codes the routes answer as `edit.<code>` (`EDIT_WEB_CODES`: `uploads_disabled`,
+  `length_required`, `asset_*`, `settings_unavailable`) live in `errors.edit` beside the 70 of
+  `_MESSAGES`; `errors.editor_ai` holds the task codes and the AI routes' own codes.
+- Gates: `web/tests/i18n-error-codes.test.mjs` (every code of every domain in every locale;
+  `errors.edit.*` in `id` equals `_MESSAGES`; no key without a code),
+  `web/tests/api-error-codes.test.mjs` (ratchet 0: every method wrapped, every inline body coded,
+  no text error body, and a request without a session to every method answers a code whose
+  messageId has a catalog text), `web/tests/api-error.test.mjs` (the two modules).
 
 ### Python: codes next to prose
 

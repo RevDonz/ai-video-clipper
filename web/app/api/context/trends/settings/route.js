@@ -8,6 +8,7 @@ import {
   setTrendContextEnabled,
   trendErrorResponse,
 } from "../../../../../lib/trend-context.mjs";
+import { withErrorCodes } from "../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -35,6 +36,8 @@ export function createTrendSettingsRoute({ authorize = requireAuth, env = proces
 
 const route = createTrendSettingsRoute();
 
-export async function PUT(request) {
+async function handlePUT(request) {
   return route.PUT(request);
 }
+
+export const PUT = withErrorCodes(handlePUT);
