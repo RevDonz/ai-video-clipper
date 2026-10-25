@@ -189,6 +189,39 @@ sinyal yang sama dengan detektor RF-M1, jadi recall detektor itu di dev kemungki
 test split yang dilabeli pemilik di halaman `--label` tidak memakai kandidat. `rf-17` berisi satu gambar sampul diam; jendela ini terlewat saat penyaringan sebelum split
 dan tetap dipakai (label `fit_blur`) supaya split tidak berubah setelah lembar dev dilihat.
 
+## Detektor shot dan sweep (RF-M1)
+
+Kode: `src/ai_clipper/edit_v2/shot_cuts.py` (cut), `src/ai_clipper/shot_context.py` (evidence per
+shot), `src/ai_clipper/edit_v2/shots.py` (keputusan, shot plan). Ambang: `resources/reframe/rules.v1.json`.
+
+**Cara detektor bekerja (satu proses FFmpeg per jendela):** jendela didekode di grid dokumen
+persis seperti kompiler (`-ss` dengan pre-roll 1 dtk, `-copyts`, `fps`, `trim` di indeks grid).
+Setiap frame grid diukur dua kali: skor `scene` FFmpeg di gambar lebar 160 px (filter
+`audio_timeline._SCENE_FILTER`, semua frame disimpan) dan gambar abu-abu 64×36, dari mana selisih
+rata-rata ke frame 1, 2, 3 dan 12 frame sebelumnya disimpan. Lalu:
+
+1. kandidat = frame dengan skor `scene` > `cut.coarse_scene_pm`, ditambah flag cut camera plan;
+2. di ±500 ms tiap kandidat, frame dengan selisih terbesar ke frame sebelumnya adalah cut bila
+   selisih itu ≥ `cut.refine_diff_pm`; gambar yang kembali dalam ≤ 2 frame adalah kilat, bukan cut;
+3. transisi bertahap (fade, dissolve, wipe): frame tengah 12 frame yang ujung-ujungnya berbeda ≥
+   `cut.refine_diff_pm` tanpa satu frame pun yang melompat sebesar itu, dengan gambar diam sebelum
+   dan sesudahnya (selisih per 3 frame ≤ 1/8 perubahan; gerak kamera tidak lolos);
+4. dua cut yang lebih dekat dari `cut.min_gap_ms`: yang lebih kuat dipertahankan.
+
+Langkah 3 dan aturan kilat ditambahkan di atas rancangan 04 §A3 karena baseline menunjukkan wipe
+dan fade tidak tertangkap (recall satu pembicara 0,10) dan label menyebut kilat bukan cut; konstanta
+keduanya (2 frame, 12 frame, 1/8) tetap, tidak ikut sweep. Pengukuran satu proses untuk seluruh
+jendela menggantikan dekode ±500 ms per kandidat dari 04 §A3: hasil per frame sama, dan profil yang
+sama bisa dinilai ulang untuk setiap konfigurasi sweep tanpa footage.
+
+**Sweep tanpa footage:** `--profile` (di CI, tanpa membaca label) menyimpan profil grid, scan wajah
+dan waktu tiap jendela; `--sweep --profiles …` menjalankan tahap 1 (75 konfigurasi `cut.*`) dan
+tahap 2 (1.728 konfigurasi kunci lain dengan cut tahap 1) di mana saja. Kalau tidak ada konfigurasi
+cut yang memenuhi P ≥ 0,95 dan R ≥ 0,90, hasil mencatat `cut.gate_met: false`, tahap 2 tetap
+berjalan di F1 terbaik, dan gerbang **tidak** dilonggarkan. `--write-rules` menulis nilai terpilih
+ke `rules.v1.json`. `Split` tidak pernah diprediksi selama `AUTO_SPLIT = False` (spike RF-M2), jadi
+frame berlabel `split` dihitung tidak cocok.
+
 ## Menjalankan
 
 ```bash
@@ -201,6 +234,9 @@ uv run python scripts/eval/auto_reframe.py --label --split test --cache ~/.cache
 # baseline camera hari ini di dev split: ukur (tanpa label), lalu nilai
 uv run python scripts/eval/auto_reframe.py --predict --split dev --cache ~/.cache/potongin-reframe --out prediksi.json
 uv run python scripts/eval/auto_reframe.py --score prediksi.json --split dev --cache ~/.cache/potongin-reframe --out hasil.json
+# detektor shot RF-M1: profil (di CI, tanpa label), lalu sweep (tanpa footage)
+uv run python scripts/eval/auto_reframe.py --profile --split dev --cache ~/.cache/potongin-reframe --out profil-dev.json
+uv run python scripts/eval/auto_reframe.py --sweep --split dev --profiles profil-dev.json --out sweep-dev.json
 ```
 
 Di GitHub Actions: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=command -f

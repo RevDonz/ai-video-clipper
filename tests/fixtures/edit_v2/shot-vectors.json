@@ -1,0 +1,131 @@
+{
+  "schema": "potongin.shot-vectors/1",
+  "note": "Shared by shots.py (tests/test_edit_v2_shots.py) and its JS mirror web/lib/editor/shots.mjs (F4b). canonical: canonical_ranges(ranges, default_mode). merge: merge_user_ranges(new_auto, old).",
+  "canonical": [
+    {
+      "name": "equal neighbours merge",
+      "default_mode": "auto",
+      "ranges": [
+        {"in_sf": 0, "out_sf": 30, "mode": "camera", "origin": "auto"},
+        {"in_sf": 30, "out_sf": 60, "mode": "camera", "origin": "auto"},
+        {"in_sf": 60, "out_sf": 90, "mode": "fit_blur", "origin": "auto"}
+      ],
+      "expected": [
+        {"in_sf": 0, "out_sf": 60, "mode": "camera", "origin": "auto"},
+        {"in_sf": 60, "out_sf": 90, "mode": "fit_blur", "origin": "auto"}
+      ]
+    },
+    {
+      "name": "a user range does not merge with an equal auto neighbour",
+      "default_mode": "auto",
+      "ranges": [
+        {"in_sf": 0, "out_sf": 30, "mode": "camera", "origin": "auto"},
+        {"in_sf": 30, "out_sf": 60, "mode": "camera", "origin": "user"}
+      ],
+      "expected": [
+        {"in_sf": 0, "out_sf": 30, "mode": "camera", "origin": "auto"},
+        {"in_sf": 30, "out_sf": 60, "mode": "camera", "origin": "user"}
+      ]
+    },
+    {
+      "name": "only automatic ranges under another default are dropped",
+      "default_mode": "fit_blur",
+      "ranges": [
+        {"in_sf": 0, "out_sf": 60, "mode": "fit_blur", "origin": "auto"}
+      ],
+      "expected": null
+    },
+    {
+      "name": "a user range under another default keeps the ranges",
+      "default_mode": "camera",
+      "ranges": [
+        {"in_sf": 0, "out_sf": 30, "mode": "camera", "origin": "auto"},
+        {"in_sf": 30, "out_sf": 60, "mode": "fit_blur", "origin": "user"}
+      ],
+      "expected": [
+        {"in_sf": 0, "out_sf": 30, "mode": "camera", "origin": "auto"},
+        {"in_sf": 30, "out_sf": 60, "mode": "fit_blur", "origin": "user"}
+      ]
+    }
+  ],
+  "merge": [
+    {
+      "name": "a user range inside a shot",
+      "new_auto": [
+        {"in_sf": 100, "out_sf": 200, "mode": "camera", "origin": "auto"},
+        {"in_sf": 200, "out_sf": 300, "mode": "fit_blur", "origin": "auto"}
+      ],
+      "old": [
+        {"in_sf": 100, "out_sf": 140, "mode": "camera", "origin": "auto"},
+        {"in_sf": 140, "out_sf": 170, "mode": "fill_center", "origin": "user"},
+        {"in_sf": 170, "out_sf": 300, "mode": "fit_blur", "origin": "auto"}
+      ],
+      "expected": [
+        {"in_sf": 100, "out_sf": 140, "mode": "camera", "origin": "auto"},
+        {"in_sf": 140, "out_sf": 170, "mode": "fill_center", "origin": "user"},
+        {"in_sf": 170, "out_sf": 200, "mode": "camera", "origin": "auto"},
+        {"in_sf": 200, "out_sf": 300, "mode": "fit_blur", "origin": "auto"}
+      ]
+    },
+    {
+      "name": "a user range across a new shot bound",
+      "new_auto": [
+        {"in_sf": 100, "out_sf": 180, "mode": "camera", "origin": "auto"},
+        {"in_sf": 180, "out_sf": 300, "mode": "fill_center", "origin": "auto"}
+      ],
+      "old": [
+        {"in_sf": 100, "out_sf": 150, "mode": "camera", "origin": "auto"},
+        {"in_sf": 150, "out_sf": 220, "mode": "fit_blur", "origin": "user"},
+        {"in_sf": 220, "out_sf": 300, "mode": "camera", "origin": "auto"}
+      ],
+      "expected": [
+        {"in_sf": 100, "out_sf": 150, "mode": "camera", "origin": "auto"},
+        {"in_sf": 150, "out_sf": 220, "mode": "fit_blur", "origin": "user"},
+        {"in_sf": 220, "out_sf": 300, "mode": "fill_center", "origin": "auto"}
+      ]
+    },
+    {
+      "name": "a user range outside the new window is dropped",
+      "new_auto": [
+        {"in_sf": 300, "out_sf": 400, "mode": "camera", "origin": "auto"}
+      ],
+      "old": [
+        {"in_sf": 100, "out_sf": 200, "mode": "fit_blur", "origin": "user"},
+        {"in_sf": 200, "out_sf": 400, "mode": "camera", "origin": "auto"}
+      ],
+      "expected": [
+        {"in_sf": 300, "out_sf": 400, "mode": "camera", "origin": "auto"}
+      ]
+    },
+    {
+      "name": "a shrinking window clips the user range",
+      "new_auto": [
+        {"in_sf": 150, "out_sf": 250, "mode": "fit_blur", "origin": "auto"}
+      ],
+      "old": [
+        {"in_sf": 100, "out_sf": 180, "mode": "camera", "origin": "user"},
+        {"in_sf": 180, "out_sf": 300, "mode": "fit_blur", "origin": "auto"}
+      ],
+      "expected": [
+        {"in_sf": 150, "out_sf": 180, "mode": "camera", "origin": "user"},
+        {"in_sf": 180, "out_sf": 250, "mode": "fit_blur", "origin": "auto"}
+      ]
+    },
+    {
+      "name": "two user ranges in order, the later one wins where they overlap",
+      "new_auto": [
+        {"in_sf": 0, "out_sf": 100, "mode": "camera", "origin": "auto"}
+      ],
+      "old": [
+        {"in_sf": 10, "out_sf": 50, "mode": "fit_blur", "origin": "user"},
+        {"in_sf": 50, "out_sf": 60, "mode": "fill_center", "origin": "user"}
+      ],
+      "expected": [
+        {"in_sf": 0, "out_sf": 10, "mode": "camera", "origin": "auto"},
+        {"in_sf": 10, "out_sf": 50, "mode": "fit_blur", "origin": "user"},
+        {"in_sf": 50, "out_sf": 60, "mode": "fill_center", "origin": "user"},
+        {"in_sf": 60, "out_sf": 100, "mode": "camera", "origin": "auto"}
+      ]
+    }
+  ]
+}
