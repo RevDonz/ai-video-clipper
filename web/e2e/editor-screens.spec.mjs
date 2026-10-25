@@ -140,7 +140,7 @@ for (const viewport of VIEWPORTS) {
     await capture(`${size}-cepat-2-caption.png`, "cepat", "Caption card", "caption");
 
     // Caption, lower down: Posisi on Atas, with the hint that the caption is near the hook text.
-    const position = caption.getByRole("group", { name: "Posisi" });
+    const position = caption.getByRole("radiogroup", { name: "Posisi" });
     await position.getByRole("radio", { name: "Atas" }).check();
     const hint = caption.getByText("Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption.");
     await expect(hint).toBeVisible();

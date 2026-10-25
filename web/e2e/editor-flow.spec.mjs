@@ -872,7 +872,7 @@ test("QG-UX U5 (scripted): add a logo and ducked music in Mode Cepat in ≤ 60 s
   await card.getByRole("button", { name: "Pilih file musik" }).click();
   await (await chooser).setFiles({ name: "latar-u5.wav", mimeType: "audio/wav", buffer: wavTone(15) });
   await expect(card.locator("[data-music-name]")).toBeVisible({ timeout: 60_000 });
-  await card.getByRole("group", { name: "Saat ada suara" }).getByRole("radio", { name: /Sedang/ }).check();
+  await card.getByRole("radiogroup", { name: "Saat ada suara" }).getByRole("radio", { name: /Sedang/ }).check();
   await card.locator('[data-extras="music"]').getByRole("button", { name: "Atur detail di Mode Lengkap" }).click();
   await expect(editorRoot(page)).toHaveAttribute("data-editor-view", "lengkap");
   await expect(page.locator('[data-lane="music"]').getByRole("img", { name: "Volume musik sepanjang klip: turun saat ada suara" }))

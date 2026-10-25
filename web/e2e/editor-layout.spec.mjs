@@ -292,7 +292,7 @@ const calls = (page) => page.evaluate(() => window.__scenarioCalls);
 const thumbCalls = (page) => page.evaluate(() => window.__thumbCalls);
 // the layout cards; face-track's own choice below them has a "Latar blur" option too
 const radio = (panel, name) => panel.getByRole("group", { name: "Pilih tata letak" }).getByRole("radio", { name: new RegExp(`^${name}`) });
-const noFaceRadio = (panel, name) => panel.getByRole("group", { name: "Bagian tanpa wajah" }).getByRole("radio", { name });
+const noFaceRadio = (panel, name) => panel.getByRole("radiogroup", { name: "Bagian tanpa wajah" }).getByRole("radio", { name });
 
 test("Tata letak lists the four layouts, the clip's own chosen, with thumbnails at the playhead", async ({ page }) => {
   const panel = await openLayoutPanel(page);

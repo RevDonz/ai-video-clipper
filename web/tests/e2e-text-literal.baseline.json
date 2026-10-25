@@ -28,7 +28,7 @@
   "e2e/editor-split.spec.mjs": 23,
   "e2e/editor-transcript.spec.mjs": 64,
   "e2e/editor-transition.spec.mjs": 35,
-  "e2e/editor-views.spec.mjs": 85,
+  "e2e/editor-views.spec.mjs": 84,
   "e2e/editor-zoom.spec.mjs": 10,
   "e2e/focus.spec.mjs": 52,
   "e2e/header-badge.spec.mjs": 13,

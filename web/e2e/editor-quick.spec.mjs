@@ -307,8 +307,8 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     const errors = await openQuick(page);
     const card = region(page, "caption");
     await expect(header(page, "caption")).toContainText("Karaoke · Sedang · Bawah");
-    await expect(card.getByRole("group", { name: "Ukuran" }).getByRole("radio", { name: "Sedang" })).toBeChecked();
-    await expect(card.getByRole("group", { name: "Posisi" }).getByRole("radio", { name: "Bawah" })).toBeChecked();
+    await expect(card.getByRole("radiogroup", { name: "Ukuran" }).getByRole("radio", { name: "Sedang" })).toBeChecked();
+    await expect(card.getByRole("radiogroup", { name: "Posisi" }).getByRole("radio", { name: "Bawah" })).toBeChecked();
     // The packs are the FFmpeg thumbnails, one radio each.
     const packs = card.getByRole("group", { name: "Gaya caption" });
     await expect(packs.getByRole("radio")).toHaveCount(6);
@@ -316,14 +316,14 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
 
     await packs.getByRole("radio", { name: "Bold" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionPack", args: { id: "bold" }, mergeKey: null });
-    await card.getByRole("group", { name: "Warna sorot" }).getByRole("radio", { name: "Hijau" }).check();
+    await card.getByRole("radiogroup", { name: "Warna sorot" }).getByRole("radio", { name: "Hijau" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "highlight", value: "#3DF5A6" }, mergeKey: null });
     await expect(card.getByText("Kata yang sedang diucapkan.")).toBeVisible();
-    await card.getByRole("group", { name: "Ukuran" }).getByRole("radio", { name: "Besar" }).check();
+    await card.getByRole("radiogroup", { name: "Ukuran" }).getByRole("radio", { name: "Besar" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "size_pm", value: 1200 }, mergeKey: null });
     // Kata per baris: the pack's count is pressed (Bold: 3); a pick sends words_max and the lines
     // regroup; picking the pack's count again clears it.
-    const words = card.getByRole("group", { name: "Kata per baris" });
+    const words = card.getByRole("radiogroup", { name: "Kata per baris" });
     await expect(words.getByRole("radio", { name: "3" })).toBeChecked();
     await words.getByRole("radio", { name: "2" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "words_max", value: 2 }, mergeKey: null });
@@ -333,7 +333,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await words.getByRole("radio", { name: "3" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "words_max", value: 3 }, mergeKey: null });
     // Animasi masuk: Tanpa is pressed until a pick; Tanpa again sends "none" (the key goes).
-    const entrance = card.getByRole("group", { name: "Animasi masuk" });
+    const entrance = card.getByRole("radiogroup", { name: "Animasi masuk" });
     await expect(entrance.getByRole("radio")).toHaveCount(4);
     await expect(entrance.getByRole("radio", { name: "Tanpa" })).toBeChecked();
     await entrance.getByRole("radio", { name: "Pop" }).check();
@@ -341,7 +341,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await expect(entrance.getByRole("radio", { name: "Pop" })).toBeChecked();
     await entrance.getByRole("radio", { name: "Tanpa" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "entrance", value: "none" }, mergeKey: null });
-    await card.getByRole("group", { name: "Posisi" }).getByRole("radio", { name: "Tengah" }).check();
+    await card.getByRole("radiogroup", { name: "Posisi" }).getByRole("radio", { name: "Tengah" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "y_e5", value: 60000 }, mergeKey: null });
     await expect(header(page, "caption")).toContainText("Bold · Besar · Tengah");
     // Bold's own case is upper case (SetCaptionPack), and the preview's cues follow it. The fakes
@@ -365,8 +365,8 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
       window.__harness.store.dispatch("SetCaptionOverride", { key: "size_pm", value: 920 }, { mergeKey: "cap:size_pm" });
       window.__harness.store.dispatch("SetCaptionOverride", { key: "y_e5", value: 72000 }, { mergeKey: "cap:y_e5" });
     });
-    for (const name of ["Kecil", "Sedang", "Besar"]) await expect(card.getByRole("group", { name: "Ukuran" }).getByRole("radio", { name })).not.toBeChecked();
-    for (const name of ["Atas", "Tengah", "Bawah"]) await expect(card.getByRole("group", { name: "Posisi" }).getByRole("radio", { name })).not.toBeChecked();
+    for (const name of ["Kecil", "Sedang", "Besar"]) await expect(card.getByRole("radiogroup", { name: "Ukuran" }).getByRole("radio", { name })).not.toBeChecked();
+    for (const name of ["Atas", "Tengah", "Bawah"]) await expect(card.getByRole("radiogroup", { name: "Posisi" }).getByRole("radio", { name })).not.toBeChecked();
     await expect(header(page, "caption")).toContainText("Box · 92% · posisi 72%");
     expect(errors).toEqual([]);
   });
@@ -378,7 +378,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     // At the seed spot the zone is a calm note (K5); no hook hint.
     await expect(card.locator('[data-caption-zone="note"]')).toHaveText("Posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.");
     await expect(card.locator("[data-hook-near]")).toHaveCount(0);
-    const position = card.getByRole("group", { name: "Posisi" });
+    const position = card.getByRole("radiogroup", { name: "Posisi" });
     await position.getByRole("radio", { name: "Atas" }).check();
     await expect(card.locator("[data-hook-near]")).toHaveText(hint);
     await expect(card.locator("[data-caption-zone]")).toHaveCount(0);
@@ -610,7 +610,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
   test("Tata letak card: Potong tengah switches at once; the plan follows", async ({ page }) => {
     const errors = await openQuick(page);
     const card = await openCard(page, "layout");
-    const group = card.getByRole("group", { name: "Pilih tata letak" });
+    const group = card.getByRole("radiogroup", { name: "Pilih tata letak" });
     await expect(group.locator("label")).toHaveText(["Latar blur", "Potong tengah", "Ikuti wajah", "Layar terbagi"]);
     await expect(group.getByRole("radio", { name: "Latar blur" })).toBeChecked();
     await group.getByRole("radio", { name: "Potong tengah" }).check();
@@ -667,7 +667,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await expect(music.locator("[data-music-name]")).toHaveText(MUSIC.name, { timeout: 10_000 });
     expect((await lastSent(page))).toMatchObject({ type: "SetMusic", mergeKey: null });
     await expect(header(page, "extras")).toContainText("Logo dan musik");
-    const strength = music.getByRole("group", { name: "Saat ada suara" });
+    const strength = music.getByRole("radiogroup", { name: "Saat ada suara" });
     await expect(strength.getByRole("radio", { name: "Sedang" })).toBeChecked();
     await strength.getByRole("radio", { name: "Kuat" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetDuck", args: { preset: "kuat" }, mergeKey: "music:duck" });
@@ -727,7 +727,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await (await chooser).setFiles(second);
     await expect(panel.getByRole("progressbar", { name: `Mengunggah ${second.name}` })).toBeVisible();
     await page.getByRole("radiogroup", { name: "Tampilan editor" }).getByRole("radio", { name: "Cepat", exact: true }).check();
-    const strength = (await openCard(page, "extras")).getByRole("group", { name: "Saat ada suara" });
+    const strength = (await openCard(page, "extras")).getByRole("radiogroup", { name: "Saat ada suara" });
     await strength.getByRole("radio", { name: "Kuat" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetDuck", args: { preset: "kuat" }, mergeKey: "music:duck" });
 
@@ -781,7 +781,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await (await chooser).setFiles(MUSIC);
     await expect(card.locator("[data-music-name]")).toHaveText(MUSIC.name, { timeout: 10_000 });
     mark("music added");
-    await card.getByRole("group", { name: "Saat ada suara" }).getByRole("radio", { name: "Kuat" }).check();
+    await card.getByRole("radiogroup", { name: "Saat ada suara" }).getByRole("radio", { name: "Kuat" }).check();
     mark("strength Kuat");
     // The stop condition is unchanged (§11 Q5): the music lane in Lengkap shows the lowered line.
     await card.locator('[data-extras="music"]').getByRole("button", { name: "Atur detail di Mode Lengkap" }).click();
@@ -882,11 +882,11 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await page.keyboard.press("Tab");
     await expect(header(page, "caption")).toBeFocused();
     expect((await outlineOf(header(page, "caption"))).style).not.toBe("none");
-    const pill = card.getByRole("group", { name: "Ukuran" }).getByRole("radio", { name: "Sedang" });
+    const pill = card.getByRole("radiogroup", { name: "Ukuran" }).getByRole("radio", { name: "Sedang" });
     await pill.focus();
     await page.keyboard.press("ArrowRight");
-    await expect(card.getByRole("group", { name: "Ukuran" }).getByRole("radio", { name: "Besar" })).toBeFocused();
-    const label = card.getByRole("group", { name: "Ukuran" }).locator("label").filter({ hasText: "Besar" });
+    await expect(card.getByRole("radiogroup", { name: "Ukuran" }).getByRole("radio", { name: "Besar" })).toBeFocused();
+    const label = card.getByRole("radiogroup", { name: "Ukuran" }).locator("label").filter({ hasText: "Besar" });
     expect((await outlineOf(label)).style).not.toBe("none");
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "size_pm", value: 1200 }, mergeKey: null });
     expect(errors).toEqual([]);

@@ -1,7 +1,8 @@
 // The UI foundation of the app pages (docs/plans/2026-10-24-rombak/05-ui-dashboard.md §3):
 // globals.css in cascade layers with its tokens outside them, HeroUI and Tailwind (no preflight)
-// only through app/ui.css, which only the shell and the public card import, so the editor's CSS
-// and bundle stay as they are. Navigation stays full-document (no RouterProvider).
+// through app/ui.css, which only the shell and the public card import, and, for the editor,
+// through its own app/editor.css, which only the editor's layout imports (amendment X10,
+// 06-editor.md §17 F0). Navigation stays full-document everywhere (no RouterProvider).
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -155,24 +156,165 @@ test("the component overrides keep 44 px targets, Potongin's radius and selectio
   }
 });
 
-test("only the shell and the public card import ui.css; the editor reaches neither ui.css nor HeroUI", async () => {
+/** Every name @heroui/react exports, with the component folder it comes from. */
+async function heroFolders() {
+  const index = await read("node_modules/@heroui/react/dist/index.js");
+  const folders = {};
+  for (const match of index.matchAll(/export \{([^}]*)\} from '\.\/components\/([a-z-]+)\//g)) {
+    for (const part of match[1].split(",")) {
+      const name = part.trim().split(/\s+as\s+/).at(-1);
+      if (name) folders[name] = match[2];
+    }
+  }
+  return folders;
+}
+
+/** A HeroUI component folder with every component folder it renders (Dropdown renders Menu …). */
+async function heroClosure(folders) {
+  const seen = new Set();
+  const visit = async (folder) => {
+    if (seen.has(folder)) return;
+    seen.add(folder);
+    const dir = path.join(WEB, "node_modules", "@heroui", "react", "dist", "components", folder);
+    for (const file of (await listFiles(dir, ["."], [".js"]))) {
+      const source = await readFile(path.join(dir, file), "utf8");
+      for (const match of source.matchAll(/from '\.\.\/([a-z-]+)\//g)) await visit(match[1]);
+      for (const match of source.matchAll(/import '\.\.\/([a-z-]+)\//g)) await visit(match[1]);
+    }
+  };
+  for (const folder of folders) await visit(folder);
+  // A folder without a stylesheet (a context, the RAC re-exports) needs nothing in the CSS.
+  return [...seen].filter((folder) => existsSync(path.join(WEB, "node_modules", "@heroui", "styles", "dist", "components", `${folder}.css`))).sort();
+}
+
+const EDITOR_LAYOUT = `${EDIT_ROUTE}/layout.jsx`;
+const isEditorSide = (file) => file.startsWith("components/editor/") || file.startsWith(EDIT_ROUTE);
+
+test("editor.css: ui.css's Tailwind and HeroUI prelude, utilities from the editor only, one stylesheet per HeroUI component the editor imports", async () => {
+  const css = await read("app/editor.css");
+  assert.equal(css.split("\n")[0], LAYER_ORDER);
+  const list = imports(css);
+  assert.deepEqual(list.slice(0, 6).map((entry) => `${entry.spec} ${entry.rest}`.trim()), [
+    "tailwindcss/theme.css layer(theme)",
+    "./ui-theme-reset.css layer(theme)",
+    // Automatic source detection off: the utilities come from the editor's files alone.
+    "tailwindcss/utilities.css layer(utilities) source(none)",
+    "tw-animate-css",
+    "@heroui/styles/base layer(base.heroui)",
+    "@heroui/styles/themes/default layer(theme)",
+  ]);
+  assert.ok(!list.some((entry) => entry.spec === "tailwindcss" || /preflight/.test(entry.spec)), "no preflight");
+  assert.deepEqual(list.slice(-2).map((entry) => entry.spec), ["@heroui/styles/utilities", "@heroui/styles/variants"]);
+  for (const entry of list) {
+    const file = entry.spec.startsWith("./") ? path.join(WEB, "app", entry.spec) : await resolvePackageCss(entry.spec);
+    assert.ok(file && existsSync(file), `${entry.spec} resolves to a file (${file})`);
+  }
+  // Importing a component's stylesheet is using it, both ways: what the editor imports from
+  // @heroui/react (with what those components render) is exactly what editor.css loads.
+  const folders = await heroFolders();
+  const sources = await readSources(WEB, (await listFiles(WEB, ["app", "components"], [".js", ".jsx", ".mjs"])).filter(isEditorSide));
+  const used = new Set();
+  for (const { file, source } of sources) {
+    for (const match of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']@heroui\/react["']/g)) {
+      for (const part of match[1].split(",")) {
+        const name = part.trim().split(/\s+as\s+/)[0];
+        if (!name) continue;
+        assert.ok(folders[name], `${file}: ${name} is a HeroUI 3.2.6 component`);
+        used.add(folders[name]);
+      }
+    }
+    assert.doesNotMatch(source, /import\s+\*\s+as\s+\w+\s+from\s+["']@heroui\/react["']/, `${file}: no namespace import of @heroui/react`);
+  }
+  assert.ok(used.size >= 1, "the editor kit takes at least one HeroUI component");
+  const components = list.filter((entry) => entry.spec.startsWith("@heroui/styles/components/"));
+  for (const entry of components) assert.equal(entry.rest, "layer(components)", entry.spec);
+  assert.deepEqual(components.map((entry) => entry.spec.replace("@heroui/styles/components/", "").replace(/\.css$/, "")).sort(), await heroClosure([...used]));
+  assert.match(css, /^@source "\.\.\/components\/editor";$/m);
+  assert.doesNotMatch(css, /@source not/);
+  assert.match(css, /@theme \{[^}]*--font-sans: var\(--font\);/);
+  assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ""), /--accent\b/, "no lime in the editor's kit layer");
+});
+
+test("editor.css sits wholly in layers, so every editor CSS Module wins over it; its rules name HeroUI classes only", async () => {
+  const css = (await read("app/editor.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules = cssRules(css).filter((rule) => rule.selector !== "@theme");
+  assert.ok(rules.length >= 3);
+  for (const rule of rules) assert.ok(rule.at.some((at) => at.startsWith("@layer ")), `${rule.selector} (line ${rule.line}) is layered`);
+  const layered = rules.filter((rule) => rule.at.includes("@layer components") && !rule.at.some((at) => /forced-colors/.test(at)));
+  const imported = imports(css).filter((entry) => entry.spec.startsWith("@heroui/styles/components/")).map((entry) => entry.spec.replace("@heroui/styles/components/", ""));
+  const shipped = (await Promise.all(imported.map((name) => read(`node_modules/@heroui/styles/dist/components/${name}`)))).join("\n");
+  for (const rule of layered) {
+    for (const match of rule.selector.matchAll(/\.([a-z][a-z0-9-]*(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?)/g)) {
+      assert.match(shipped, new RegExp(`\\.${match[1]}\\b`), `.${match[1]} is a class of a stylesheet editor.css imports`);
+    }
+    for (const decl of rule.decls) {
+      if (decl.prop === "min-height" || decl.prop === "min-width") assert.equal(decl.value, "44px", rule.selector);
+    }
+  }
+  // The forced-colours port (06 §17 F0, kit ui.module.css): a chosen React Aria control
+  // underlines its text and a focused one draws a system-coloured outline.
+  const forced = rules.filter((rule) => rule.at.some((at) => /forced-colors:\s*active/.test(at)));
+  const chosen = forced.find((rule) => rule.selector === "[data-rac][data-selected]");
+  assert.ok(chosen, "a chosen React Aria control keeps a mark");
+  assert.ok(chosen.decls.some((decl) => decl.prop === "text-decoration" && /underline/.test(decl.value)));
+  const focused = forced.find((rule) => rule.selector === "[data-rac][data-focus-visible]");
+  assert.ok(focused && focused.decls.some((decl) => decl.prop === "outline" && /Highlight/.test(decl.value)), "focus keeps a system-coloured outline");
+});
+
+test("react-aria-components is a pinned dependency of its own, the very copy HeroUI 3.2.6 runs on", async () => {
+  const pkg = JSON.parse(await read("package.json"));
+  const hero = JSON.parse(await read("node_modules/@heroui/react/package.json"));
+  assert.equal(hero.version, "3.2.6");
+  for (const name of ["react-aria-components", "react-aria"]) {
+    const pinned = pkg.dependencies[name];
+    assert.match(pinned ?? "", /^\d+\.\d+\.\d+$/, `${name} is pinned exactly in web/package.json`);
+    const installed = JSON.parse(await read(`node_modules/${name}/package.json`)).version;
+    assert.equal(installed, pinned, `${name}: the installed copy is the pinned one`);
+    // HeroUI takes React Aria as a peer, so its range must accept that same top-level copy: one
+    // React Aria in the bundle.
+    const range = hero.peerDependencies[name];
+    assert.match(range, /^\^\d+\.\d+\.\d+$/);
+    const [major, minor, patch] = range.slice(1).split(".").map(Number);
+    const [imajor, iminor, ipatch] = installed.split(".").map(Number);
+    assert.ok(imajor === major && (iminor > minor || (iminor === minor && ipatch >= patch)), `${name} ${installed} satisfies HeroUI's ${range}`);
+    assert.ok(!existsSync(path.join(WEB, "node_modules", "@heroui", "react", "node_modules", name)), `HeroUI has no nested ${name}`);
+  }
+  const lock = JSON.parse(await read("package-lock.json"));
+  assert.equal(lock.packages["node_modules/react-aria-components"]?.version, pkg.dependencies["react-aria-components"]);
+});
+
+test("only the shell and the public card import ui.css; only the editor's layout imports editor.css", async () => {
   const sources = await readSources(WEB, await listFiles(WEB, ["app", "components"], [".js", ".jsx", ".mjs", ".css"]));
   // An import (JS or CSS) emits ui.css; date-picker.css only @reference-s it for its @apply rules.
   const importers = sources.filter(({ source }) => /(?:^|\s)@?import\s+["'][./]*(?:app\/)?ui\.css["']/m.test(source)).map(({ file }) => file);
-  const references = sources.filter(({ source }) => /ui\.css["']/.test(source)).map(({ file }) => file);
+  const references = sources.filter(({ source }) => /(?<![\w-])ui\.css["']/.test(source)).map(({ file }) => file);
   assert.deepEqual(references.sort(), [...UI_IMPORTERS, "components/ui/date-picker.css"].sort());
   assert.match(sources.find((entry) => entry.file === "components/ui/date-picker.css").source, /^@reference "\.\.\/\.\.\/app\/ui\.css";$/m);
   assert.deepEqual(importers.sort(), [...UI_IMPORTERS].sort());
   for (const file of UI_IMPORTERS) assert.match(sources.find((entry) => entry.file === file).source, /^import "(?:\.\.\/)+app\/ui\.css";$/m, file);
-  const editorSide = sources.filter(({ file }) => file.startsWith("components/editor/") || file.startsWith(EDIT_ROUTE) || file.startsWith("app/parity-harness/"));
+  // The editor's own entry (amendment X10, 06 §17 F0): one importer, its route's layout.
+  const editorCss = sources.filter(({ source }) => /editor\.css["']/.test(source)).map(({ file }) => file);
+  assert.deepEqual(editorCss, [EDITOR_LAYOUT]);
+  assert.match(sources.find((entry) => entry.file === EDITOR_LAYOUT).source, /^import "\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/editor\.css";$/m);
+  const editorSide = sources.filter(({ file }) => isEditorSide(file));
   assert.ok(editorSide.length > 20, "the scan reaches the editor");
   for (const { file, source } of editorSide) {
-    assert.doesNotMatch(source, /ui\.css|@heroui\/|react-aria-components|tailwindcss/, file);
+    // HeroUI and React Aria reach the editor (X10), Tailwind only through editor.css, the app
+    // pages' kit never.
+    assert.doesNotMatch(source, /(?<![\w-])ui\.css|tailwindcss/, file);
+    if (file.endsWith(".css")) {
+      // The editor's stylesheets stay plain CSS Modules: no Tailwind directive, no imported layer.
+      assert.doesNotMatch(source.replace(/\/\*[\s\S]*?\*\//g, ""), /@(?:import|apply|reference|tailwind|theme|source|layer)\b/, file);
+    }
     for (const match of source.matchAll(/(?:from|import)\s+["'](\.[^"']+)["']/g)) {
       const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1]));
       assert.ok(!target.startsWith("components/ui/") && target !== "app/ui.css", `${file} imports ${target}`);
     }
   }
+  // The parity harness renders JASSUB alone: no kit of either kind.
+  const harness = sources.filter(({ file }) => file.startsWith("app/parity-harness/"));
+  assert.ok(harness.length >= 2);
+  for (const { file, source } of harness) assert.doesNotMatch(source, /ui\.css|editor\.css|@heroui\/|react-aria-components|tailwindcss/, file);
   // The root 404 and error boundaries sit above every route, the editor's too, and Next ships a
   // boundary's CSS and JS with every page (next/dynamic included). They take the shell through
   // LazyAppShell, whose plain import() fetches it only once the boundary has mounted.
@@ -186,6 +328,22 @@ test("only the shell and the public card import ui.css; the editor reaches neith
   assert.doesNotMatch(lazy, /^import .*AppShell\.jsx|next\/dynamic|ui\.css|@heroui/m);
   const editorLayouts = sources.filter(({ file }) => file.startsWith(EDIT_ROUTE));
   for (const { file, source } of editorLayouts) assert.doesNotMatch(source, /AppShell|PublicCard|Providers/, file);
+});
+
+test("React Aria's locale reaches the editor through its own kit provider, from the UI language (KA7)", async () => {
+  const sources = await readSources(WEB, await listFiles(WEB, ["app", "components"], [".js", ".jsx", ".mjs"]));
+  const renders = sources.filter(({ source }) => /<I18nProvider\b/.test(source)).map(({ file }) => file).sort();
+  assert.deepEqual(renders, ["components/editor/ui/KitProvider.jsx", "components/ui/Providers.jsx"]);
+  const kit = await read("components/editor/ui/KitProvider.jsx");
+  assert.match(kit, /^"use client";/);
+  assert.match(kit, /import \{ I18nProvider \} from "react-aria-components";/);
+  assert.match(kit, /import \{ useLocale \} from "use-intl";/);
+  assert.match(kit, /const locale = useLocale\(\);/);
+  assert.match(kit, /<I18nProvider locale=\{locale\}>/);
+  assert.doesNotMatch(kit.replace(/^\/\/.*$/gm, ""), /"id-ID"|RouterProvider/);
+  // Inside the editor's IntlProvider, so useLocale() is the editor's UI language.
+  const layout = await read(EDITOR_LAYOUT);
+  assert.match(layout, /<SegmentI18n namespaces=\{\["editor"\]\}>\s*<KitProvider>\{children\}<\/KitProvider>\s*<\/SegmentI18n>/);
 });
 
 test("no RouterProvider anywhere, and every editor link outside the editor is a plain <a href>", async () => {
