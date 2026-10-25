@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-
 import { useTranslations } from "use-intl";
 
 import { HOOK_COPY as COPY, hookSwitchView, switchHook } from "../lib/clip-hook.mjs";
