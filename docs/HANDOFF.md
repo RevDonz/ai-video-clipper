@@ -383,5 +383,42 @@ memakai default sampai tenggatnya (08 §7).
 toolchain baru dibuat lewat `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`, lalu
 `docs/editor/evidence/toolchain/record.json` yang bercap di-commit.
 
+**Fase 1** (fondasi UI + i18n + shell + pemilih bahasa; status 2026-10-25). Permintaan pemilik:
+satu PR gabungan per fase, tes berat sekali di akhir fase.
+- Sudah di `main`: Dashboard F0 (#41: `ui.css`, HeroUI di atas token, `PublicCard`, `Providers`)
+  dan i18n M0 (#43: katalog `web/messages/{id,en}`, resolusi locale, `generateMetadata`, HTML
+  `private, no-store`, `POTONGIN_LOCALES`, catatan cache HTML di `deploy/VM_NGINX_CLOUDFLARE.md`).
+- Di PR #44 (branch `feat/f1-shell`, belum di-merge):
+  - Dashboard F1: `NavList` datar, Drawer di bawah 1024 px, menu akun, Keluar lewat form
+    tersembunyi, saklar "Pintasan satu tombol" (cookie `potongin_shortcuts`).
+  - i18n M1: `POST /api/locale` (publik, dikecualikan dari `proxy.js`, origin + 20/menit per IP
+    + body ≤ 1 KiB, form → 303, `?bahasa=gagal` bila ditolak); pemilih bahasa di menu akun (2 klik,
+    muat ulang penuh) dan di `/login` (form native, jalan tanpa JS); `/login` jadi satu kartu
+    `PublicCard` dengan field HeroUI (nama field sama); 404 dan halaman error dari katalog; tes
+    baru `locale-route`, `route-guard-coverage` (allowlist awal beralasan), `measure-ttfb`;
+    ratchet `i18n-hardcoded` = 0 untuk `AppShell`, login, not-found, error.
+  - Pemilih bahasa hanya tampil bila `POTONGIN_LOCALES` memuat lebih dari satu bahasa; produksi
+    tetap `id`, jadi pengguna produksi tidak melihat perubahan bahasa sampai pemilik
+    menyalakannya.
+  - CI: push ke `main` yang hanya mengubah dokumentasi (`docs/**`, `*.md` di luar `src/`,
+    `resources/`, `web/`) melewati build image, parity dan deploy; `Test and build` tetap jalan
+    (`scripts/ci/deploy_scope.py`, ragu = deploy).
+- Gerbang akhir fase sudah jalan di GitHub Actions (run dan angka di badan PR #44): `ci-cd.yml`,
+  `editor-gates.yml` `full`, `image`, `player`, e2e `desktop-chromium`, `mobile-chromium` dan
+  `en-smoke`, screenshot shell. `-f ttfb=true` (suite e2e, sekali `-f ref=main`, sekali
+  `-f ref=feat/f1-shell`) mencatat TTFB `/`, `/dashboard`, `/login` di `ttfb.json` dan CSS/JS
+  rute editor di `editor-assets.json` (`web/scripts/measure-route-assets.mjs`): CSS editor
+  identik (digest sama), JS awal rute editor naik 4.218 B (1.685 B gzip), di bawah use-intl
+  11.814 B (5.484 B gzip). Celah: e2e `smoke` dan `read-only` butuh proyek selesai yang tidak ada
+  di app gerbang (gagal sama di `main`).
+- Untuk pemilik: review copy `en` baru (`web/messages/en/auth.json`, `common.json`,
+  `shell.json` `account.language`); izin merge PR #44; pilihan menyalakan `id,en` di produksi
+  sebagai pratinjau (boleh sampai undangan anggota pertama di Fase 6).
+- Diputuskan atas delegasi pemilik (rinci di badan PR #44): pesan batas login tetap kalimat lama
+  (`auth.login.limited`, bukan `errors.web.rate_limited` yang generik); halaman error tidak
+  menampilkan `digest`; teks 404/error ada di `common.page` (subtree inti `errors` tetap `web` +
+  `http`); tautan "Buka Riwayat" menjadi "Buka Proyek" mengikuti nama baru di navigasi; menu akun
+  tidak memberi tanda bila ganti bahasa ditolak (hanya terjadi saat batas 20/menit habis).
+
 Sampai fase yang bersangkutan selesai, UI tetap seperti di `main`; `DESIGN.md` menandai setiap
 pola sasaran dengan fase mulai berlakunya.

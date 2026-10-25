@@ -34,6 +34,9 @@ export function proxy(request) {
 // /api/ingest/trends is the endpoint of the owner's agent (Hermes), which has no session
 // cookie: it is excluded too and authenticates every request itself with a ptk_ bearer token
 // (cookies are refused there), reading its body with a 256 KiB cap.
+// /api/locale: the UI language preference cookie, without user data, also used on /login before
+// a session exists (rombak 07 §9.2). It checks its origin and rate limit itself; once there are
+// user accounts it checks the session itself too.
 export const config = {
-  matcher: ["/((?!api/health|api/auth/login|api/jobs/?$|api/jobs/[^/]+/assets/?$|api/settings/logo/?$|api/settings/youtube-cookies/?$|api/ingest/trends/?$|login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/health|api/auth/login|api/jobs/?$|api/jobs/[^/]+/assets/?$|api/settings/logo/?$|api/settings/youtube-cookies/?$|api/ingest/trends/?$|api/locale/?$|login|_next/static|_next/image|favicon.ico).*)"],
 };

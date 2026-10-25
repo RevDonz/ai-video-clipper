@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 
 import { login, settings, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
 // Konteks Tren UI (spec §5). The default tests fake the §3.2 routes inside the
 // browser (page.route), so they never change server data and run against any
@@ -327,7 +328,7 @@ test.describe("Konteks Tren at 390 px", () => {
     await dashboard.goto("/dashboard");
     // Below 1024 px the app links sit in the Menu drawer.
     await dashboard.getByRole("button", { name: "Menu", exact: true }).click();
-    const link = dashboard.getByRole("navigation", { name: "Menu utama" }).getByRole("link", { name: "Konteks Tren" });
+    const link = dashboard.getByRole("navigation", { name: L("aria.mainMenu") }).getByRole("link", { name: L("shell.nav.trends"), exact: true });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute("href", "/trends");
     expect(await dashboard.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);

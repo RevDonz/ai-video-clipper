@@ -279,8 +279,9 @@ test("pages tell the badge when they change a job", () => {
 test("the sidebar puts the badge right after the brand, before the menu", async () => {
   const shell = await read("components/AppShell.jsx");
   assert.match(shell, /import JobBadge from "\.\/JobBadge\.jsx";/);
-  assert.match(shell, /<div className="appBar">\s*<Brand \/>\s*<JobBadge \/>\s*<button\b/);
-  assert.ok(shell.indexOf("<JobBadge />") < shell.indexOf("<nav "), "the badge comes before the menu");
+  // The Menu button is HeroUI's Drawer trigger since Dashboard F1 (05 §4.2); the menu is NavList.
+  assert.match(shell, /<div className="appBar">\s*<Brand \/>\s*<JobBadge \/>\s*<Drawer\b[^>]*>\s*<Drawer\.Trigger\b/);
+  assert.ok(shell.indexOf("<JobBadge />") < shell.indexOf("<NavList "), "the badge comes before the menu");
 });
 
 test("the badge is a real link; only a separate polite region announces", async () => {

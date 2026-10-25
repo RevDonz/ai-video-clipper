@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { loginErrorMessage, safeNextPath } from "../lib/login-view.mjs";
+import { loginErrorCode, loginLocaleNext, safeNextPath } from "../lib/login-view.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const read = (relative) => readFile(path.join(WEB, relative), "utf8");
@@ -88,15 +88,74 @@ test("the privacy section says what leaves the server instead of claiming nothin
   assert.doesNotMatch(source, /tidak perlu dikirim ke API AI berbayar|Tidak ada biaya API/);
 });
 
-test("login shows Indonesian messages for a wrong password and for too many attempts", async () => {
-  assert.equal(loginErrorMessage(undefined), null);
-  assert.equal(loginErrorMessage("1"), "Nama pengguna atau kata sandi salah.");
-  assert.equal(loginErrorMessage("limit"), "Terlalu banyak percobaan. Tunggu beberapa menit, lalu coba lagi.");
+const catalogText = async (locale, namespace, key) => key.split(".").reduce(
+  (value, part) => value?.[part],
+  JSON.parse(await read(`messages/${locale}/${namespace}.json`)),
+);
+
+test("login shows the message for a wrong password and for too many attempts, from the catalog", async () => {
+  // The route's ?error= codes (app/api/auth/login/route.js) name a message; the page says it in
+  // the visitor's language (05 §6.2). The Indonesian texts are the ones the page showed before,
+  // except that the wrong-password one is the shared catalog label from i18n M0, without the old
+  // trailing period ("Nama pengguna atau kata sandi salah." before).
+  assert.equal(loginErrorCode(undefined), null);
+  assert.equal(loginErrorCode("1"), "invalid");
+  assert.equal(loginErrorCode("limit"), "limited");
   // Unknown codes show nothing rather than echoing the query.
-  for (const code of ["<b>x</b>", "0", ["1"], "toString", "__proto__"]) assert.equal(loginErrorMessage(code), null, String(code));
+  for (const code of ["<b>x</b>", "0", ["1"], "toString", "__proto__", "invalid"]) assert.equal(loginErrorCode(code), null, String(code));
+  assert.equal(await catalogText("id", "errors", "web.login_invalid"), "Nama pengguna atau kata sandi salah");
+  assert.equal(await catalogText("id", "auth", "login.limited"), "Terlalu banyak percobaan. Tunggu beberapa menit, lalu coba lagi.");
+  for (const locale of ["id", "en"]) {
+    for (const [namespace, key] of [["errors", "web.login_invalid"], ["auth", "login.limited"], ["auth", "locale.failed"]]) {
+      assert.ok(await catalogText(locale, namespace, key), `${locale} ${namespace}.${key}`);
+    }
+  }
   const source = await read("app/login/page.jsx");
-  assert.match(source, /loginErrorMessage\(params\?\.error\)/);
-  assert.match(source, /role="alert"/);
+  assert.match(source, /loginErrorCode\(params\?\.error\)/);
+  assert.match(source, /code === "invalid" \? tErrors\("web\.login_invalid"\)/);
+  assert.match(source, /code === "limited" \? t\("login\.limited"\)/);
+  assert.match(source, /<p id="login-error" className=\{styles\.error\} role="alert">\{error\}<\/p>/);
+  // A refused language change (?bahasa=gagal from POST /api/locale) is said in its own alert.
+  assert.match(source, /params\?\.bahasa === "gagal"/);
+  assert.match(source, /<p className=\{styles\.error\} role="alert">\{t\("locale\.failed"\)\}<\/p>/);
+});
+
+test("the login form posts the same fields to the same route, and works without JavaScript", async () => {
+  const source = await read("app/login/page.jsx");
+  assert.match(source, /<form className=\{styles\.form\} method="post" action="\/api\/auth\/login" autoComplete="on">/);
+  assert.match(source, /<input type="hidden" name="next" value=\{next\} \/>/);
+  assert.match(source, /<TextField name="username" type="text" isRequired autoFocus>/);
+  assert.match(source, /<TextField name="password" type="password" isRequired>/);
+  assert.match(source, /autoComplete="username"/);
+  assert.match(source, /autoComplete="current-password"/);
+  // A required field the browser refuses says why: React Aria hides the browser's own bubble.
+  assert.equal(source.match(/<FieldError \/>/g)?.length, 2);
+  assert.match(source, /<Button type="submit" variant="primary" className=\{styles\.submit\}>\{t\("login\.submit"\)\}<\/Button>/);
+  // The login page is a card without the shell (05 §6.2): no tagline, note or poster aside.
+  assert.doesNotMatch(source, /LANDING_MEDIA|<aside|styles\.note|styles\.intro/);
+  // The segment layout loads the auth catalog for the client parts.
+  assert.match(await read("app/login/layout.jsx"), /<SegmentI18n namespaces=\{\["auth"\]\}>/);
+});
+
+test("the login page carries the language picker as a second native form", async () => {
+  const page = await read("app/login/page.jsx");
+  assert.match(page, /<LanguageSwitcher variant="form" locales=\{locales\} current=\{locale\} next=\{loginLocaleNext\(params\)\} className=\{styles\.language\} \/>/);
+  assert.match(page, /const locales = localeOptions\(\);/);
+  const picker = await read("components/LanguageSwitcher.jsx");
+  assert.match(picker, /^"use client";/);
+  assert.match(picker, /if \(!Array\.isArray\(locales\) \|\| locales\.length < 2\) return null;/, "nothing to pick with one language");
+  assert.match(picker, /<form method="post" action="\/api\/locale" className=\{className\}>/);
+  assert.match(picker, /<select id=\{id\} name="locale" defaultValue=\{current\}/);
+  assert.match(picker, /<option key=\{entry\.code\} value=\{entry\.code\} lang=\{entry\.code\}>\{entry\.label\}<\/option>/);
+  assert.match(picker, /<input type="hidden" name="next" value=\{next\} \/>/);
+  assert.match(picker, /<Button type="submit" variant="secondary"/);
+  assert.match(picker, /t\("locale\.label"\)/);
+  assert.match(picker, /t\("locale\.save"\)/);
+  // Back to the same login page, keeping where it leads, without the old ?error or ?bahasa.
+  assert.equal(loginLocaleNext({}), "/login");
+  assert.equal(loginLocaleNext({ next: "/dashboard" }), "/login");
+  assert.equal(loginLocaleNext({ next: "/projects/abc?klip=2", error: "1", bahasa: "gagal" }), "/login?next=%2Fprojects%2Fabc%3Fklip%3D2");
+  for (const next of ["//evil.example", "https://evil.example", ["/x"], undefined]) assert.equal(loginLocaleNext({ next }), "/login", String(next));
 });
 
 test("login and its route keep only same-site next paths", async () => {
@@ -109,9 +168,15 @@ test("login and its route keep only same-site next paths", async () => {
   assert.match(await read("app/login/page.jsx"), /safeNextPath\(params\?\.next\)/);
 });
 
-test("login copy has no em dash, version label or English marketing label", async () => {
+test("login copy has no em dash, version label or English marketing label, in any language", async () => {
   const source = await read("app/login/page.jsx");
   assert.doesNotMatch(visibleText(source), FORBIDDEN_COPY);
   assert.doesNotMatch(source, /SELF-HOSTED|Face Tracking/);
   assert.match(source, /import styles from "\.\/login\.module\.css";/);
+  // The words now live in the auth catalog: the same rules hold there, in every locale.
+  for (const locale of ["id", "en"]) {
+    const text = await read(`messages/${locale}/auth.json`);
+    assert.doesNotMatch(text, FORBIDDEN_COPY, locale);
+    assert.doesNotMatch(text, /SELF-HOSTED|Face Tracking/, locale);
+  }
 });

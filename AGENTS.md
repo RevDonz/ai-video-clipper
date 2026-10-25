@@ -30,9 +30,10 @@ owner; when one is in doubt, ask before acting against it.
 
 - Never print, log or commit secrets. LLM keys live only in the encrypted settings store. This
   repository is public: no server addresses, usernames or credentials in commits either.
-- `main` is protected and deploys to production on every merge: PRs are merged with rebase (no
-  merge commits). CI's gitleaks scans every ref, so allow known non-secrets in `.gitleaks.toml`
-  by content (path + exact line), never by SHA fingerprint.
+- `main` is protected and deploys to production on every merge (a docs-only push skips the image
+  build and the deploy, `scripts/ci/deploy_scope.py`): PRs are merged with rebase (no merge
+  commits). CI's gitleaks scans every ref, so allow known non-secrets in `.gitleaks.toml` by
+  content (path + exact line), never by SHA fingerprint.
 - Python stays 3.11-compatible (CI and production); `src/ai_clipper/edit_v2` is stdlib only; no
   new runtime dependencies without a reason.
 - `web/proxy.js` buffers request bodies up to 10 MB: every upload route is excluded from the

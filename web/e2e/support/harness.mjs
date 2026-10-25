@@ -19,13 +19,16 @@ export function skipWithoutCredentials(testType) {
   );
 }
 
+// The login form's own button: with two UI languages /login also has the language form's Simpan.
+export const LOGIN_SUBMIT = 'form[action="/api/auth/login"] button[type="submit"]';
+
 export async function login(page, next = "/projects") {
   await page.goto(`/login?next=${encodeURIComponent(next)}`);
   await page.locator('input[name="username"]').fill(settings.username);
   await page.locator('input[name="password"]').fill(settings.password);
   await Promise.all([
     page.waitForURL((url) => url.pathname === next),
-    page.locator('button[type="submit"]').click(),
+    page.locator(LOGIN_SUBMIT).click(),
   ]);
 }
 

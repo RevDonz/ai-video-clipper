@@ -1,4 +1,5 @@
-// Where the 404 page (app/not-found.jsx) sends the user. Client-safe: no Node built-ins.
+// Where the 404 page (app/not-found.jsx) sends the user. Client-safe: no Node built-ins. Each
+// link names its label (components/NotFoundActions.jsx says it in the UI language).
 
 const PROJECT_CHILD = /^\/projects\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/./i;
 
@@ -10,12 +11,12 @@ export function notFoundLinks(pathname) {
   const project = typeof pathname === "string" ? PROJECT_CHILD.exec(pathname) : null;
   if (project) {
     return [
-      { href: `/projects/${project[1]}`, label: "Buka proyek ini", primary: true },
-      { href: "/projects", label: "Buka Riwayat", primary: false },
+      { href: `/projects/${project[1]}`, label: "project", primary: true },
+      { href: "/projects", label: "projects", primary: false },
     ];
   }
   return [
-    { href: "/projects", label: "Buka Riwayat", primary: true },
-    { href: "/dashboard", label: "Buat klip", primary: false },
+    { href: "/projects", label: "projects", primary: true },
+    { href: "/dashboard", label: "create", primary: false },
   ];
 }

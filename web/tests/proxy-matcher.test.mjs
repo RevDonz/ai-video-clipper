@@ -65,6 +65,16 @@ test("the YouTube cookies upload route bypasses the proxy and checks the session
   ]) assert.equal(proxyRuns(pathname), true, pathname);
 });
 
+test("/api/locale bypasses the proxy: public language cookie", () => {
+  // POST /api/locale only writes the potongin_locale preference (rombak 07 §9.2, §9.3): /login
+  // uses it before anyone is signed in. It holds no user data and checks its origin itself.
+  assert.equal(proxyRuns("/api/locale"), false);
+  assert.equal(proxyRuns("/api/locale/"), false);
+  for (const pathname of ["/api/localex", "/api/locale/x", "/api/locale/x/y", "/api/locales", "/locale", "/api/settings/locale"]) {
+    assert.equal(proxyRuns(pathname), true, pathname);
+  }
+});
+
 test("serving an asset and every other job route still runs the proxy", () => {
   for (const pathname of [
     `/api/jobs/${JOB}/assets/${SHA}`, `/api/jobs/${JOB}/assets/${SHA}/`, `/api/jobs/${JOB}/assetsx`,
@@ -93,7 +103,7 @@ test("the matcher excludes exactly the listed routes", () => {
   const excluded = /^\/\(\(\?!(.*)\)\.\*\)$/.exec(matcher)[1].split("|");
   assert.deepEqual(excluded, [
     "api/health", "api/auth/login", "api/jobs/?$", "api/jobs/[^/]+/assets/?$", "api/settings/logo/?$",
-    "api/settings/youtube-cookies/?$", "api/ingest/trends/?$", "login",
+    "api/settings/youtube-cookies/?$", "api/ingest/trends/?$", "api/locale/?$", "login",
     "_next/static", "_next/image", "favicon.ico",
   ]);
 });

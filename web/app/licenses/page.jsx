@@ -1,5 +1,6 @@
 import AppShell from "../../components/AppShell.jsx";
 import { routeMetadata } from "../../lib/i18n/server.mjs";
+import { shellData } from "../../lib/shell-data.mjs";
 import { FONTS, FREETYPE_CREDIT, JASSUB, MEDIABUNNY, UI, WEB } from "./notices.mjs";
 import styles from "./licenses.module.css";
 
@@ -26,7 +27,7 @@ function Row({ label, children }) {
 
 export default function LicensesPage() {
   return (
-    <AppShell>
+    <AppShell {...shellData()}>
       <div className={`shell ${styles.page}`}>
         <header className="pageHead">
           <div>

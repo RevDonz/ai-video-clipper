@@ -14,6 +14,11 @@ name: Editor gates (manual)
 # -f gates=true also runs the specs' timing gates (EDITOR_GATES=1), e.g. PF-OPEN. -f project=
 # picks the Playwright project (default desktop-chromium); en-smoke starts the app with
 # POTONGIN_LOCALES=id,en and runs the specs in English. A missing catalog key fails the page.
+# -f ttfb=true first records the TTFB of /, /dashboard and /login on that app (30 requests each,
+# signed in) in gate-output/ttfb.json (rombak 07 §5.4). To compare, run the workflow of the branch
+# (--ref <branch>) once with -f ref=main and once with -f ref=<branch>. The same flag records the
+# editor route's CSS (SHA-256 per file) and up-front JS bytes, and the size of use-intl, in
+# gate-output/editor-assets.json (08 Fase 1: editor CSS byte-identical, JS growth <= use-intl).
 # suite=player: browser specs of the editor player. The image makes the player fixtures
 # (scripts/parity/player_fixtures.py, cases in `cases`) and serves its own app with the parity
 # harness; Chrome for Testing (`chrome`: a version or a milestone, default the parity pin) runs
@@ -59,6 +64,11 @@ on:
         default: desktop-chromium
         type: choice
         options: [desktop-chromium, mobile-chromium, en-smoke]
+      ttfb:
+        description: For suite=e2e, also record the TTFB of /, /dashboard and /login (web/scripts/measure-ttfb.mjs) in gate-output/ttfb.json
+        required: false
+        default: false
+        type: boolean
 
 run-name: "${{ inputs.suite }} @ ${{ inputs.ref }}"
 
@@ -175,6 +185,35 @@ jobs:
           done
           tail -n 40 "$GITHUB_WORKSPACE/gate-output/next.log"
           exit 1
+
+      # Before the specs, so their load does not skew it; signed in with the run's throwaway user.
+      # The script comes from the workflow's own commit, so a ref without it (main before Fase 1)
+      # is measured the same way.
+      - name: Record the TTFB of /, /dashboard and /login
+        if: inputs.suite == 'e2e' && inputs.ttfb
+        working-directory: web
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$WORKFLOW_SHA"
+          git show "FETCH_HEAD:web/scripts/measure-ttfb.mjs" > "$RUNNER_TEMP/measure-ttfb.mjs"
+          node "$RUNNER_TEMP/measure-ttfb.mjs" http://127.0.0.1:3217 30 > "$GITHUB_WORKSPACE/gate-output/ttfb.json"
+          cat "$GITHUB_WORKSPACE/gate-output/ttfb.json"
+
+      # Same flag and the same pair of runs (ref=main, ref=<branch>): 08 Fase 1 compares the editor
+      # route's CSS by content and its up-front JS against the size of use-intl.
+      - name: Record the editor route's CSS and JS
+        if: inputs.suite == 'e2e' && inputs.ttfb
+        working-directory: web
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$WORKFLOW_SHA"
+          git show "FETCH_HEAD:web/scripts/measure-route-assets.mjs" > "$RUNNER_TEMP/measure-route-assets.mjs"
+          git show "FETCH_HEAD:web/scripts/measure-ttfb.mjs" > "$RUNNER_TEMP/measure-ttfb.mjs"
+          editor=$(node --input-type=module -e 'const m = await import("./components/editor/__dev__/fakes.mjs"); console.log(`/projects/${m.FAKE_JOB_ID}/clips/${m.FAKE_CLIP_ID}/edit`)')
+          node "$RUNNER_TEMP/measure-route-assets.mjs" http://127.0.0.1:3217 "$editor" node_modules/use-intl > "$GITHUB_WORKSPACE/gate-output/editor-assets.json"
+          cat "$GITHUB_WORKSPACE/gate-output/editor-assets.json"
 
       - name: Browser specs on the editor fakes
         if: inputs.suite == 'e2e'

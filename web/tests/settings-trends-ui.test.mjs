@@ -197,31 +197,54 @@ test("Pengaturan is the whole page's name and every save button says what it sav
 
 const JOB = "0f8fad5b-d9cb-469f-a165-70867728950e";
 
+// The links name a catalog label (components/NotFoundActions.jsx); Riwayat is Proyek since G0.
+const catalog = async (locale, namespace) => JSON.parse(await read(`messages/${locale}/${namespace}.json`));
+
+test("the 404 link labels come from the catalog in every language", async () => {
+  for (const locale of ["id", "en"]) {
+    const common = await catalog(locale, "common");
+    for (const key of ["openProject", "openProjects"]) assert.ok(common.page?.[key], `${locale} common.page.${key}`);
+    assert.ok((await catalog(locale, "shell")).nav.create, locale);
+  }
+  const id = await catalog("id", "common");
+  assert.equal(id.page.openProject, "Buka proyek ini");
+  assert.equal(id.page.openProjects, "Buka Proyek");
+  assert.equal((await catalog("id", "shell")).nav.create, "Buat klip");
+  const actions = await read("components/NotFoundActions.jsx");
+  assert.match(actions, /project: tCommon\("page\.openProject"\)/);
+  assert.match(actions, /projects: tCommon\("page\.openProjects"\)/);
+  assert.match(actions, /create: tShell\("nav\.create"\)/);
+  assert.match(actions, /\{labels\[link\.label\]\}/);
+});
+
 test("a missing page inside a project links back to that project", () => {
   assert.deepEqual(notFoundLinks(`/projects/${JOB}/candidates/abc/edit`), [
-    { href: `/projects/${JOB}`, label: "Buka proyek ini", primary: true },
-    { href: "/projects", label: "Buka Riwayat", primary: false },
+    { href: `/projects/${JOB}`, label: "project", primary: true },
+    { href: "/projects", label: "projects", primary: false },
   ]);
   assert.deepEqual(notFoundLinks(`/projects/${JOB.toUpperCase()}/x`)[0].href, `/projects/${JOB.toUpperCase()}`);
 });
 
-test("any other missing page offers Riwayat first and a new clip second", () => {
+test("any other missing page offers Proyek first and a new clip second", () => {
   const fallback = [
-    { href: "/projects", label: "Buka Riwayat", primary: true },
-    { href: "/dashboard", label: "Buat klip", primary: false },
+    { href: "/projects", label: "projects", primary: true },
+    { href: "/dashboard", label: "create", primary: false },
   ];
   for (const pathname of ["/nope", "/projects/not-a-job/x", `/projects/${JOB}`, "/projects//x", `/projects/${JOB}x/y`, "", null, undefined, 7]) {
     assert.deepEqual(notFoundLinks(pathname), fallback, String(pathname));
   }
 });
 
-test("the 404 page is Indonesian, carries the shared sidebar and its own title", async () => {
+test("the 404 page speaks the UI language, carries the shared sidebar and its own title", async () => {
   const page = await read("app/not-found.jsx");
   // The shell arrives through LazyAppShell: these boundaries load with every page, the editor too.
   assert.match(page, /<LazyAppShell className="statusPage">/);
   assert.match(page, /return routeMetadata\("notFound"\);/);
   assert.equal(JSON.parse(await read("messages/id/meta.json")).notFound.title, "Halaman tidak ditemukan");
-  assert.match(page, /<h1[^>]*>Halaman tidak ditemukan<\/h1>/);
+  assert.equal((await catalog("id", "errors")).http.s404, "Halaman tidak ditemukan");
+  assert.match(page, /const t = await getT\(locale, "errors"\);/);
+  assert.match(page, /<h1[^>]*>\{t\("http\.s404"\)\}<\/h1>/);
+  assert.match(page, /\{tCommon\("page\.notFoundBody"\)\}/);
   assert.match(page, /<NotFoundActions \/>/);
   // The 404 HTML is prerendered without the requested path: the first render must match it
   // (no path), and the project link appears once the browser knows where it is.
@@ -239,7 +262,10 @@ test("the error page is a client boundary that retries and keeps the sidebar", a
   assert.match(page, /export default function \w+\(\{ reset \}\)/);
   assert.match(page, /onClick=\{\(\) => reset\(\)\}/);
   assert.match(page, /<LazyAppShell current=\{pathname\} className="statusPage">/);
-  assert.match(page, />Coba lagi</);
+  assert.equal((await catalog("id", "common")).retry, "Coba lagi");
+  assert.match(page, />\{tCommon\("retry"\)\}</);
+  assert.match(page, /<h1 id="status-title">\{tErrors\("http\.s500"\)\}<\/h1>/);
+  assert.match(page, /<a className="btn" href="\/projects">\{tCommon\("page\.openProjects"\)\}<\/a>/);
   assert.doesNotMatch(page, /error\.(message|stack|digest)/, "technical detail stays in the server log");
 });
 

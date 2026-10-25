@@ -4,6 +4,7 @@ import AppShell from "../../components/AppShell.jsx";
 import { HELP_ENTRIES, HELP_GROUPS, HELP_PATH, findHelpEntry, helpAnchors } from "../../lib/help-catalog.mjs";
 import { GUIDE_SHORTCUTS, GUIDE_TOPICS } from "../../lib/help-guide.mjs";
 import { routeMetadata } from "../../lib/i18n/server.mjs";
+import { shellData } from "../../lib/shell-data.mjs";
 import HelpSearch from "./HelpSearch.jsx";
 import styles from "./bantuan.module.css";
 
@@ -97,7 +98,7 @@ export default async function HelpPage({ searchParams }) {
   if (found) redirect(`${HELP_PATH}#${found.entry.id}`);
 
   return (
-    <AppShell current="/bantuan">
+    <AppShell current="/bantuan" {...shellData()}>
       <div className={`shell ${styles.page}`}>
         <header className="pageHead">
           <div>

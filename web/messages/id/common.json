@@ -1,3 +1,10 @@
 {
-  "unavailable": "—"
+  "unavailable": "—",
+  "retry": "Coba lagi",
+  "page": {
+    "notFoundBody": "Alamatnya salah, atau halamannya sudah tidak ada.",
+    "failedBody": "Coba lagi. Kalau tetap gagal, muat ulang halaman atau buka Proyek.",
+    "openProject": "Buka proyek ini",
+    "openProjects": "Buka Proyek"
+  }
 }

@@ -113,6 +113,8 @@ test("config disables credential-bearing artifacts and gives mobile read-only co
   const mobile = config.projects.find((project) => project.name === "mobile-chromium");
   assert.match(String(mobile.testMatch), /read-only/);
   assert.match(String(mobile.testMatch), /smoke/);
+  // The shell on a phone (05-ui-dashboard.md §8.2): the drawer, the account menu, the names.
+  for (const spec of ["app-shell", "aria-names"]) assert.match(`${spec}.spec.mjs`, mobile.testMatch, spec);
 });
 
 test("every project opens pages in Indonesian; en-smoke exists only on request", async () => {
@@ -130,7 +132,7 @@ test("every project opens pages in Indonesian; en-smoke exists only on request",
   assert.ok(en, "E2E_EN_SMOKE=1 adds en-smoke");
   assert.equal(en.use.locale, "en-US");
   assert.equal(en.use.uiLocale, "en");
-  for (const spec of ["smoke", "read-only", "app-shell", "i18n-locale"]) assert.match(`${spec}.spec.mjs`, en.testMatch, spec);
+  for (const spec of ["smoke", "read-only", "app-shell", "i18n-locale", "aria-names"]) assert.match(`${spec}.spec.mjs`, en.testMatch, spec);
   assert.doesNotMatch("editor-flow.spec.mjs", en.testMatch);
 });
 

@@ -12,7 +12,7 @@ const read = (relative) => readFile(path.join(WEB, relative), "utf8");
 
 test("the page renders every entry under its anchor, works without JS and sits behind the shared header", async () => {
   const page = await read("app/bantuan/page.jsx");
-  assert.match(page, /<AppShell current="\/bantuan">/);
+  assert.match(page, /<AppShell current="\/bantuan" \{\.\.\.shellData\(\)\}>/);
   assert.doesNotMatch(page, /^"use client"/m, "the entries are rendered on the server");
   assert.match(page, /HELP_ENTRIES/);
   assert.match(page, /id=\{entry\.id\}/);
@@ -32,13 +32,15 @@ test("the page renders every entry under its anchor, works without JS and sits b
   for (const source of [page, search]) assert.doesNotMatch(source, /—|dangerouslySetInnerHTML/);
 });
 
-test("the sidebar offers the help page under Sistem, marked current on the help page", async () => {
-  const { NAV_GROUPS, navItems } = await import("../lib/app-nav.mjs");
-  const system = NAV_GROUPS.find((group) => group.id === "sistem");
-  assert.ok(system.links.some((entry) => entry.href === "/bantuan" && entry.label === "Bantuan"));
-  assert.deepEqual(navItems("/bantuan").filter((item) => item.current).map((item) => item.href), ["/bantuan"]);
-  const shell = await read("components/AppShell.jsx");
-  assert.equal(shell.match(/<nav\b/g)?.length, 1);
+// The groups (Kerja, Sistem) are gone from the flat sidebar (05 §4.1): Bantuan is its last entry.
+test("the sidebar offers the help page as its last entry, marked current on the help page", async () => {
+  const { navLinks } = await import("../lib/app-nav.mjs");
+  const links = navLinks("/bantuan");
+  assert.deepEqual([links.at(-1).href, links.at(-1).labelKey], ["/bantuan", "shell.nav.help"]);
+  assert.equal(JSON.parse(await read("messages/id/shell.json")).nav.help, "Bantuan");
+  assert.deepEqual(links.filter((item) => item.current).map((item) => item.href), ["/bantuan"]);
+  const list = await read("components/NavList.jsx");
+  assert.equal(list.match(/<nav\b/g)?.length, 1);
 });
 
 test("the project page, the dashboard and the settings test result link their errors to the help page", async () => {

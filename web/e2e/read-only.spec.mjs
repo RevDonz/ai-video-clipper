@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 
 import {
-  expectPlaybackAdvances, login, resolveTarget, settings, skipWithoutCredentials, test,
+  LOGIN_SUBMIT, expectPlaybackAdvances, login, resolveTarget, settings, skipWithoutCredentials, test,
 } from "./support/harness.mjs";
 
 const projectPath = (jobId) => `/projects/${encodeURIComponent(jobId)}`;
@@ -24,7 +24,7 @@ test.describe("read-only production-safe flows", () => {
     await page.locator('input[name="password"]').fill(settings.password);
     await Promise.all([
       page.waitForURL((url) => url.pathname === next),
-      page.locator('button[type="submit"]').click(),
+      page.locator(LOGIN_SUBMIT).click(),
     ]);
     await expect(page.getByRole("article")).toHaveCount(target.clipCount);
   });

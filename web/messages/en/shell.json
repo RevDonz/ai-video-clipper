@@ -1,1 +1,22 @@
-{}
+{
+  "skip": "Skip to content",
+  "menu": "Menu",
+  "nav": {
+    "create": "Create clips",
+    "projects": "Projects",
+    "social": "Social",
+    "analytics": "Analytics",
+    "trends": "Trends",
+    "settings": "Settings",
+    "admin": "Admin",
+    "help": "Help"
+  },
+  "account": {
+    "title": "Account",
+    "named": "Account {name}",
+    "language": "Language",
+    "shortcuts": "Single-key shortcuts",
+    "search": "Search",
+    "logout": "Sign out"
+  }
+}

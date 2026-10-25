@@ -69,12 +69,13 @@ export default defineConfig({
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"], locale: "id-ID", uiLocale: "id" } },
     {
       name: "mobile-chromium",
-      testMatch: /(?:read-only|smoke)\.spec\.mjs/,
+      // The shell on a touch phone too (05-ui-dashboard.md §8.2): Menu drawer, account menu, names.
+      testMatch: /(?:read-only|smoke|app-shell|aria-names)\.spec\.mjs/,
       use: { ...devices["Pixel 7"], locale: "id-ID", uiLocale: "id" },
     },
     ...(enSmoke ? [{
       name: "en-smoke",
-      testMatch: /(?:smoke|read-only|app-shell|i18n-locale)\.spec\.mjs/,
+      testMatch: /(?:smoke|read-only|app-shell|i18n-locale|aria-names)\.spec\.mjs/,
       use: { ...devices["Desktop Chrome"], locale: "en-US", uiLocale: "en" },
     }] : []),
   ],

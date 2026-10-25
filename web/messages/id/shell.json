@@ -1,1 +1,22 @@
-{}
+{
+  "skip": "Langsung ke isi",
+  "menu": "Menu",
+  "nav": {
+    "create": "Buat klip",
+    "projects": "Proyek",
+    "social": "Sosial",
+    "analytics": "Analitik",
+    "trends": "Tren",
+    "settings": "Pengaturan",
+    "admin": "Admin",
+    "help": "Bantuan"
+  },
+  "account": {
+    "title": "Akun",
+    "named": "Akun {name}",
+    "language": "Bahasa",
+    "shortcuts": "Pintasan satu tombol",
+    "search": "Cari",
+    "logout": "Keluar"
+  }
+}

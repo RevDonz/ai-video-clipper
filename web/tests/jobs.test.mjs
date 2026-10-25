@@ -503,8 +503,13 @@ test("session authentication persists with a signed cookie and fails closed", ()
 test("login form exposes password-manager compatible semantics", async () => {
   const source = await readFile(new URL("../app/login/page.jsx", import.meta.url), "utf8");
   assert.match(source, /autoComplete="on"/);
-  assert.match(source, /name="username"[^>]+autoComplete="username"/);
-  assert.match(source, /name="password"[^>]+autoComplete="current-password"/);
+  // The name sits on the field (HeroUI TextField hands it to its input), the autocomplete hint on
+  // that field's own input: both inside the same field, and each field with only its own hint.
+  const field = (name) => source.match(new RegExp(`<TextField name="${name}"[^>]*>([\\s\\S]*?)</TextField>`))?.[1];
+  assert.match(field("username") ?? "", /<Input [^>]*autoComplete="username"/);
+  assert.match(field("password") ?? "", /<Input [^>]*autoComplete="current-password"/);
+  assert.doesNotMatch(field("username") ?? "", /current-password/);
+  assert.doesNotMatch(field("password") ?? "", /autoComplete="username"/);
 });
 
 test("public landing and protected dashboard use separate routes", async () => {
