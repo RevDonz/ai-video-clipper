@@ -383,5 +383,37 @@ memakai default sampai tenggatnya (08 §7).
 toolchain baru dibuat lewat `gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`, lalu
 `docs/editor/evidence/toolchain/record.json` yang bercap di-commit.
 
+**Fase 1** (fondasi UI + i18n + shell + pemilih bahasa; status 2026-10-25). Permintaan pemilik:
+satu PR gabungan per fase, tes berat sekali di akhir fase.
+- Sudah di `main`: Dashboard F0 (#41: `ui.css`, HeroUI di atas token, `PublicCard`, `Providers`)
+  dan i18n M0 (#43: katalog `web/messages/{id,en}`, resolusi locale, `generateMetadata`, HTML
+  `private, no-store`, `POTONGIN_LOCALES`, catatan cache HTML di `deploy/VM_NGINX_CLOUDFLARE.md`).
+- Di PR #44 (branch `feat/f1-shell`, belum di-merge):
+  - Dashboard F1: `NavList` datar, Drawer di bawah 1024 px, menu akun, Keluar lewat form
+    tersembunyi, saklar "Pintasan satu tombol" (cookie `potongin_shortcuts`).
+  - i18n M1: `POST /api/locale` (publik, dikecualikan dari `proxy.js`, origin + 20/menit per IP
+    + body ≤ 1 KiB, form → 303, `?bahasa=gagal` bila ditolak); pemilih bahasa di menu akun (2 klik,
+    muat ulang penuh) dan di `/login` (form native, jalan tanpa JS); `/login` jadi satu kartu
+    `PublicCard` dengan field HeroUI (nama field sama); 404 dan halaman error dari katalog; tes
+    baru `locale-route`, `route-guard-coverage` (allowlist awal beralasan), `measure-ttfb`;
+    ratchet `i18n-hardcoded` = 0 untuk `AppShell`, login, not-found, error.
+  - Pemilih bahasa hanya tampil bila `POTONGIN_LOCALES` memuat lebih dari satu bahasa; produksi
+    tetap `id`, jadi pengguna produksi tidak melihat perubahan bahasa sampai pemilik
+    menyalakannya.
+- Sisa sebelum merge (agen gerbang, sekali di akhir fase, di GitHub Actions): `ci-cd.yml`,
+  `editor-gates.yml -f suite=full` dan `-f suite=image`, e2e `desktop-chromium`,
+  `mobile-chromium` dan `en-smoke` (shell + login), CSS editor hasil build identik byte dan
+  kenaikan JS rute editor tercatat, TTFB `/`, `/dashboard`, `/login` sebelum/sesudah
+  (`gh workflow run editor-gates.yml --ref feat/f1-shell -f suite=e2e -f ttfb=true -f ref=main`,
+  lalu `-f ref=feat/f1-shell`; angkanya dicatat di badan PR #44), screenshot shell.
+- Untuk pemilik: review copy `en` baru (`web/messages/en/auth.json`, `common.json`,
+  `shell.json` `account.language`); izin merge PR #44; pilihan menyalakan `id,en` di produksi
+  sebagai pratinjau (boleh sampai undangan anggota pertama di Fase 6).
+- Diputuskan atas delegasi pemilik (rinci di badan PR #44): pesan batas login tetap kalimat lama
+  (`auth.login.limited`, bukan `errors.web.rate_limited` yang generik); halaman error tidak
+  menampilkan `digest`; teks 404/error ada di `common.page` (subtree inti `errors` tetap `web` +
+  `http`); tautan "Buka Riwayat" menjadi "Buka Proyek" mengikuti nama baru di navigasi; menu akun
+  tidak memberi tanda bila ganti bahasa ditolak (hanya terjadi saat batas 20/menit habis).
+
 Sampai fase yang bersangkutan selesai, UI tetap seperti di `main`; `DESIGN.md` menandai setiap
 pola sasaran dengan fase mulai berlakunya.
