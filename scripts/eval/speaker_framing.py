@@ -89,6 +89,9 @@ GATES = {
     "clip_points": 0.10,
 }
 BOOTSTRAP = 2000
+# Otomatis (rombak 04 §A9, RF-M4): the speaker error of the multi set, counted on the steps
+# Otomatis frames with the camera, at most 1 point above today's 20.7 %. Set before the run.
+AUTO_CAMERA_MULTI_MAX = 0.217
 
 
 # --- downloads ---------------------------------------------------------------------------------
@@ -297,9 +300,10 @@ def ground_truth(steps: dict[int, dict[str, tuple]], clip: dict[str, Any]) -> li
 
 
 def misses(truth: Sequence[Sequence[float]], times: Sequence[float],
-           centres: Sequence[float | None], cuts: Sequence[bool], size: tuple[int, int]
-           ) -> tuple[int, int]:
-    """``(missed, speech)`` steps for a raw track, framed as the camera plan frames it."""
+           centres: Sequence[float | None], cuts: Sequence[bool], size: tuple[int, int],
+           *, only: Sequence[bool] | None = None) -> tuple[int, int]:
+    """``(missed, speech)`` steps for a raw track, framed as the camera plan frames it. With
+    ``only``, just the steps it marks count (Otomatis: the steps of ``camera`` shots)."""
     smoothed = smooth_face_track(list(centres), cuts=list(cuts))
     plan = {"samples": [[round(t * 1000), round(c * 1000)] for t, c in zip(times, smoothed,
                                                                          strict=True)],
@@ -308,8 +312,11 @@ def misses(truth: Sequence[Sequence[float]], times: Sequence[float],
     xs = crop_positions(plan, Fps(STEPS_PER_SECOND, 1), source=size, output=OUTPUT, first_sf=0,
                         count=len(truth))
     missed = speech = 0
-    for speakers, x in zip(truth, xs, strict=True):
-        if not speakers:
+    marks = [True] * len(truth) if only is None else list(only)
+    if len(marks) != len(truth):
+        raise ValueError("one mark per step")
+    for speakers, x, counted in zip(truth, xs, marks, strict=True):
+        if not speakers or not counted:
             continue
         speech += 1
         low, high = x / scaled, (x + OUTPUT[0]) / scaled
@@ -326,7 +333,50 @@ def movement(centres: Sequence[float | None], cuts: Sequence[bool]) -> tuple[int
     return sum(1 for flag in cuts[1:] if flag), pans
 
 
-def measure(path: Path, truth: list[list[float]], duration: float) -> dict[str, Any]:
+def camera_steps(ranges: Sequence[dict[str, Any]], fps: Sequence[int], *, count: int
+                 ) -> list[bool]:
+    """Per 0.1 s step from the window start: whether Otomatis frames it with the camera (the
+    range holding the step's first grid frame is ``camera``)."""
+    from ai_clipper.edit_v2 import timemap
+
+    grid = Fps(*fps)
+    edges = [(int(r["in_sf"]), int(r["out_sf"]), r["mode"]) for r in ranges]
+    out = []
+    for k in range(count):
+        sf = timemap.sf_floor(k * 1000 // STEPS_PER_SECOND, grid)
+        out.append(any(a <= sf < b and mode == "camera" for a, b, mode in edges))
+    return out
+
+
+def _document_fps(path: Path) -> tuple[int, int]:
+    """The document frame rate of a source (``edit_v2.seed.output_fps`` of its probed rate)."""
+    from ai_clipper.edit_v2.seed import output_fps
+
+    out = subprocess.run(
+        [shutil.which("ffprobe") or "ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True, timeout=120, check=True)
+    num, _slash, den = out.stdout.strip().split(",")[0].partition("/")
+    fps = output_fps({"fps_native": (int(num), int(den or 1)), "vfr": False})
+    return fps.num, fps.den
+
+
+def auto_camera(path: Path, duration: float) -> tuple[list[dict[str, Any]], tuple[int, int]]:
+    """The shot ranges Otomatis plans for the window (``shots.prepare_auto`` with the
+    committed rules) and the document frame rate they are on."""
+    from ai_clipper.edit_v2 import shots
+
+    fps = _document_fps(path)
+    _camera, plan = shots.prepare_auto(path, (0, round(duration * 1000)), Fps(*fps),
+                                       output=OUTPUT)
+    first = plan["shots"][0]["in_sf"] if plan["shots"] else 0
+    ranges = [{"in_sf": s["in_sf"] - first, "out_sf": s["out_sf"] - first, "mode": s["mode"]}
+              for s in plan["shots"]]
+    return ranges, fps
+
+
+def measure(path: Path, truth: list[list[float]], duration: float, *, auto: bool = False
+            ) -> dict[str, Any]:
     began = time.perf_counter()
     haar = haar_window(path, start=0.0, end=duration)
     haar_s = time.perf_counter() - began
@@ -350,6 +400,13 @@ def measure(path: Path, truth: list[list[float]], duration: float) -> dict[str, 
         result[name] = {"missed": missed, "speech": speech, "cuts": jumps, "pans": pans,
                         "framed": sum(1 for c in track if c is not None)}
     result["samples"] = len(scan.times)
+    if auto:
+        ranges, fps = auto_camera(path, duration)
+        only = camera_steps(ranges, fps, count=len(truth))
+        missed, speech = misses(truth, scan.times, centres, speaker_cuts, size, only=only)
+        result["auto_camera"] = {"missed": missed, "speech": speech,
+                                 "camera_steps": sum(only), "steps": len(only),
+                                 "modes": sorted({r["mode"] for r in ranges})}
     return result
 
 
@@ -407,12 +464,22 @@ def summarise(rows: Sequence[dict]) -> dict[str, Any]:
                                       <= single["error"]["haar"] + GATES["single_tolerance"])
     checks["clip_ratio"] = len(better) >= GATES["clip_ratio"] * len(worse)
     checks["time"] = seconds["speaker"] <= seconds["haar"]
-    return {"kinds": kinds, "better_windows": better, "worse_windows": worse,
-            "seconds": {m: round(v, 2) for m, v in seconds.items()}, "gates": GATES,
-            "checks": checks, "pass": bool(checks) and all(checks.values())}
+    out = {"kinds": kinds, "better_windows": better, "worse_windows": worse,
+           "seconds": {m: round(v, 2) for m, v in seconds.items()}, "gates": GATES,
+           "checks": checks, "pass": bool(checks) and all(checks.values())}
+    measured = [row for row in rows if row["kind"] == "multi" and "auto_camera" in row]
+    if measured:
+        error = _error(measured, "auto_camera")
+        out["auto_reframe"] = {
+            "windows": len(measured), "multi_error": error, "max": AUTO_CAMERA_MULTI_MAX,
+            "camera_share": sum(r["auto_camera"]["camera_steps"] for r in measured)
+            / max(1, sum(r["auto_camera"]["steps"] for r in measured)),
+            "pass": error is not None and error <= AUTO_CAMERA_MULTI_MAX}
+    return out
 
 
-def run(set_file: Path, cache: Path, *, limit: int | None, kinds: Sequence[str]) -> dict:
+def run(set_file: Path, cache: Path, *, limit: int | None, kinds: Sequence[str],
+        auto: bool = False) -> dict:
     document = json.loads(set_file.read_text(encoding="utf-8"))
     archive = annotations_archive(cache, document["split"])
     annotations = read_annotations(archive)
@@ -426,7 +493,7 @@ def run(set_file: Path, cache: Path, *, limit: int | None, kinds: Sequence[str])
             continue
         truth = ground_truth(annotations[clip["video"]], clip)
         row = {"id": clip["id"], "kind": clip["kind"], "duration": clip["duration"],
-               **measure(path, truth, clip["duration"])}
+               **measure(path, truth, clip["duration"], auto=auto)}
         rows.append(row)
         print(f"{clip['id']:<24} haar {row['haar']['missed']:>3} largest "
               f"{row['largest']['missed']:>3} speaker {row['speaker']['missed']:>3} "
@@ -479,6 +546,8 @@ def _print_summary(summary: dict[str, Any]) -> None:
     print(f"windows better by > 10 points: {len(summary['better_windows'])}, worse: "
           f"{len(summary['worse_windows'])} {summary['worse_windows']}")
     print(f"seconds: {summary['seconds']}; checks: {summary['checks']}; pass: {summary['pass']}")
+    if "auto_reframe" in summary:
+        print(f"otomatis camera frames, multi: {summary['auto_reframe']}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -498,6 +567,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     go.add_argument("--out", type=Path)
     go.add_argument("--limit", type=int)
     go.add_argument("--kind", action="append", choices=("multi", "single"))
+    go.add_argument("--auto", action="store_true",
+                    help="also plan Otomatis per window and count its camera frames (RF-M4)")
     clock = commands.add_parser("time")
     clock.add_argument("--source", type=Path, required=True)
     clock.add_argument("--window", type=float, default=180.0)
@@ -524,12 +595,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"{clip_id}: {status}", flush=True)
         return 1 if failed else 0
     if args.command == "run":
-        result = run(args.set, args.cache, limit=args.limit, kinds=args.kind or ("multi", "single"))
+        result = run(args.set, args.cache, limit=args.limit, kinds=args.kind or ("multi", "single"),
+                     auto=args.auto)
         _print_summary(result["summary"])
         if args.out:
             args.out.parent.mkdir(parents=True, exist_ok=True)
             args.out.write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
-        return 0 if result["summary"]["pass"] else 1
+        auto = result["summary"].get("auto_reframe", {"pass": True})
+        return 0 if result["summary"]["pass"] and auto["pass"] else 1
     result = timing(args.source, window=args.window, start=args.start)
     print(json.dumps(result, indent=1))
     if args.out:
