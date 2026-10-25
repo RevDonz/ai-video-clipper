@@ -293,6 +293,11 @@ FOCUS_QUALITY_GAP = 1.0
 # a tail touching it); the first reason of a typed range's clip.
 RANGE_OVERLAP_SECONDS = 0.5
 MANUAL_REASON = "Rentang waktu yang kamu ketik: {label}."
+# The reasons this module adds; ai_clipper.reason_codes reads each back as its code (07 §10.4).
+COLD_OPEN_REASON = "Cold open: kalimat hook ({length} detik) diputar lebih dulu."
+HEURISTIC_FILL_REASON = "Pengisi dari heuristik karena momen LLM kurang."
+TREND_REASON = "tren: {title}"
+SENSITIVE_TREND_REASON = "tren: {title} (sensitif)"
 _TOLERANCE = 1e-6
 _TIME_DIGITS = 3
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
@@ -771,7 +776,7 @@ def _trend_hashtags(
 
 def _trend_reasons(reasons: tuple[str, ...], grounded: Sequence[TrendItem]) -> tuple[str, ...]:
     notes = [
-        f"tren: {item.title}" + (" (sensitif)" if item.sensitive else "")
+        (SENSITIVE_TREND_REASON if item.sensitive else TREND_REASON).format(title=item.title)
         for item in grounded[:MAX_TREND_REASONS]
     ]
     if not notes:
@@ -1052,13 +1057,11 @@ def _selected(
     reasons = proposal.reasons
     if cold_open is not None:
         length = f"{cold_open[1] - cold_open[0]:.1f}".replace(".", ",")
-        reasons = _with_reason(
-            reasons, f"Cold open: kalimat hook ({length} detik) diputar lebih dulu."
-        )
+        reasons = _with_reason(reasons, COLD_OPEN_REASON.format(length=length))
     if filler and focus is not None and item.part == "literal":
         reasons = _with_reason(reasons, FOCUS_FILL_REASON)  # taken first for the focus
     elif filler:
-        reasons = _with_reason(reasons, "Pengisi dari heuristik karena momen LLM kurang.")
+        reasons = _with_reason(reasons, HEURISTIC_FILL_REASON)
     text = " ".join(
         " ".join(unit.text.split()) for unit in units[span.start_unit : span.end_unit + 1]
     )

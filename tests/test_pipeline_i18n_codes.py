@@ -1,7 +1,9 @@
-"""Stage codes on the pipeline's progress (rombak 07 §10.4, i18n M5).
+"""Codes beside the pipeline's Indonesian prose (rombak 07 §10.4, i18n M5).
 
 A progress callback that takes ``code`` and ``params`` gets the stage code of every report (the
 CLI writes them as ``stage_code``/``stage_params``); a three-argument callback is called as before.
+Every V3 manifest clip has ``reason_codes`` (one per reason) and, when a warning names it,
+``warning_codes``.
 """
 
 from __future__ import annotations
@@ -12,13 +14,16 @@ from test_pipeline_v3 import (  # the V3 pipeline fixture: fakes for every exter
     ForbiddenWhisper,
     env,  # noqa: F401 - pytest fixture
     manifest_of,
+    result,
     run,
     segments,
+    selected,
 )
 
 import ai_clipper.pipeline as pipeline_module
-from ai_clipper.i18n_codes import STAGE_CODES
+from ai_clipper.i18n_codes import REASON_CODES, STAGE_CODES, clip_warning_codes
 from ai_clipper.models import Transcription
+from ai_clipper.reason_codes import reason_code
 from ai_clipper.time_ranges import TimeRange
 
 
@@ -148,3 +153,63 @@ def test_cli_writes_stage_code_and_params_beside_the_detail(monkeypatch, tmp_pat
         },
         {"stage": "audio", "progress": 59, "detail": "Teks tanpa kode"},
     ]
+
+
+# --- reason_codes and warning_codes on the manifest clips ------------------------------------
+
+
+def test_heuristic_clips_carry_one_reason_code_per_reason(env):  # noqa: F811
+    manifest = manifest_of(run(env))
+
+    assert manifest["clips"]
+    for clip in manifest["clips"]:
+        assert clip["selection_source"] == "heuristic"
+        coded = clip["reason_codes"]
+        assert len(coded) == len(clip["reasons"])
+        assert coded == [reason_code(reason) for reason in clip["reasons"]]
+        assert all(entry["code"] in REASON_CODES for entry in coded), coded
+        assert "warning_codes" not in clip
+
+
+def test_an_llm_reason_is_text_shown_as_written(env, monkeypatch):  # noqa: F811
+    reasons = ("Alasan kuat.", "Peringkat ulang LLM: 8,0/10")
+    chosen = result(selected(1, 100.0, 130.0, reasons=reasons))
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: chosen)
+
+    [clip] = manifest_of(run(env))["clips"]
+
+    assert clip["reasons"] == list(reasons)
+    assert clip["reason_codes"] == [
+        {"code": "text", "params": {"text": "Alasan kuat."}},
+        {"code": "llm_rerank", "params": {"score": 8.0}},
+    ]
+
+
+def test_a_clip_without_a_poster_names_it_in_its_warning_codes(env, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(
+        pipeline_module,
+        "select_clips_v3",
+        lambda *a, **k: result(selected(1, 100.0, 130.0), selected(2, 200.0, 230.0)),
+    )
+
+    def flaky(clip, *, duration, at=None):
+        if clip.name == "clip-02.mp4":
+            raise pipeline_module.ThumbnailError("FFmpeg thumbnail failed")
+        return clip.with_suffix(".jpg")
+
+    monkeypatch.setattr(pipeline_module, "write_clip_thumbnail", flaky)
+
+    first, second = manifest_of(run(env, max_duration=60.0, limit=2))["clips"]
+
+    assert "warning_codes" not in first
+    assert second["warning_codes"] == [{"code": "thumbnail_failed", "params": {"clip": 2}}]
+
+
+def test_clip_warning_codes_only_take_the_warnings_of_that_clip():
+    warnings = ["thumbnail_failed:1", "thumbnail_failed:12", "clip_failed:1", "engine_fallback:1",
+                "clip_trimmed_to_media:1", "few_clips:1", "auto_reframe_failed:1"]  # fmt: skip
+    assert clip_warning_codes(warnings, 1) == [
+        {"code": "thumbnail_failed", "params": {"clip": 1}},
+        {"code": "auto_reframe_failed", "params": {"clip": 1}},
+    ]
+    assert clip_warning_codes(warnings, 3) == []
