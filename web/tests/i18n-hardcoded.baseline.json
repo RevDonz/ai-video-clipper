@@ -39,7 +39,6 @@
   "components/editor/panels/TransitionSection.jsx": 5,
   "components/editor/panels/WatermarkSection.jsx": 9,
   "components/editor/quick/CaptionCard.jsx": 3,
-  "components/editor/quick/CaptionLinesCard.jsx": 6,
   "components/editor/quick/CardPlaceholder.jsx": 2,
   "components/editor/quick/ColdOpenCard.jsx": 10,
   "components/editor/quick/ExtrasCard.jsx": 22,

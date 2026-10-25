@@ -28,6 +28,10 @@ const SHORTCUTS = Object.freeze({
 // The three actions that take the primary place in turn; the other two go to the menu.
 const CUT_ACTIONS = Object.freeze(["remove", "restore", "extend"]);
 const MENU_FIRST = Object.freeze(["edit", "hide", "trimStart", "trimEnd"]);
+// The one-layout editor's toolbar (rombak 06 §6): the cut actions that apply, then these on the
+// bar, and the rest behind ⋯.
+const SHELL_BAR = Object.freeze(["edit", "trimStart", "trimEnd"]);
+const SHELL_MENU = Object.freeze(["emphasis", "hide", "coldOpen"]);
 // Keys that act on the selection from the toolbar as they do from the words list.
 const TOOLBAR_ACTIONS = new Set(["trimStart", "trimEnd", "hide", "emphasis", "coldOpen"]);
 
@@ -43,14 +47,30 @@ const entryOf = (actions, name) => {
   return { enabled: Boolean(entry.enabled), reason: entry.enabled ? null : entry.reason ?? null };
 };
 
+// The one-layout bar: Hapus, Pulihkan and Perpanjang ke sini where they apply (a cut action that
+// does not apply is left out, 06 §2.2 rule 6), or the primary one, off with its reason, when none
+// does; then Edit kata, Mulai di sini and Akhiri di sini.
+function shellButtons(actions, primary) {
+  const cuts = CUT_ACTIONS.filter((name) => entryOf(actions, name).enabled);
+  return [...(cuts.length ? cuts : [primary]), ...SHELL_BAR].map((name) => ({
+    name,
+    label: ACTION_LABELS[name],
+    shortcut: SHORTCUTS[name] ?? null,
+    ...entryOf(actions, name),
+    primary: name === primary,
+    pressed: undefined,
+  }));
+}
+
 /**
  * The toolbar's buttons in order: the primary action, "Jadikan cold open", "Kata kunci" (the
  * menu button follows them). Each `{ name, label, shortcut, enabled, reason, primary, pressed }`;
- * none without a selection.
+ * none without a selection. `layout: "shell"` gives the one-layout editor's bar (shellButtons).
  */
-export function toolbarButtons(actions) {
+export function toolbarButtons(actions, { layout = "legacy" } = {}) {
   if (!actions?.range) return [];
   const primary = primaryAction(actions);
+  if (layout === "shell") return shellButtons(actions, primary);
   return [primary, "coldOpen", "emphasis"].map((name) => ({
     name,
     label: ACTION_LABELS[name],
@@ -66,11 +86,22 @@ export function toolbarButtons(actions) {
  * The "Lainnya" menu in its fixed order: Edit kata, Sembunyikan dari caption (a checkbox item),
  * Mulai di sini, Akhiri di sini, then the two of Hapus, Pulihkan and Perpanjang ke sini that are
  * not primary. Items in the `ui/MenuButton` shape without `onSelect`: `{ id, label, shortcut,
- * disabled, reason, checked? }`.
+ * disabled, reason, checked? }`. `layout: "shell"`: Kata kunci, Sembunyikan dari caption, Jadikan
+ * cold open.
  */
-export function menuItems(actions) {
+export function menuItems(actions, { layout = "legacy" } = {}) {
   if (!actions?.range) return [];
   const primary = primaryAction(actions);
+  if (layout === "shell") {
+    // Kata kunci and Sembunyikan dari caption are checkbox items, checked while every selected
+    // word has it; Jadikan cold open is a plain item.
+    return SHELL_MENU.map((name) => {
+      const { enabled, reason } = entryOf(actions, name);
+      const item = { id: name, label: ACTION_LABELS[name], shortcut: SHORTCUTS[name], disabled: !enabled, reason };
+      if (name === "hide" || name === "emphasis") item.checked = !actions[name].on;
+      return item;
+    });
+  }
   const names = [...MENU_FIRST, ...CUT_ACTIONS.filter((name) => name !== primary)];
   return names.map((name) => {
     const { enabled, reason } = entryOf(actions, name);

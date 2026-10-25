@@ -15,6 +15,7 @@ import {
 import { useTranslations } from "use-intl";
 
 import { clipEntryView } from "../../../lib/clip-entry-view.mjs";
+import tokens from "../editor.module.css";
 import styles from "./editor-shell.module.css";
 
 const NARROW = "(max-width: 1279px)";
@@ -117,7 +118,8 @@ export default function ClipList({ jobId, clips, clipId, onOpen, onDrawerChange 
     <div className={styles.clipRail}>
       <DialogTrigger isOpen={open} onOpenChange={changeOpen}>
         <Button className={styles.clipRailButton}>{t("open")}</Button>
-        <ModalOverlay className={styles.drawerBackdrop} isDismissable>
+        {/* Portalled to <body>, outside the editor root: it carries the editor's size tokens itself. */}
+        <ModalOverlay className={`${tokens.tokens} ${styles.drawerBackdrop}`} isDismissable>
           <Modal className={styles.drawerPanel}>
             <Dialog className={styles.drawerDialog}>
               {({ close }) => (

@@ -100,8 +100,12 @@ test("Kata | Baris is a React Aria ToggleButtonGroup; the drawer a React Aria mo
   // Its close button is named from the catalog, not HeroUI's English default.
   assert.doesNotMatch(drawer, /@heroui\/react/);
   assert.match(drawer, /useTranslations\("aria"\)/);
-  assert.match(drawer, /CleanupReview/);
-  assert.match(drawer, /SpellingReview/);
+  // The transcript hands it the same two lists the old shell shows inline.
+  const panel = code(read(TRANSCRIPT, "TranscriptPanel.jsx"));
+  const drawn = panel.slice(panel.indexOf("<ReviewDrawer"), panel.indexOf("/>", panel.indexOf("<SpellingReview", panel.indexOf("<ReviewDrawer"))));
+  assert.match(drawn, /cleanup=\{cleanupList\}/);
+  assert.match(panel, /const cleanupList = \(\s*<CleanupReview\b/);
+  assert.match(drawn, /spelling=\{<div[^>]*><SpellingReview\b/);
 });
 
 test("the Caption lines card of the old shell now renders LinesView: the lines are moved, not copied", () => {
@@ -128,11 +132,12 @@ test("the one-layout editor hands the transcript its view, the frame bus and the
   const app = code(read("components", "editor", "EditorApp.jsx"));
   const v2 = app.slice(app.indexOf("if (oneLayout) {"), app.indexOf("return (", app.indexOf("if (oneLayout) {") + 400));
   assert.match(v2, /<Transcript\b[^>]*\blayout="shell"/);
-  assert.match(v2, /\bmode=\{transcriptMode\}/);
-  assert.match(v2, /\bonModeChange=\{setTranscriptMode\}/);
+  assert.match(v2, /\bmode=\{transcriptView\}/);
+  assert.match(v2, /\bonModeChange=\{setTranscriptView\}/);
   assert.match(v2, /\bframeBus=\{frameBus\}/);
   assert.match(v2, /\bonReviewChange=\{setReviewOpen\}/);
-  assert.match(app, /useState\(\(\) => transcriptMode\(openingState\?\.transcript\)\)/, "?card=lines opens Baris");
+  assert.match(app, /\[transcriptView, setTranscriptView\] = useState\(\(\) => transcriptMode\(openingState\?\.transcript\)\)/,
+    "?card=lines opens Baris");
   // The drawer is a modal: the editor's global keys wait while it is open.
   assert.match(app, /const modalOpen = [^;]*\breviewOpen\b/);
 });

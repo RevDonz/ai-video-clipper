@@ -5,7 +5,9 @@
 // selected line (below the last one when the space above is short), never over the selection,
 // with the contextual primary action, "Jadikan cold open", "Kata kunci" and the "Lainnya" menu
 // (word-toolbar.mjs decides what each holds). Every action goes through the panel's `onAction`,
-// which runs the same `commandsFor` as the keyboard.
+// which runs the same `commandsFor` as the keyboard. `layout="shell"` is the one-layout editor's
+// bar (rombak 06 §6): the cut actions that apply, Edit kata, Mulai and Akhiri di sini, and Kata
+// kunci, Sembunyikan dari caption and Jadikan cold open in the menu.
 //
 // Keys: one tab stop (roving tabIndex); ←/→ move between the controls, Home/End go to the ends;
 // Esc and Shift+Tab return to the words with the selection kept; I, O and the selection's
@@ -28,7 +30,7 @@ function scrollParent(element) {
   return null;
 }
 
-export default function WordToolbar({ actions, onAction, onLeave, boxRef, headerRef, controlRef, range, model }) {
+export default function WordToolbar({ actions, onAction, onLeave, boxRef, headerRef, controlRef, range, model, layout = "legacy" }) {
   const rootRef = useRef(null);
   const buttonRefs = useRef([]);
   const menuRef = useRef(null);
@@ -36,8 +38,8 @@ export default function WordToolbar({ actions, onAction, onLeave, boxRef, header
   const [active, setActive] = useState(0);
   const [align, setAlign] = useState("end");
   const id = useId();
-  const buttons = toolbarButtons(actions);
-  const items = menuItems(actions).map((item) => ({ ...item, onSelect: () => onAction(item.id) }));
+  const buttons = toolbarButtons(actions, { layout });
+  const items = menuItems(actions, { layout }).map((item) => ({ ...item, onSelect: () => onAction(item.id) }));
   const count = buttons.length + 1;
   const first = range?.[0] ?? -1;
   const last = range?.[1] ?? -1;
