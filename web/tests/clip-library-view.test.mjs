@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { projectSource } from "./support/screen-sources.mjs";
+
 import {
   HISTORY_VIEW_KEY,
   ClipLibraryLoadError,
@@ -216,7 +218,7 @@ test("Riwayat switches between 'Proyek' and 'Klip' and remembers the choice", as
   assert.match(library, /<PosterThumb\b/);
   assert.doesNotMatch(library, /\bhot\b|viral/i);
   // The project page and the clip grid draw the same poster.
-  const project = await read("app/projects/[id]/page.jsx");
+  const project = await projectSource();
   assert.match(project, /<PosterThumb\b/);
   assert.match(project, /<PosterText\b/);
   assert.match(project, /clipFromParam\(/);

@@ -21,6 +21,7 @@ const FILTERS = Object.freeze([
   Object.freeze({ value: "all", label: "Semua", empty: "Belum ada klip." }),
   Object.freeze({ value: "high", label: "Skor 8+", empty: "Belum ada klip dengan skor 8 atau lebih." }),
   Object.freeze({ value: "edited", label: "Diedit", empty: "Belum ada klip yang diedit." }),
+  Object.freeze({ value: "outsideFocus", label: "Di luar fokus", empty: "Semua klip cocok dengan fokus." }),
 ]);
 
 /** The total as the pill shows it (one decimal), so the mark and the number always agree; else null. */
@@ -75,14 +76,16 @@ export function editedIndexes(clips, entryFor) {
  * The filter chips with their counts, the active one and the clips the grid shows. "Skor 8+"
  * needs a scored clip (a project made before the current selection has none), "Diedit" the
  * `edited` set from editedIndexes; with neither the chips are hidden and every clip shows. A
- * chip that is not offered reads as "Semua".
+ * chip that is not offered reads as "Semua". "Di luar fokus" takes the `outside` set of clip
+ * numbers (a project with Fokus klip) and shows only when a clip is in it.
  */
-export function clipFilterView(clips, filter, edited = null) {
+export function clipFilterView(clips, filter, edited = null, outside = null) {
   const list = Array.isArray(clips) ? clips : [];
   const shown = {
     all: list,
     high: list.some((clip) => scorePill(clip) !== null) ? list.filter(isHighScore) : null,
     edited: edited instanceof Set ? list.filter((clip) => edited.has(clip.index)) : null,
+    outsideFocus: outside instanceof Set && outside.size > 0 ? list.filter((clip) => outside.has(clip.index)) : null,
   };
   const offered = FILTERS.filter((item) => shown[item.value] !== null);
   const active = offered.some((item) => item.value === filter) ? filter : "all";
@@ -97,6 +100,31 @@ export function clipFilterView(clips, filter, edited = null) {
     })),
     visible: shown[active],
   };
+}
+
+/**
+ * The grid's order (05 §6.4, Terbaik | Urutan video): "best" by the shown score, highest first
+ * (unscored clips after); "timeline" by where the clip starts in the video. The clip number
+ * breaks ties. Returns a copy; the job's list is not changed.
+ */
+export function sortClips(clips, sort) {
+  const list = Array.isArray(clips) ? [...clips] : [];
+  const byIndex = (a, b) => (a?.index ?? 0) - (b?.index ?? 0);
+  if (sort === "timeline") {
+    const start = (clip) => (Number.isFinite(clip?.sourceStart) ? clip.sourceStart : Number.isFinite(clip?.start) ? clip.start : Number.MAX_VALUE);
+    return list.sort((a, b) => start(a) - start(b) || byIndex(a, b));
+  }
+  const score = (clip) => shownScore(clip) ?? -1;
+  return list.sort((a, b) => score(b) - score(a) || byIndex(a, b));
+}
+
+/** The query string with `?klip=N` set (a number) or removed (null), the rest kept. */
+export function withClipParam(search, index) {
+  const params = new URLSearchParams(search ?? "");
+  if (Number.isSafeInteger(index) && index > 0) params.set("klip", String(index));
+  else params.delete("klip");
+  const text = params.toString();
+  return text ? `?${text}` : "";
 }
 
 /** The line an empty filter shows. */

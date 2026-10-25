@@ -9,6 +9,8 @@ import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+
+import { projectSource } from "./support/screen-sources.mjs";
 import { promisify } from "node:util";
 
 import { parseJobFormOptions } from "../app/api/jobs/route.js";
@@ -296,6 +298,6 @@ test("the dashboard field and the project chip are wired", async () => {
   assert.match(dashboard, /htmlFor="time-ranges"/);
   assert.match(dashboard, /data\.set\("timeRanges"/);
   assert.match(dashboard, /timeRanges: "time-ranges"/, "the field takes focus when it is the first problem");
-  const project = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  const project = await projectSource();
   assert.match(project, /clipRangeChip\(clip\)/);
 });

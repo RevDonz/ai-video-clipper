@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { projectSource } from "./support/screen-sources.mjs";
+
 import {
   CLIP_TEXT_COPY,
   CLIP_TEXT_EDIT_LIMITS,
@@ -149,8 +151,9 @@ test("the words on screen are short Indonesian with no version label", () => {
   }
 });
 
-test("the detail panel edits the clip it shows and hands the saved clip to the page", async () => {
-  const page = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+test("the clip viewer edits the clip it shows and hands the saved clip to the page", async () => {
+  // The project page's files: the page keeps the job, the viewer holds the caption box.
+  const page = await projectSource();
   assert.match(page, /<ClipText key=\{`text-\$\{clip\.index\}`\}/);
   assert.match(page, /onSaved=\{onClipSaved\}/);
   assert.match(page, /setJob\(\(current\) => replaceClip\(current, clip\)\)/);

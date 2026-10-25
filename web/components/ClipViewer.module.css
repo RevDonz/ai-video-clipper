@@ -1,0 +1,65 @@
+/* The clip viewer (ClipViewer.jsx): the 9:16 video beside the clip's text, actions in the footer.
+   Below 768 px the dialog fills the screen and the video sits above the text. Lime only on
+   Unduh MP4 (one primary per overlay, P1). */
+
+.container { width: 100%; }
+.dialog { width: min(980px, 100%); }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.position { margin: 0; font: 700 16px/1.3 var(--font); }
+.stepper { display: flex; align-items: center; gap: 4px; }
+.stepper span { font-size: 22px; line-height: 1; }
+/* The close trigger sits in the row with the arrows instead of over the corner. */
+.close { position: static; }
+.modalBody { min-height: 0; }
+
+.body { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  max-height: 70vh;
+  border-radius: var(--radius-m);
+  background: var(--bg);
+  object-fit: contain;
+}
+.failedFrame { display: grid; place-content: center; gap: 8px; padding: 20px; border: 1px solid var(--danger-border); background: var(--danger-bg); text-align: center; }
+.failedFrame p { margin: 0; color: var(--text); font-size: 14px; line-height: 1.5; }
+
+.details { display: grid; gap: 14px; min-width: 0; }
+.titleRow { display: flex; align-items: flex-start; gap: 8px; }
+.titleRow h3 { flex: 1; min-width: 0; margin: 0; font: 700 18px/1.35 var(--font); overflow-wrap: anywhere; }
+.copy { flex: none; }
+.score { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 4px 10px; }
+.scoreLabel { color: var(--text-muted); font-size: 13px; }
+.scoreValue { color: var(--text); font: 700 15px/1 var(--font); font-variant-numeric: tabular-nums; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.focusChip[data-focus="none"] { color: var(--warning); background: var(--warning-bg); }
+.clipNotes { display: grid; gap: 4px; margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 13px; }
+.hook { display: grid; gap: 2px; margin: 0; font-size: 15px; line-height: 1.45; }
+.hook span { color: var(--text-muted); font-size: 12px; font-weight: 600; }
+.caption { display: grid; gap: 8px; }
+.caption h4 { margin: 0; color: var(--text-muted); font: 600 13px/1.3 var(--font); }
+.captionBody { margin: 0; white-space: pre-line; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.hashtags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; color: var(--info); font-size: 14px; }
+.range { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; color: var(--text-muted); font-size: 13px; }
+.why { border-top: 1px solid var(--border); padding-top: 4px; }
+.why summary { display: flex; align-items: center; min-height: 44px; font: 600 14px/1.3 var(--font); cursor: pointer; }
+.why summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-s); }
+.why ul { display: grid; gap: 4px; margin: 0 0 8px; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+.scoreRows { display: grid; gap: 6px; margin: 0; }
+.scoreRows div { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; gap: 8px; }
+.scoreRows dt { color: var(--text-muted); font-size: 13px; }
+.scoreRows dd { display: flex; align-items: center; gap: 8px; margin: 0; }
+.bar { flex: 1; height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-3); }
+.bar i { display: block; height: 100%; background: var(--text-muted); }
+.scoreRows b { font-variant-numeric: tabular-nums; font-size: 13px; }
+
+.footer { display: block; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.editNote { color: var(--text-muted); font-size: 13px; }
+
+@media (max-width: 767px) {
+  .body { grid-template-columns: minmax(0, 1fr); }
+  .video { max-height: 56vh; margin-inline: auto; width: auto; max-width: 100%; }
+  .actions > a { flex: 1 1 auto; }
+}

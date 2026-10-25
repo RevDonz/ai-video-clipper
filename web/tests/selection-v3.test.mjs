@@ -6,6 +6,8 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 import test from "node:test";
 
+import { dashboardSource, projectSource } from "./support/screen-sources.mjs";
+
 import { parseJobFormOptions } from "../app/api/jobs/route.js";
 import { createLlmStatusHandler } from "../app/api/llm/status/route.js";
 import {
@@ -621,42 +623,52 @@ test("LLM badge view reflects the job's LLM choice and the configured status", (
 });
 
 test("dashboard sends the current selection's options without naming a mode, and reads the AI status", async () => {
-  const source = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
+  const source = await dashboardSource();
   assert.doesNotMatch(source, /AI Hook|Mode lama|Klasik V1|V2 shadow|selectionMode|clipProfile|llmMode/);
   assert.match(source, /fetch\("\/api\/llm\/status", \{ cache: "no-store"/);
   for (const field of ["coldOpen", "hookOverlay", "captionStyle"]) assert.match(source, new RegExp(`data\\.set\\("${field}"`));
-  assert.match(source, /Buka dengan kalimat terkuat/);
-  assert.match(source, /Teks hook di 4 detik pertama/);
-  assert.match(source, /aiStatusView\(aiStatus\)/);
-  assert.match(source, /clipCaptionText\(clip\)/);
+  // The Hook chip's two switches (05 §6.3): Cold open and Teks hook.
+  assert.match(source, /<OnOff selected=\{coldOpen\} onChange=\{\(on\) => updateChoices\(\{ coldOpen: on \}\)\}>\{t\("hook\.coldOpen"\)\}<\/OnOff>/);
+  assert.match(source, /<OnOff selected=\{hookOverlay\} onChange=\{\(on\) => updateChoices\(\{ hookOverlay: on \}\)\}>\{t\("hook\.text"\)\}<\/OnOff>/);
+  // The AI status is read and shown only when something needs doing (P6).
+  assert.match(source, /const ai = aiAlert\(aiStatus\);/);
+  // Captions are copied on the project page, where the clips are.
+  assert.match(await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8"), /clipCaptionText\(clip\)/);
 });
 
-test("every result video on the dashboard and project page uses the clip poster", async () => {
-  for (const page of ["../app/dashboard/page.jsx", "../app/projects/[id]/page.jsx"]) {
-    const source = await readFile(new URL(page, import.meta.url), "utf8");
-    const videos = source.match(/<video [^>]*src=\{clip\.videoUrl\}[^>]*\/>/g) || [];
-    assert.ok(videos.length > 0, page);
-    for (const video of videos) assert.match(video, /poster=\{clipPosterUrl\(clip\)\}/, `${page}: ${video}`);
-  }
+test("every result video, now only in the project page's clip viewer, uses the clip poster", async () => {
+  assert.doesNotMatch(await dashboardSource(), /<video\b/, "Buat klip shows no clips (05 §2 P4)");
+  const source = await projectSource();
+  const videos = source.match(/<video [^>]*src=\{clip\.videoUrl\}[^>]*\/>/g) || [];
+  assert.ok(videos.length > 0, "the clip viewer");
+  for (const video of videos) assert.match(video, /poster=\{clipPosterUrl\(clip\)\}/, video);
 });
 
 test("project page shows the packaging of every clip with one card and no version labels", async () => {
-  const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  const source = await projectSource();
   assert.match(source, /selectionNotices\(job\)/);
   assert.match(source, /clipScoreView\(clip\)/);
   assert.match(source, /clipReasons\(clip\)/);
   assert.match(source, /clipCaptionText\(clip\)/);
-  for (const text of ["Teks hook", "Kenapa dipilih", "Salin caption", "Dibuka kalimat terkuat", "Unduh MP4", "Subtitle SRT"]) assert.ok(source.includes(text), text);
+  const id = JSON.parse(await readFile(new URL("../messages/id/project.json", import.meta.url), "utf8")).viewer;
+  for (const [key, text] of [["hookText", "Teks hook"], ["why", "Kenapa dipilih"], ["copyCaption", "Salin caption"], ["coldOpen", "Cold open · {seconds} dtk"], ["downloadMp4", "Unduh MP4"], ["srt", "Unduh SRT"]]) {
+    assert.ok(source.includes(`t("viewer.${key}"`), key);
+    assert.equal(id[key], text, key);
+  }
   assert.doesNotMatch(source, /isV3Job|SelectionV3Summary|legacySection|Klip lama|Cold open/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
 test("dashboard: the focus input is part of the form and its fields are sent only through focusFormFields", async () => {
-  const source = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
-  for (const text of ["Cari momen tentang… (opsional)", "Catatan untuk AI (opsional)"]) assert.ok(source.includes(text), text);
-  const form = /<form [^>]*onSubmit=\{submit\}[^>]*>([\s\S]*?)<\/form>/.exec(source);
-  assert.ok(form, "the job form");
-  assert.match(form[1], /<FocusField\b/);
+  const source = await dashboardSource();
+  const id = JSON.parse(await readFile(new URL("../messages/id/dashboard.json", import.meta.url), "utf8")).focus;
+  assert.deepEqual([id.terms, id.note], ["Cari momen tentang", "Catatan untuk AI"]);
+  for (const key of ['t("focus.terms")', 't("focus.note")']) assert.ok(source.includes(key), key);
+  // In the Arahkan chip of the form; the page keeps its state while the popover is closed.
+  const chip = /focus: \(\s*<ChoiceChip \{\.\.\.chipProps\("focus"\)\}([\s\S]*?)<\/ChoiceChip>/.exec(source);
+  assert.ok(chip, "the Arahkan chip");
+  assert.match(chip[1], /<FocusField\b/);
+  assert.match(source, /\{CHIPS\.map\(\(id\) => <div key=\{id\} className=\{styles\.chipSlot\}>\{chips\[id\]\}<\/div>\)\}/);
   const submit = /async function submit\(event\) \{([\s\S]*?)\n  \}\n/.exec(source);
   assert.ok(submit, "the submit handler");
   assert.match(submit[1], /focusFormFields\(\{ terms: focusTerms, pending: focusDraft, note: focusNote \}\)/);
@@ -667,30 +679,33 @@ test("dashboard: the focus input is part of the form and its fields are sent onl
 });
 
 test("project page: focus line and per-clip focus labels come from the view helpers, as text", async () => {
-  const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  const source = await projectSource();
   assert.match(source, /focusSummaryLine\(job\)/);
   assert.match(source, /clipFocusChip\(clip, job\)/);
-  assert.match(source, /<ClipDetail clip=\{current\} job=\{job\}/);
+  assert.match(source, /<Body clip=\{clip\} job=\{job\}/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
-test("project page: the detail panel shows the focus chip, the trend chips and the editor entry together", async () => {
-  const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
-  const card = /function ClipDetail\(\{ clip, job, entry = null, copied, onCopy, position, onStep, panelRef, textDrafts, onClipSaved, onEntriesChanged \}\) \{([\s\S]*?)\n\}\n/.exec(source);
-  assert.ok(card, "ClipDetail takes the job (focus) and the editor entry");
+test("project page: the clip viewer shows the focus chip, the trend chips and the editor entry together", async () => {
+  const source = await readFile(new URL("../components/ClipViewer.jsx", import.meta.url), "utf8");
+  const card = /function Body\(\{ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEntriesChanged, titleId \}\) \{([\s\S]*?)\n\}\n/.exec(source);
+  assert.ok(card, "the viewer's body takes the job (focus) and the editor entry");
   const body = card[1];
   const focusChip = body.indexOf("{focusChip && <span");
-  const edited = body.indexOf("{entry?.editBadge?.tone === \"edited\"");
+  const edited = body.indexOf("{edited && <span");
   const title = body.indexOf("<h3 id={titleId}>");
   const trends = body.indexOf("{trendChips.length > 0 && <TrendChips chips={trendChips} />}");
-  const entry = body.indexOf("<EditorEntry entry={entry} />");
   assert.ok(focusChip > 0 && title > focusChip, "the focus chip is in the badge row above the title");
   assert.ok(edited > focusChip && edited < title, "the edit badge sits in the same row");
-  assert.ok(trends > title && entry > trends, "the editor entry follows the trend chips");
-  assert.ok(entry < body.indexOf("Unduh MP4"), "'Edit klip' is the first action of the card");
+  assert.ok(trends > title, "the trend chips follow the title");
+  // The actions follow the body: Unduh MP4 (the overlay's primary), then Edit klip (05 §6.4).
+  const actions = /function Actions\(\{ clip, entry \}\) \{([\s\S]*?)\n\}\n/.exec(source)?.[1] ?? "";
+  assert.ok(actions.indexOf('t("viewer.downloadMp4")') > 0 && actions.indexOf("entry?.editHref") > actions.indexOf('t("viewer.downloadMp4")'));
+  assert.ok(source.indexOf("<Body ") < source.indexOf("<Actions "), "the editor entry follows the trend chips");
   // The focus line comes before the cards.
-  const section = source.indexOf("<FocusSummary job={job} />");
-  assert.ok(section > 0 && section < source.indexOf("<ClipsSection "));
+  const page = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  const section = page.indexOf("<FocusSummary job={job} />");
+  assert.ok(section > 0 && section < page.indexOf("<ClipsSection "));
 });
 
 // --- LLM status -------------------------------------------------------------------
