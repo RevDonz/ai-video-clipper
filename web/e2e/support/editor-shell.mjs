@@ -69,12 +69,58 @@ export function useShellDefaults() {
 }
 
 // Browser side (serialised by addInitScript, so self-contained; it runs on every page the test
-// opens): the shell to show, the clips listing (`clips` clips, the fakes' clip as number `at`)
-// and extra plan warnings.
+// opens): the shell to show, the clips listing (`clips` clips, the fakes' clip as number `at`),
+// extra plan warnings, a read-only clip (`readOnly`), a save conflict on one part (`conflict`), a
+// cut of the words `removal: [first, last]` (word indexes) and, with `context`, four two-word
+// sentences before the clip, so the transcript folds three of them away.
 function installShellScenario(config) {
+  const FPS = [30000, 1001];
+  const sf = (ms) => Math.floor((ms * FPS[0]) / (1000 * FPS[1]));
+  // The words artifact with the context sentences in front and its bounds rebuilt the fakes' way.
+  const withContext = (artifact) => {
+    const extra = [];
+    for (let unit = 0; unit < 4; unit += 1) {
+      for (let k = 0; k < 2; k += 1) {
+        const s = 1230000 + unit * 2400 + k * 600;
+        extra.push({ id: `w04810${unit * 2 + k}`, s, e: s + 450, t: ["Tadi", "pagi", "hujan", "deras", "jalan", "macet", "semua", "telat"][unit * 2 + k],
+          p_pm: 900, u: `S00${String(unit + 7).padStart(2, "0")}`, z: false });
+      }
+    }
+    const list = [...extra, ...artifact.words];
+    const bounds = [{ after: null, before: list[0].id, sf: sf(list[0].s), tight: false, rms_cdb: null }];
+    for (let i = 1; i < list.length; i += 1) {
+      bounds.push({ after: list[i - 1].id, before: list[i].id, sf: sf((list[i - 1].e + list[i].s) / 2), tight: false, rms_cdb: -5200 });
+    }
+    bounds.push({ after: list.at(-1).id, before: null, sf: sf(list.at(-1).e) + 1, tight: false, rms_cdb: null });
+    const units = [...[0, 1, 2, 3].map((unit) => ({ id: `S00${String(unit + 7).padStart(2, "0")}`, s: extra[unit * 2].s, e: extra[unit * 2 + 1].e, q: false })),
+      ...artifact.units];
+    return { ...artifact, words: list, bounds, units };
+  };
   window.__potonginEditorScenario = {
     shell: config.shell,
-    api(api) {
+    api(base) {
+      let api = base;
+      if (config.context) {
+        const inner = api;
+        api = { ...inner, async words(url) { return withContext(await inner.words(url)); } };
+      }
+      if (config.removal) {
+        const inner = api;
+        api = {
+          ...inner,
+          async getEdit(options) {
+            const edit = await inner.getEdit(options);
+            const artifact = await inner.words(edit.words.url);
+            const [first, last] = config.removal;
+            const list = artifact.words;
+            const in_sf = artifact.bounds.find((entry) => entry.before === list[first].id).sf;
+            const out_sf = artifact.bounds.find((entry) => entry.after === list[last].id).sf;
+            edit.doc.main.removals = [{ id: "rm_e2e", seg: edit.doc.main.segments[0].id, in_sf, out_sf,
+              words: list.slice(first, last + 1).map((word) => word.id), reason: "user", origin: "user" }];
+            return edit;
+          },
+        };
+      }
       if (!config.clips) return api;
       return {
         ...api,
@@ -89,6 +135,23 @@ function installShellScenario(config) {
           return { clips: list };
         },
       };
+    },
+    // A read-only clip or a conflict: the store as it is, with that state laid over it once ready.
+    store(store) {
+      const patch = config.readOnly ? { status: "readOnly", readOnlyReason: "transcript_changed" }
+        : config.conflict ? { save: "conflict", conflict: { groups: [{ id: "hook", label: "Teks hook" }], error: null } } : null;
+      if (!patch) return store;
+      let seen = null;
+      let view = null;
+      const getState = () => {
+        const state = store.getState();
+        if (state !== seen) {
+          seen = state;
+          view = state.status === "ready" ? { ...state, ...patch } : state;
+        }
+        return view;
+      };
+      return { ...store, getState, subscribe: (listener) => store.subscribe(() => listener(getState())) };
     },
     previewClient(client) {
       if (!config.planWarnings) return client;
@@ -123,10 +186,13 @@ export function closeShortcutDialog(page) {
 
 /**
  * Opens the editor at `SHELL_PATH + query` in the new shell (`shell: "legacy"` for the old one)
- * and waits until it is ready.
+ * and waits until it is ready. The other options set up the fakes (installShellScenario).
  */
-export async function openShell(page, query = "", { shell = "v2", clips = null, at = 1, planWarnings = null, path: where = SHELL_PATH } = {}) {
-  await page.addInitScript(installShellScenario, { shell, clips, at, planWarnings });
+export async function openShell(page, query = "", {
+  shell = "v2", clips = null, at = 1, planWarnings = null, readOnly = false, conflict = false, removal = null, context = false,
+  path: where = SHELL_PATH,
+} = {}) {
+  await page.addInitScript(installShellScenario, { shell, clips, at, planWarnings, readOnly, conflict, removal, context });
   await page.goto(`${where}${query}`);
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
 }

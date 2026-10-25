@@ -14,6 +14,8 @@ const SCOPES = Object.freeze({
   topBar: (page) => page.locator('[data-slot="topBar"]'),
   clips: (page) => page.locator('[data-slot="clips"]'),
   stage: (page) => page.locator('[data-slot="stage"]'),
+  transcript: (page) => page.locator('[data-slot="transcript"]'),
+  timeline: (page) => page.locator('[data-slot="timeline-detail"]'),
   panel: (page) => page.locator('[data-slot="panel"]'),
   menu: (page) => page.getByRole("menu"),
   dialog: (page) => page.getByRole("dialog"),
@@ -22,6 +24,7 @@ const SCOPES = Object.freeze({
 function locate(page, descriptor) {
   const scope = SCOPES[descriptor.within](page);
   if (descriptor.testId) return scope.getByTestId(descriptor.testId);
+  if (Object.hasOwn(descriptor, "word")) return scope.locator(`[data-transcript-words] [data-w="${descriptor.word}"]`);
   const name = descriptor.regex ? new RegExp(descriptor.name) : descriptor.name;
   return scope.getByRole(descriptor.role, { name, exact: descriptor.regex ? undefined : descriptor.exact ?? true });
 }

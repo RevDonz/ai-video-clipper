@@ -10,7 +10,11 @@
 // dialog, a confirmation).
 //
 // A locator is data: `{ role, name, exact = true, within }` (`name` a RegExp source when `regex`),
-// or `{ testId, within }`; `within` is "topBar", "clips", "stage", "panel", "menu" or "dialog".
+// `{ testId, within }`, or `{ word, within: "transcript" }` (a transcript word by its index in the
+// words artifact; words have no role of their own); `within` is "topBar", "clips", "stage",
+// "transcript", "panel", "timeline", "menu" or "dialog". `scenario` sets up the fakes for a row
+// (support/editor-shell.mjs openShell): neighbour clips, plan warnings, a read-only clip, a save
+// conflict, a cut (`removal: [first, last]` word indexes) or sentences outside the clip (`context`).
 // `docClicks` is the §10 cell as written; `budget` is its largest number unless `budgetNote`
 // says why not. `pending` names the sub-phase that brings the control to its §10 place (06 §17,
 // 08 Fase 10–11); the spec lists those as fixme until then. `excluded` rows have no control to
@@ -19,14 +23,17 @@ const tab = (name) => ({ role: "tab", name, within: "panel" });
 const bar = (role, name, extra = {}) => ({ role, name, within: "topBar", ...extra });
 const panel = (role, name, extra = {}) => ({ role, name, within: "panel", ...extra });
 const stage = (role, name) => ({ role, name, within: "stage" });
+const words = (role, name, extra = {}) => ({ role, name, within: "transcript", ...extra });
+const word = (index) => ({ word: index, within: "transcript" });
+// A body word of the fakes' clip ("film"): a click selects it and its toolbar shows.
+const BODY_WORD = 4;
+const MORE = words("button", "Lainnya");
 
 const WARNING = Object.freeze([{ code: "tight_cut", ref: "rm_01", f: 120 }]);
 
 const entry = (fields) => Object.freeze(fields);
 
-// The transcript (F2) and segment (F6) rows: the §10 cells as written, and their budgets.
-const TRANSCRIPT_CLICKS = { 21: "1", 22: "2", 23: "2", 24: "1 + ketik", 25: "2", 26: "3 / 1", 27: "3", 28: "3", 29: "1", 30: "1", 31: "3", 32: "3" };
-const TRANSCRIPT_BUDGET = { 21: 1, 22: 2, 23: 2, 24: 1, 25: 2, 26: 3, 27: 3, 28: 3, 29: 1, 30: 1, 31: 3, 32: 3 };
+// The segment (F6) rows: the §10 cells as written, and their budgets.
 const SEGMENT_CLICKS = { 33: "2", 34: "2", 35: "2 (atau 1 seret)", 36: "2", 37: "3" };
 const SEGMENT_BUDGET = { 33: 2, 34: 2, 35: 2, 36: 2, 37: 3 };
 
@@ -41,8 +48,10 @@ export const CLICK_BUDGET = Object.freeze([
     target: { role: "switch", name: "Pintasan satu tombol", within: "dialog" } }),
   entry({ row: 8, docClicks: "—", excluded: "removed: Mode Cepat / Lengkap is gone" }),
   entry({ row: 9, docClicks: "0", excluded: "no control: the waiting screen while the clip is prepared" }),
-  entry({ row: 10, docClicks: "1", budget: 1, pending: "F2", note: "read-only scenario; read-only.spec.mjs covers it in the old shell" }),
-  entry({ row: 11, docClicks: "2–3", budget: 3, pending: "F2", note: "conflict scenario" }),
+  entry({ row: 10, docClicks: "1", budget: 1, scenario: { readOnly: true }, steps: [], target: stage("button", "Mulai dari versi AI") }),
+  // The conflict dialog opens by itself; a part's choice and Terapkan pilihan are the two clicks.
+  entry({ row: 11, docClicks: "2–3", budget: 3, scenario: { conflict: true }, steps: [],
+    target: { role: "radio", name: "Pakai punyaku", within: "dialog" }, extra: 1 }),
   entry({ row: 12, docClicks: "1", budget: 1, steps: [], target: stage("button", "Putar") }),
   entry({ row: 13, docClicks: "1", budget: 1, steps: [], target: { role: "slider", name: "Posisi putar", within: "stage" } }),
   entry({ row: 14, docClicks: "0–1", budget: 1, steps: [], target: stage("button", "Apa artinya?") }),
@@ -52,7 +61,28 @@ export const CLICK_BUDGET = Object.freeze([
   entry({ row: 18, docClicks: "2 (tab + seret)", budget: 2, pending: "F5" }),
   entry({ row: 19, docClicks: "3 (tab + Lihat sumber + seret)", budget: 3, pending: "F4a" }),
   entry({ row: 20, docClicks: "3", budget: 3, pending: "F4a" }),
-  ...[21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32].map((row) => entry({ row, docClicks: TRANSCRIPT_CLICKS[row], budget: TRANSCRIPT_BUDGET[row], pending: "F2" })),
+  entry({ row: 21, docClicks: "1", budget: 1, steps: [], target: word(BODY_WORD) }),
+  entry({ row: 22, docClicks: "2", budget: 2, steps: [word(BODY_WORD)], target: words("button", "Hapus") }),
+  entry({ row: 23, docClicks: "2", budget: 2, steps: [word(BODY_WORD)], target: words("button", "Edit kata") }),
+  // Baris is one click; typing in its line fields is not counted.
+  entry({ row: 24, docClicks: "1 + ketik", budget: 1, steps: [], target: words("radio", "Baris") }),
+  entry({ row: 25, docClicks: "2", budget: 2, steps: [word(BODY_WORD)], target: words("button", "Mulai di sini") }),
+  // From the menu; Ctrl+click on a word is the one-click way (editor-transcript-shell.spec.mjs).
+  entry({ row: 26, docClicks: "3 / 1", budget: 3, steps: [word(BODY_WORD), MORE],
+    target: { role: "menuitemcheckbox", name: "Kata kunci", within: "menu" } }),
+  entry({ row: 27, docClicks: "3", budget: 3, steps: [word(BODY_WORD), MORE],
+    target: { role: "menuitemcheckbox", name: "Sembunyikan dari caption", within: "menu" } }),
+  entry({ row: 28, docClicks: "3", budget: 3, steps: [word(BODY_WORD), MORE],
+    target: { role: "menuitem", name: "Jadikan cold open", within: "menu" } }),
+  entry({ row: 29, docClicks: "1", budget: 1, scenario: { removal: [6, 7] }, steps: [],
+    target: words("button", "^Pulihkan potongan", { regex: true }) }),
+  entry({ row: 30, docClicks: "1", budget: 1, scenario: { context: true }, steps: [],
+    target: words("button", "^Tampilkan \\d+ kalimat sebelumnya", { regex: true }) }),
+  // Rapikan n opens the drawer on its tab; Terapkan (n) applies (the third click checks an item).
+  entry({ row: 31, docClicks: "3", budget: 3, steps: [words("button", "^Rapikan", { regex: true })],
+    target: { role: "button", name: "^Terapkan \\(\\d+\\)$", regex: true, within: "dialog" } }),
+  entry({ row: 32, docClicks: "3", budget: 3, steps: [words("button", "^Ejaan", { regex: true })],
+    target: { role: "tab", name: "^Ejaan", regex: true, within: "dialog" } }),
   ...[33, 34, 35, 36, 37].map((row) => entry({ row, docClicks: SEGMENT_CLICKS[row], budget: SEGMENT_BUDGET[row], pending: "F6" })),
   entry({ row: 38, docClicks: "4", budget: 4, pending: "F7" }),
   entry({ row: 39, docClicks: "2", budget: 2, pending: "F7" }),
@@ -91,7 +121,7 @@ export const CLICK_BUDGET = Object.freeze([
   entry({ row: 75, docClicks: "2", budget: 2, pending: "F5" }),
   entry({ row: 76, docClicks: "3", budget: 3, pending: "F5" }),
   entry({ row: 77, docClicks: "2", budget: 2, pending: "F5" }),
-  entry({ row: 78, docClicks: "1 buka + aksi", budget: 1, pending: "F2" }),
+  entry({ row: 78, docClicks: "1 buka + aksi", budget: 1, steps: [], target: { role: "button", name: "Linimasa detail", within: "timeline" } }),
   entry({ row: 79, docClicks: "2", budget: 2, steps: [], target: bar("button", "Ekspor") }),
   entry({ row: 80, docClicks: "3", budget: 3, pending: "F8" }),
   entry({ row: 81, docClicks: "+1", budget: 1, pending: "F8" }),
