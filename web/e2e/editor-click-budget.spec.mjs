@@ -1,12 +1,14 @@
 // The click budget of rombak 06 §2.3 and §10 in the one-layout editor: for every row of the
 // table in support/click-budget.mjs, from the editor as it opens (tab Teks), the counted clicks
-// reach the row's control, which is then visible, within the row's budget. Rows whose control
-// arrives with a later sub-phase are listed as fixme with that phase.
+// reach the row's control, which is then visible, within the row's budget. A row whose control
+// moves in a later sub-phase is walked where it sits today; one that cannot be walked yet is
+// listed as fixme with that phase and the reason (`gap`).
 //
 // On GitHub Actions: gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e \
 //   -f command='e2e/editor-click-budget.spec.mjs'
 import { CLICK_BUDGET, clickCount } from "./support/click-budget.mjs";
 import { expect, openShell, test, useShellDefaults } from "./support/editor-shell.mjs";
+import { shellDoc } from "./support/shell-docs.mjs";
 
 useShellDefaults();
 
@@ -26,7 +28,8 @@ function locate(page, descriptor) {
   if (descriptor.testId) return scope.getByTestId(descriptor.testId);
   if (Object.hasOwn(descriptor, "word")) return scope.locator(`[data-transcript-words] [data-w="${descriptor.word}"]`);
   const name = descriptor.regex ? new RegExp(descriptor.name) : descriptor.name;
-  return scope.getByRole(descriptor.role, { name, exact: descriptor.regex ? undefined : descriptor.exact ?? true });
+  const found = scope.getByRole(descriptor.role, { name, exact: descriptor.regex ? undefined : descriptor.exact ?? true });
+  return descriptor.first ? found.first() : found;
 }
 
 /** Counts every click of the walk (06 §2.3: click, double click and option choice are one each). */
@@ -44,12 +47,14 @@ function clickCounter() {
 for (const item of CLICK_BUDGET) {
   if (item.excluded) continue;
   const title = `§10 row ${item.row} (${item.docClicks}): ≤ ${item.budget} clicks`;
-  if (item.pending) {
-    test.fixme(`${title}, from ${item.pending}`, () => {});
+  if (item.pending && !item.target) {
+    test.fixme(`${title}, from ${item.pending}: ${item.gap}`, () => {});
     continue;
   }
-  test(title, async ({ page }) => {
-    await openShell(page, "", item.scenario ?? {});
+  const scenario = { ...item.scenario };
+  if (scenario.doc) scenario.doc = shellDoc(scenario.doc);
+  test(item.pending ? `${title}, where it sits until ${item.pending}` : title, async ({ page }) => {
+    await openShell(page, "", scenario);
     const counter = clickCounter();
     for (const step of item.steps) await counter.click(locate(page, step));
     const target = locate(page, item.target);
