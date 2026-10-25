@@ -3,12 +3,13 @@
 // method checks the session itself (secureRoute, then again in the handler).
 import { createDefaultLogoRoute } from "../../../../lib/default-logo.mjs";
 import { secureRoute } from "../../../../lib/security-headers.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const route = createDefaultLogoRoute();
 
-export const GET = secureRoute(route.GET);
-export const POST = secureRoute(route.POST);
-export const DELETE = secureRoute(route.DELETE);
+export const GET = withErrorCodes(secureRoute(route.GET), { domains: ["edit"] });
+export const POST = withErrorCodes(secureRoute(route.POST), { domains: ["edit"] });
+export const DELETE = withErrorCodes(secureRoute(route.DELETE), { domains: ["edit"] });

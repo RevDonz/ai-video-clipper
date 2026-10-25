@@ -4,6 +4,7 @@ import { requireAuth } from "../../../../lib/auth.mjs";
 import { storageAdmissionStatus } from "../../../../lib/primary-job-queue.mjs";
 import { parseStorageAdmissionConfig, StorageAdmissionError } from "../../../../lib/storage-admission.mjs";
 import { toStorageStatusDto } from "../../../../lib/storage-status-dto.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,4 +43,4 @@ export function createStorageStatusHandler({ authorize = requireAuth, loadStatus
   };
 }
 
-export const GET = createStorageStatusHandler();
+export const GET = withErrorCodes(createStorageStatusHandler());

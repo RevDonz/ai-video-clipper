@@ -1,10 +1,11 @@
 // GET: the clip's cold-open suggestions (plan §7.2); the handler is web/lib/coldopen-suggestions.mjs.
 import { createColdOpenSuggestionsRoute } from "../../../../../../../lib/coldopen-suggestions.mjs";
 import { secureRoute } from "../../../../../../../lib/security-headers.mjs";
+import { withErrorCodes } from "../../../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const route = createColdOpenSuggestionsRoute();
 
-export const GET = secureRoute(route.GET, { params: ["id", "clipId"], limit: "api" });
+export const GET = withErrorCodes(secureRoute(route.GET, { params: ["id", "clipId"], limit: "api" }), { domains: ["edit"] });

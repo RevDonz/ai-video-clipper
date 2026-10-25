@@ -1,6 +1,7 @@
 import { requireAuth } from "../../../../lib/auth.mjs";
 import { noStore } from "../../../../lib/llm-settings-http.mjs";
 import { readSystemInfo } from "../../../../lib/system-info.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +27,8 @@ export function createSystemInfoRoute({ authorize = requireAuth, read = readSyst
 
 const route = createSystemInfoRoute();
 
-export async function GET(request) {
+async function handleGET(request) {
   return route.GET(request);
 }
+
+export const GET = withErrorCodes(handleGET);

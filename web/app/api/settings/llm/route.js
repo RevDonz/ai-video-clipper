@@ -14,6 +14,7 @@ import {
   settingsSecret,
 } from "../../../../lib/llm-settings.mjs";
 import { sameOriginMutation } from "../../../../lib/request-security.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,10 +53,13 @@ export function createLlmSettingsRoute({ authorize = requireAuth, env = process.
 
 const route = createLlmSettingsRoute();
 
-export async function GET(request) {
+async function handleGET(request) {
   return route.GET(request);
 }
 
-export async function PUT(request) {
+async function handlePUT(request) {
   return route.PUT(request);
 }
+
+export const GET = withErrorCodes(handleGET, { domains: ["llm"] });
+export const PUT = withErrorCodes(handlePUT, { domains: ["llm"] });
