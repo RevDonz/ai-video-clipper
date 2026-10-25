@@ -98,7 +98,15 @@
       "mode": "fit_blur",
       "no_face": "center"
     },
-    "ranges": []
+    "ranges": [
+      {
+        "in_sf": 37220,
+        "out_sf": 39243,
+        "mode": "fit_blur",
+        "origin": "user",
+        "zoom_pm": 1000
+      }
+    ]
   },
   "tracks": [
     {

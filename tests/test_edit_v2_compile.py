@@ -38,6 +38,7 @@ from ai_clipper.edit_v2.compile_ffmpeg import (
     seek_arg,
     select_expression,
 )
+from ai_clipper.edit_v2.errors import AnalysisMissing, DocSemanticInvalid
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.loudness import Loudness
 from ai_clipper.edit_v2.plan import Resources, build_plan
@@ -1002,6 +1003,186 @@ def test_a_fallback_without_a_run_in_the_clip_is_todays_camera_graph(harness, pr
         one = compile_job(blurred, source=SOURCE, assets_root=ASSETS_ROOT, **kwargs)
         other = compile_job(centred, source=SOURCE, assets_root=ASSETS_ROOT, **kwargs)
         assert one.filter_script == other.filter_script, kwargs
+
+
+# --- the automatic layout: layout.ranges (CONTRACTS §5.63, rombak 04 §A7.1) ----------------------
+
+RANGE_MODES = ("camera", "fill_center", "fit_blur")
+
+
+def auto_doc(name: str, count: int, *, modes=RANGE_MODES, no_face: str = "fit_blur") -> dict:
+    """``name`` under the automatic layout with ``count`` ranges, the modes taken in turn
+    (equal neighbours never meet): the window's edges, and edges of equal steps over the
+    frames its segments keep, so that every range shows."""
+    doc = load_doc(name)
+    fps = tm.Fps(*doc["output"]["fps"])
+    first = tm.sf_floor(doc["base"]["window_ms"][0], fps)
+    end = tm.sf_ceil(doc["base"]["window_ms"][1], fps)
+    kept_in = min(segment["in_sf"] for segment in doc["main"]["segments"])
+    kept_out = max(segment["out_sf"] for segment in doc["main"]["segments"])
+    edges = [first, *(kept_in + (kept_out - kept_in) * k // count for k in range(1, count)),
+             end]
+    doc["layout"]["default"].update(mode="auto", no_face=no_face)
+    doc["layout"]["ranges"] = [{"in_sf": edges[k], "out_sf": edges[k + 1],
+                                "mode": modes[k % len(modes)], "origin": "auto"}
+                               for k in range(count)]
+    doc["base"]["shots"] = {"sha256": "5" * 64}
+    return doc
+
+
+def auto_plan(name: str, doc: dict, *, camera="auto"):
+    if camera == "auto":
+        camera = camera_for(doc)
+    return fixture_plan(name, doc=doc, camera=camera)
+
+
+def filter_nodes(script: str) -> int:
+    """The filter contexts of a graph: one per filter in every chain (quoted expressions hold
+    commas of their own)."""
+    bare = re.sub(r"'[^']*'", "''", script)
+    return sum(len([f for f in chain.split(",") if f]) for chain in bare.split(";"))
+
+
+def layout_part(script: str) -> str:
+    """The graph's layout chain(s), from ``[vcat]`` to ``[vlay]``."""
+    start = script.index("[vcat]", script.index("[vcat]") + 1)
+    return script[start:script.index("[vlay]") + len("[vlay]")]
+
+
+def test_the_ranges_chain_has_the_same_contexts_for_1_8_and_48_ranges(harness, probe_stub):
+    counts = {}
+    for count in (1, 8, 48):
+        plan = auto_plan("seed__c30", auto_doc("seed__c30", count))
+        probe_stub["streams"] = fake_probe(plan.doc)
+        job = compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+        counts[count] = filter_nodes(layout_part(job.filter_script))
+    # one range is a single mode (here face-track): the camera chain; from two ranges on it is
+    # the fallback chain, whatever the number of ranges
+    assert counts[8] == counts[48]
+    assert counts[1] < counts[8]
+    blurred = blur_doc("seed__c30")
+    reference = fixture_plan("seed__c30", doc=blurred, camera=with_no_face(blurred))
+    job = compile_job(reference, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+    assert "gblur" in job.filter_script
+    assert counts[48] == filter_nodes(layout_part(job.filter_script))
+
+
+def with_no_face(doc: dict) -> dict:
+    """The document's camera plan with a run without a face inside its first segment."""
+    camera = camera_for(doc)
+    fps = tm.Fps(*doc["output"]["fps"])
+    start = doc["main"]["segments"][0]["in_sf"] * 1000 * fps.den // fps.num
+    camera["no_face"] = [[start + 300, start + 2100]]
+    return camera
+
+
+def test_each_frame_shows_its_ranges_mode_in_plate_cells_and_final(harness, probe_stub):
+    doc = with_removals(auto_doc("seed__c25", 7), (40, 7), (95, 30), (171, 2))
+    camera = camera_for(doc)
+    plan = auto_plan("seed__c25", doc, camera=camera)
+    probe_stub["streams"] = fake_probe(plan.doc)
+    source = (doc["base"]["source"]["w"], doc["base"]["source"]["h"])
+    final = compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+    blur = re.compile(r"gblur=sigma=[0-9.]+:enable='([^']*)'")
+    hidden = re.compile(r"lutyuv=a=0:enable='([^']*)'")
+    (blur_expr,) = blur.findall(final.filter_script)
+    (hidden_expr,) = hidden.findall(final.filter_script)
+    (x_expr,) = re.findall(r"crop=720:1280:x='([^']*)'", final.filter_script)
+    centre = layouts.centre_x(source, (720, 1280))
+    seen = set()
+    for n in range(plan.total_frames):
+        sf = tm.out_to_src(n, plan.pieces)[1]
+        mode = plan.shots_for(sf)
+        seen.add(mode)
+        assert bool(evaluate(blur_expr, n)) == (mode == "fit_blur"), n
+        assert bool(evaluate(hidden_expr, n)) == (mode != "fit_blur"), n
+        if mode == "camera":
+            expected = layouts.crop_positions(camera, plan.fps, source=source,
+                                              output=(720, 1280), first_sf=sf, count=1)[0]
+        else:
+            expected = centre
+        assert evaluate(x_expr, n) == expected, n
+    assert seen == set(RANGE_MODES)
+    # plate cells: the same switches per source frame
+    size = tm.cell_frames(plan.fps)
+    first = doc["layout"]["ranges"][2]["in_sf"] // size - 3  # around the first latar blur range
+    cells = list(range(first, first + 6))
+    plate = compile_job(plan, mode="plate_cells", cells=cells, source=SOURCE,
+                        assets_root=ASSETS_ROOT)
+    (plate_blur,) = blur.findall(plate.filter_script)
+    run_start = int(re.search(r"trim=start_pts=(\d+):end_pts=\d+,setpts=PTS-STARTPTS\[pt0\]",
+                              plate.filter_script).group(1))
+    for sf in range(run_start, (first + 6) * size):
+        assert bool(evaluate(plate_blur, sf - run_start)) == (plan.shots_for(sf) == "fit_blur")
+
+
+def test_a_single_mode_compiles_like_that_layout(harness, probe_stub):
+    """All latar blur is the latar blur chain; a crop at the centre everywhere is face-track's
+    chain with a constant x (the spike shows it is the centre crop's pixels, P-FRAME)."""
+    for mode in ("fit_blur", "fill_center"):
+        doc = auto_doc("seed__c30", 1, modes=(mode,))
+        plan = auto_plan("seed__c30", doc, camera=None)
+        assert plan.camera is None  # no camera range: no camera plan needed
+        probe_stub["streams"] = fake_probe(plan.doc)
+        auto = layout_part(compile_job(plan, mode="final", source=SOURCE,
+                                       assets_root=ASSETS_ROOT).filter_script)
+        plain = load_doc("seed__c30")
+        plain["layout"]["default"]["mode"] = mode
+        today = layout_part(compile_job(fixture_plan("seed__c30", doc=plain), mode="final",
+                                        source=SOURCE, assets_root=ASSETS_ROOT).filter_script)
+        if mode == "fit_blur":
+            assert auto == today
+        else:
+            source = (doc["base"]["source"]["w"], doc["base"]["source"]["h"])
+            centre = layouts.centre_x(source, (720, 1280))
+            assert auto == today.replace(
+                "crop=720:1280,", f"crop=720:1280:x='{centre}':y=(ih-oh)/2,")
+
+
+def test_a_camera_range_needs_the_camera_plan(harness, probe_stub):
+    doc = auto_doc("seed__c30", 3)
+    with pytest.raises(AnalysisMissing) as raised:
+        auto_plan("seed__c30", doc, camera=None)
+    assert raised.value.ref == "camera"
+
+
+def test_ranges_join_the_plan_sha_and_leave_every_other_plan_alone(harness):
+    doc = auto_doc("seed__c30", 3)
+    plan = auto_plan("seed__c30", doc)
+    body = plan.to_json()
+    assert body["layout"] == "auto"
+    assert body["layout_ranges"] == [[r["in_sf"], r["out_sf"], r["mode"]]
+                                     for r in doc["layout"]["ranges"]]
+    assert "layout_ranges" not in fixture_plan("seed__c30").to_json()
+    other = copy.deepcopy(doc)
+    other["layout"]["ranges"][0]["mode"], other["layout"]["ranges"][1]["mode"] = (
+        "fit_blur", "camera")
+    assert auto_plan("seed__c30", other).plan_sha256 != plan.plan_sha256
+
+
+def test_the_no_face_warning_counts_camera_ranges_only(harness):
+    doc = auto_doc("seed__c30", 3, modes=("fit_blur", "camera", "fit_blur"))
+    camera = camera_for(doc)
+    first, end = doc["layout"]["ranges"][1]["in_sf"], doc["layout"]["ranges"][1]["out_sf"]
+    fps = tm.Fps(*doc["output"]["fps"])
+    ms = lambda sf: sf * 1000 * fps.den // fps.num
+    camera["no_face"] = [[ms(doc["layout"]["ranges"][0]["in_sf"]) + 10,
+                          ms(doc["layout"]["ranges"][0]["in_sf"]) + 1800],
+                         [ms(first) + 10, ms(first) + 1800]]
+    plan = auto_plan("seed__c30", doc, camera=camera)
+    warned = [issue for issue in plan.warnings if issue.code.startswith("no_face")]
+    assert len(warned) == 1  # the run inside the latar blur range is not a warning
+    sf = tm.out_to_src(warned[0].f, plan.pieces)[1]
+    assert first <= sf < end
+
+
+def test_frames_outside_every_range_are_refused(harness, probe_stub):
+    doc = auto_doc("seed__c30", 2, modes=("fit_blur", "fill_center"))
+    doc["layout"]["ranges"][1]["in_sf"] += 40  # a gap in kept frames: V1 would refuse it
+    plan = auto_plan("seed__c30", doc, camera=None)
+    probe_stub["streams"] = fake_probe(plan.doc)
+    with pytest.raises(DocSemanticInvalid):
+        compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
 
 
 # --- manual framing, "Atur bingkai": keyframes (CONTRACTS §5.44) -------------------------------------

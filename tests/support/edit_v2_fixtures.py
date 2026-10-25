@@ -971,8 +971,11 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
             {"sf": b.body["in_sf"], "pan_e5": 50000, "move": "cut", "zoom_pm": 1000}])))
     add("unknown_key", "split_crop", "/layout/split/top/w_e5",
         mutated(lambda b: split(b, top={"x_e5": 0, "y_e5": 0, "zoom_pm": 1000, "w_e5": 1})))
-    add("unknown_key", "layout_ranges", "/layout/ranges",
-        mutated(lambda b: b.doc["layout"].update(ranges=[])))
+    # layout.ranges is a key since CONTRACTS §5.63; a key a range does not have is still unknown
+    add("unknown_key", "layout_range", "/layout/ranges/0/zoom_pm",
+        mutated(lambda b: b.doc["layout"].update(ranges=[
+            {"in_sf": b.body["in_sf"], "out_sf": b.body["out_sf"], "mode": "fit_blur",
+             "origin": "user", "zoom_pm": 1000}])))
     add("unknown_key", "overrides", "/captions/overrides/words_per_chunk",
         mutated(lambda b: b.doc["captions"]["overrides"].update(words_per_chunk=4)))
     add("unknown_key", "word_edit", f"{edit_path}/emoji_after",

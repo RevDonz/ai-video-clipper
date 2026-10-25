@@ -223,3 +223,24 @@ for Testing 147.0.7727.15 (P-TXT, P-TIME):
 - S-COLOR: **gbrp by the rule** (`cheapest_passing`): yuv420p fails P-TXT and P-COLOR, yuv444p
   fails P-TXT, P-COLOR and P-ENC. Cost 11.85 s vs 10.83 s per 30 s for yuv420p (+9.5 %, best
   of 5, machine load 4–8).
+
+## 8. Graf Otomatis (RF-M2, rombak 04 §A7.2)
+
+Script: `scripts/parity/auto_graph_spike.py`. It renders lossless yuv444p frames (`framemd5`) of
+synthetic 1080p and 720p sources at 30 fps with 1, 8 and 48 runs of modes and compares every
+frame with the pure chain of its mode, counts the filter contexts, and measures peak RSS under
+the render's `prlimit --as` of 3 GiB and the time against the fallback chain.
+
+- **Without split (A7.1):** one fallback chain with per-frame switches. This also settles open
+  item #18 of the plan: a `fill_center` frame drawn as the camera crop at `centre_x` must be
+  md5-identical to the centre-crop chain's frame.
+- **K1 overlay:** the fallback chain under an `overlay` of a split chain whose crops follow the
+  range per frame, enabled on split frames. K2 and K3 are only tried if K1 fails.
+
+Status 2026-10-25: **the gate run has not been made yet**; it runs on GitHub Actions
+(`editor-gates.yml suite=command`, the command in the script's docstring) with the final gates
+of the track. Until it passes, `AUTO_SPLIT = False`: a split range is `op_disabled` and two
+speakers in a wide shot are followed with face-track (rombak 04 §A5 rule 2). A local smoke
+(2 s, 720p, 1 and 3 runs; not a gate run) gave 0 mismatched frames without split, the 20
+`fill_center` frames included, constant contexts, and 0 mismatched frames for K1 at 1.10× and
+1.16× the fallback chain's time; at that size the time is noise, so the CI run decides.

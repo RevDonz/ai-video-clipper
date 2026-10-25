@@ -676,11 +676,11 @@
    "path": "/layout/split/top/w_e5"
   },
   {
-   "file": "invalid/unknown_key__layout_ranges.json",
+   "file": "invalid/unknown_key__layout_range.json",
    "context": "c30",
    "check": "put",
    "code": "unknown_key",
-   "path": "/layout/ranges"
+   "path": "/layout/ranges/0/zoom_pm"
   },
   {
    "file": "invalid/unknown_key__overrides.json",
