@@ -10,16 +10,19 @@ import { LAYOUT_OPTIONS } from "../components/editor/panels/layout-model.mjs";
 import { CARD_LAYOUTS } from "../components/editor/quick/quick-model.mjs";
 import { LAYOUT_CHOICES } from "../lib/dashboard-choices.mjs";
 import { LAYOUT_MODES } from "../lib/editor/doc-model.mjs";
-import { RENDER_MODES } from "../lib/jobs.mjs";
+import { STORED_RENDER_MODES } from "../lib/jobs.mjs";
 import { LAYOUT_NAMES, RENDER_MODE_LAYOUTS, renderModeName } from "../lib/layout-names.mjs";
 
 const WEB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 test("every layout has one name, and every job render mode is one of the layouts", () => {
-  assert.deepEqual(Object.keys(LAYOUT_NAMES).sort(), [...LAYOUT_MODES].sort());
-  assert.deepEqual(LAYOUT_NAMES, { fit_blur: "Latar blur", camera: "Ikuti wajah", fill_center: "Potong tengah", split: "Layar terbagi" });
-  assert.deepEqual(Object.keys(RENDER_MODE_LAYOUTS).sort(), [...RENDER_MODES].sort());
-  for (const layout of Object.values(RENDER_MODE_LAYOUTS)) assert.ok(LAYOUT_MODES.includes(layout), layout);
+  // Otomatis (rombak 04 §A8.1) has its name before the editor's document model takes it (RF-M5a).
+  assert.deepEqual(Object.keys(LAYOUT_NAMES).sort(), [...LAYOUT_MODES, "auto"].sort());
+  assert.deepEqual(LAYOUT_NAMES, { fit_blur: "Latar blur", camera: "Ikuti wajah", fill_center: "Potong tengah", split: "Layar terbagi", auto: "Otomatis" });
+  assert.deepEqual(Object.keys(RENDER_MODE_LAYOUTS).sort(), [...STORED_RENDER_MODES].sort());
+  for (const layout of Object.values(RENDER_MODE_LAYOUTS)) assert.ok(Object.hasOwn(LAYOUT_NAMES, layout), layout);
+  assert.equal(RENDER_MODE_LAYOUTS.auto, "auto");
+  assert.equal(renderModeName("auto"), "Otomatis");
   assert.equal(renderModeName("center-crop"), "Potong tengah");
   assert.equal(renderModeName("vertical"), null);
 });

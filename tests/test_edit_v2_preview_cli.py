@@ -849,6 +849,60 @@ def test_prepare_reports_the_artifacts_and_the_cells_of_the_current_document(job
         case["clip"] / "preview" / "plates" / plates.cell_name(result["plateKey"], k)).exists()]
 
 
+def test_prepare_builds_the_shot_plan_of_the_automatic_layout(tmp_path, monkeypatch, request):
+    """``prepare {layout: "auto"}`` (CONTRACTS §5.63): the shot plan and the camera plan of the
+    clip window, and the plate of the document with them; idempotent."""
+    from test_edit_v2_render_edit import fake_prepare_auto
+
+    from ai_clipper.edit_v2 import shots
+
+    request.getfixturevalue("edit_v2_libass")
+    own = synthetic_job(tmp_path / "auto-job")
+    case = job_case(own)
+    prepare = fake_prepare_auto()
+    monkeypatch.setattr(shots, "prepare_auto", prepare)
+    result = ok(op(case, "prepare", layout="auto"))
+    assert result["shots"] == "ready" and result["layout"] == "auto"
+    assert result["camera"] == "ready" and result["noFace"] is None
+    (shot_file,) = sorted(case["clip"].glob("shots.*.json"))
+    (camera_file,) = sorted(case["clip"].glob("camera.*.json"))
+    assert stat.S_IMODE(shot_file.stat().st_mode) == 0o600
+    plan_raw = shot_file.read_bytes()
+    shot_plan = json.loads(plan_raw)
+    camera_sha = hashlib.sha256(camera_file.read_bytes()).hexdigest()
+    assert shot_plan["window_ms"] == case["seed"]["base"]["window_ms"]
+    assert shot_plan["camera_sha256"] == camera_sha
+    doc = copy.deepcopy(case["seed"])
+    doc["layout"] = {"default": {"mode": "auto", "no_face": "fit_blur"},
+                     "ranges": shots.auto_ranges(shot_plan["ranges"])}
+    doc["base"]["shots"] = {"sha256": hashlib.sha256(plan_raw).hexdigest()}
+    doc["base"]["camera"] = {"sha256": camera_sha}
+    assert result["plateKey"] == plates.plate_key(doc, camera_sha256=camera_sha)
+    again = ok(op(case, "prepare", layout="auto"))
+    assert again["plateKey"] == result["plateKey"] and len(prepare.calls) == 2
+    assert sorted(case["clip"].glob("shots.*.json")) == [shot_file]
+    assert sorted(case["clip"].glob("camera.*.json")) == [camera_file]
+    # the second analysis reused the clip's camera plan
+    assert prepare.calls[1][0] == tuple(case["seed"]["base"]["window_ms"])
+
+
+def test_prepare_reports_a_failed_automatic_analysis(tmp_path, monkeypatch, request):
+    from ai_clipper.edit_v2 import shots
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("no detector")
+
+    request.getfixturevalue("edit_v2_libass")
+    own = synthetic_job(tmp_path / "auto-job")
+    case = job_case(own)
+    monkeypatch.setattr(shots, "prepare_auto", broken)
+    result = ok(op(case, "prepare", layout="auto"))
+    assert result["shots"] == "failed"
+    current = ok(op(case, "prepare", layout=None))
+    assert {key: value for key, value in result.items() if key != "shots"} == current
+    assert not list(case["clip"].glob("shots.*.json"))
+
+
 def test_prepare_builds_the_camera_plan_for_the_face_track_layout(job):
     case = job_case(job, 1)
     # the document SetLayout makes: face-track chosen in the editor uses the blur fallback

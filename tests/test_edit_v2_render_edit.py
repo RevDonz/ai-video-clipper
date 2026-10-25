@@ -1090,6 +1090,141 @@ def test_a_face_track_clip_gets_a_camera_plan_and_renders(source, tmp_path):
                                    render_edit.load_render_inputs(job_dir, seed_doc).plan).ok
 
 
+# --- Otomatis: one layout per shot (rombak 04 §A8.1, CONTRACTS §5.63) ------------------------
+
+
+def fake_prepare_auto(modes=("camera", "fit_blur")):
+    """``shots.prepare_auto`` without OpenCV: a camera plan from a raw detector (a face moving
+    left to right) and a shot plan with one shot per mode, cut evenly."""
+    from ai_clipper.edit_v2 import camera, shots
+    from ai_clipper.edit_v2 import timemap as tm
+
+    def detector(path, *, start, end, sample_interval=0.75, **_options):
+        times = [index * sample_interval for index in range(int((end - start) / sample_interval))]
+        centres = [0.35 + 0.3 * index / max(1, len(times) - 1) for index in range(len(times))]
+        return times, centres, [False] * len(times), 320, 180
+
+    calls = []
+
+    def prepare(source, window_ms, fps, *, output, scene_cuts_ms=(), content=None, **_options):
+        calls.append((tuple(window_ms), tuple(output), content))
+        fps = tm.Fps.from_json(fps)
+        plan = camera.build_camera_plan(source, window_ms, fps, out_w=output[0],
+                                        out_h=output[1], detector=detector)
+        first, end = tm.sf_floor(window_ms[0], fps), tm.sf_ceil(window_ms[1], fps)
+        step = (end - first) // len(modes)
+        cuts = [first + step * (index + 1) for index in range(len(modes) - 1)]
+        edges = [first, *cuts, end]
+        evidence = shots.ShotEvidence(samples=8, face_share_pm=1000, faces_p90=1,
+                                      face_w_med_pm=150, speakers=1, talk_share_pm=(900,),
+                                      spread_pm=150, centre_dev_pm=250, motion_med_pm=80)
+        planned = [shots.Shot(edges[i], edges[i + 1], mode, "rf_face", evidence)
+                   for i, mode in enumerate(modes)]
+        shot_plan = shots.build_shot_plan(
+            rules=shots.load_rules(), source_content_sha256=plan["source_content_sha256"],
+            camera_sha256=hashlib.sha256(camera.encode_camera_plan(plan)).hexdigest(),
+            window_ms=window_ms, fps=fps, cut_source="shot_cuts", cuts_sf=cuts, shots=planned)
+        return plan, shot_plan
+
+    prepare.calls = calls
+    return prepare
+
+
+def test_an_automatic_clip_gets_its_shot_plan_and_renders_one_layout_per_shot(source, tmp_path):
+    from ai_clipper.edit_v2 import shots
+
+    prepare = fake_prepare_auto()
+    job_dir = make_job(tmp_path, str(uuid.uuid4()), source, render_mode="auto")
+    manifest = run_job(job_dir, engine="edit-v2", render_mode="auto",
+                       clips=(clip(1, 12.3, 17.95),),
+                       patches=[(shots, "prepare_auto", prepare)])
+    (entry,) = manifest["clips"]
+    assert manifest["render_mode"] == "auto"
+    assert entry["render_engine"] == COMPILER_ID and "fallbacks" not in entry
+    assert not [code for code in manifest["selection_v3"]["warnings"]
+                if code.startswith(("auto_reframe_failed", "engine_fallback"))]
+    assert prepare.calls and prepare.calls[0][1] == (720, 1280)
+    directory = clip_dir(job_dir, entry["clip_id"])
+    seed_doc, _etag = store.seed(directory)
+    assert seed_doc["layout"]["default"] == {"mode": "auto", "no_face": "fit_blur"}
+    assert [r["mode"] for r in seed_doc["layout"]["ranges"]] == ["camera", "fit_blur"]
+    plan = shots.load_shot_plan(directory, seed_doc["base"]["shots"]["sha256"])
+    assert seed_doc["layout"]["ranges"] == shots.auto_ranges(plan["ranges"])
+    camera_sha = seed_doc["base"]["camera"]["sha256"]
+    assert plan["camera_sha256"] == camera_sha
+    assert (directory / f"camera.{camera_sha[:16]}.json").is_file()
+    inputs = render_edit.load_render_inputs(job_dir, seed_doc)
+    assert inputs.plan.layout_ranges and render_edit.verify_file(Path(entry["output"]),
+                                                                 inputs.plan).ok
+
+
+def test_an_automatic_clip_runs_the_real_analysis(source, tmp_path):
+    """No patch: the face scan, the shot detector and the decisions on a source without a
+    face; every shot is then Latar blur (``rf_no_face``)."""
+    pytest.importorskip("cv2")
+    from ai_clipper.edit_v2 import shots
+
+    job_dir = make_job(tmp_path, str(uuid.uuid4()), source, render_mode="auto")
+    manifest = run_job(job_dir, engine="edit-v2", render_mode="auto",
+                       clips=(clip(1, 12.3, 17.95),))
+    (entry,) = manifest["clips"]
+    assert entry["render_engine"] == COMPILER_ID
+    assert "auto_reframe_failed:1" not in manifest["selection_v3"]["warnings"]
+    directory = clip_dir(job_dir, entry["clip_id"])
+    seed_doc, _etag = store.seed(directory)
+    plan = shots.load_shot_plan(directory, seed_doc["base"]["shots"]["sha256"])
+    assert plan["cut_source"] == "shot_cuts"
+    assert {shot["reason"] for shot in plan["shots"]} <= {"rf_no_face", "rf_short_merged"}
+    assert seed_doc["layout"]["ranges"] == [{"in_sf": plan["ranges"][0]["in_sf"],
+                                             "out_sf": plan["ranges"][-1]["out_sf"],
+                                             "mode": "fit_blur", "origin": "auto"}]
+
+
+def test_an_automatic_clip_whose_analysis_fails_is_latar_blur(source, tmp_path):
+    from ai_clipper.edit_v2 import shots
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("no detector here")
+
+    job_dir = make_job(tmp_path, str(uuid.uuid4()), source, render_mode="auto")
+    manifest = run_job(job_dir, engine="edit-v2", render_mode="auto",
+                       clips=(clip(1, 12.3, 17.95),),
+                       patches=[(shots, "prepare_auto", broken)])
+    assert manifest["status"] == "completed"
+    (entry,) = manifest["clips"]
+    assert entry["render_engine"] == COMPILER_ID  # the job goes on, with the new engine
+    assert "auto_reframe_failed:1" in manifest["selection_v3"]["warnings"]
+    seed_doc, _etag = store.seed(clip_dir(job_dir, entry["clip_id"]))
+    assert seed_doc["layout"] == {"default": {"mode": "fit_blur", "no_face": "center"}}
+    assert seed_doc["base"]["camera"] == {"sha256": None} and "shots" not in seed_doc["base"]
+
+
+def test_the_legacy_engine_renders_an_automatic_job_as_latar_blur(source, tmp_path):
+    from ai_clipper import render
+
+    modes = []
+    real = render.render_vertical
+
+    def recording(*args, **kwargs):
+        modes.append(kwargs["render_mode"])
+        return real(*args, **kwargs)
+
+    job_dir = make_job(tmp_path, str(uuid.uuid4()), source, render_mode="auto")
+    manifest = run_job(job_dir, engine="legacy", render_mode="auto",
+                       clips=(clip(1, 12.3, 17.95),),
+                       patches=[(pipeline_module, "render_vertical", recording)])
+    (entry,) = manifest["clips"]
+    assert modes == ["fit-blur"]
+    assert entry["fallbacks"] == ["engine_fallback"]
+    assert "engine_fallback:1" in manifest["selection_v3"]["warnings"]
+    # prepare later seeds the legacy file as what it is: Latar blur
+    prepared = seed.prepare_legacy_job(job_dir)
+    assert [item["openable"] for item in prepared] == [True]
+    seed_doc, _etag = store.seed(clip_dir(job_dir, prepared[0]["clip_id"]))
+    assert seed_doc["layout"]["default"]["mode"] == "fit_blur"
+    assert seed_doc["base"]["engine"]["compiler"] == "legacy"
+
+
 def no_face_before(seconds: float):
     """A raw detector (legacy render and camera plan alike) with no face before ``seconds`` of
     the source and a centred face after it."""

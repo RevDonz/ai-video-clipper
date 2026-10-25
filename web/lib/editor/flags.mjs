@@ -25,6 +25,18 @@ export function readEditorFlags(env = globalThis.process?.env ?? {}) {
 }
 
 /**
+ * Otomatis (rombak 04 §0.2): POTONGIN_AUTO_REFRAME, off unless "on". It gates only what creates
+ * an automatic job or document (the job API, Buat klip, the editor's card); a job or document
+ * that is already automatic is always read and rendered (the release-1 floor), so Python never
+ * reads it.
+ */
+export const AUTO_REFRAME_FLAG = "POTONGIN_AUTO_REFRAME";
+
+export function readAutoReframeFlag(env = globalThis.process?.env ?? {}) {
+  return isOn(env[AUTO_REFRAME_FLAG]);
+}
+
+/**
  * The flags GET /api/jobs adds to the jobs list: `editor` (the history offers "Edit klip") and
  * `renderEngine` (the dashboard offers only the caption looks that engine renders).
  */

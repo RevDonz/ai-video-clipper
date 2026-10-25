@@ -82,7 +82,7 @@ export const JOB_STEPS = Object.freeze([
   Object.freeze({ id: "audio", stages: Object.freeze(["audio"]) }),
   Object.freeze({ id: "moments", stages: Object.freeze(["llm", "selecting"]) }),
   Object.freeze({ id: "packaging", stages: Object.freeze(["packaging"]) }),
-  Object.freeze({ id: "rendering", stages: Object.freeze(["rendering"]) }),
+  Object.freeze({ id: "rendering", stages: Object.freeze(["reframe", "rendering"]) }),
   Object.freeze({ id: "finalizing", stages: Object.freeze(["finalizing"]) }),
 ]);
 

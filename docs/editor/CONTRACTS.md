@@ -4766,8 +4766,17 @@ wins). Built so far (RF-M1, RF-M2, 2026-10-25): `edit_v2/shot_cuts.py`, `shot_co
 vectors `tests/fixtures/edit_v2/shot-vectors.json`), the validator rules below, the plan, the
 compiler's ranges branch and the plate key. `face_window.scan_window(frame_diff=)`,
 `detect_window(scan=)` and `camera.build_camera_plan(scan=)` share one scan between the camera
-plan (bytes unchanged) and the shot evidence. Nothing creates an `auto` document yet: the seed,
-pipeline, CLI and API arrive in RF-M3 behind `POTONGIN_AUTO_REFRAME` (default `off`). The shot
+plan (bytes unchanged) and the shot evidence. RF-M3 (2026-10-25, release 1 = the floor): the
+seed (`renderMode: "auto"` → `layout.default = {mode: "auto", no_face: "fit_blur"}`, the shot
+plan's ranges with `origin: "auto"`, `base.shots`, `base.camera`; a clip whose analysis fails is
+seeded `fit_blur` with the summary warning `auto_reframe_failed:<index>`), the pipeline (stage
+`reframe`, the analysis inside each clip's render), the CLI (`--render-mode auto`, V3 only; the
+legacy renderer draws such a clip as `fit-blur` with `engine_fallback`, and `prepare` seeds that
+file as `fit_blur`), the render queue, `preview_cli prepare {layout: "auto"}` (`shots: "ready" |
+"failed"`) and the job API behind `POTONGIN_AUTO_REFRAME` (default `off`: a new job asking for
+`auto` is `400 auto_reframe_off`; a stored `auto` job and document are always read and rendered).
+`scripts/ops/auto_layout_downgrade.py` takes every automatic seed, revision and job back to
+`fit_blur` before a rollback below the floor (`docs/editor/OPERASIONAL.md`). The shot
 plan's `fps` is the object `{num, den}` shown below (the camera plan keeps `[num, den]`). A
 missing `base.shots` on an `auto` document is `range_invalid` (`/base/shots`) at validation; a
 missing or unreadable shot plan file is `analysis_missing` (`ref="shots"`) at render. Minor-0 amendment: no new `schema_minor`; an older server

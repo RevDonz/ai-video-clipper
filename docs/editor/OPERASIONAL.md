@@ -59,6 +59,7 @@ musik dan hasil ekspor yang sudah tersimpan tidak hilang saat flag dimatikan.
 | `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan, dan Cek ejaan caption | `on` (gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul) | `off`: hanya saran instan ("AI seleksi"/"Heuristik"); tombol Cek ejaan tidak tampil |
 | `POTONGIN_RENDER_ENGINE` | Mesin render klip otomatis. `edit-v2`: kompiler yang sama dengan ekspor editor | `edit-v2` (keputusan pemilik 2026-10-21: render otomatis yang lebih lambat di kuota `cpus: 6` diterima, kuota tidak dinaikkan; PF-PIPELINE di PC acuan: latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12×; dengan `cpus: 6` potong tengah 1,99× dan ikuti wajah 1,82×, lihat di bawah) | `legacy` (rollback): proyek **baru** dirender mesin lama; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor. Dengan `legacy`, Logo bawaan dan Teks watermark bawaan tidak ada di file klip otomatis (dipakai saat klip dibuka di editor dan ikut di ekspornya), dan dashboard hanya menawarkan subtitle Klasik dan Karaoke di bawah |
 | `POTONGIN_AUTO_PAUSE_TRIM` | Potong jeda di klip otomatis: jeda hening lebih dari 0,6 detik di antara dua kata dipendekkan jadi 0,2 detik; tawa, musik, tepuk tangan dan jeda yang masih bersuara tidak disentuh. Editor membuka potongan yang sama (tercatat sebagai saran Rapikan yang sudah diterapkan, tiap potongan bisa dipulihkan). Dibaca `primary-worker`, hanya berlaku dengan mesin `edit-v2` | `on` (keputusan atas delegasi pemilik 2026-10-21; rata-rata 1,9–2,6 % durasi dibuang, 8 dari 10 klip terpotong, `docs/evaluation/PAUSE_TRIM.md`) | `off` (rollback): klip otomatis **baru** tanpa potong jeda; klip yang sudah ada tidak berubah. Jeda hening tetap ada sebagai saran di Rapikan |
+| `POTONGIN_AUTO_REFRAME` | Tata letak Otomatis: satu tata letak per shot (Ikuti wajah, Potong tengah atau Latar blur), dipilih dari analisis shot tiap klip. Dibaca `app`, `primary-worker` dan `render-worker`; hanya menggerbang pembuatan (API job, Buat klip, kartu editor) | `off` (release 1 = floor, rombak 04 §A8.4; `on` di release 2 setelah gerbang RF-M6) | `off`: job baru dengan `renderMode=auto` ditolak `400 auto_reframe_off`; job dan dokumen Otomatis yang sudah ada tetap dibuka dan dirender. Dengan `POTONGIN_RENDER_ENGINE=legacy` klip Otomatis dirender Latar blur (`engine_fallback`) |
 | `POTONGIN_LLM_EDITOR_MODELS` | Opsional: daftar `provider/model` gratis khusus saran hook dan Cek ejaan; kosong = rantai di Pengaturan | kosong | — |
 | `POTONGIN_PARITY_HARNESS` | Halaman uji paritas untuk CI | tidak diteruskan | **Jangan pernah** dinyalakan di produksi |
 
@@ -142,6 +143,26 @@ dokumen yang sah sebelumnya.
    mesin lama menggambarnya sebagai Klasik (Box) atau Karaoke di bawah, dan klipnya dirender ulang
    saat diekspor dari editor.
 5. Untuk kembali ke `edit-v2`, hapus baris itu lalu `docker compose up -d` lagi.
+
+**Rollback di bawah floor Otomatis.** Image sejak release 1 (RF-M3) membaca dan merender dokumen
+Otomatis (`layout.default.mode = "auto"`, `layout.ranges`, `base.shots`); image yang lebih lama
+menolaknya (`range_invalid`, `unknown_key`). Rollback ke release 1 atau lebih baru tidak perlu
+langkah tambahan. Untuk rollback ke image yang lebih lama:
+
+1. Hentikan `app`, `primary-worker` dan `render-worker` (`docker compose stop app primary-worker
+   render-worker`), supaya tidak ada job atau ekspor yang sedang berjalan.
+2. Lihat dulu apa yang akan berubah (tidak menulis apa pun), masih dengan image yang sekarang
+   (skripnya ada di image sebagai `/app/ops/auto_layout_downgrade.py`):
+   `docker compose run --rm --no-deps primary-worker /app/.venv/bin/python /app/ops/auto_layout_downgrade.py --jobs-root /data/jobs`
+3. Jalankan lagi dengan `--apply`. Per klip Otomatis: `seed.json` disimpan sebagai
+   `seed.auto.json` lalu diganti versi Latar blur-nya; revisi edit terakhir yang Otomatis mendapat
+   satu revisi baru (`last_command: "Downgrade"`, isi edit lain tetap); `job.json` dengan
+   `renderMode: "auto"` menjadi `"fit-blur"`. File klip otomatis, shot plan dan camera plan tidak
+   dihapus. Setiap perubahan satu baris JSON, lalu satu baris ringkasan; exit 1 kalau ada job atau
+   klip yang gagal dibaca.
+4. Jalankan sekali lagi dengan `--apply`: ringkasan harus `"changes": 0`.
+5. Baru setelah itu deploy image lama. Klip Otomatis yang belum diedit tetap memakai file
+   otomatisnya (Otomatis) saat diunduh; ekspor baru dari editor dirender Latar blur.
 
 Pra-centang kata pengisi di Rapikan bukan flag: nilainya `precheck` di
 `resources/lexicon/id-fillers.v1.json` (sekarang `false`). Nilainya diubah ke `true` lewat PR

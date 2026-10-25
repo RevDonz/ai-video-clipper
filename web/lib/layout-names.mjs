@@ -8,12 +8,15 @@ export const LAYOUT_NAMES = Object.freeze({
   camera: "Ikuti wajah",
   fill_center: "Potong tengah",
   split: "Layar terbagi",
+  // Otomatis (rombak 04 §A8.1): a layout per shot, offered only while POTONGIN_AUTO_REFRAME is on.
+  auto: "Otomatis",
 });
 
 export const RENDER_MODE_LAYOUTS = Object.freeze({
   "fit-blur": "fit_blur",
   "face-track": "camera",
   "center-crop": "fill_center",
+  auto: "auto",
 });
 
 /** The name of a job's render mode, or null for an unknown one. */
