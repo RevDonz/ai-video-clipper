@@ -5083,6 +5083,11 @@ when there is a hint) in every locale and a Help entry; `i18n-error-codes` enfor
   `readApiError(response)`; `apiErrorText(t, err, {locale})` shows the server's Indonesian
   sentence in `id` (the most specific text, as before) and `errors.<messageId>` in any other
   language, then the server's sentence, then `errors.web.unknown`.
+  `apiErrorMessage(t, body, status, {locale, fallback, domain})` is exactly `body.error || fallback`
+  in `id` and the catalog text of the code in any other language; Pengaturan (AI settings), the
+  default watermark card and the project deletion read their errors through it.
+- `web/messages/<locale>/hints.json` (namespace `hints`): `hints.download.*` (the hints of
+  `download-errors.mjs`), `hints.storage.*`, `hints.llm.*`, one step per code.
 - Web-only codes the routes answer as `edit.<code>` (`EDIT_WEB_CODES`: `uploads_disabled`,
   `length_required`, `asset_*`, `settings_unavailable`) live in `errors.edit` beside the 70 of
   `_MESSAGES`; `errors.editor_ai` holds the task codes and the AI routes' own codes.
