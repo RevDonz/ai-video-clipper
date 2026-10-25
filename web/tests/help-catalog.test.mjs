@@ -33,8 +33,11 @@ import { helpEntryView, helpGroupsView, helpSearchIndex, helpSearchTexts, helpTi
 import { loadNamespace, loadNamespaces } from "../lib/i18n/catalog.mjs";
 import { LOCALES } from "../lib/i18n/locales.mjs";
 import { CHECK_CODES, checkMessage } from "../lib/llm-settings-actions.mjs";
-import { selectionNotices } from "../lib/selection-v3-view.mjs";
+import * as selectionView from "../lib/selection-v3-view.mjs";
 import { textsOf } from "./support/catalog-t.mjs";
+
+// The selection view returns catalog descriptors; these compare their Indonesian text.
+const selectionNotices = (...args) => textsOf(selectionView.selectionNotices(...args));
 
 // The messages the pages show for a download or storage code: catalog descriptors, in Indonesian.
 const downloadErrorMessage = (code) => textsOf(downloadDescriptors(code));

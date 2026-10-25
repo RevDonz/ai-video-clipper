@@ -15,7 +15,13 @@ import { createSessionToken } from "../lib/auth.mjs";
 import { loadClipEntries } from "../lib/clip-entry-view.mjs";
 import { PYTHON_CLI_MODULES } from "../lib/python-cli.mjs";
 import { loadProjectDetail, projectName, statusLabel } from "../lib/project-view.mjs";
-import { clipScoreView, selectionNotes, selectionNotices } from "../lib/selection-v3-view.mjs";
+import * as selectionView from "../lib/selection-v3-view.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The selection view returns catalog descriptors; these compare their Indonesian text.
+const clipScoreView = (...args) => textsOf(selectionView.clipScoreView(...args));
+const selectionNotes = (...args) => textsOf(selectionView.selectionNotes(...args));
+const selectionNotices = (...args) => textsOf(selectionView.selectionNotices(...args));
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const REPO = path.resolve(WEB, "..");

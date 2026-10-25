@@ -18,25 +18,19 @@ import {
   serializePublicJob,
   validatePersistedJobOptions,
 } from "../lib/jobs.mjs";
-import {
-  FOCUS_LIMITS,
-  FOCUS_STOPWORDS,
-  addFocusTerms,
-  clipFocusChip,
-  focusFormFields,
-  focusSummaryLine,
-  focusTermKey,
-  focusTermMatchable,
-  focusTermsHint,
-  formatTimestamp,
-  normalizeFocusText,
-  pastedFocusTerms,
-  removeFocusTerm,
-  selectionNotes,
-  selectionNotices,
-  selectionWarningLabel,
-  splitFocusTerms,
-} from "../lib/selection-v3-view.mjs";
+import * as selectionView from "../lib/selection-v3-view.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The selection view returns catalog descriptors; these compare their Indonesian text.
+const { FOCUS_LIMITS, FOCUS_STOPWORDS, focusTermKey, focusTermMatchable, formatTimestamp, normalizeFocusText, pastedFocusTerms, removeFocusTerm, splitFocusTerms } = selectionView;
+const addFocusTerms = (...args) => textsOf(selectionView.addFocusTerms(...args));
+const clipFocusChip = (...args) => textsOf(selectionView.clipFocusChip(...args));
+const focusFormFields = (...args) => textsOf(selectionView.focusFormFields(...args));
+const focusSummaryLine = (...args) => textsOf(selectionView.focusSummaryLine(...args));
+const focusTermsHint = (...args) => textsOf(selectionView.focusTermsHint(...args));
+const selectionNotes = (...args) => textsOf(selectionView.selectionNotes(...args));
+const selectionNotices = (...args) => textsOf(selectionView.selectionNotices(...args));
+const selectionWarningLabel = (...args) => textsOf(selectionView.selectionWarningLabel(...args));
 
 const run = promisify(execFile);
 

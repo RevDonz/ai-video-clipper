@@ -25,18 +25,6 @@ export const TREND_KIND_NAMES = Object.freeze({
   event: d("trends.kind.event"),
   other: d("trends.kind.other"),
 });
-// Indonesian kind names for the project page's trend chips (lib/selection-v3-view.mjs), which
-// still take text; the trends page uses TREND_KIND_NAMES.
-export const TREND_KIND_LABELS = Object.freeze({
-  topic: "Topik",
-  person: "Orang",
-  joke: "Jokes",
-  meme: "Meme",
-  sound: "Sound",
-  hashtag: "Hashtag",
-  format: "Format konten",
-  event: "Peristiwa",
-});
 const OTHER_KIND = "other";
 
 export const TREND_PLATFORMS = Object.freeze(["tiktok", "instagram", "youtube", "x", "facebook", "news", "other"]);

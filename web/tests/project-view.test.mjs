@@ -37,14 +37,15 @@ import { textsOf } from "./support/catalog-t.mjs";
 
 // A download failure's reason and hint are catalog descriptors; compared by their Indonesian text.
 const downloadErrorMessage = (code) => textsOf(downloadErrorDescriptors(code));
-import {
-  clipReasons,
-  clipScoreView,
-  focusSummaryLine,
-  selectionNotes,
-  selectionNotices,
-  selectionWarningLabel,
-} from "../lib/selection-v3-view.mjs";
+import * as selectionView from "../lib/selection-v3-view.mjs";
+
+// The selection view returns catalog descriptors; these compare their Indonesian text.
+const { clipReasons } = selectionView;
+const clipScoreView = (...args) => textsOf(selectionView.clipScoreView(...args));
+const focusSummaryLine = (...args) => textsOf(selectionView.focusSummaryLine(...args));
+const selectionNotes = (...args) => textsOf(selectionView.selectionNotes(...args));
+const selectionNotices = (...args) => textsOf(selectionView.selectionNotices(...args));
+const selectionWarningLabel = (...args) => textsOf(selectionView.selectionWarningLabel(...args));
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const read = (relative) => readFile(path.join(WEB, relative), "utf8");

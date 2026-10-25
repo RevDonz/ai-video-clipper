@@ -10,6 +10,7 @@
 // A job written before the codes (no stageCode, no reasonCodes) shows its prose as before. Pure
 // and client-safe: the worker sanitizes with the same lists before it stores anything.
 import { shownStageDetail } from "../stage-detail.mjs";
+import { d } from "./descriptor.mjs";
 
 const NUMBER = "number";
 const STRING = "string";
@@ -209,12 +210,18 @@ export function sanitizeWarningCodes(value) {
   return entries.length ? entries : null;
 }
 
-/** reason.warning.<code> of a coded warning or a "code[:detail]" string, else null. */
-export function warningText(t, warning) {
+/** reason.warning.<code> of a coded warning or a "code[:detail]" string as a descriptor, else null. */
+export function warningDescriptor(warning) {
   const entry = typeof warning === "string" ? warningCode(warning) : warningEntry(warning);
   if (!entry) return null;
   const params = { ...entry.params };
   // A code whose detail is optional ("audio_unavailable") still names it in a select.
   for (const name of WARNING_PARAMS[entry.code]) if (params[name] === undefined) params[name] = "";
-  return t(`reason.warning.${entry.code}`, params);
+  return d(`reason.warning.${entry.code}`, params);
+}
+
+/** reason.warning.<code> of a coded warning or a "code[:detail]" string, else null. */
+export function warningText(t, warning) {
+  const descriptor = warningDescriptor(warning);
+  return descriptor ? t(descriptor.key, descriptor.values ?? {}) : null;
 }

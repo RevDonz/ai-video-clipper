@@ -15,7 +15,7 @@ import {
   CAPTION_SIZE_CHOICES,
   CAPTION_STYLE_CHOICES,
   DEFAULT_CHOICES,
-  choicesSummary,
+  choicesSummary as choicesSummaryParts,
   lookChoices,
   normalizeChoices,
   readStoredChoices,
@@ -34,6 +34,10 @@ import {
 } from "../lib/jobs.mjs";
 import { CAPTION_KEY, LOOK_NOTES, lookPreview } from "../lib/look-preview.mjs";
 import { buildClipperInvocation } from "../scripts/run-job.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The summary's parts are catalog descriptors; joined in Indonesian as the screen joins them.
+const choicesSummary = (...args) => textsOf(choicesSummaryParts(...args)).join(" · ");
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (...parts) => readFileSync(path.join(REPO, ...parts), "utf8");
@@ -72,7 +76,7 @@ test("every caption pack is a job option, and the spots and sizes are the engine
   assert.deepEqual(CAPTION_STYLE_CHOICES.map((entry) => entry.id), CAPTION_STYLES);
   assert.deepEqual(CAPTION_STYLE_CHOICES.map((entry) => entry.name), CAPTION_STYLES.map((id) => CAPTION_PACKS.find((pack) => pack.id === id).name));
   for (const entry of [...CAPTION_STYLE_CHOICES, ...CAPTION_POSITION_CHOICES, ...CAPTION_SIZE_CHOICES]) {
-    assert.doesNotMatch(`${entry.name} ${entry.description ?? ""}`, /—|\bV[1-3]\b|baru|viral|Hot/, entry.id);
+    assert.doesNotMatch(`${entry.name} ${textsOf(entry.description ?? "")}`, /—|\bV[1-3]\b|baru|viral|Hot/, entry.id);
   }
 });
 

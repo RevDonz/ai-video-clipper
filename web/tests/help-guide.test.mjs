@@ -13,13 +13,20 @@ import { CARDS } from "../components/editor/quick/cards.mjs";
 import { PANELS } from "../components/editor/panels/index.mjs";
 import { APP_SHORTCUTS } from "../lib/app-shortcuts.mjs";
 import { CLIP_LIMITS } from "../lib/clip-limits.mjs";
-import { CAPTION_STYLE_CHOICES, DURATION_PRESETS, LAYOUT_CHOICES, OPTION_SECTIONS } from "../lib/dashboard-choices.mjs";
+import * as choicesView from "../lib/dashboard-choices.mjs";
 import { SHORTCUTS } from "../lib/editor/shortcuts.mjs";
 import { HELP_ENTRIES, HELP_GROUPS } from "../lib/help-catalog.mjs";
 import { GUIDE_APP_SHORTCUTS, GUIDE_SHORTCUTS, GUIDE_TOPICS, KEY_NAMES, SHORTCUTS_ANCHOR, guideValues } from "../lib/help-guide.mjs";
 import { guideView, shortcutsView } from "../lib/help-view.mjs";
 import { loadNamespace, loadNamespaces } from "../lib/i18n/catalog.mjs";
 import { LOCALES } from "../lib/i18n/locales.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The presets' names, the layouts' descriptions and the fold titles are catalog descriptors.
+const { CAPTION_STYLE_CHOICES } = choicesView;
+const DURATION_PRESETS = textsOf(choicesView.DURATION_PRESETS);
+const LAYOUT_CHOICES = textsOf(choicesView.LAYOUT_CHOICES);
+const OPTION_SECTIONS = textsOf(choicesView.OPTION_SECTIONS);
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const INTL = Object.fromEntries(LOCALES.map((entry) => [entry.code, entry.intl]));

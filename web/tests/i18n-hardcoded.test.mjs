@@ -55,6 +55,9 @@ const ZERO = Object.freeze([
   "app/dashboard/RecentProjects.jsx",
   "app/dashboard/LookPreview.jsx",
   "lib/dashboard-view.mjs",
+  "lib/dashboard-choices.mjs",
+  "lib/selection-v3-view.mjs",
+  "lib/trend-view.mjs",
   "app/projects/[id]/layout.jsx",
   "app/projects/[id]/page.jsx",
   "app/projects/[id]/ClipsSection.jsx",
@@ -77,8 +80,7 @@ const ZERO = Object.freeze([
   "components/ClipLibrary.jsx",
   "lib/clip-library-view.mjs",
   "lib/projects-list-view.mjs",
-  // Dashboard F6 (08 Fase 3): Tren. lib/trend-view.mjs keeps the Indonesian kind names that the
-  // project page's trend chips still read (TREND_KIND_LABELS).
+  // Dashboard F6 (08 Fase 3): Tren.
   "app/trends/page.jsx",
   "components/trends/CopyButton.jsx",
   "components/trends/TokenModal.jsx",

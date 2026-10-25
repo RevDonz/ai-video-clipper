@@ -3,30 +3,33 @@
 // last choices kept per browser (which folds are open included).
 // Client-safe and DOM-free: the storage is passed in, and every access is guarded, so blocked
 // storage only means today's defaults. The video link, the file, the time ranges and the focus
-// are never stored.
+// are never stored. Descriptions, fold titles and summaries are catalog descriptors (msg(t, …));
+// the names of packs, layouts, spots and sizes stay the editor's own (the page reads its names
+// from the catalog).
 
 import { CLIP_LIMITS } from "./clip-limits.mjs";
+import { d } from "./i18n/descriptor.mjs";
 import { renderModeName } from "./layout-names.mjs";
 
 export const CHOICES_KEY = "potongin-dashboard-choices";
 
 // Named as the editor names them (layout-names.mjs).
 export const LAYOUT_CHOICES = Object.freeze([
-  { id: "fit-blur", name: renderModeName("fit-blur"), description: "Video landscape tetap utuh, sisa layar diisi versi blur." },
-  { id: "face-track", name: renderModeName("face-track"), description: "Layar penuh, potongan mengikuti wajah pembicara." },
-  { id: "center-crop", name: renderModeName("center-crop"), description: "Untuk video yang subjeknya selalu di tengah." },
+  { id: "fit-blur", name: renderModeName("fit-blur"), description: d("dashboard.layoutNote.fitBlur") },
+  { id: "face-track", name: renderModeName("face-track"), description: d("dashboard.layoutNote.faceTrack") },
+  { id: "center-crop", name: renderModeName("center-crop"), description: d("dashboard.layoutNote.centerCrop") },
 ]);
 
 // Every caption pack, named as the editor names it (components/editor/panels/caption-model.mjs);
 // the ids are lib/jobs.mjs CAPTION_STYLES. The legacy engine (the rollback switch) draws only
 // Karaoke and Klasik, at the bottom in one size (CONTRACTS §5.48).
 export const CAPTION_STYLE_CHOICES = Object.freeze([
-  { id: "classic", name: "Klasik", description: "Putih bergaris hitam, tanpa sorotan." },
-  { id: "karaoke", name: "Karaoke", description: "Kata yang sedang diucapkan menyala." },
-  { id: "bold", name: "Bold", description: "Huruf besar tebal, kata aktif berwarna." },
-  { id: "box", name: "Box", description: "Teks di kotak gelap." },
-  { id: "sorot", name: "Sorot", description: "Kotak warna di kata yang diucapkan." },
-  { id: "sinar", name: "Sinar", description: "Karaoke dengan cahaya lembut." },
+  { id: "classic", name: "Klasik", description: d("dashboard.styleNote.classic") },
+  { id: "karaoke", name: "Karaoke", description: d("dashboard.styleNote.karaoke") },
+  { id: "bold", name: "Bold", description: d("dashboard.styleNote.bold") },
+  { id: "box", name: "Box", description: d("dashboard.styleNote.box") },
+  { id: "sorot", name: "Sorot", description: d("dashboard.styleNote.sorot") },
+  { id: "sinar", name: "Sinar", description: d("dashboard.styleNote.sinar") },
 ]);
 const LEGACY_STYLES = Object.freeze(["karaoke", "classic"]);
 
@@ -76,18 +79,18 @@ export function outputSizeOf(choices) {
 // Ranges in seconds, inside the job API's CLIP_LIMITS.seconds (5 to 180). Otomatis is the range the
 // form always had; "custom" opens the two number fields.
 export const DURATION_PRESETS = Object.freeze([
-  { id: "auto", name: "Otomatis", min: 20, max: 60 },
-  { id: "short", name: "Pendek", min: 15, max: 30 },
-  { id: "medium", name: "Sedang", min: 30, max: 60 },
-  { id: "long", name: "Panjang", min: 60, max: 90 },
-  { id: "custom", name: "Atur sendiri" },
+  { id: "auto", name: d("dashboard.duration.auto"), min: 20, max: 60 },
+  { id: "short", name: d("dashboard.duration.short"), min: 15, max: 30 },
+  { id: "medium", name: d("dashboard.duration.medium"), min: 30, max: 60 },
+  { id: "long", name: d("dashboard.duration.long"), min: 60, max: 90 },
+  { id: "custom", name: d("dashboard.duration.custom") },
 ]);
 
 // The ids are VIDEO_LANGUAGES in lib/jobs.mjs (kept equal by a test; that module is server-only).
 export const VIDEO_LANGUAGE_CHOICES = Object.freeze([
-  { id: "id", name: "Indonesia", summary: "Bahasa Indonesia" },
-  { id: "en", name: "Inggris", summary: "Bahasa Inggris" },
-  { id: "auto", name: "Deteksi otomatis", summary: "Deteksi bahasa" },
+  { id: "id", name: d("dashboard.language.id"), summary: d("dashboard.languageSummary.id") },
+  { id: "en", name: d("dashboard.language.en"), summary: d("dashboard.languageSummary.en") },
+  { id: "auto", name: d("dashboard.language.auto"), summary: d("dashboard.languageSummary.auto") },
 ]);
 
 export const DEFAULT_CHOICES = Object.freeze({
@@ -109,9 +112,9 @@ export const DEFAULT_CHOICES = Object.freeze({
 
 // The folds under the essentials (jumlah, durasi, rasio, layout), in display order.
 export const OPTION_SECTIONS = Object.freeze([
-  Object.freeze({ id: "look", title: "Subtitle dan hook" }),
-  Object.freeze({ id: "moments", title: "Arahkan pilihan momen" }),
-  Object.freeze({ id: "format", title: "Bahasa dan resolusi" }),
+  Object.freeze({ id: "look", title: d("dashboard.section.look") }),
+  Object.freeze({ id: "moments", title: d("dashboard.section.moments") }),
+  Object.freeze({ id: "format", title: d("dashboard.section.format") }),
 ]);
 const SECTION_IDS = OPTION_SECTIONS.map((section) => section.id);
 
@@ -138,8 +141,9 @@ export function withSection(choices, id, open) {
 }
 
 /**
- * The line a closed fold shows: "Karaoke · Bawah, Sedang · Kalimat terkuat dulu · Teks hook",
- * "2 kata kunci · 1 rentang waktu" (or "Otomatis"), "Bahasa Indonesia · 720p".
+ * The parts of the line a closed fold shows, joined with " · " on screen: "Karaoke · Bawah, Sedang ·
+ * Kalimat terkuat dulu · Teks hook", "2 kata kunci · 1 rentang waktu" (or "Otomatis"), "Bahasa
+ * Indonesia · 720p". Each part is a descriptor or a name; an unknown fold has none.
  */
 export function sectionSummary(id, choices, { engine, focusTerms = 0, ranges = 0, note = false } = {}) {
   if (id === "look") {
@@ -150,26 +154,29 @@ export function sectionSummary(id, choices, { engine, focusTerms = 0, ranges = 0
       const size = byId(look.sizes, choices.captionSize) ?? byId(look.sizes, DEFAULT_CHOICES.captionSize);
       parts.push(`${spot.name}, ${size.name}`);
     }
-    parts.push(choices.coldOpen === false ? "Tanpa kalimat pembuka" : "Kalimat terkuat dulu");
-    parts.push(choices.hookOverlay === false ? "Tanpa teks hook" : "Teks hook");
-    return parts.join(" · ");
+    parts.push(choices.coldOpen === false ? d("dashboard.summary.noColdOpen") : d("dashboard.summary.coldOpen"));
+    parts.push(choices.hookOverlay === false ? d("dashboard.summary.noHookText") : d("dashboard.summary.hookText"));
+    return parts;
   }
   if (id === "moments") {
     const parts = [];
-    if (focusTerms > 0) parts.push(`${focusTerms} kata kunci`);
-    if (ranges > 0) parts.push(`${ranges} rentang waktu`);
-    if (note) parts.push("ada catatan");
-    return parts.length ? parts.join(" · ") : "Otomatis";
+    if (focusTerms > 0) parts.push(d("dashboard.summary.keywords", { count: focusTerms }));
+    if (ranges > 0) parts.push(d("dashboard.summary.ranges", { count: ranges }));
+    if (note) parts.push(d("dashboard.summary.note"));
+    return parts.length ? parts : [d("dashboard.duration.auto")];
   }
   if (id === "format") {
     const language = byId(VIDEO_LANGUAGE_CHOICES, choices.videoLanguage) ?? byId(VIDEO_LANGUAGE_CHOICES, DEFAULT_CHOICES.videoLanguage);
     const resolution = byId(RESOLUTION_CHOICES, choices.resolution) ?? byId(RESOLUTION_CHOICES, DEFAULT_CHOICES.resolution);
-    return `${language.summary} · ${resolution.name}`;
+    return [language.summary, resolution.name];
   }
-  return "";
+  return [];
 }
 
 const byId = (list, id) => list.find((entry) => entry.id === id) || null;
+// "subtitle atas", "subtitle besar": a spot or size that is not the pack's own, in the summary.
+const SPOT_PARTS = Object.freeze({ top: d("dashboard.summary.spot.top"), middle: d("dashboard.summary.spot.middle") });
+const SIZE_PARTS = Object.freeze({ small: d("dashboard.summary.size.small"), large: d("dashboard.summary.size.large") });
 const presetOf = (id) => byId(DURATION_PRESETS, id);
 
 /** The field text of a number in [minimum, maximum], or null. */
@@ -227,18 +234,18 @@ export function normalizeChoices(raw, { engine } = {}) {
 
 /**
  * "3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia": every choice the
- * next job uses, read with Buat klip (which comes before the options). Values being typed are
- * left out, and so are 9:16 and 720p (what every clip had before they could be chosen).
+ * next job uses, as parts (descriptors or names) joined with " · " on screen. Values being typed
+ * are left out, and so are 9:16 and 720p (what every clip had before they could be chosen).
  */
 export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   const parts = [];
   const limit = numberText(choices.limit, CLIP_LIMITS.count.min, CLIP_LIMITS.count.max, true);
-  if (limit !== null) parts.push(`${limit} klip`);
+  if (limit !== null) parts.push(d("dashboard.summary.clips", { count: Number(limit) }));
   const preset = presetOf(choices.duration);
-  if (preset && choices.duration !== "custom") parts.push(`${preset.name} ${preset.min}–${preset.max} detik`);
+  if (preset && choices.duration !== "custom") parts.push(d("dashboard.summary.preset", { name: preset.name, min: preset.min, max: preset.max }));
   else {
     const range = customRange(choices.minDuration, choices.maxDuration);
-    if (range) parts.push(`${range.min}–${range.max} detik`);
+    if (range) parts.push(d("dashboard.summary.seconds", { min: range.min, max: range.max }));
   }
   for (const [list, id, fallback] of [[RATIO_CHOICES, choices.ratio, "9:16"], [RESOLUTION_CHOICES, choices.resolution, "720p"]]) {
     const entry = byId(list, id);
@@ -249,17 +256,15 @@ export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
     if (entry) parts.push(entry.name);
   }
   // The pack's own spot and size (Bawah, Sedang) go unsaid.
-  for (const [list, id, fallback] of [[CAPTION_POSITION_CHOICES, choices.captionPosition, "bottom"], [CAPTION_SIZE_CHOICES, choices.captionSize, "medium"]]) {
-    const entry = byId(list, id);
-    if (entry && id !== fallback) parts.push(`subtitle ${entry.name.toLowerCase()}`);
-  }
+  if (choices.captionPosition !== "bottom" && Object.hasOwn(SPOT_PARTS, choices.captionPosition)) parts.push(SPOT_PARTS[choices.captionPosition]);
+  if (choices.captionSize !== "medium" && Object.hasOwn(SIZE_PARTS, choices.captionSize)) parts.push(SIZE_PARTS[choices.captionSize]);
   const language = byId(VIDEO_LANGUAGE_CHOICES, choices.videoLanguage);
   if (language) parts.push(language.summary);
-  if (choices.coldOpen === false) parts.push("tanpa kalimat pembuka");
-  if (choices.hookOverlay === false) parts.push("tanpa teks hook");
-  if (ranges > 0) parts.push(`${ranges} rentang waktu`);
-  if (focusTerms > 0) parts.push(`fokus ${focusTerms} kata kunci`);
-  return parts.join(" · ");
+  if (choices.coldOpen === false) parts.push(d("dashboard.summary.withoutColdOpen"));
+  if (choices.hookOverlay === false) parts.push(d("dashboard.summary.withoutHookText"));
+  if (ranges > 0) parts.push(d("dashboard.summary.ranges", { count: ranges }));
+  if (focusTerms > 0) parts.push(d("dashboard.summary.focusKeywords", { count: focusTerms }));
+  return parts;
 }
 
 // --- The valued chips (rombak 05 §6.3) -----------------------------------------------------------

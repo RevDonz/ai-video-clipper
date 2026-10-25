@@ -10,12 +10,11 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { createTrendApi } from "../components/trends/trend-api.mjs";
-import { clipTrendChips, selectionWarningLabel } from "../lib/selection-v3-view.mjs";
+import * as selectionView from "../lib/selection-v3-view.mjs";
 import {
   GUIDE_URL,
   SESSION_TEXT,
   TREND_KINDS,
-  TREND_KIND_LABELS,
   TREND_KIND_NAMES,
   TREND_LIMITS,
   TREND_PLATFORMS,
@@ -52,7 +51,17 @@ import {
   trendPatchPayload,
   validateTokenLabel,
 } from "../lib/trend-view.mjs";
-import { textOf } from "./support/catalog-t.mjs";
+import { textOf, textsOf } from "./support/catalog-t.mjs";
+
+// The selection view returns catalog descriptors; these compare their Indonesian text.
+const clipTrendChips = (...args) => textsOf(selectionView.clipTrendChips(...args));
+const selectionWarningLabel = (...args) => textsOf(selectionView.selectionWarningLabel(...args));
+
+// The Indonesian kind names (the project page's trend chips read TREND_KIND_NAMES too now).
+const TREND_KIND_LABELS = Object.freeze({
+  topic: "Topik", person: "Orang", joke: "Jokes", meme: "Meme", sound: "Sound", hashtag: "Hashtag",
+  format: "Format konten", event: "Peristiwa", other: "Lainnya",
+});
 
 const NOW = Date.parse("2026-09-25T05:00:00Z"); // 12:00 in Jakarta (UTC+7)
 const HOUR = 3_600_000;
@@ -92,7 +101,7 @@ test("every kind and platform of the spec has a label in every language", () => 
   for (const kind of TREND_KINDS) {
     assert.ok(TREND_KIND_LABELS[kind], kind);
     for (const locale of ["id", "en"]) assert.ok(textOf(TREND_KIND_NAMES[kind], locale), `${locale} ${kind}`);
-    assert.equal(textOf(TREND_KIND_NAMES[kind]), TREND_KIND_LABELS[kind], "the chips' Indonesian names match the catalog");
+    assert.equal(textOf(TREND_KIND_NAMES[kind]), TREND_KIND_LABELS[kind], "the Indonesian kind names in the catalog");
   }
   for (const platform of TREND_PLATFORMS) assert.ok(textOf(TREND_PLATFORM_LABELS[platform]), platform);
   assert.equal(textOf(TREND_KIND_NAMES.person), "Orang");

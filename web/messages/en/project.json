@@ -153,5 +153,51 @@
     "label": "Trends named in this clip",
     "kind": "{kind} · named in this clip's transcript",
     "plain": "Named in this clip's transcript"
+  },
+  "archetype": {
+    "curiosity_gap": "Curiosity gap",
+    "controversial_claim": "Controversial claim",
+    "confession": "Confession",
+    "insider_secret": "Insider secret",
+    "story_twist": "Story with a twist",
+    "number_proof": "Proof in numbers",
+    "conflict": "Conflict",
+    "humor": "Humor",
+    "relatable_pain": "Relatable problem",
+    "emotional": "Emotional",
+    "practical_tip": "Practical tip",
+    "other": "Other"
+  },
+  "scoreName": {
+    "hook": "Hook",
+    "standalone": "Stands alone",
+    "payoff": "Payoff",
+    "emotion": "Emotion",
+    "shareability": "Shareable"
+  },
+  "trendChip": "Trend: {title}",
+  "focusSummary": {
+    "count": "{matched} of {requested} clips match",
+    "text": "Focus: {terms}",
+    "textCount": "Focus: {terms} · {matched} of {requested} clips match"
+  },
+  "focusChip": {
+    "outside": "Outside focus",
+    "semantic": "Related to {terms} (per AI)",
+    "semanticAny": "Related to focus (per AI)",
+    "literal": "Mentions {terms}",
+    "literalAt": "Mentions {terms} · {at}",
+    "literalAny": "Mentions focus",
+    "literalAnyAt": "Mentions focus · {at}"
+  },
+  "rangeChip": "Your time range",
+  "notice": {
+    "aiFailed": "AI couldn't be used",
+    "aiFailedText": "Moments were picked without AI, so titles and hooks may be weaker. Check the API key or quota in Settings.",
+    "noAi": "Made without AI",
+    "noAiText": "AI was off or not set up when this project ran.",
+    "setUpAi": "Set up AI",
+    "openSettings": "Open Settings",
+    "openTrends": "Open Trends"
   }
 }

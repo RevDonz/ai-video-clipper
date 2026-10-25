@@ -9,11 +9,15 @@ import { POST, streamPrimaryMultipart } from "../app/api/jobs/route.js";
 import { createSessionToken } from "../lib/auth.mjs";
 import * as dashboardView from "../lib/dashboard-view.mjs";
 import { claimNextJob } from "../lib/primary-job-queue.mjs";
-import { selectionNotices, selectionWarningLabel } from "../lib/selection-v3-view.mjs";
+import * as selectionView from "../lib/selection-v3-view.mjs";
 import { MAX_SUBTITLE_BYTES, SubtitleUploadError, validateSrt } from "../lib/srt.mjs";
 import { stageSummaryRows } from "../lib/stage-summary.mjs";
 import { buildClipperInvocation, main } from "../scripts/run-job.mjs";
 import { textsOf } from "./support/catalog-t.mjs";
+
+// The selection view returns catalog descriptors; these compare their Indonesian text.
+const selectionNotices = (...args) => textsOf(selectionView.selectionNotices(...args));
+const selectionWarningLabel = (...args) => textsOf(selectionView.selectionWarningLabel(...args));
 
 // The dashboard view returns catalog descriptors; compared by their Indonesian text.
 const jobFormProblems = (fields) => textsOf(dashboardView.jobFormProblems(fields));
