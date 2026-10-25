@@ -205,12 +205,18 @@ test("no RouterProvider anywhere, and every editor link outside the editor is a 
 
 test("the root html is dark for HeroUI, and Providers carries the React Aria locale without routing", async () => {
   const layout = await read("app/layout.jsx");
-  assert.match(layout, /<html lang="id" className=\{dmSans\.variable\} data-theme="dark">/);
+  // lang and dir follow the request's UI language (rombak 07 §8.1); the theme stays dark.
+  assert.match(layout, /<html lang=\{locale\} dir=\{entry\.dir\} className=\{dmSans\.variable\} data-theme="dark">/);
   assert.doesNotMatch(layout, /@heroui|react-aria|Providers|ui\.css/, "the root layout stays free of the kit (the editor renders under it)");
   const providers = await read("components/ui/Providers.jsx");
   assert.match(providers, /^"use client";/);
   assert.match(providers, /import \{ I18nProvider \} from "react-aria-components";/);
   assert.match(providers, /<I18nProvider locale=\{locale\}>/);
+  // React Aria's locale is the UI language's Intl locale from the root IntlProvider (rombak 07
+  // §12), never a fixed one, so dates and numbers in the kit follow the chosen language.
+  assert.match(providers, /import \{ useLocale \} from "use-intl";/);
+  assert.match(providers, /const locale = useLocale\(\);/);
+  assert.doesNotMatch(providers, /"id-ID"/);
   for (const file of UI_IMPORTERS) assert.match(await read(file), /<Providers\b/, `${file} renders Providers`);
   const card = await read("components/ui/PublicCard.jsx");
   assert.match(card, /import Providers from "\.\/Providers\.jsx";/);
