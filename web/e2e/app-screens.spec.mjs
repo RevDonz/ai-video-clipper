@@ -50,6 +50,11 @@ async function fakeJobs(page) {
   const json = (route, body) => route.fulfill({ status: 200, contentType: "application/json", headers: { "Cache-Control": "no-store" }, body: JSON.stringify(body) });
   await page.route(/\/api\/jobs(?:\?.*)?$/, (route) => (route.request().method() === "GET"
     ? json(route, { jobs: [DONE, RUNNING, FAILED], total: 3, editor: false }) : route.continue()));
+  // The CI server has no storage limits or LLM keys; the dashboard reads both.
+  await page.route(/\/api\/storage\/status(?:\?.*)?$/, (route) => json(route, { admission: { allowed: true, code: null } }));
+  await page.route(/\/api\/llm\/status(?:\?.*)?$/, (route) => json(route, {
+    llm: { state: "active", order: ["uji"], providers: [{ name: "uji", displayName: null }], label: "LLM aktif: uji" },
+  }));
   await page.route(new RegExp(`/api/jobs/(?:${JOB_ID}|${RUNNING.id}|${FAILED.id})(?:[/?].*)?$`), (route) => {
     const url = new URL(route.request().url());
     const job = [DONE, RUNNING, FAILED].find((item) => url.pathname.startsWith(`/api/jobs/${item.id}`));
