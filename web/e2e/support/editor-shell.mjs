@@ -72,7 +72,8 @@ export function useShellDefaults() {
 // opens): the shell to show, the clips listing (`clips` clips, the fakes' clip as number `at`),
 // extra plan warnings, a read-only clip (`readOnly`), a save conflict on one part (`conflict`), a
 // cut of the words `removal: [first, last]` (word indexes) and, with `context`, four two-word
-// sentences before the clip, so the transcript folds three of them away.
+// sentences before the clip, so the transcript folds three of them away. `doc` (plain JSON, for
+// example from support/shell-docs.mjs) is the clip's document and seed in place of the fakes' own.
 function installShellScenario(config) {
   const FPS = [30000, 1001];
   const sf = (ms) => Math.floor((ms * FPS[0]) / (1000 * FPS[1]));
@@ -98,8 +99,8 @@ function installShellScenario(config) {
   };
   window.__potonginEditorScenario = {
     shell: config.shell,
-    api(base) {
-      let api = base;
+    api(base, fakes) {
+      let api = config.doc ? fakes.createFakeApiClient({ doc: config.doc }) : base;
       if (config.context) {
         const inner = api;
         api = { ...inner, async words(url) { return withContext(await inner.words(url)); } };
@@ -190,9 +191,9 @@ export function closeShortcutDialog(page) {
  */
 export async function openShell(page, query = "", {
   shell = "v2", clips = null, at = 1, planWarnings = null, readOnly = false, conflict = false, removal = null, context = false,
-  path: where = SHELL_PATH,
+  doc = null, path: where = SHELL_PATH,
 } = {}) {
-  await page.addInitScript(installShellScenario, { shell, clips, at, planWarnings, readOnly, conflict, removal, context });
+  await page.addInitScript(installShellScenario, { shell, clips, at, planWarnings, readOnly, conflict, removal, context, doc });
   await page.goto(`${where}${query}`);
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
 }
