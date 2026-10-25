@@ -134,6 +134,9 @@ test("every project opens pages in Indonesian; en-smoke exists only on request",
   assert.equal(en.use.uiLocale, "en");
   for (const spec of ["smoke", "read-only", "app-shell", "i18n-locale", "aria-names"]) assert.match(`${spec}.spec.mjs`, en.testMatch, spec);
   assert.doesNotMatch("editor-flow.spec.mjs", en.testMatch);
+  // The English screens of 08 Fase 2/3 (360 px without sideways scroll, page screenshots) need the
+  // id,en server that only this project starts.
+  for (const spec of ["create-project-screens", "app-screens"]) assert.match(`${spec}.spec.mjs`, en.testMatch, spec);
 });
 
 test("the harness sets the potongin_locale cookie of the project on every context", async () => {

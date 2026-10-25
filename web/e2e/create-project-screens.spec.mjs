@@ -8,7 +8,8 @@ import { LIn } from "./support/i18n.mjs";
 
 // Buat klip and the project page at 360 px in each UI language (08 Fase 2: "Screenshot en 360 px
 // tanpa scroll horizontal"): no sideways scroll with the chips, a popover, the clip grid and the
-// clip viewer open, and a screenshot of each in $EDITOR_GATES_OUT/create-project-shots. The job
+// clip viewer open, then Proyek, Pengaturan, Tren and Bantuan, and a screenshot of each in
+// $EDITOR_GATES_OUT/create-project-shots. The job
 // API is faked inside the browser (page.route); only the login is real. A server that has only
 // Indonesian on skips the English run.
 
@@ -82,6 +83,25 @@ for (const locale of ["id", "en"]) {
       await expect(page.locator("[data-clip-detail]")).toBeVisible();
       expect(await overflow(page)).toBeLessThanOrEqual(0);
       await shoot(page, `${locale}-360-viewer`);
+    });
+
+    test("no sideways scroll on Proyek, Pengaturan, Tren and Bantuan", async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await fakeApi(page);
+      await login(page, "/dashboard");
+      const lang = await page.locator("html").getAttribute("lang");
+      test.skip(lang !== locale, `the server does not have ${locale} on (POTONGIN_LOCALES)`);
+      for (const [name, route, key] of [
+        ["projects", "/projects", "projects.title"],
+        ["settings", "/settings", "settings.title"],
+        ["trends", "/trends", "trends.title"],
+        ["bantuan", "/bantuan", "help.title"],
+      ]) {
+        await page.goto(route);
+        await expect(page.getByRole("heading", { level: 1 })).toHaveText(LIn(locale, key));
+        expect(await overflow(page), name).toBeLessThanOrEqual(0);
+        await shoot(page, `${locale}-360-${name}`);
+      }
     });
   });
 }
