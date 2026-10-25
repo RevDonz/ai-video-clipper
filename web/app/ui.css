@@ -80,6 +80,10 @@
   /* The label of a switch, checkbox or radio is its target (the input is visually hidden). */
   .switch, .checkbox, .radio { min-height: 44px; min-width: 44px; }
   .checkbox, .radio { justify-content: center; }
+  /* HeroUI rounds a 16 px box by 0.75 × --radius, which reads as a radio button: square it. */
+  .checkbox__control, .checkbox__control::before { border-radius: calc(var(--radius-s) / 2); }
+  /* A table's selection column (SelectAll/SelectRow, components/ui/Table.jsx) is as narrow as its 44 px box. */
+  .table__column:has(.checkbox), .table__cell:has(.checkbox) { width: 56px; padding-inline: 6px; }
   /* shouldForceMount keeps a hidden tab panel mounted; React Aria marks it inert, and HeroUI
      3.2.6 does not hide it, so it is hidden here (spike F0, open issue #19). */
   .tabs__panel[data-inert="true"] { display: none; }
