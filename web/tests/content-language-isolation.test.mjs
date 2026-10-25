@@ -2,14 +2,20 @@
 // job's video language is the only content language. Child processes get the same argv and
 // environment whatever the UI language, the job form has no UI-language field, nothing on the
 // process side reads the i18n layer, and content text operations follow the content language.
+// The render half (plan digest, ASS, render_key of one edit document) is
+// tests/test_content_language_isolation.py, since only the engine builds them.
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { createRewriteRoute } from "../lib/clip-text-api.mjs";
 import { contentCompare, contentLang, contentLower, contentUpper } from "../lib/content-text.mjs";
+import { createAiRoute, createTaskRegistry } from "../lib/editor-ai.mjs";
 import { JOB_FORM_FIELDS, parseJobOptions } from "../lib/jobs.mjs";
-import { CHILD_ENV_ALLOWLIST, childEnv } from "../lib/python-cli.mjs";
+import { CHILD_ENV_ALLOWLIST, childEnv, runPythonCli } from "../lib/python-cli.mjs";
+import { TokenBucketLimiter } from "../lib/rate-limit.mjs";
 import { buildClipperInvocation, downloaderEnv } from "../scripts/run-job.mjs";
 import { WEB, parseSource, walk } from "./support/i18n-scan.mjs";
 
@@ -104,4 +110,86 @@ test("content text follows the content language: the job's video language, else 
   assert.equal(contentCompare("apel", "Apel"), 0);
   assert.ok(contentCompare("apel", "jeruk") < 0);
   assert.ok(contentCompare("zebra", "apel", "en") > 0);
+});
+
+// --- editor-ai and clip-text-api: the child each route would start ----------------------------
+
+const JOB_ID = "4d2c6b1a-7e3f-4a5b-9c8d-1e2f3a4b5c6d";
+const CLIP_ID = "clip_62654c2c2fa04f125391464a";
+const LLM_ENV = Object.freeze({ POTONGIN_LLM: "on", POTONGIN_LLM_PROVIDERS: "openrouter", OPENROUTER_API_KEY: "planted-or-key-for-tests" });
+
+/**
+ * A runCli that hands each call to the real runPythonCli with a spawn that records the binary,
+ * argv and environment (then refuses to start), and answers the route with an empty success.
+ */
+function spawnRecorder() {
+  const spawned = [];
+  const runCli = async (module, op, payload, options = {}) => {
+    const spawnImpl = (bin, args, spawnOptions) => {
+      spawned.push({ module, op, payload, bin, args, env: spawnOptions.env });
+      throw new Error("recorded, not started");
+    };
+    await runPythonCli(module, op, payload, { ...options, pythonBin: "python", spawnImpl }).catch(() => null);
+    return { exitCode: 0, json: op === "heuristic" ? { heuristic: [] } : {} };
+  };
+  return { spawned, runCli };
+}
+
+function jsonRequest(url, body) {
+  return new Request(`http://local${url}`, {
+    method: "POST",
+    headers: { Host: "local", Origin: "http://local", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function editorAiChildren(session, task) {
+  const { spawned, runCli } = spawnRecorder();
+  const route = createAiRoute({
+    env: { ...session, POTONGIN_EDITOR_LLM: "on" }, authorize: () => null, runCli,
+    loadLlmEnv: async () => ({ env: { ...LLM_ENV } }), registry: createTaskRegistry(),
+    limiter: new TokenBucketLimiter({ capacity: 10, refillPerSecond: 1 }), newTaskId: () => "6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+  });
+  const response = await route.POST(jsonRequest(`/api/jobs/${JOB_ID}/clips/${CLIP_ID}/ai`, { task, doc: { v: 1 } }),
+    { params: Promise.resolve({ id: JOB_ID, clipId: CLIP_ID }) });
+  assert.equal(response.status, 202, `${task}: ${await response.clone().text()}`);
+  await new Promise((resolve) => setImmediate(resolve));
+  return spawned;
+}
+
+test("editor-ai starts the same children with the same argv and environment in both sessions", async () => {
+  for (const task of ["hooks", "spelling"]) {
+    const id = await editorAiChildren(ID_SESSION, task);
+    const en = await editorAiChildren(EN_SESSION, task);
+    assert.ok(id.some((child) => child.op === "run-task"), `${task}: the LLM task is started`);
+    assert.deepEqual(en, id, task);
+    for (const child of id) {
+      assert.equal([...child.args, ...Object.keys(child.env)].some((part) => UI_LANGUAGE.test(String(part))), false, task);
+    }
+  }
+});
+
+async function rewriteChildren(t, session) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "potongin-content-language-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, JOB_ID), { recursive: true });
+  await writeFile(path.join(root, JOB_ID, "job.json"), JSON.stringify({
+    id: JOB_ID, status: "completed", options: { selectionMode: "v3", videoLanguage: "id" },
+    clips: [{ index: 1, text: "Gue tuh dulu kerja jadi security di mall.", title: "Judul", description: "" }],
+  }));
+  const { spawned, runCli } = spawnRecorder();
+  const route = createRewriteRoute({
+    env: session, jobsRoot: root, runCli, loadLlmEnv: async () => ({ env: { ...LLM_ENV } }),
+    limiter: new TokenBucketLimiter({ capacity: 10, refillPerSecond: 1 }), running: { count: 0 },
+  });
+  await route.POST(jsonRequest(`/api/jobs/${JOB_ID}/clip-text/rewrite`, { index: 1 }), { params: Promise.resolve({ id: JOB_ID }) });
+  return spawned;
+}
+
+test("clip-text rewrite starts the same child with the same argv and environment in both sessions", async (t) => {
+  const id = await rewriteChildren(t, ID_SESSION);
+  const en = await rewriteChildren(t, EN_SESSION);
+  assert.equal(id.length, 1, "the rewrite child is started");
+  assert.deepEqual(en, id);
+  assert.equal([...id[0].args, ...Object.keys(id[0].env)].some((part) => UI_LANGUAGE.test(String(part))), false);
 });
