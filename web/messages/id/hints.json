@@ -1,0 +1,40 @@
+{
+  "download": {
+    "download_private": "Pakai video yang bisa ditonton tanpa login.",
+    "download_unavailable": "Periksa link-nya di YouTube.",
+    "download_age_restricted": "Unggah file videonya langsung.",
+    "download_members_only": "Unggah file videonya langsung.",
+    "download_geo_blocked": "Unggah file videonya langsung.",
+    "download_bot_check": "Unggah cookies YouTube di Pengaturan.",
+    "download_ytdlp_outdated": "Sementara itu, unggah file videonya langsung.",
+    "download_stalled": "Buat ulang proyek ini beberapa menit lagi.",
+    "download_failed": "Periksa link-nya, lalu buat ulang proyek ini."
+  },
+  "storage": {
+    "storage_quota_exhausted": "Unduh klip yang masih dibutuhkan, lalu hapus proyek yang tidak dipakai lagi.",
+    "storage_free_space_low": "Hapus proyek yang tidak dipakai lagi.",
+    "storage_admission_unavailable": "Tunggu sebentar, lalu coba lagi."
+  },
+  "llm": {
+    "auth": "Buat key baru di situs penyedia, lalu tempel di Pengaturan.",
+    "payment_required": "Pilih model gratis lewat Ambil daftar model.",
+    "quota_exhausted": "Tunggu kuota harian pulih, atau tambah penyedia gratis lain.",
+    "rate_limited": "Tunggu sebentar, lalu jalankan Tes koneksi lagi.",
+    "model_not_found": "Tekan Ambil daftar model dan pilih model yang tersedia.",
+    "context_length": "Turunkan Batas konteks (token) penyedia itu.",
+    "too_large": "Turunkan Batas konteks (token) penyedia itu.",
+    "context_too_small": "Naikkan Batas konteks (token), atau turunkan Maks. token jawaban.",
+    "timeout": "Naikkan Batas waktu (detik) penyedia itu.",
+    "network": "Periksa Base URL di kartu penyedia.",
+    "bad_json": "Ubah Mode JSON penyedia itu, lalu jalankan Tes koneksi.",
+    "bad_response": "Ubah Mode JSON penyedia itu, lalu jalankan Tes koneksi.",
+    "truncated": "Naikkan Maks. token jawaban.",
+    "content_filter": "Pindahkan penyedia lain ke urutan teratas, atau pilih model lain.",
+    "no_moments": "Longgarkan durasi minimum dan maksimum klip di Buat klip.",
+    "missing_api_key": "Ambil API key di situs penyedia, lalu tempel di Pengaturan.",
+    "not_free": "Pilih model gratis lewat Ambil daftar model.",
+    "config_invalid": "Buka Pengaturan dan perbaiki isian yang ditandai.",
+    "unknown_provider": "Buka Pengaturan dan perbaiki isian yang ditandai.",
+    "not_configured": "Nyalakan AI di Pengaturan dan tambah penyedia gratis."
+  }
+}
