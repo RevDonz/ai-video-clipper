@@ -127,7 +127,7 @@ test("the component overrides keep 44 px targets, Potongin's radius and selectio
   const rules = cssRules(css);
   const layered = rules.filter((rule) => rule.at.includes("@layer components"));
   const find = (part) => layered.filter((rule) => rule.selector.split(",").map((s) => s.trim()).includes(part));
-  for (const target of [".button", ".tabs__tab", ".menu-item", ".list-box-item", ".close-button", ".toggle-button", ".pagination__link", ".tag__remove-button"]) {
+  for (const target of [".button", ".tabs__tab", ".menu-item", ".list-box-item", ".close-button", ".toggle-button", ".pagination__link", ".tag__remove-button", ".switch", ".checkbox", ".radio"]) {
     const decls = find(target).flatMap((rule) => rule.decls);
     assert.ok(decls.some((decl) => decl.prop === "min-height" && decl.value === "44px"), `${target} min-height`);
     assert.ok(decls.some((decl) => decl.prop === "min-width" && decl.value === "44px"), `${target} min-width`);
@@ -139,6 +139,8 @@ test("the component overrides keep 44 px targets, Potongin's radius and selectio
     for (const decl of rule.decls) assert.doesNotMatch(decl.value, /--accent\b/, `${rule.selector} uses no lime`);
   }
   assert.ok(rules.some((rule) => rule.at.includes("@media (forced-colors: active)")), "a forced-colors block");
+  // React Aria keeps an unselected Tabs.Panel with shouldForceMount mounted but only marks it inert.
+  assert.ok(find(".tabs__panel[data-inert=\"true\"]").some((rule) => rule.decls.some((decl) => decl.prop === "display" && decl.value === "none")));
   // Every class the overrides name is one HeroUI 3.2.6 ships, so a rename on upgrade fails here.
   const shipped = (await Promise.all(HEROUI_COMPONENTS.map((name) => read(`node_modules/@heroui/styles/dist/components/${name}.css`)))).join("\n");
   const names = new Set([...css.matchAll(/\.([a-z][a-z0-9-]*(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?)/g)].map((match) => match[1]));
