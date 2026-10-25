@@ -369,3 +369,10 @@ test("the caption box keys ClipText and HookSwitch apart", async () => {
   assert.notEqual(keys[0][1], keys[1][1]);
   for (const [, key] of keys) assert.match(key, /clip\.index/);
 });
+
+test("on a desktop the clip viewer is as wide as its two columns need, not HeroUI's lg (32rem)", async () => {
+  // Modal size "lg" caps the dialog at max-w-lg; the video column (up to 320 px) and the text
+  // column then squeeze the title into a column of single letters.
+  const viewer = await viewerStylesheet();
+  assert.match(viewer, /\.dialog \{ width: min\(980px, 100%\); max-width: min\(980px, 100%\); \}/);
+});
