@@ -1,0 +1,63 @@
+/* The app shell's own parts (components/AppShell.jsx, NavList.jsx, AccountMenu.jsx), loaded with
+   the shell only: the editor and the root layout's globals.css stay as they are. Unlayered, like
+   a CSS Module, so these rules win over HeroUI's component layer on the elements they name. The
+   brand, the job badge, Buat klip, the links and the Menu button keep their globals.css rules. */
+
+.appNav { gap: 12px; }
+.appNavList { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+
+/* HeroUI's trigger class sets display: inline-block; the Menu button keeps its own layout. */
+.appMenuToggle { display: inline-flex; }
+
+/* The account button: initials, name, a caret that turns while its menu is open. */
+.appAccount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text);
+  font: 500 14px/1.2 var(--font);
+  text-align: left;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.appAccount:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.appAccount[aria-expanded="true"] { background: var(--surface-3); border-color: var(--border-strong); }
+.appAvatar { flex: none; width: 28px; height: 28px; }
+.appAvatar .avatar__fallback { background: var(--surface-3); color: var(--text); font: 700 12px/1 var(--font); }
+.appAccountName { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.appAccountChevron { flex: none; color: var(--text-muted); transform: rotate(180deg); transition: transform var(--dur-2) var(--ease-out); }
+.appAccount[aria-expanded="true"] .appAccountChevron { transform: none; }
+
+.appAccountMenu { min-width: 248px; }
+.appAccountItem { gap: 10px; }
+.appAccountItemText { display: grid; flex: 1 1 auto; gap: 4px; min-width: 0; }
+.appAccountKeys { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+.appAccountKeys kbd { min-width: 20px; padding: 1px 5px; font: 600 11px/1.4 var(--font); }
+
+/* The Menu drawer: the sidebar's list on the panel colour, the page dimmed behind it. */
+.appDrawerBackdrop { background: var(--shadow); }
+.appDrawer {
+  width: min(320px, 85vw);
+  padding: 16px 16px 24px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: none;
+}
+.appDrawerHead { min-height: 44px; justify-content: center; padding-right: 52px; }
+.appDrawerTitle { margin: 0; color: var(--text); font: 600 16px/1.2 var(--font); }
+.appDrawerClose { top: 16px; right: 16px; }
+.appDrawerBody { display: flex; flex-direction: column; justify-content: space-between; gap: 24px; color: var(--text); }
+
+@media (min-width: 1024px) {
+  .appMenuToggle { display: none; }
+  .appSideBody { display: flex; flex: 1 1 auto; flex-direction: column; justify-content: space-between; gap: 24px; }
+}
+
+@media (max-width: 1023px) {
+  .appSideBody { display: none; }
+}

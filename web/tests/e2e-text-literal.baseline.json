@@ -1,6 +1,5 @@
 {
   "e2e/app-screens.spec.mjs": 2,
-  "e2e/app-shell.spec.mjs": 10,
   "e2e/bantuan.spec.mjs": 22,
   "e2e/cancel-job.spec.mjs": 12,
   "e2e/clip-hook.spec.mjs": 3,
@@ -42,6 +41,6 @@
   "e2e/settings-watermark.spec.mjs": 27,
   "e2e/settings-youtube-cookies.spec.mjs": 21,
   "e2e/smoke.spec.mjs": 2,
-  "e2e/trends.spec.mjs": 97,
+  "e2e/trends.spec.mjs": 95,
   "e2e/ui-kit.spec.mjs": 28
 }
