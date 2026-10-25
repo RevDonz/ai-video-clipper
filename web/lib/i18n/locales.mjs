@@ -30,3 +30,24 @@ export function enabledLocales(env = process.env) {
 export function isEnabled(code, env = process.env) {
   return enabledLocales(env).includes(code);
 }
+
+/** The enabled languages for a picker: { code, label }, Indonesian first (07 §9.1). */
+export function localeOptions(env = process.env) {
+  return enabledLocales(env).map((code) => ({ code, label: BY_CODE.get(code).label }));
+}
+
+/** The registry code of a use-intl locale ("en-US" -> "en"), or the default. */
+export function localeOfIntl(intl) {
+  return LOCALES.find((entry) => entry.intl === intl || entry.code === intl)?.code ?? DEFAULT_LOCALE;
+}
+
+/**
+ * Where the account menu's language form comes back to: this page, without the ?bahasa=gagal a
+ * refused change left (POST /api/locale, 07 §9.2). Takes a Location-like object.
+ */
+export function menuNext(location) {
+  const params = new URLSearchParams(location?.search ?? "");
+  params.delete("bahasa");
+  const search = params.toString();
+  return `${location?.pathname || "/"}${search ? `?${search}` : ""}`;
+}
