@@ -35,6 +35,8 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 .settingsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
 .settingsWide { grid-column: 1 / -1; }
 .settingsField, .settingsTextField, .settingsSelect { display: grid; gap: 6px; min-width: 0; }
+/* HeroUI's fields are 36–40 px tall; on this page every field is a 44 px target like the buttons. */
+.settingsPage .input, .settingsPage .select__trigger, .settingsPage .combo-box__input-group { min-height: 44px; }
 .settingsTextField .settingsRow > input { flex: 1 1 220px; min-width: 0; }
 .settingsLabel { font-size: 14px; font-weight: 600; }
 .settingsMuted { margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.5; }

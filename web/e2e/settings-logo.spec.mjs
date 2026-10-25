@@ -1,10 +1,11 @@
-// Pengaturan "Logo bawaan" (docs/editor/CONTRACTS.md §5.36). /api/settings/logo and the image are
+// Pengaturan → Tampilan → Logo (docs/editor/CONTRACTS.md §5.36). /api/settings/logo and the image are
 // faked in the browser (page.route), so nothing on the server changes; the AI form keeps talking
 // to the server.
 import { expect } from "@playwright/test";
 import zlib from "node:zlib";
 
-import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { openSettingsTab } from "./support/settings.mjs";
 
 const SHA = "5c".repeat(32);
 const LOGO = {
@@ -53,14 +54,14 @@ async function fakeLogo(page, state, { post = { status: 201, body: LOGO } } = {}
   return seen;
 }
 
-const card = (page) => page.getByRole("region", { name: "Logo bawaan" });
+const card = (page) => page.getByRole("region", { name: "Logo", exact: true });
 
 test.describe("Logo bawaan", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
   test("upload, see, replace and remove the logo", async ({ page }) => {
     const seen = await fakeLogo(page, { logo: null, enabled: true, autoClips: false });
-    await login(page, "/settings");
+    await openSettingsTab(page, "appearance");
     const section = card(page);
     await section.scrollIntoViewIfNeeded();
     await expect(section.getByText("Belum ada logo")).toBeVisible();
@@ -83,7 +84,7 @@ test.describe("Logo bawaan", () => {
 
   test("a file the editor would refuse is refused before it is sent", async ({ page }) => {
     const seen = await fakeLogo(page, { logo: null, enabled: true, autoClips: false });
-    await login(page, "/settings");
+    await openSettingsTab(page, "appearance");
     const section = card(page);
     await section.locator('input[type="file"]').setInputFiles({ name: "logo.gif", mimeType: "image/gif", buffer: Buffer.from("GIF89a") });
     await expect(section.getByRole("alert")).toHaveText("Format ini tidak didukung. Pakai PNG, JPEG, atau WebP.");
@@ -92,14 +93,14 @@ test.describe("Logo bawaan", () => {
 
   test("with automatic clips on the editor's engine the copy says the clips carry it", async ({ page }) => {
     await fakeLogo(page, { logo: LOGO, enabled: true, autoClips: true });
-    await login(page, "/settings");
+    await openSettingsTab(page, "appearance");
     await expect(card(page)).toContainText("Ikut di file klip otomatis");
     await expect(card(page)).not.toContainText("tanpa logo");
   });
 
   test("with uploads off the card says so and keeps the logo removable", async ({ page }) => {
     await fakeLogo(page, { logo: LOGO, enabled: false, autoClips: false });
-    await login(page, "/settings");
+    await openSettingsTab(page, "appearance");
     const section = card(page);
     await expect(section).toContainText("Unggah logo belum diaktifkan di server ini.");
     await expect(section.getByRole("button", { name: "Ganti logo" })).toBeDisabled();
@@ -118,7 +119,7 @@ test.describe("Logo bawaan after a failed load", () => {
       const body = calls === 1 ? { error: "x", code: "settings_unavailable" } : { logo: null, enabled: true, autoClips: false };
       return route.fulfill({ status: calls === 1 ? 503 : 200, contentType: "application/json", body: JSON.stringify(body) });
     });
-    await login(page, "/settings");
+    await openSettingsTab(page, "appearance");
     const section = card(page);
     await expect(section.getByRole("alert")).toHaveText(/Logo bawaan tidak bisa dimuat\./);
     await section.getByRole("button", { name: "Coba lagi" }).click();
@@ -133,7 +134,7 @@ test.describe("Logo bawaan at 390 px", () => {
 
   test("fits the phone: no horizontal scroll, buttons at least 44 px tall", async ({ page }) => {
     await fakeLogo(page, { logo: { ...LOGO, name: `${"logo-toko-panjang-".repeat(4)}.png` }, enabled: true, autoClips: false });
-    await login(page, "/settings");
+    await openSettingsTab(page, "appearance");
     const section = card(page);
     await section.scrollIntoViewIfNeeded();
     await expect(section.getByRole("button", { name: "Hapus" })).toBeVisible();
