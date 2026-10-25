@@ -5,6 +5,7 @@ import { llmWarningHelpHref } from "./help-catalog.mjs";
 import { TREND_KIND_LABELS, TREND_LIMITS, cleanLine } from "./trend-view.mjs";
 import { secondsFormat } from "./i18n/format.mjs";
 import { SOURCE_LOCALE } from "./i18n/locales.mjs";
+import { reasonText, sanitizeReasonCodes } from "./i18n/stage.mjs";
 
 export const ARCHETYPE_LABELS = Object.freeze({
   curiosity_gap: "Bikin penasaran",
@@ -74,6 +75,17 @@ const BOOKKEEPING_REASON = /^Peringkat ulang LLM:/;
 export function clipReasons(clip) {
   const reasons = Array.isArray(clip?.reasons) ? clip.reasons : [];
   return reasons.filter((reason) => typeof reason === "string" && reason.trim() && !BOOKKEEPING_REASON.test(reason.trim()));
+}
+
+/**
+ * "Kenapa dipilih" in the UI language: the coded reasons (i18n M5) through the catalog, without
+ * the rerank bookkeeping; a clip without valid codes (old jobs) keeps clipReasons. `t` is a root
+ * translator whose messages include the `reason` namespace.
+ */
+export function clipReasonTexts(t, clip) {
+  const coded = sanitizeReasonCodes(clip?.reasonCodes);
+  if (!coded) return clipReasons(clip);
+  return coded.filter((entry) => entry.code !== "llm_rerank").map((entry) => reasonText(t, entry)).filter(Boolean);
 }
 
 /**
@@ -501,8 +513,10 @@ export function coldOpenLength(clip) {
  * explained warnings are selectionNotes). A clean run has none. Provider, model and prompt version
  * are provenance: they stay in the job's artifact and log (the transcript source shows only in the
  * stage summary, lib/stage-summary.mjs). A failed job is explained by its own error, not here.
+ * `label(code)` words a warning in the UI language (the page passes warningText); without a text
+ * it falls back to the Indonesian label.
  */
-export function selectionNotices(job) {
+export function selectionNotices(job, { label = selectionWarningLabel } = {}) {
   const summary = job?.selectionV3;
   if (!summary || typeof summary !== "object" || summary.mode !== "v3") return [];
   const notices = [];
@@ -525,7 +539,7 @@ export function selectionNotices(job) {
     });
   }
   for (const code of summaryWarnings(job).filter((item) => ACTIONABLE_WARNINGS.test(item))) {
-    const text = selectionWarningLabel(code);
+    const text = label(code) || selectionWarningLabel(code);
     if (TREND_PAGE_WARNINGS.test(code)) notices.push({ tone: "warning", text, href: "/trends", action: "Buka Konteks Tren" });
     else if (SETTINGS_PAGE_WARNINGS.test(code)) notices.push({ tone: "warning", text, href: "/settings", action: "Buka Pengaturan" });
     else notices.push({ tone: "warning", text });

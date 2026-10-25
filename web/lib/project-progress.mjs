@@ -2,9 +2,8 @@
 // Pilih momen · Render, the queue position and how many clips are ready. Client-safe and
 // text-free: the page renders the step ids and counts through the catalog (project.step.*).
 //
-// The step comes from the stage the worker reports. Jobs from the coded worker (i18n M5) also
-// carry stageCode; until then, and for old jobs, job.stage is enough. A stage the table does not
-// know leaves the step where the status puts it.
+// The step comes from the stage the worker reports: stageCode from the coded worker (i18n M5),
+// job.stage for old jobs. A stage the tables do not know leaves the step where the status puts it.
 import { readyClips } from "./clip-status.mjs";
 
 export const PROGRESS_STEPS = Object.freeze(["download", "transcript", "moments", "render"]);
@@ -22,13 +21,24 @@ const STAGE_STEPS = Object.freeze({
   finalizing: "render",
 });
 
-// stageCode (07 §10.4, 04 §A8.1, §B1): the download codes and the reframe pass by name, the
-// others by the stage they share with job.stage.
+// stageCode (lib/i18n/stage.mjs STAGE_CODES, 07 §10.4) -> step. Codes that say nothing about the
+// step (engine_busy, the end-of-job codes) are left out, so job.stage decides.
+const CODE_STEPS = Object.freeze({
+  analyze_video: "transcript", engine_prepare: "transcript",
+  captions_upload: "transcript", captions_upload_ready: "transcript", captions_check: "transcript", captions_fetch: "transcript",
+  transcribe_groq: "transcript", transcribe_groq_progress: "transcript", transcribe_audio: "transcript", transcribe_progress: "transcript",
+  audio_analysis: "transcript",
+  candidates_generating: "moments", candidates_features: "moments", candidates_shortlist: "moments", candidates_media: "moments",
+  candidates_ready: "moments",
+  select_llm: "moments", select_heuristic: "moments", select_ranges: "moments", select_moments: "moments", packaging: "moments",
+  reframe: "render", render_clip: "render", finalizing: "render", clips_ready: "render", clips_partial: "render",
+});
+
+// The download codes by their prefix (04 §A8.1, §B1), the rest by the table.
 function codeStep(code) {
   if (typeof code !== "string" || !code) return null;
   if (code.startsWith("fetch_")) return "download";
-  if (code === "reframe") return "render";
-  return STAGE_STEPS[code] ?? null;
+  return Object.hasOwn(CODE_STEPS, code) ? CODE_STEPS[code] : null;
 }
 
 const ACTIVE = new Set(["queued", "preparing", "downloading", "processing"]);

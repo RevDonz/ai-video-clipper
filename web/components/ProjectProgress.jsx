@@ -7,7 +7,7 @@
 import { ProgressBar } from "@heroui/react";
 import { useTranslations } from "use-intl";
 
-import { stageText } from "../lib/i18n/stage-text.mjs";
+import { stageText } from "../lib/i18n/stage.mjs";
 import { jobCancellable } from "../lib/job-cancel.mjs";
 import { etaMinutes, progressSteps, queueView, readyCount } from "../lib/project-progress.mjs";
 import { projectProgress } from "../lib/project-view.mjs";

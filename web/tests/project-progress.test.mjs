@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { STAGE_CODES } from "../lib/i18n/stage.mjs";
 import { PROGRESS_STEPS, currentStep, etaMinutes, progressSteps, queueView, readyCount } from "../lib/project-progress.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
@@ -42,6 +43,28 @@ test("every stage the engine reports has a step", async () => {
   for (const stage of stages) {
     if (["completed", "failed", "cancelled"].includes(stage)) continue;
     assert.ok(currentStep({ ...upload, status: "processing", stage }), stage);
+  }
+});
+
+test("every stage code of the coded worker (i18n M5) puts the job on its step", () => {
+  const expected = {
+    download: ["fetch_preflight", "fetch_audio", "fetch_video", "fetch_cache_hit", "fetch_wait_video"],
+    transcript: ["analyze_video", "engine_prepare", "captions_upload", "captions_upload_ready", "captions_check", "captions_fetch",
+      "transcribe_groq", "transcribe_groq_progress", "transcribe_audio", "transcribe_progress", "audio_analysis"],
+    moments: ["candidates_generating", "candidates_features", "candidates_shortlist", "candidates_media", "candidates_ready",
+      "select_llm", "select_heuristic", "select_ranges", "select_moments", "packaging"],
+    render: ["reframe", "render_clip", "finalizing", "clips_ready", "clips_partial"],
+  };
+  // Codes that say nothing about the step (a busy engine, the end of a job) leave it to job.stage.
+  const stepless = ["engine_busy", "stopped_error", "storage_insufficient", "max_attempts", "canceled_before_finish", "worker_spawn_failed", "deleting"];
+  assert.deepEqual([...Object.values(expected).flat(), ...stepless].sort(), [...STAGE_CODES].sort(), "every code is placed");
+  for (const [step, codes] of Object.entries(expected)) {
+    for (const stageCode of codes) {
+      assert.equal(currentStep({ ...youtube, status: "processing", stage: "llm", stageCode }), step, stageCode);
+    }
+  }
+  for (const stageCode of stepless) {
+    assert.equal(currentStep({ ...upload, status: "processing", stage: "llm", stageCode }), "moments", stageCode);
   }
 });
 

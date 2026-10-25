@@ -361,7 +361,7 @@ test("the project page's progress title and failure notice drop a stage text tha
   assert.match(source, /const stage = job\.status === "queued" \? null : stageText\(tAll, job\);/);
   assert.match(source, /<h2 id="progress-title" className=\{styles\.title\}>\s*<ProcessStatus job=\{job\} detail=\{detail\}/);
   assert.match(source, /<Alert\.Description>\{projectStageText\(job\)\}<\/Alert\.Description>/);
-  assert.match(await read("lib/i18n/stage-text.mjs"), /return shownStageDetail\(job\);/);
+  assert.match(await read("lib/i18n/stage.mjs"), /return shownStageDetail\(job\);/);
 });
 
 // --- The retired candidate editor -------------------------------------------------------------
@@ -427,7 +427,7 @@ test("every clip of every job is shown with the same poster and clip viewer, wha
   assert.doesNotMatch(source, /href=\{clip\.(?:downloadUrl|subtitleUrl)\}/);
   assert.doesNotMatch(source, /<track\b/);
   assert.match(source, /clipCaptionText\(clip\)/);
-  assert.match(source, /selectionNotices\(job\)/);
+  assert.match(source, /selectionNotices\(job, \{ label: \(code\) => warningText\(tAll, code\) \}\)/);
   // The closed "Catatan pemilihan" list is gone (05 §6.4 Dihapus); reasons come per clip.
   assert.doesNotMatch(source, /selectionNotes\(job\)/);
   assert.match(source, /focusSummaryLine\(job\)/);

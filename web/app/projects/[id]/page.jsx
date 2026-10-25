@@ -17,6 +17,7 @@ import { entriesExporting, loadClipEntries } from "../../../lib/clip-entry-view.
 import { readyClips } from "../../../lib/clip-status.mjs";
 import { replaceClip } from "../../../lib/clip-text.mjs";
 import { jobHelpHref } from "../../../lib/help-catalog.mjs";
+import { warningText } from "../../../lib/i18n/stage.mjs";
 import { failureDetail, failureHint, isActiveStatus, loadProjectDetail, projectName, projectStageText } from "../../../lib/project-view.mjs";
 import { checkZip, clipFromParam, withClipParam } from "../../../lib/project-workspace.mjs";
 import { clipCaptionText, focusSummaryLine, formatTimestamp, selectionNotices } from "../../../lib/selection-v3-view.mjs";
@@ -134,11 +135,12 @@ function ProjectMeta({ job }) {
 
 function ProjectView({ job, entries, viewing, onView, copyState, onCopy, cancelNote, onCancelSettled, onClipSaved, onEntriesChanged }) {
   const t = useTranslations("project");
+  const tAll = useTranslations();
   const [deleting, setDeleting] = useState(false);
   const { zip, download } = useZip(job);
   const active = isActiveStatus(job.status);
   const languageNotice = videoLanguageNotice(job);
-  const notices = [...(languageNotice ? [languageNotice] : []), ...selectionNotices(job)];
+  const notices = [...(languageNotice ? [languageNotice] : []), ...selectionNotices(job, { label: (code) => warningText(tAll, code) })];
   const serverError = failureDetail(job);
   const hint = failureHint(job);
   const help = jobHelpHref(job);

@@ -20,7 +20,7 @@ import {
   clipFocusChip,
   clipPosterUrl,
   clipRangeChip,
-  clipReasons,
+  clipReasonTexts,
   clipScoreView,
   clipTrendChips,
   coldOpenLength,
@@ -46,6 +46,7 @@ function CopyButton({ state, label, done, failed, onPress }) {
 
 function Body({ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEntriesChanged, titleId }) {
   const t = useTranslations("project");
+  const tAll = useTranslations();
   const layoutName = useRenderModeName();
   const failed = failedClipView(clip);
   const label = clipLabel(clip);
@@ -53,7 +54,7 @@ function Body({ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEnt
   const archetype = archetypeLabel(clip.archetype);
   const coldOpen = coldOpenLength(clip);
   const caption = captionParts(clip);
-  const reasons = clipReasons(clip);
+  const reasons = clipReasonTexts(tAll, clip);
   const trendChips = clipTrendChips(clip);
   const focusChip = clipFocusChip(clip, job);
   const rangeChip = clipRangeChip(clip);
