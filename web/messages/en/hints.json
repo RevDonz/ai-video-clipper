@@ -1,0 +1,40 @@
+{
+  "download": {
+    "download_private": "Use a video that plays without signing in.",
+    "download_unavailable": "Check the link on YouTube.",
+    "download_age_restricted": "Upload the video file directly.",
+    "download_members_only": "Upload the video file directly.",
+    "download_geo_blocked": "Upload the video file directly.",
+    "download_bot_check": "Upload YouTube cookies in Settings.",
+    "download_ytdlp_outdated": "Meanwhile, upload the video file directly.",
+    "download_stalled": "Create this project again in a few minutes.",
+    "download_failed": "Check the link, then create this project again."
+  },
+  "storage": {
+    "storage_quota_exhausted": "Download the clips you still need, then delete projects you no longer use.",
+    "storage_free_space_low": "Delete projects you no longer use.",
+    "storage_admission_unavailable": "Wait a moment, then try again."
+  },
+  "llm": {
+    "auth": "Create a new key on the provider's site, then paste it in Settings.",
+    "payment_required": "Pick a free model with Get model list.",
+    "quota_exhausted": "Wait for the daily quota to reset, or add another free provider.",
+    "rate_limited": "Wait a moment, then run Test connection again.",
+    "model_not_found": "Press Get model list and pick an available model.",
+    "context_length": "Lower that provider's Context limit (tokens).",
+    "too_large": "Lower that provider's Context limit (tokens).",
+    "context_too_small": "Raise the Context limit (tokens), or lower Max answer tokens.",
+    "timeout": "Raise that provider's Timeout (seconds).",
+    "network": "Check the Base URL on the provider card.",
+    "bad_json": "Change that provider's JSON mode, then run Test connection.",
+    "bad_response": "Change that provider's JSON mode, then run Test connection.",
+    "truncated": "Raise Max answer tokens.",
+    "content_filter": "Move another provider to the top, or pick another model.",
+    "no_moments": "Widen the minimum and maximum clip length in Create clips.",
+    "missing_api_key": "Get an API key on the provider's site, then paste it in Settings.",
+    "not_free": "Pick a free model with Get model list.",
+    "config_invalid": "Open Settings and fix the marked fields.",
+    "unknown_provider": "Open Settings and fix the marked fields.",
+    "not_configured": "Turn on AI in Settings and add a free provider."
+  }
+}
