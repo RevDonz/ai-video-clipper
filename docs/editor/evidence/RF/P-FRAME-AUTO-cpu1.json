@@ -1,0 +1,346 @@
+{
+  "gate": "P-FRAME-AUTO",
+  "runs": {
+    "reference-image-ffmpeg-5.1.9": {
+      "auto_keyframes": {
+        "errors": [
+          [
+            "range_invalid",
+            "/layout/keyframes"
+          ]
+        ],
+        "refused": true
+      },
+      "cpus": {
+        "affinity": 1,
+        "cgroup_quota": null,
+        "os_cpu_count": 4
+      },
+      "frames": {
+        "cases": [
+          {
+            "body": [
+              30,
+              780
+            ],
+            "case": "cfr_30_auto",
+            "edges": "inner",
+            "fallback_output_frames": 270,
+            "final_frames": 610,
+            "final_frames_checked": 610,
+            "final_mismatches": 0,
+            "fps": [
+              30,
+              1
+            ],
+            "grid_end": 900,
+            "grid_first": 0,
+            "grid_frames": 900,
+            "grid_repeats": 0,
+            "grid_undecodable": 0,
+            "index_hidden_cell_frames": 0,
+            "index_hidden_output_frames": 0,
+            "joins": 21,
+            "layout": "auto",
+            "no_face": "fit_blur",
+            "output_frames": 610,
+            "pieces": 22,
+            "plate_cell_frames_checked": 780,
+            "plate_cell_mismatches": 0,
+            "plate_cells": 13,
+            "plate_cells_with_wrong_length": 0,
+            "plate_frames_below_window": 0,
+            "plate_mismatches": 0,
+            "plate_output_frames": 610,
+            "plate_output_frames_checked": 610,
+            "removals": 20,
+            "vfr": false
+          },
+          {
+            "body": [
+              30,
+              780
+            ],
+            "case": "cfr_2997_auto",
+            "edges": "inner",
+            "fallback_output_frames": 252,
+            "final_frames": 610,
+            "final_frames_checked": 610,
+            "final_mismatches": 0,
+            "fps": [
+              30000,
+              1001
+            ],
+            "grid_end": 900,
+            "grid_first": 0,
+            "grid_frames": 900,
+            "grid_repeats": 0,
+            "grid_undecodable": 0,
+            "index_hidden_cell_frames": 0,
+            "index_hidden_output_frames": 0,
+            "joins": 21,
+            "layout": "auto",
+            "no_face": "fit_blur",
+            "output_frames": 610,
+            "pieces": 22,
+            "plate_cell_frames_checked": 780,
+            "plate_cell_mismatches": 0,
+            "plate_cells": 13,
+            "plate_cells_with_wrong_length": 0,
+            "plate_frames_below_window": 0,
+            "plate_mismatches": 0,
+            "plate_output_frames": 610,
+            "plate_output_frames_checked": 610,
+            "removals": 20,
+            "vfr": false
+          },
+          {
+            "body": [
+              30,
+              780
+            ],
+            "case": "auto_zoom_content",
+            "edges": "inner",
+            "fallback_output_frames": 191,
+            "final_frames": 610,
+            "final_frames_checked": 191,
+            "final_mismatches": 0,
+            "fps": [
+              30,
+              1
+            ],
+            "grid_end": 900,
+            "grid_first": 0,
+            "grid_frames": 900,
+            "grid_repeats": 0,
+            "grid_undecodable": 0,
+            "index_hidden_cell_frames": 500,
+            "index_hidden_output_frames": 419,
+            "joins": 21,
+            "layout": "auto",
+            "no_face": "fit_blur",
+            "output_frames": 610,
+            "pieces": 22,
+            "plate_cell_frames_checked": 280,
+            "plate_cell_mismatches": 0,
+            "plate_cells": 13,
+            "plate_cells_with_wrong_length": 0,
+            "plate_frames_below_window": 0,
+            "plate_mismatches": 0,
+            "plate_output_frames": 610,
+            "plate_output_frames_checked": 191,
+            "removals": 20,
+            "vfr": false
+          },
+          {
+            "body": [
+              30,
+              780
+            ],
+            "case": "auto_mixed_2",
+            "edges": "inner",
+            "fallback_output_frames": 140,
+            "final_frames": 610,
+            "final_frames_checked": 610,
+            "final_mismatches": 0,
+            "fps": [
+              30,
+              1
+            ],
+            "grid_end": 900,
+            "grid_first": 0,
+            "grid_frames": 900,
+            "grid_repeats": 0,
+            "grid_undecodable": 0,
+            "index_hidden_cell_frames": 0,
+            "index_hidden_output_frames": 0,
+            "joins": 21,
+            "layout": "auto",
+            "no_face": "fit_blur",
+            "output_frames": 610,
+            "pieces": 22,
+            "plate_cell_frames_checked": 780,
+            "plate_cell_mismatches": 0,
+            "plate_cells": 13,
+            "plate_cells_with_wrong_length": 0,
+            "plate_frames_below_window": 0,
+            "plate_mismatches": 0,
+            "plate_output_frames": 610,
+            "plate_output_frames_checked": 610,
+            "removals": 20,
+            "vfr": false
+          },
+          {
+            "body": [
+              30,
+              640
+            ],
+            "case": "auto_mixed_3",
+            "edges": "inner",
+            "fallback_output_frames": 295,
+            "final_frames": 460,
+            "final_frames_checked": 460,
+            "final_mismatches": 0,
+            "fps": [
+              25,
+              1
+            ],
+            "grid_end": 760,
+            "grid_first": 0,
+            "grid_frames": 760,
+            "grid_repeats": 0,
+            "grid_undecodable": 0,
+            "index_hidden_cell_frames": 0,
+            "index_hidden_output_frames": 0,
+            "joins": 21,
+            "layout": "auto",
+            "no_face": "fit_blur",
+            "output_frames": 460,
+            "pieces": 22,
+            "plate_cell_frames_checked": 650,
+            "plate_cell_mismatches": 0,
+            "plate_cells": 13,
+            "plate_cells_with_wrong_length": 0,
+            "plate_frames_below_window": 0,
+            "plate_mismatches": 0,
+            "plate_output_frames": 460,
+            "plate_output_frames_checked": 460,
+            "removals": 20,
+            "vfr": false
+          }
+        ],
+        "pass": true,
+        "threshold": {
+          "min_frames": 2000,
+          "mismatches": 0
+        },
+        "totals": {
+          "final_frames": 2900,
+          "final_frames_checked": 2481,
+          "final_mismatches": 0,
+          "grid_undecodable": 0,
+          "index_hidden_output_frames": 419,
+          "plate_cell_frames_checked": 3270,
+          "plate_cell_mismatches": 0,
+          "plate_cells_with_wrong_length": 0,
+          "plate_mismatches": 0,
+          "plate_output_frames": 2900,
+          "plate_output_frames_checked": 2481
+        }
+      },
+      "gate_wall_s": 293.4,
+      "modules": "real",
+      "pass": true,
+      "pure_chain": [
+        {
+          "case": "cfr_30_auto",
+          "fps": [
+            30,
+            1
+          ],
+          "frames_by_mode": {
+            "camera": 252,
+            "fill_center": 146,
+            "fit_blur": 212
+          },
+          "md5_mismatches_by_mode": {
+            "camera": 0,
+            "fill_center": 0,
+            "fit_blur": 0
+          },
+          "output_frames": 610,
+          "ranges": 4,
+          "reference_frames": 610
+        },
+        {
+          "case": "cfr_2997_auto",
+          "fps": [
+            30000,
+            1001
+          ],
+          "frames_by_mode": {
+            "camera": 146,
+            "fill_center": 212,
+            "fit_blur": 252
+          },
+          "md5_mismatches_by_mode": {
+            "camera": 0,
+            "fill_center": 0,
+            "fit_blur": 0
+          },
+          "output_frames": 610,
+          "ranges": 4,
+          "reference_frames": 610
+        },
+        {
+          "case": "auto_zoom_content",
+          "fps": [
+            30,
+            1
+          ],
+          "frames_by_mode": {
+            "camera": 257,
+            "fill_center": 162,
+            "fit_blur": 191
+          },
+          "md5_mismatches_by_mode": {
+            "camera": 0,
+            "fill_center": 0,
+            "fit_blur": 0
+          },
+          "output_frames": 610,
+          "ranges": 3,
+          "reference_frames": 610
+        },
+        {
+          "case": "auto_mixed_2",
+          "fps": [
+            30,
+            1
+          ],
+          "frames_by_mode": {
+            "camera": 470,
+            "fit_blur": 140
+          },
+          "md5_mismatches_by_mode": {
+            "camera": 0,
+            "fit_blur": 0
+          },
+          "output_frames": 610,
+          "ranges": 2,
+          "reference_frames": 610
+        },
+        {
+          "case": "auto_mixed_3",
+          "fps": [
+            25,
+            1
+          ],
+          "frames_by_mode": {
+            "camera": 99,
+            "fill_center": 113,
+            "fit_blur": 248
+          },
+          "md5_mismatches_by_mode": {
+            "camera": 0,
+            "fill_center": 0,
+            "fit_blur": 0
+          },
+          "output_frames": 460,
+          "ranges": 3,
+          "reference_frames": 460
+        }
+      ],
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "python": "3.11.2",
+        "reference_toolchain_problem": null
+      },
+      "totals": {
+        "md5_mismatches": 0,
+        "reference_length_mismatches": 0
+      }
+    }
+  },
+  "task": "RF"
+}
