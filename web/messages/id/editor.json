@@ -27,6 +27,36 @@
   "stage": {
     "ratio": "Pratinjau {ratio}"
   },
+  "transcript": {
+    "modeLabel": "Tampilan transkrip",
+    "modes": {
+      "words": "Kata",
+      "lines": "Baris"
+    },
+    "cleanup": "Rapikan",
+    "cleanupCount": "Rapikan {count}",
+    "cleanupHint": "Kata pengisi, pengulangan dan jeda panjang yang bisa dipotong",
+    "spelling": "Ejaan",
+    "spellingCount": "Ejaan {count}",
+    "review": {
+      "title": "Periksa transkrip",
+      "tabsLabel": "Jenis pemeriksaan"
+    },
+    "lines": {
+      "help": "Ketik langsung untuk membetulkan kata. Waktunya tetap pas.",
+      "captionsOff": "Caption mati. Nyalakan di tab Teks.",
+      "captionsOffCard": "Caption mati. Nyalakan di kartu Caption.",
+      "loadError": "Baris caption belum bisa dimuat; editor mencoba lagi.",
+      "loading": "Menyiapkan baris caption…",
+      "empty": "Tidak ada kata yang tampil di caption. Kata yang disembunyikan bisa ditampilkan lagi di transkrip.",
+      "toWords": "Tampilkan kata",
+      "openTranscript": "Buka transkrip",
+      "rowHidden": "Baris disembunyikan dari caption.",
+      "coldOpen": "Cold open",
+      "hidden": "Disembunyikan",
+      "hiddenDetail": "{count, plural, other {# kata di baris ini disembunyikan dari caption; suaranya tetap. Ketik lagi untuk menampilkannya.}}"
+    }
+  },
   "shortcuts": {
     "singleKey": "Pintasan satu tombol",
     "singleKeyHelp": "K, I, O, ' dan ? bekerja tanpa Ctrl. Matikan kalau sering tertekan tanpa sengaja. Berlaku juga di dashboard.",

@@ -27,6 +27,36 @@
   "stage": {
     "ratio": "Preview {ratio}"
   },
+  "transcript": {
+    "modeLabel": "Transcript view",
+    "modes": {
+      "words": "Words",
+      "lines": "Lines"
+    },
+    "cleanup": "Tidy up",
+    "cleanupCount": "Tidy up {count}",
+    "cleanupHint": "Fillers, repeats and long pauses you can cut",
+    "spelling": "Spelling",
+    "spellingCount": "Spelling {count}",
+    "review": {
+      "title": "Check the transcript",
+      "tabsLabel": "Check"
+    },
+    "lines": {
+      "help": "Type to fix a word. Its timing stays right.",
+      "captionsOff": "Captions are off. Turn them on in the Text tab.",
+      "captionsOffCard": "Captions are off. Turn them on in the Caption card.",
+      "loadError": "Caption lines could not load yet; the editor is retrying.",
+      "loading": "Preparing caption lines…",
+      "empty": "No word shows in the caption. Hidden words can be shown again in the transcript.",
+      "toWords": "Show words",
+      "openTranscript": "Open transcript",
+      "rowHidden": "Line hidden from the caption.",
+      "coldOpen": "Cold open",
+      "hidden": "Hidden",
+      "hiddenDetail": "{count, plural, one {# word in this line is hidden from the caption; its sound stays. Type it again to show it.} other {# words in this line are hidden from the caption; their sound stays. Type them again to show them.}}"
+    }
+  },
   "shortcuts": {
     "singleKey": "Single-key shortcuts",
     "singleKeyHelp": "K, I, O, ' and ? work without Ctrl. Turn them off if you press them by accident. Applies to the dashboard too.",

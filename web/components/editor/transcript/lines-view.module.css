@@ -1,6 +1,7 @@
-/* Teks caption (spec §2.1, §8). Tokens only. Each line is one field: the time label and the text
-   input share a --surface-2 box with a --border-strong edge (3:1 on the card), so the focus ring is
-   drawn on that box and the line under the playhead turns its edge --text. */
+/* Baris in the transcript and Mode Cepat's Teks caption card (rombak 06 §6; Mode Cepat spec §2.1,
+   §8). Tokens only. Each line is one field: the time label and the text input share a --surface-2
+   box with a --border-strong edge (3:1 on the card), so the focus ring is drawn on that box and the
+   line under the playhead turns its edge --text. */
 
 .lines {
   display: grid;
@@ -136,4 +137,41 @@
   color: var(--danger);
   font-size: var(--ed-font-size-note, 13px);
   line-height: var(--ed-line-height, 1.45);
+}
+
+/* In the transcript (Baris) the lines sit under the transcript's head, at its side padding. */
+.lines[data-variant="transcript"] {
+  padding: var(--ed-space-2, 8px) var(--ed-space-3, 12px) var(--ed-space-3, 12px);
+}
+
+/* "Disembunyikan": the line keeps caption-hidden words; retyping them brings them back. */
+.hiddenMark {
+  flex: none;
+  margin-right: 10px;
+  padding: 2px 6px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-s, 4px);
+  /* on: --surface-2 */
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs, 11px);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (forced-colors: active) {
+  .hiddenMark {
+    border-color: CanvasText;
+  }
 }

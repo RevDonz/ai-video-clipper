@@ -23,6 +23,12 @@
 // "Cek ejaan" (with `llmEnabled`): the header button next to Rapikan opens the spelling review
 // (spelling/SpellingReview.jsx), which asks the free LLM chain on its first opening. One review is
 // open at a time.
+//
+// The one-layout editor (rombak 06 §6, Editor F2; `layout="shell"`) keeps the transcript on
+// screen in the centre: its head (TranscriptHead.jsx) has Kata | Baris and the Rapikan n / Ejaan n
+// buttons, Baris is LinesView.jsx (one field per caption line), the word toolbar takes its
+// one-layout buttons, and the two reviews share one drawer (ReviewDrawer.jsx) instead of opening
+// inline. The old shell's transcript stays as it was until F10.
 import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
@@ -35,6 +41,10 @@ import { commandsFor, keyAction, keywordClick, keywordCommand, runCommands, sele
 import { followActiveWord } from "./active-word.mjs";
 import { auditionRange, badgeMarks, cleanupView, planApply } from "./cleanup-model.mjs";
 import CleanupReview from "./CleanupReview.jsx";
+import LinesView from "./LinesView.jsx";
+import ReviewDrawer from "./ReviewDrawer.jsx";
+import TranscriptHead from "./TranscriptHead.jsx";
+import { openReview, reviewCount, transcriptMode } from "./transcript-view.mjs";
 import { TOOLBAR_TAB_HELP } from "./word-toolbar.mjs";
 import WordToolbar from "./WordToolbar.jsx";
 import { buildTranscriptModel, coldOpenInfo, formatDuration, seekFrameOf } from "./model.mjs";
@@ -179,8 +189,10 @@ function useCleanupList({ api, jobId, clipId, wordsKey, eager, wanted }) {
   return { status: current.status, listing: current.listing, load };
 }
 
-function Transcript({ state, dispatch, player, api, llmEnabled }) {
+function Transcript({ state, dispatch, player, api, llmEnabled, layout, mode, onModeChange, frameBus, onReviewChange }) {
   const { doc, words } = state;
+  const shell = layout === "shell";
+  const lines = shell && transcriptMode(mode) === "lines";
   const readOnly = state.status !== "ready";
   const listRef = useRef(null);
   const previous = useRef(null);
@@ -346,8 +358,28 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
     setSpellingOpen((open) => !open);
     setReviewOpen(false);
   }, []);
-  const openCount = view ? view.entries.length : null;
-  const spellingCount = spelling.view.phase === "done" ? spelling.rows.length : null;
+  const openCount = reviewCount("cleanup", { cleanupEntries: view ? view.entries.length : null });
+  const spellingCount = reviewCount("spelling", { spellingPhase: spelling.view.phase, spellingRows: spelling.rows.length });
+  // The one-layout drawer: one tab open at a time, the same two lists as the inline reviews.
+  const drawerTab = reviewOpen ? "cleanup" : spellingOpen ? "spelling" : null;
+  const openDrawer = useCallback((tab) => {
+    const next = openReview(tab, { llmEnabled });
+    setReviewOpen(next.cleanup);
+    setSpellingOpen(next.spelling);
+    if (next.cleanup) setReviewMessage(null);
+  }, [llmEnabled]);
+  const closeDrawer = useCallback(() => {
+    setReviewOpen(false);
+    setSpellingOpen(false);
+  }, []);
+  const drawerOpen = shell && drawerTab !== null;
+  // The editor's global keys wait while the drawer (a modal) is open; closing it or leaving the
+  // transcript releases them.
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    onReviewChange?.(true);
+    return () => onReviewChange?.(false);
+  }, [drawerOpen, onReviewChange]);
 
   const onEditDone = useCallback((index, text, how) => {
     const states = modelRef.current.states;
@@ -369,7 +401,8 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
   }, [focusList, run, selectionStore]);
 
   // The active word, outside React.
-  useEffect(() => followActiveWord({ list: listRef.current, player, getModel: () => modelRef.current }), [player]);
+  // The word list mounts again when Baris goes back to Kata.
+  useEffect(() => followActiveWord({ list: listRef.current, player, getModel: () => modelRef.current }), [player, lines]);
 
   // While a drag selects, the toolbar waits (it appears on mouseup).
   useEffect(() => {
@@ -494,117 +527,155 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
     return `Tampilkan ${paras.length} kalimat ${side} (${SECONDS.format(spanMs(list, first, last) / 1000)} dtk)`;
   };
 
+  const cleanupList = (
+    <CleanupReview view={view} status={cleanup.status} isChecked={isChecked} onToggle={onToggle} onGroup={onGroup}
+      onApply={onApply} onPlay={onPlay} playing={playing} onReveal={onReveal} onRetry={cleanup.load}
+      readOnly={readOnly} message={reviewMessage} />
+  );
+
   return (
-    <section data-panel="transcript" className={styles.panel} aria-busy={false}>
+    <section data-panel="transcript" data-transcript-mode={shell ? (lines ? "lines" : "words") : undefined} className={styles.panel}
+      aria-busy={false}>
       <div ref={headerRef} className={styles.header}>
-        <div className={styles.headRow}>
-          {/* The panel's name is the shell's heading (the rail tab names it too); this is its visible label. */}
-          <span className={styles.label} aria-hidden="true">Transkrip</span>
-          <span className={styles.headTools}>
-            <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={reviewOpen}
-              aria-controls="cleanup-review" data-cleanup-toggle="" onClick={toggleReview}
-              title="Kata pengisi, pengulangan dan jeda panjang yang bisa dipotong">
-              {openCount !== null ? `Rapikan · ${openCount}` : "Rapikan"}
-            </button>
-            {llmEnabled ? (
-              <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={spellingOpen}
-                aria-controls="spelling-review-transcript" data-spelling-toggle="" onClick={toggleSpelling}
-                title={SPELLING_COPY.toggleTitle}>
-                {spellingCount !== null ? `${SPELLING_COPY.toggle} · ${spellingCount}` : SPELLING_COPY.toggle}
+        {shell ? (
+          <TranscriptHead mode={lines ? "lines" : "words"} onModeChange={onModeChange} cleanupCount={openCount}
+            spellingCount={spellingCount} llmEnabled={llmEnabled} reviewTab={drawerTab} onOpenReview={openDrawer} />
+        ) : (
+          <div className={styles.headRow}>
+            {/* The panel's name is the shell's heading (the rail tab names it too); this is its visible label. */}
+            <span className={styles.label} aria-hidden="true">Transkrip</span>
+            <span className={styles.headTools}>
+              <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={reviewOpen}
+                aria-controls="cleanup-review" data-cleanup-toggle="" onClick={toggleReview}
+                title="Kata pengisi, pengulangan dan jeda panjang yang bisa dipotong">
+                {openCount !== null ? `Rapikan · ${openCount}` : "Rapikan"}
               </button>
-            ) : null}
-          </span>
-        </div>
-        {/* The line keeps the hint's height (it wraps), so the words never move under the pointer. */}
-        <div className={styles.statusRow}>
-          <span className={styles.statusSizer} aria-hidden="true">{hint}</span>
-          <p className={styles.status} role="status" data-transcript-status="">{status}</p>
-        </div>
-        {message ? <p className={styles.message} role="alert" data-transcript-message="">{message}</p> : null}
+              {llmEnabled ? (
+                <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={spellingOpen}
+                  aria-controls="spelling-review-transcript" data-spelling-toggle="" onClick={toggleSpelling}
+                  title={SPELLING_COPY.toggleTitle}>
+                  {spellingCount !== null ? `${SPELLING_COPY.toggle} · ${spellingCount}` : SPELLING_COPY.toggle}
+                </button>
+              ) : null}
+            </span>
+          </div>
+        )}
+        {lines ? null : (
+          <>
+            {/* The line keeps the hint's height (it wraps), so the words never move under the pointer. */}
+            <div className={styles.statusRow}>
+              <span className={styles.statusSizer} aria-hidden="true">{hint}</span>
+              <p className={styles.status} role="status" data-transcript-status="">{status}</p>
+            </div>
+            {message ? <p className={styles.message} role="alert" data-transcript-message="">{message}</p> : null}
+          </>
+        )}
         {coldOpen ? (
           <p className={styles.coldNote}>
             <span className={styles.coldTag}>Cold open</span> “{coldOpen.text}” · {formatDuration(coldOpen.frames, model.fps)}
           </p>
         ) : null}
       </div>
-      {reviewOpen ? (
-        <CleanupReview view={view} status={cleanup.status} isChecked={isChecked} onToggle={onToggle} onGroup={onGroup}
-          onApply={onApply} onPlay={onPlay} playing={playing} onReveal={onReveal} onRetry={cleanup.load}
-          readOnly={readOnly} message={reviewMessage} />
+      {/* The old shell shows the reviews inline; the one-layout editor in its drawer (below). */}
+      {shell ? null : (
+        <>
+          {reviewOpen ? cleanupList : null}
+          {spellingOpen && llmEnabled ? (
+            <div className={styles.reviewSlot}><SpellingReview id="spelling-review-transcript" check={spelling} /></div>
+          ) : null}
+        </>
+      )}
+      {lines ? (
+        <LinesView state={state} dispatch={dispatch} player={player} frameBus={frameBus} readOnly={readOnly} variant="transcript"
+          onShowWords={onModeChange ? () => onModeChange("words") : null} />
+      ) : (
+        <>
+          <p id={HELP_ID} className={styles.srOnly}>
+            Panah memindah pilihan, Shift+panah memperluas. Delete memotong kata, Enter mengedit, Ctrl+Shift+X
+            menyembunyikan dari caption, Ctrl+E menandai kata kunci, I dan O memotong awal dan akhir klip, Ctrl+Shift+H
+            menjadikan cold open. {TOOLBAR_TAB_HELP}
+          </p>
+          <div ref={boxRef} className={styles.wordsBox}>
+            <div
+              ref={listRef}
+              className={styles.words}
+              role="group"
+              aria-label="Transkrip"
+              aria-describedby={HELP_ID}
+              tabIndex={0}
+              data-transcript-words=""
+              style={{ "--tr-emphasis": doc.captions?.overrides?.emphasis ?? DEFAULT_EMPHASIS }}
+              onMouseDown={onMouseDown}
+              onMouseOver={onMouseOver}
+              onClick={onClick}
+              onDoubleClick={onDoubleClick}
+              onKeyDown={onKeyDown}
+            >
+              {model.paragraphs.length === 0 ? <p className={styles.loading}>Transkrip klip ini kosong.</p> : null}
+              {hiddenBefore.length ? (
+                <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: true }))}>
+                  {contextLabel(hiddenBefore, "sebelumnya")}
+                </button>
+              ) : null}
+              {expanded.before && folded.before > 0 ? (
+                <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: false }))}>
+                  Sembunyikan kalimat sebelumnya
+                </button>
+              ) : null}
+              {model.paragraphs.slice(showFrom, showTo).map((para) => {
+                const inside = selFirst < para.end && selLast >= para.start;
+                return (
+                  <Paragraph
+                    key={para.key}
+                    para={para}
+                    selFirst={inside ? selFirst : -1}
+                    selLast={inside ? selLast : -1}
+                    editing={editing >= para.start && editing < para.end ? editing : -1}
+                    onEditDone={onEditDone}
+                    onRestore={onRestore}
+                    readOnly={readOnly}
+                    marks={marks}
+                    mac={mac}
+                  />
+                );
+              })}
+              {hiddenAfter.length ? (
+                <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, after: true }))}>
+                  {contextLabel(hiddenAfter, "sesudahnya")}
+                </button>
+              ) : null}
+              {expanded.after && folded.after < model.paragraphs.length ? (
+                <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, after: false }))}>
+                  Sembunyikan kalimat sesudahnya
+                </button>
+              ) : null}
+            </div>
+            {range && editing < 0 ? (
+              <WordToolbar layout={shell ? "shell" : "legacy"} actions={actions} onAction={toolbarAction} onLeave={focusList}
+                boxRef={boxRef} headerRef={headerRef} controlRef={toolbarControl} range={range} model={model} />
+            ) : null}
+          </div>
+        </>
+      )}
+      {shell ? (
+        <ReviewDrawer tab={drawerTab} onTabChange={openDrawer} onClose={closeDrawer} llmEnabled={llmEnabled}
+          counts={{ cleanup: openCount, spelling: spellingCount }} cleanup={cleanupList}
+          spelling={<div className={styles.reviewSlot}><SpellingReview id="spelling-review-transcript" check={spelling} /></div>} />
       ) : null}
-      {spellingOpen && llmEnabled ? (
-        <div className={styles.reviewSlot}><SpellingReview id="spelling-review-transcript" check={spelling} /></div>
-      ) : null}
-      <p id={HELP_ID} className={styles.srOnly}>
-        Panah memindah pilihan, Shift+panah memperluas. Delete memotong kata, Enter mengedit, Ctrl+Shift+X
-        menyembunyikan dari caption, Ctrl+E menandai kata kunci, I dan O memotong awal dan akhir klip, Ctrl+Shift+H
-        menjadikan cold open. {TOOLBAR_TAB_HELP}
-      </p>
-      <div ref={boxRef} className={styles.wordsBox}>
-        <div
-          ref={listRef}
-          className={styles.words}
-          role="group"
-          aria-label="Transkrip"
-          aria-describedby={HELP_ID}
-          tabIndex={0}
-          data-transcript-words=""
-          style={{ "--tr-emphasis": doc.captions?.overrides?.emphasis ?? DEFAULT_EMPHASIS }}
-          onMouseDown={onMouseDown}
-          onMouseOver={onMouseOver}
-          onClick={onClick}
-          onDoubleClick={onDoubleClick}
-          onKeyDown={onKeyDown}
-        >
-          {model.paragraphs.length === 0 ? <p className={styles.loading}>Transkrip klip ini kosong.</p> : null}
-          {hiddenBefore.length ? (
-            <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: true }))}>
-              {contextLabel(hiddenBefore, "sebelumnya")}
-            </button>
-          ) : null}
-          {expanded.before && folded.before > 0 ? (
-            <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: false }))}>
-              Sembunyikan kalimat sebelumnya
-            </button>
-          ) : null}
-          {model.paragraphs.slice(showFrom, showTo).map((para) => {
-            const inside = selFirst < para.end && selLast >= para.start;
-            return (
-              <Paragraph
-                key={para.key}
-                para={para}
-                selFirst={inside ? selFirst : -1}
-                selLast={inside ? selLast : -1}
-                editing={editing >= para.start && editing < para.end ? editing : -1}
-                onEditDone={onEditDone}
-                onRestore={onRestore}
-                readOnly={readOnly}
-                marks={marks}
-                mac={mac}
-              />
-            );
-          })}
-          {hiddenAfter.length ? (
-            <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, after: true }))}>
-              {contextLabel(hiddenAfter, "sesudahnya")}
-            </button>
-          ) : null}
-          {expanded.after && folded.after < model.paragraphs.length ? (
-            <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, after: false }))}>
-              Sembunyikan kalimat sesudahnya
-            </button>
-          ) : null}
-        </div>
-        {range && editing < 0 ? (
-          <WordToolbar actions={actions} onAction={toolbarAction} onLeave={focusList} boxRef={boxRef} headerRef={headerRef}
-            controlRef={toolbarControl} range={range} model={model} />
-        ) : null}
-      </div>
     </section>
   );
 }
 
-export default function TranscriptPanel({ state, dispatch, player, api = null, llmEnabled = false }) {
+/**
+ * The transcript. `layout: "shell"` is the one-layout editor's (rombak 06 §6): its head with
+ * Kata | Baris (`mode`, `onModeChange`), Baris (LinesView, which follows `frameBus`), the
+ * one-layout word toolbar, and Rapikan and Ejaan in one drawer (`onReviewChange` says while it is
+ * open). The default is the old shell's transcript, unchanged.
+ */
+export default function TranscriptPanel({
+  state, dispatch, player, api = null, llmEnabled = false, layout = "legacy", mode = "words", onModeChange = null, frameBus = null,
+  onReviewChange = null,
+}) {
   if (!state?.doc || !state?.words) {
     return (
       <section data-panel="transcript" className={styles.panel} aria-busy="true">
@@ -612,5 +683,8 @@ export default function TranscriptPanel({ state, dispatch, player, api = null, l
       </section>
     );
   }
-  return <Transcript state={state} dispatch={dispatch} player={player} api={api} llmEnabled={llmEnabled} />;
+  return (
+    <Transcript state={state} dispatch={dispatch} player={player} api={api} llmEnabled={llmEnabled} layout={layout} mode={mode}
+      onModeChange={onModeChange} frameBus={frameBus} onReviewChange={onReviewChange} />
+  );
 }

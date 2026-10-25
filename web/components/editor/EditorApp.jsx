@@ -28,6 +28,8 @@
 // POTONGIN_EDITOR_SHELL=v2 (`shell` prop; the fakes' scenario may pick it for the specs): the
 // same workspace, store, player, dialogs and keyboard map, placed by shell/EditorShell.jsx with
 // the Klip list, the stage and its transport, the transcript, five tabs and the folded timeline.
+// The transcript there (Editor F2) has Kata | Baris and the Rapikan / Ejaan drawer; while the
+// drawer is open the global keys wait, as for every other modal.
 // The old views stay the default until the phase passes and go in F10.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "use-intl";
@@ -75,6 +77,7 @@ import { wordForTrimAt } from "./timeline/timeline-model.mjs";
 import TopBar from "./TopBar.jsx";
 import { runCommands } from "./transcript/actions.mjs";
 import { selectionStoreFor } from "./transcript/selection.mjs";
+import { transcriptMode } from "./transcript/transcript-view.mjs";
 import PillButton from "./ui/PillButton.jsx";
 import Switch from "./ui/Switch.jsx";
 
@@ -261,6 +264,9 @@ function EditorWorkspace({
   const [openingState] = useState(() => (oneLayout ? openingTab(initialPanel) : null));
   const [tabId, setTabId] = useState(openingState?.panel ?? "text");
   const [clipsDrawerOpen, setClipsDrawerOpen] = useState(false);
+  // The transcript's view, Kata or Baris (an old ?card=lines link opens Baris), and its review drawer.
+  const [transcriptView, setTranscriptView] = useState(() => transcriptMode(openingState?.transcript));
+  const [reviewOpen, setReviewOpen] = useState(false);
   // "Pintasan satu tombol" (lib/ui-prefs.mjs): the page reads it on the server; the dialog's switch
   // writes the shared cookie and acts at once.
   const [singleKeyOn, setSingleKeyOn] = useState(singleKeyShortcuts !== false);
@@ -298,7 +304,7 @@ function EditorWorkspace({
   const conflict = state.save === "conflict" && conflictParts(state.conflict).length ? state.conflict : null;
   // "Klip ini terbuka di tab lain" comes from the store's own BroadcastChannel (T2.5).
   const otherTab = state.otherTab === true;
-  const modalOpen = exportOpen || helpOpen || framingOpen || splitOpen || clipsDrawerOpen || Boolean(conflict);
+  const modalOpen = exportOpen || helpOpen || framingOpen || splitOpen || clipsDrawerOpen || reviewOpen || Boolean(conflict);
 
   const notify = useCallback((text) => setToast({ text, id: Date.now() }), []);
   notifyRef.current = notify;
@@ -467,10 +473,11 @@ function EditorWorkspace({
   }, [player, playerState]);
 
   // I and O (Mode Cepat spec §4.1): the transcript's selection, shared per clip, while the
-  // transcript is on screen (Lengkap's Transkrip panel), as "Mulai di sini" and "Akhiri di sini";
-  // otherwise, or without a selection, the word under the playhead.
+  // transcript is on screen (Lengkap's Transkrip panel; the one-layout editor's transcript in Kata),
+  // as "Mulai di sini" and "Akhiri di sini"; otherwise, or without a selection, the word under the
+  // playhead.
   const clipKey = state.doc?.clip_id ?? clipId;
-  const transcriptShown = oneLayout || (view === "lengkap" && panelId === "transcript");
+  const transcriptShown = oneLayout ? transcriptView === "words" : view === "lengkap" && panelId === "transcript";
   const trimAtPlayhead = useCallback((edge) => {
     if (status !== "ready") return;
     const selected = transcriptShown
@@ -810,7 +817,8 @@ function EditorWorkspace({
         )}
         transcript={Transcript ? (
           <Suspense fallback={<p className={styles.muted}>{tEditor("shell.openingPanel")}</p>}>
-            <Transcript {...panelProps} />
+            <Transcript {...panelProps} layout="shell" mode={transcriptView} onModeChange={setTranscriptView} frameBus={frameBus}
+              onReviewChange={setReviewOpen} />
           </Suspense>
         ) : null}
         panel={<PanelTabs value={tabId} onChange={changeTab} panelProps={panelProps} />}

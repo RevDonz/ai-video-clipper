@@ -1,0 +1,108 @@
+/* The head of the one-layout editor's transcript (rombak 06 §6): its name, Kata | Baris and the
+   Rapikan / Ejaan buttons, in one row that wraps on a narrow column. Neutral like the kit's pills
+   (ui/ui.module.css): the chosen view is filled with --text, lime stays on Ekspor. Every control
+   is at least --ed-target tall. */
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ed-space-2, 8px) var(--ed-space-3, 12px);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-muted);
+  font: 700 var(--ed-font-size-sm, 12px) / 1 var(--ed-font-ui, var(--font));
+  letter-spacing: var(--ed-label-tracking, 0.08em);
+  text-transform: uppercase;
+}
+
+.modes {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: var(--ed-target, 44px);
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--ed-font-size-sm, 13px) / 1 var(--ed-font-ui, var(--font));
+  cursor: pointer;
+  transition: background var(--dur-1), color var(--dur-1);
+}
+
+.mode[data-hovered]:not([data-selected]) {
+  background: var(--surface-2);
+}
+
+.mode[data-selected] {
+  border-color: var(--text);
+  background: var(--text);
+  /* on: --text */
+  color: var(--bg);
+}
+
+.mode[data-focus-visible],
+.tool:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ed-space-2, 8px);
+  margin-left: auto;
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ed-target, 44px);
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--ed-font-size-sm, 13px) / 1 var(--ed-font-ui, var(--font));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1);
+}
+
+.tool:hover {
+  background: var(--surface-2);
+}
+
+.tool[aria-expanded="true"] {
+  border-color: var(--text);
+}
+
+@media (forced-colors: active) {
+  .mode[data-selected] {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+
+  .mode[data-focus-visible],
+  .tool:focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode,
+  .tool {
+    transition: none;
+  }
+}

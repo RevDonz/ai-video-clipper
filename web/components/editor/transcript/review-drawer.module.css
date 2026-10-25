@@ -1,0 +1,150 @@
+/* The Rapikan / Ejaan drawer (rombak 06 §6): on the right edge over the panel column, so the
+   transcript in the centre stays visible with its marks. Tokens only; neutral tabs (the chosen
+   one underlined in --text), lime stays on Ekspor and Terapkan. It scrolls on its own; the page
+   never does. */
+
+.backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  background: var(--shadow);
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: calc(100vw - 48px);
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--ed-shadow-popover);
+  transition: transform var(--ed-duration-slow, 240ms);
+}
+
+/* Outside the editor root, so the shell's box-sizing rule is repeated here. */
+.panel,
+.panel *,
+.panel *::before,
+.panel *::after {
+  box-sizing: border-box;
+}
+
+.panel[data-entering] {
+  transform: translateX(100%);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: var(--text);
+  font: var(--ed-font-size-md, 14px) / var(--ed-line-height, 1.45) var(--ed-font-ui, var(--font));
+  outline: none;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2, 8px);
+  padding: var(--ed-space-3, 12px);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ed-font-size-lg, 16px);
+}
+
+.close {
+  min-width: var(--ed-target, 44px);
+  min-height: var(--ed-target, 44px);
+  padding: 0 var(--ed-space-3, 12px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-md, 8px);
+  background: var(--surface);
+  color: var(--text);
+  font: 600 var(--ed-font-size-sm, 13px) / 1 var(--ed-font-ui, var(--font));
+  cursor: pointer;
+}
+
+.close[data-hovered] {
+  background: var(--surface-2);
+}
+
+.tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tabList {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 0 var(--ed-space-2, 8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  min-height: var(--ed-target, 44px);
+  padding: 0 var(--ed-space-3, 12px);
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font: 600 var(--ed-font-size-sm, 13px) / 1 var(--ed-font-ui, var(--font));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--ed-duration-fast, 120ms);
+}
+
+.tab[data-hovered],
+.tab[data-selected] {
+  color: var(--text);
+}
+
+.tab[data-selected] {
+  border-bottom-color: var(--text);
+}
+
+.close[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tab[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.tabPanel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: var(--ed-space-3, 12px);
+  outline: none;
+}
+
+@media (forced-colors: active) {
+  .tab[data-selected] {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+
+  .close[data-focus-visible],
+  .tab[data-focus-visible] {
+    outline: 2px solid Highlight;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .tab {
+    transition: none;
+  }
+}
