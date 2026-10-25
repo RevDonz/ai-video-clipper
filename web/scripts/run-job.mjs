@@ -21,6 +21,7 @@ import {
 } from "../lib/jobs.mjs";
 import { clipCounts, clipErrorCode } from "../lib/clip-status.mjs";
 import { DownloadError, downloadErrorMessage } from "../lib/download-errors.mjs";
+import { sanitizeReasonCodes, sanitizeStageCode, sanitizeWarningCodes } from "../lib/i18n/stage.mjs";
 import { PROGRESS_TEMPLATE, createDownloadMonitor, downloadStallMs } from "../lib/download-monitor.mjs";
 import { engineProcessEnv, loadLlmEnv } from "../lib/llm-settings.mjs";
 import { DEFAULT_OUTPUT_SIZE, OUTPUT_SIZES } from "../lib/output-frame.mjs";
@@ -359,7 +360,19 @@ export function jobClipFromManifest(clip, id, position = 0, { thumbnails = null 
   };
   const packaging = sanitizeManifestClipFields(clip);
   const merged = { ...base, ...packaging };
-  return { ...merged, ...clipSocialMetadata(merged) };
+  return { ...merged, ...clipSocialMetadata(merged), ...clipCodes(clip, packaging) };
+}
+
+// i18n M5 (lib/i18n/stage.mjs): the engine's reason_codes, one per reason the clip keeps (else
+// none, and the page shows the reasons as written), and its warning_codes. Old manifests have
+// neither, and their clips keep exactly the fields they had.
+function clipCodes(clip, packaging) {
+  const codes = {};
+  const reasonCodes = sanitizeReasonCodes(clip.reason_codes);
+  if (reasonCodes && reasonCodes.length === (packaging.reasons?.length ?? 0)) codes.reasonCodes = reasonCodes;
+  const warningCodes = sanitizeWarningCodes(clip.warning_codes);
+  if (warningCodes) codes.warningCodes = warningCodes;
+  return codes;
 }
 
 // A clip the engine could not render (lib/clip-status.mjs): its selection and packaging, the
@@ -377,7 +390,7 @@ function failedJobClip(clip, position) {
     errorCode: clipErrorCode(clip.error_code),
     ...packaging,
   };
-  return { ...merged, ...clipSocialMetadata(merged) };
+  return { ...merged, ...clipSocialMetadata(merged), ...clipCodes(clip, packaging) };
 }
 
 /** The finished job's stage line: every clip ready, or how many are and how many failed. */
@@ -386,13 +399,44 @@ export function completedStageDetail(clips) {
   return failed ? `${ready} dari ${total} klip siap; ${failed} gagal dirender` : "Semua klip siap digunakan";
 }
 
-/** The job patch for one engine progress event; a stage summary joins the job's earlier ones. */
+/** The code of completedStageDetail (stage.clips_ready / stage.clips_partial). */
+export function completedStageCode(clips) {
+  const { total, ready, failed } = clipCounts(clips);
+  return failed ? sanitizeStageCode("clips_partial", { ready, total, failed }) : sanitizeStageCode("clips_ready");
+}
+
+/**
+ * parseWorkerProgress plus the engine's stage_code/stage_params (rombak 07 §10.4) as code and
+ * params; a line without them gives the same event as before.
+ */
+export function parseCodedProgress(line) {
+  const event = parseWorkerProgress(line);
+  if (!event) return null;
+  let raw;
+  try {
+    raw = JSON.parse(line.slice(line.indexOf(" ") + 1));
+  } catch {
+    return event;
+  }
+  if (typeof raw.stage_code !== "string") return event;
+  return { ...event, code: raw.stage_code, ...(raw.stage_params !== undefined ? { params: raw.stage_params } : {}) };
+}
+
+/**
+ * The job patch for one engine progress event; a stage summary joins the job's earlier ones.
+ * A coded event writes stageCode/stageParams (null for an unknown code); an uncoded one clears
+ * a code the job had, so the code always names the detail beside it.
+ */
 export function nextWorkerProgress(current, event) {
+  const coded = event.code !== undefined
+    ? sanitizeStageCode(event.code, event.params)
+    : current.stageCode ? { stageCode: null, stageParams: null } : {};
   return {
     status: "processing",
     progress: Math.max(current.progress, event.progress),
     stage: event.stage,
     stageDetail: event.detail,
+    ...coded,
     ...(event.summary ? { stageSummary: { ...current.stageSummary, ...event.summary } } : {}),
   };
 }
@@ -481,7 +525,7 @@ export function runFencedProcess({ command, args, env, heartbeatMs, progress, in
     if (progress) {
       const stdout = createInterface({ input: child.stdout });
       stdout.on("line", (line) => {
-        const event = parseWorkerProgress(line);
+        const event = parseCodedProgress(line);
         if (!event) { process.stdout.write(`${line}\n`); return; }
         if (event.progress > current.progress || event.stage !== current.stage || event.summary) {
           const patch = nextWorkerProgress(current, event);
@@ -506,7 +550,7 @@ export function runFencedProcess({ command, args, env, heartbeatMs, progress, in
       : null;
     watchdog?.unref?.();
     const heartbeat = setInterval(() => publish(progress
-      ? nextWorkerProgress(current, { progress: current.progress, stage: current.stage, detail: "Engine AI masih aktif pada tahap ini" })
+      ? nextWorkerProgress(current, { progress: current.progress, stage: current.stage, detail: "Engine AI masih aktif pada tahap ini", code: "engine_busy" })
       : {}), heartbeatMs);
     let checking = false;
     const leaseWatch = leaseCheck
@@ -638,7 +682,7 @@ export async function main(argv = process.argv, env = process.env) {
         const sourceLanguage = await readVideoLanguage(downloadRoot);
         if (sourceLanguage) languagePatch = { sourceLanguage };
         if (job.options?.selectionMode === "v3") {
-          await update({ sourcePath, ...languagePatch, progress: 20, stage: "captions", stageDetail: "Mengambil subtitle YouTube (opsional)" });
+          await update({ sourcePath, ...languagePatch, progress: 20, stage: "captions", stageDetail: "Mengambil subtitle YouTube (opsional)", ...sanitizeStageCode("captions_fetch") });
           captionsDir = await fetchYouTubeCaptions({
             url: job.source.url,
             inputRoot: downloadRoot,
@@ -651,10 +695,11 @@ export async function main(argv = process.argv, env = process.env) {
       } finally {
         await cookies?.dispose();
       }
-      job = await update({ sourcePath, ...languagePatch, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
+      job = await update({ sourcePath, ...languagePatch, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI", ...sanitizeStageCode("engine_prepare") });
     } else {
       const stageDetail = subtitleFile ? "Memakai subtitle .srt yang diunggah" : "Menyiapkan engine AI";
-      job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail });
+      const stageCode = sanitizeStageCode(subtitleFile ? "captions_upload_ready" : "engine_prepare");
+      job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail, ...stageCode });
     }
 
     const trendContext = job.options?.selectionMode === "v3" ? await prepareTrendContext(attemptRoot, env) : null;
@@ -674,6 +719,7 @@ export async function main(argv = process.argv, env = process.env) {
       progress: 100,
       stage: "completed",
       stageDetail: completedStageDetail(clips),
+      ...completedStageCode(clips),
       ...manifestJobPatch(manifest, clips),
       completedAt: new Date().toISOString(),
     };
@@ -707,6 +753,8 @@ export async function main(argv = process.argv, env = process.env) {
       progress: 100,
       stage: "failed",
       stageDetail: reason ? reason.text : "Proses berhenti karena terjadi kesalahan",
+      // A coded failure (download, typed range) is named by errorCode (errors.*, i18n M2).
+      ...(reason ? { stageCode: null, stageParams: null } : sanitizeStageCode("stopped_error")),
       ...pipelineSummary,
       errorCode: reason ? reason.code : null,
       error: error.message || "Worker gagal",
