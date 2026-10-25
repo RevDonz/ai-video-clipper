@@ -16,6 +16,7 @@ import { SESSION_COOKIE, verifySessionToken } from "../../../../../../lib/auth.m
 import { readEditorFlags } from "../../../../../../lib/editor/flags.mjs";
 import { routeMetadata } from "../../../../../../lib/i18n/server.mjs";
 import { clipRefFromSegment, editorHref } from "../../../../../../lib/editor/open-clip.mjs";
+import { SHORTCUTS_COOKIE, shortcutPrefFromValue } from "../../../../../../lib/ui-prefs.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -34,5 +35,7 @@ export default async function EditorPage({ params }) {
     redirect(`/login?next=${encodeURIComponent(here)}`);
   }
   const flags = readEditorFlags(process.env);
-  return <EditorApp jobId={id} clipId={ref.clipId} clipIndex={ref.index} runtimeKind={mode} features={{ uploads: flags.uploads, llm: flags.llm }} />;
+  // "Pintasan satu tombol", the same per-device preference as the app pages' (05 §3.9).
+  const singleKeyShortcuts = shortcutPrefFromValue(store.get(SHORTCUTS_COOKIE)?.value);
+  return <EditorApp jobId={id} clipId={ref.clipId} clipIndex={ref.index} runtimeKind={mode} features={{ uploads: flags.uploads, llm: flags.llm }} singleKeyShortcuts={singleKeyShortcuts} />;
 }

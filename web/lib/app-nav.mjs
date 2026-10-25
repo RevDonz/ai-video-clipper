@@ -1,38 +1,38 @@
-// Destinations of the app sidebar (components/AppShell.jsx), in display order: the one action
-// that starts work, then the pages for the results and the inputs, then the system pages.
-const link = (href, label, icon) => Object.freeze({ href, label, icon });
+// The app sidebar (components/NavList.jsx, 05-ui-dashboard.md §4.1): one flat list in display
+// order, Buat klip first. An entry with a role shows only for that role, one with a feature only
+// when features[feature] is true (lib/ui-features.mjs). Labels are catalog keys (messages/*/shell.json).
 
-export const PRIMARY_LINK = link("/dashboard", "Buat klip", "create");
+const link = (fields) => Object.freeze(fields);
 
-export const NAV_GROUPS = Object.freeze([
-  Object.freeze({ id: "kerja", label: "Kerja", links: Object.freeze([
-    link("/projects", "Riwayat", "history"),
-    link("/trends", "Konteks Tren", "trends"),
-  ]) }),
-  Object.freeze({ id: "sistem", label: "Sistem", links: Object.freeze([
-    link("/settings", "Pengaturan", "settings"),
-    link("/bantuan", "Bantuan", "help"),
-  ]) }),
+export const NAV_LINKS = Object.freeze([
+  link({ href: "/dashboard", labelKey: "shell.nav.create", icon: "create", primary: true }),
+  link({ href: "/projects", labelKey: "shell.nav.projects", icon: "projects" }),
+  link({ href: "/sosial", labelKey: "shell.nav.social", icon: "social", feature: "social" }),
+  link({ href: "/analitik", labelKey: "shell.nav.analytics", icon: "analytics", feature: "analytics" }),
+  link({ href: "/trends", labelKey: "shell.nav.trends", icon: "trends" }),
+  link({ href: "/settings", labelKey: "shell.nav.settings", icon: "settings" }),
+  link({ href: "/admin/pengguna", labelKey: "shell.nav.admin", icon: "admin", role: "admin", feature: "admin", match: "/admin" }),
+  link({ href: "/bantuan", labelKey: "shell.nav.help", icon: "help" }),
 ]);
 
-export const APP_LINKS = Object.freeze([PRIMARY_LINK, ...NAV_GROUPS.flatMap((group) => group.links)]);
-
 // A page under a destination (/projects/<id>) keeps that destination marked as current.
-function isCurrent(path, href) {
-  return path === href || path.startsWith(`${href}/`);
+function isCurrent(path, base) {
+  return path === base || path.startsWith(`${base}/`);
 }
 
-export function navItems(pathname) {
+/**
+ * The entries the user sees, each with `current`. Before the user database the env login is the
+ * admin, hence the default role.
+ */
+export function navLinks(pathname, { role = "admin", features = {} } = {}) {
   const path = typeof pathname === "string" ? pathname : "";
-  return APP_LINKS.map((entry) => ({ ...entry, current: isCurrent(path, entry.href) }));
-}
-
-/** The sidebar as drawn: the primary link and the groups, each link marked current or not. */
-export function navGroups(pathname) {
-  const path = typeof pathname === "string" ? pathname : "";
-  const mark = (entry) => ({ ...entry, current: isCurrent(path, entry.href) });
-  return {
-    primary: mark(PRIMARY_LINK),
-    groups: NAV_GROUPS.map((group) => ({ id: group.id, label: group.label, links: group.links.map(mark) })),
-  };
+  return NAV_LINKS
+    .filter((entry) => (!entry.role || entry.role === role) && (!entry.feature || features?.[entry.feature] === true))
+    .map((entry) => ({
+      href: entry.href,
+      labelKey: entry.labelKey,
+      icon: entry.icon,
+      ...(entry.primary ? { primary: true } : {}),
+      current: isCurrent(path, entry.match ?? entry.href),
+    }));
 }
