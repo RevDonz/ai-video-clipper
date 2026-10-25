@@ -166,6 +166,14 @@ test("only the shell and the public card import ui.css; the editor reaches neith
       assert.ok(!target.startsWith("components/ui/") && target !== "app/ui.css", `${file} imports ${target}`);
     }
   }
+  // The root 404 and error boundaries sit above every route, the editor's too, so their chunks
+  // load everywhere: they take the shell (and so ui.css and HeroUI) through next/dynamic, which
+  // fetches it only when the boundary actually renders.
+  for (const file of ["app/not-found.jsx", "app/error.jsx"]) {
+    const source = sources.find((entry) => entry.file === file).source;
+    assert.doesNotMatch(source, /^import AppShell\b/m, `${file} imports AppShell statically`);
+    assert.match(source, /const AppShell = dynamic\(\(\) => import\("\.\.\/components\/AppShell\.jsx"\)\);/, file);
+  }
   const editorLayouts = sources.filter(({ file }) => file.startsWith(EDIT_ROUTE));
   for (const { file, source } of editorLayouts) assert.doesNotMatch(source, /AppShell|PublicCard|Providers/, file);
 });
