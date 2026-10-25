@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 import { downloadErrorMessage } from "../lib/download-errors.mjs";
 import { HELP_ENTRIES } from "../lib/help-catalog.mjs";
 import { LOCALE_COOKIE, login, settings, skipWithoutCredentials, test } from "./support/harness.mjs";
-import { L } from "./support/i18n.mjs";
+import { L, LIn } from "./support/i18n.mjs";
 
 // The help page (/bantuan, docs/operations/BANTUAN.md), in the project's UI language: every
 // name and text comes from the catalog through L(). Read-only: the page needs no server data,
@@ -14,7 +14,7 @@ import { L } from "./support/i18n.mjs";
 const FAILED_JOB_ID = "7c2e4f50-6172-4c8d-9e0f-a1b2c3d4e5f6";
 const BOT_CHECK_LINE = "ERROR: [youtube] AbCdEfGhIjK: Sign in to confirm you’re not a bot. This helps protect our community.";
 // The Indonesian message the pages show for a bot check: found whatever the UI language is.
-const BOT_CHECK_ID = downloadErrorMessage("download_bot_check").text;
+const BOT_CHECK_ID = LIn("id", downloadErrorMessage("download_bot_check").text.key);
 
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 const focusedId = (page) => page.evaluate(() => document.activeElement?.id ?? null);
