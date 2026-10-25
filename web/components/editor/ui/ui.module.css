@@ -454,13 +454,21 @@
   transform: rotate(180deg);
 }
 
-/* React Aria measures the panel into --disclosure-panel-height (0px closed, the content's height
-   while it opens, then auto) and hides it once the closing transitions have run; HeroUI fades it
-   in and out over the same time. */
+/* The body opens as a grid row from 0fr to 1fr, so its height follows the content while it
+   opens, including a lazily loaded body that arrives mid-way. React Aria's measured
+   --disclosure-panel-height is not used: it is taken from the "loading" line and the body snapped
+   to its real height after the transition. React Aria hides the body once the closing
+   transitions have run; HeroUI fades it in and out over the same time. */
 .cardBody {
-  height: var(--disclosure-panel-height);
+  display: grid;
+  grid-template-rows: 0fr;
+  height: auto;
   overflow: clip;
-  transition: height var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+  transition: grid-template-rows var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
+
+.cardBody[data-expanded="true"] {
+  grid-template-rows: 1fr;
 }
 
 .cardInner {
