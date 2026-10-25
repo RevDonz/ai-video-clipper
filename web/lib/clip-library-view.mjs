@@ -4,6 +4,8 @@
 import { clipLabel } from "./project-view.mjs";
 import { scorePillFor } from "./project-workspace.mjs";
 import { formatTimestamp } from "./selection-v3-view.mjs";
+import { dateTimeFormat } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
 export const HISTORY_VIEWS = Object.freeze(["projects", "clips"]);
 export const HISTORY_VIEW_KEY = "potongin-history-view";
@@ -144,8 +146,8 @@ export function clipHref(item) {
   return `/projects/${encodeURIComponent(item.jobId)}?klip=${item.index}`;
 }
 
-const DAY_FORMAT = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" });
-const DAY_YEAR_FORMAT = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" });
+const DAY_FORMAT = dateTimeFormat(SOURCE_LOCALE, { day: "numeric", month: "short" });
+const DAY_YEAR_FORMAT = dateTimeFormat(SOURCE_LOCALE, { day: "numeric", month: "short", year: "numeric" });
 
 function shortDay(value, now) {
   const date = typeof value === "string" ? new Date(value) : null;

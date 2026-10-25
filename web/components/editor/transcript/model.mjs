@@ -23,10 +23,12 @@ import {
   totalFrames,
   wordFrames,
 } from "../../../lib/editor/timemap.mjs";
+import { secondsFormat } from "../../../lib/i18n/format.mjs";
+import { SOURCE_LOCALE } from "../../../lib/i18n/locales.mjs";
 
 export { divRoundHalfUp, outToSrc, sfCeil, sfFloor, totalFrames, wordFrames };
 
-const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const SECONDS = secondsFormat(SOURCE_LOCALE);
 const LOW_CONFIDENCE_PM = 500;
 
 // --- time map ----------------------------------------------------------------------------------

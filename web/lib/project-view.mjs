@@ -5,6 +5,9 @@ import { clipCountText, readyClips } from "./clip-status.mjs";
 import { downloadErrorMessage } from "./download-errors.mjs";
 import { formatTimestamp } from "./selection-v3-view.mjs";
 import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
+import { contentLower } from "./content-text.mjs";
+import { dateTimeFormat } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
 export const STATUS_LABELS = Object.freeze({
   queued: "Menunggu",
@@ -51,7 +54,7 @@ export function projectName(job) {
   return typeof job?.id === "string" && job.id ? `Proyek ${job.id.slice(0, 8)}` : "Proyek";
 }
 
-const DATE_FORMAT = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" });
+const DATE_FORMAT = dateTimeFormat(SOURCE_LOCALE, { dateStyle: "medium", timeStyle: "short" });
 
 export function formatProjectDate(value) {
   const date = value ? new Date(value) : null;
@@ -128,12 +131,12 @@ export function matchesProjectFilter(job, filter) {
 }
 
 export function matchesProjectQuery(job, query) {
-  const needle = String(query ?? "").trim().toLocaleLowerCase("id-ID");
+  const needle = contentLower(String(query ?? "").trim());
   if (!needle) return true;
   const clips = Array.isArray(job?.clips) ? job.clips : [];
   return [projectName(job), job?.id, job?.source?.url, ...clips.flatMap((clip) => [clip?.title, clip?.text])]
     .filter((value) => typeof value === "string")
-    .some((value) => value.toLocaleLowerCase("id-ID").includes(needle));
+    .some((value) => contentLower(value).includes(needle));
 }
 
 export class ProjectDetailLoadError extends Error {

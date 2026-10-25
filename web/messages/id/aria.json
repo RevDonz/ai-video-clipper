@@ -1,0 +1,19 @@
+{
+  "mainMenu": "Menu utama",
+  "close": "Tutup",
+  "clearSearch": "Hapus pencarian",
+  "selectAll": "Pilih semua",
+  "selectRow": "Pilih baris",
+  "removeTag": "Hapus tag",
+  "prev": "Sebelumnya",
+  "next": "Berikutnya",
+  "page": "Halaman {n}",
+  "calendar": "Kalender",
+  "dismiss": "Tutup notifikasi",
+  "loading": "Memuat",
+  "loadingMore": "Memuat lagi",
+  "notifications": "Notifikasi",
+  "prevMonth": "Bulan sebelumnya",
+  "nextMonth": "Bulan berikutnya",
+  "moreActions": "Aksi lain untuk {name}"
+}

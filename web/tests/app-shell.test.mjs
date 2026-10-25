@@ -169,8 +169,14 @@ test("the root layout declares the dark colour scheme and a title template witho
   const layout = await read("app/layout.jsx");
   assert.match(layout, /colorScheme: "dark"/);
   assert.match(layout, /themeColor: "#080907"/);
-  assert.match(layout, /template: "%s · Potongin"/);
+  // The title and its template come from the visitor's language's catalog (rombak 07 §8.4).
+  assert.match(layout, /template: t\("root\.titleTemplate"\)/);
   assert.doesNotMatch(layout, /—/);
+  for (const locale of ["id", "en"]) {
+    const meta = JSON.parse(await read(`messages/${locale}/meta.json`));
+    assert.equal(meta.root.titleTemplate, "%s · Potongin", locale);
+    assert.doesNotMatch(JSON.stringify(meta), /—/, locale);
+  }
 });
 
 // --- Tokens ---------------------------------------------------------------------------------
@@ -254,8 +260,10 @@ test("DM Sans is self-hosted through next/font and every stylesheet reaches it t
   const layout = await read("app/layout.jsx");
   assert.match(layout, /import \{ DM_Sans \} from "next\/font\/google";/);
   assert.match(layout, /variable: "--font-dm-sans"/);
-  // data-theme="dark" picks HeroUI's dark block too (05-ui-dashboard.md §3.6); the aliases on :root decide its colours.
-  assert.match(layout, /<html lang="id" className=\{dmSans\.variable\} data-theme="dark">/);
+  // lang is the request's UI language (rombak 07 §8.1), not a fixed "id"; data-theme="dark" picks
+  // HeroUI's dark block too (05-ui-dashboard.md §3.6); the aliases on :root decide its colours.
+  assert.match(layout, /<html lang=\{locale\} dir=\{entry\.dir\} className=\{dmSans\.variable\} data-theme="dark">/);
+  assert.match(layout, /const locale = i18n\.locale;/);
   const css = await read("app/globals.css");
   assert.doesNotMatch(css, /@import\s+url\(/);
   assert.equal(rootTokens(css).font, "var(--font-dm-sans), system-ui, sans-serif");

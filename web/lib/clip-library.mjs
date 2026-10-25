@@ -15,6 +15,7 @@ import { projectName } from "./project-view.mjs";
 import { HIGH_SCORE, shownScore } from "./project-workspace.mjs";
 import { ROUTE_PARAMS } from "./security-headers.mjs";
 import { clipPosterUrl } from "./selection-v3-view.mjs";
+import { contentLower } from "./content-text.mjs";
 
 export const CLIP_PAGE_SIZE = 24;
 export const MAX_CLIP_PAGE_SIZE = 48;
@@ -27,7 +28,6 @@ const JOB_ID = ROUTE_PARAMS.id;
 const MAX_CLIP_INDEX = 9999;
 const PROJECT_NAME_LIMIT = 160;
 const STAT_BATCH = 64;
-const LOCALE = "id-ID";
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{6,64}$/;
 const ISO_MOMENT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 const CURSOR = /^(0|[1-9]\d{0,15})\.([0-9a-f-]{36})\.([1-9]\d{0,3})$/;
@@ -104,7 +104,7 @@ export function libraryItems(raw, directoryName) {
       createdAt,
       createdAtMs: created,
       videoId,
-      haystack: [title, name, sourceUrl].filter(Boolean).join("\n").toLocaleLowerCase(LOCALE),
+      haystack: contentLower([title, name, sourceUrl].filter(Boolean).join("\n")),
     });
   }
   return items;
@@ -172,7 +172,7 @@ export function parseClipLibraryQuery(params) {
 }
 
 function matcher({ query, high, since }) {
-  const needle = query.toLocaleLowerCase(LOCALE);
+  const needle = contentLower(query);
   const videoId = query ? youtubeVideoId(query) : null;
   return (item) => {
     if (high && !(item.score !== null && item.score >= HIGH_SCORE)) return false;

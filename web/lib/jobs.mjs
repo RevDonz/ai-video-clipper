@@ -2,6 +2,7 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { CLIP_LIMITS } from "./clip-limits.mjs";
+import { contentLower, contentUpper } from "./content-text.mjs";
 import { clipErrorCode, isFailedClip } from "./clip-status.mjs";
 import { PACK_IDS } from "./editor/doc-model.mjs";
 import { DEFAULT_OUTPUT_SIZE, OUTPUT_SIZES } from "./output-frame.mjs";
@@ -137,7 +138,7 @@ function truncateAtWord(value, maximum) {
 
 function topicHashtags(text) {
   const frequencies = new Map();
-  const words = text.toLocaleLowerCase("id-ID").match(/[\p{L}\p{N}]+/gu) || [];
+  const words = contentLower(text).match(/[\p{L}\p{N}]+/gu) || [];
   for (const [index, word] of words.entries()) {
     if (word.length < 5 || INDONESIAN_STOPWORDS.has(word) || /^\d+$/.test(word)) continue;
     const current = frequencies.get(word) || { count: 0, firstIndex: index };
@@ -146,7 +147,7 @@ function topicHashtags(text) {
   return [...frequencies.entries()]
     .sort((left, right) => right[1].count - left[1].count || left[1].firstIndex - right[1].firstIndex)
     .slice(0, 4)
-    .map(([word]) => `#${word[0].toLocaleUpperCase("id-ID")}${word.slice(1)}`);
+    .map(([word]) => `#${contentUpper(word[0])}${word.slice(1)}`);
 }
 
 function topicWords(text) {
@@ -160,7 +161,7 @@ export function generateSocialMetadata(transcript) {
     ? text.split(/(?<=[.!?])\s+|\n+/).map(cleanTranscript).filter((item) => item.length >= 8)
     : [];
   const ranked = sentences.map((sentence, index) => {
-    const lower = sentence.toLocaleLowerCase("id-ID");
+    const lower = contentLower(sentence);
     const hooks = HOOK_WORDS.reduce((score, word) => score + (lower.includes(word) ? 3 : 0), 0);
     const question = sentence.includes("?") ? 2 : 0;
     const idealLength = sentence.length >= 24 && sentence.length <= 90 ? 2 : 0;
@@ -175,7 +176,7 @@ export function generateSocialMetadata(transcript) {
   const selected = useSentence ? strongest.sentence : topicTitle;
   const plainTitle = selected.replace(/[.!?,;:]+$/g, "").trim();
   const title = truncateAtWord(
-    plainTitle ? `${plainTitle[0].toLocaleUpperCase("id-ID")}${plainTitle.slice(1)}` : fallbackTitle,
+    plainTitle ? `${contentUpper(plainTitle[0])}${plainTitle.slice(1)}` : fallbackTitle,
     72,
   );
   const excerpt = truncateAtWord(text || "Ada insight menarik yang layak kamu simak dari video ini", 210);
@@ -202,8 +203,8 @@ function hashtagLine(hashtags) {
 
 function withHashtagLine(body, hashtags) {
   if (!hashtags.length) return body;
-  const lower = body.toLocaleLowerCase("id-ID");
-  if (hashtags.every((tag) => lower.includes(tag.toLocaleLowerCase("id-ID")))) return body;
+  const lower = contentLower(body);
+  if (hashtags.every((tag) => lower.includes(contentLower(tag)))) return body;
   return body ? `${body}\n\n${hashtagLine(hashtags)}` : hashtagLine(hashtags);
 }
 
@@ -616,7 +617,7 @@ function sanitizeHashtags(value) {
     if (!line) continue;
     const body = line.replace(/^#+/, "").replace(/\s+/g, "");
     if (!body || Array.from(body).length > CLIP_TEXT_LIMITS.hashtag || !HASHTAG_BODY.test(body)) continue;
-    const key = body.toLocaleLowerCase("id-ID");
+    const key = contentLower(body);
     if (seen.has(key)) continue;
     seen.add(key);
     tags.push(`#${body}`);

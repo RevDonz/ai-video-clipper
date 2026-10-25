@@ -1,0 +1,49 @@
+{
+  "web": {
+    "invalid_request": "Invalid request",
+    "unauthorized": "Sign-in required",
+    "csrf_rejected": "Request origin not allowed",
+    "rate_limited": "Too many requests",
+    "queue_capacity_reached": "The job queue is full",
+    "job_service_unavailable": "Job service temporarily unavailable",
+    "request_too_large": "Request too large",
+    "method_not_allowed": "Method not supported",
+    "not_found": "Not found",
+    "job_not_found": "Project not found",
+    "login_invalid": "Wrong username or password",
+    "locale_unsupported": "Language not supported",
+    "db_busy": "The database is busy",
+    "db_unavailable": "Database unavailable",
+    "password_change_required": "Change your password first",
+    "reauth_required": "Enter your password again",
+    "user_queue_full": "Your queue is full",
+    "user_rate_limited": "Too many requests from this account",
+    "user_storage_quota": "Storage quota used up",
+    "source_host_not_allowed": "Source site not supported",
+    "source_rejected_kind": "This link is not a video",
+    "source_private_address": "Source address not allowed",
+    "source_rejected_duration": "Video length out of range",
+    "source_rejected_format": "Video format not supported",
+    "source_rejected_codec": "Video codec not supported",
+    "source_platform_off": "Source platform turned off",
+    "unknown": "Something went wrong"
+  },
+  "http": {
+    "s400": "Invalid request",
+    "s401": "Sign-in required",
+    "s403": "Access denied",
+    "s404": "Page not found",
+    "s413": "Request too large",
+    "s429": "Too many requests",
+    "s500": "Something went wrong",
+    "s502": "The server did not answer",
+    "s503": "Service temporarily unavailable"
+  },
+  "global": {
+    "documentTitle": "Couldn't load · Potongin",
+    "title": "Potongin couldn't load",
+    "body": "Try again. If it still fails, reload the page.",
+    "retry": "Try again",
+    "openCreate": "Open Create clips"
+  }
+}

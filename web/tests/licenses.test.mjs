@@ -74,6 +74,7 @@ test("every dependency the browser receives is named on /licenses", async () => 
   const pkg = await json(WEB_ROOT, "package.json");
   const named = new Set([
     "jassub", "mediabunny", "next", "react", "react-dom",
+    ...WEB.filter((item) => item.lockPath).map((item) => item.lockPath.slice(item.lockPath.lastIndexOf("node_modules/") + "node_modules/".length)),
     ...UI.flatMap((item) => item.packages.map((entry) => entry.name)),
   ]);
   for (const name of Object.keys(pkg.dependencies)) {
@@ -81,6 +82,58 @@ test("every dependency the browser receives is named on /licenses", async () => 
     assert.ok(named.has(name), `${name} has a notice`);
   }
   for (const name of named) if (pkg.dependencies[name]) assert.doesNotMatch(pkg.dependencies[name], /^[~^]/u, `${name} is pinned`);
+});
+
+// The UI-language runtime (rombak 07 §2.1): use-intl and every package of its runtime closure
+// that reaches the app's bundles. The rest of the closure is named here with the reason it ships
+// no code, so a new dependency of use-intl cannot slip in unlisted.
+const I18N_NOT_SHIPPED = Object.freeze({
+  "node_modules/icu-minify": "message compiler; use-intl's runtime entry does not import it",
+  "node_modules/@formatjs/icu-messageformat-parser": "used by icu-minify only",
+  "node_modules/@formatjs/icu-skeleton-parser": "used by icu-minify's parser only",
+  "node_modules/@schummar/icu-type-parser": "TypeScript types only",
+});
+
+function runtimeClosure(lock, start) {
+  const seen = new Set();
+  const visit = (at) => {
+    if (seen.has(at)) return;
+    seen.add(at);
+    for (const name of Object.keys(lock[at].dependencies ?? {})) {
+      // npm's lookup: the nearest node_modules up from the dependant.
+      let base = at;
+      let found = null;
+      while (!found) {
+        const candidate = `${base}/node_modules/${name}`;
+        if (lock[candidate]) found = candidate;
+        else if (base === "node_modules" || !base.includes("/node_modules/")) found = `node_modules/${name}`;
+        else base = base.slice(0, base.lastIndexOf("/node_modules/"));
+      }
+      assert.ok(lock[found], `${found} is in the lock file`);
+      visit(found);
+    }
+  };
+  visit(start);
+  return seen;
+}
+
+test("the UI-language runtime is listed with the exact installed packages and their own licence texts", async () => {
+  const pkg = await json(WEB_ROOT, "package.json");
+  const lock = (await json(WEB_ROOT, "package-lock.json")).packages;
+  const listed = WEB.filter((item) => item.lockPath);
+  assert.equal(listed[0].lockPath, "node_modules/use-intl");
+  assert.equal(listed[0].version, pkg.dependencies["use-intl"]);
+  const closure = runtimeClosure(lock, "node_modules/use-intl");
+  assert.deepEqual(new Set([...listed.map((item) => item.lockPath), ...Object.keys(I18N_NOT_SHIPPED)]), closure);
+  for (const item of listed) {
+    const entry = lock[item.lockPath];
+    assert.equal(item.version, entry.version, item.lockPath);
+    assert.equal(item.license, entry.license, item.lockPath);
+    assert.equal(item.texts.length, 1, item.lockPath);
+    const installed = (await readdir(path.join(WEB_ROOT, item.lockPath))).find((name) => /^licen[cs]e(\.md|\.txt)?$/i.test(name));
+    assert.ok(installed, `${item.lockPath} ships a licence file`);
+    assert.ok((await read(publicFile(item.texts[0]))).equals(await read(WEB_ROOT, item.lockPath, installed)), item.texts[0]);
+  }
 });
 
 test("the served JASSUB files are the ones the notice lists", () => {

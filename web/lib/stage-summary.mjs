@@ -4,6 +4,8 @@
 // Only values the engine reported are shown: a stage without one has no row.
 
 import { formatTimestamp } from "./selection-v3-view.mjs";
+import { displayNames, numberFormat } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
 const TRANSCRIPT_SOURCES = Object.freeze({
   "srt-upload": "dari subtitle .srt",
@@ -65,13 +67,11 @@ export function sanitizeStageSummary(raw) {
   return Object.keys(summary).length ? summary : null;
 }
 
-const NUMBER = new Intl.NumberFormat("id-ID");
-let languageNames = null;
+const NUMBER = numberFormat(SOURCE_LOCALE);
 
 function languageName(code) {
   try {
-    languageNames ??= new Intl.DisplayNames(["id"], { type: "language" });
-    const name = languageNames.of(code);
+    const name = displayNames(SOURCE_LOCALE, { type: "language" }).of(code);
     return name && name.toLowerCase() !== code ? name : null;
   } catch {
     return null;

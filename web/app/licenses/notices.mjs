@@ -107,6 +107,13 @@ export const FONTS = Object.freeze([
 export const WEB = Object.freeze([
   { name: "Next.js", version: "16.3.6", license: "MIT", source: at("https://github.com/vercel/next.js", "v16.3.6"), texts: ["/licenses/web/next-LICENSE.txt"] },
   { name: "React dan React DOM", version: "19.3.0", license: "MIT", source: at("https://github.com/facebook/react", "v19.3.0"), texts: ["/licenses/web/react-LICENSE.txt"] },
+  // The UI-language runtime and the parts of its dependencies that reach the bundles; lockPath is
+  // the package's entry in package-lock.json (the test ties version, licence and text to it).
+  { name: "use-intl", version: "4.14.9", license: "MIT", lockPath: "node_modules/use-intl", source: at("https://github.com/amannn/next-intl", "v4.14.9"), texts: ["/licenses/web/use-intl-LICENSE.txt"] },
+  { name: "intl-messageformat", version: "11.2.15", license: "BSD-3-Clause", lockPath: "node_modules/intl-messageformat", source: at("https://github.com/formatjs/formatjs", "intl-messageformat@11.2.15"), texts: ["/licenses/web/intl-messageformat-LICENSE.txt"] },
+  { name: "@formatjs/fast-memoize", version: "3.1.7", license: "MIT", lockPath: "node_modules/@formatjs/fast-memoize", source: at("https://github.com/formatjs/formatjs", "@formatjs/fast-memoize@3.1.7"), texts: ["/licenses/web/formatjs-fast-memoize-LICENSE.txt"] },
+  { name: "@formatjs/icu-messageformat-parser", version: "3.5.18", license: "MIT", lockPath: "node_modules/intl-messageformat/node_modules/@formatjs/icu-messageformat-parser", source: at("https://github.com/formatjs/formatjs", "@formatjs/icu-messageformat-parser@3.5.18"), texts: ["/licenses/web/formatjs-icu-messageformat-parser-LICENSE.txt"] },
+  { name: "@formatjs/icu-skeleton-parser", version: "2.1.11", license: "MIT", lockPath: "node_modules/intl-messageformat/node_modules/@formatjs/icu-skeleton-parser", source: at("https://github.com/formatjs/formatjs", "@formatjs/icu-skeleton-parser@2.1.11"), texts: ["/licenses/web/formatjs-icu-skeleton-parser-LICENSE.txt"] },
 ]);
 
 // The UI kit of the app pages (docs/plans/2026-10-24-rombak/05-ui-dashboard.md §3.1). HeroUI's

@@ -182,7 +182,8 @@ test("Pengaturan is the whole page's name and every save button says what it sav
   const page = withoutComments(await read("app/settings/page.jsx"));
   const layout = withoutComments(await read("app/settings/layout.jsx"));
   assert.match(page, /<h1>Pengaturan<\/h1>/);
-  assert.match(layout, /title: "Pengaturan"/);
+  assert.match(layout, /return routeMetadata\("settings"\);/);
+  assert.equal(JSON.parse(await read("messages/id/meta.json")).settings.title, "Pengaturan");
   const cards = await Promise.all((await filesUnder("app/settings", /\.jsx$/)).map(async (file) => withoutComments(await read(file))));
   // A save button reads "Menyimpan…" while it works and its label otherwise.
   const labels = [...cards.join("\n").matchAll(/"Menyimpan…" : ("[^"]*")/g)].map((match) => match[1]);
@@ -218,7 +219,8 @@ test("the 404 page is Indonesian, carries the shared sidebar and its own title",
   const page = await read("app/not-found.jsx");
   // The shell arrives through LazyAppShell: these boundaries load with every page, the editor too.
   assert.match(page, /<LazyAppShell className="statusPage">/);
-  assert.match(page, /title: "Halaman tidak ditemukan"/);
+  assert.match(page, /return routeMetadata\("notFound"\);/);
+  assert.equal(JSON.parse(await read("messages/id/meta.json")).notFound.title, "Halaman tidak ditemukan");
   assert.match(page, /<h1[^>]*>Halaman tidak ditemukan<\/h1>/);
   assert.match(page, /<NotFoundActions \/>/);
   // The 404 HTML is prerendered without the requested path: the first render must match it
@@ -241,10 +243,16 @@ test("the error page is a client boundary that retries and keeps the sidebar", a
   assert.doesNotMatch(page, /error\.(message|stack|digest)/, "technical detail stays in the server log");
 });
 
-test("the root error page renders its own Indonesian document", async () => {
+test("the root error page renders its own document, Indonesian first", async () => {
   const page = await read("app/global-error.jsx");
   assert.match(page, /^"use client";/);
-  assert.match(page, /<html lang="id"/);
+  // It cannot ask the server (rombak 07 §8.5): the first render is the bundled Indonesian
+  // catalog, and lang follows the language on screen.
+  assert.match(page, /<html lang=\{view\.code\}/);
+  assert.match(page, /import sourceErrors from "\.\.\/messages\/id\/errors\.json";/);
+  assert.match(page, /const SOURCE = Object\.freeze\(\{ code: SOURCE_LOCALE, text: sourceErrors\.global \}\);/);
+  assert.match(page, /useState\(SOURCE\)/);
+  assert.equal(JSON.parse(await read("messages/id/errors.json")).global.title, "Potongin gagal dimuat");
   assert.match(page, /import "\.\/globals\.css";/);
   assert.match(page, /onClick=\{\(\) => reset\(\)\}/);
   assert.doesNotMatch(page, /error\.(message|stack|digest)/);

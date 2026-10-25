@@ -53,6 +53,8 @@ import {
 import styles from "./transcript.module.css";
 import WordEditor from "./WordEditor.jsx";
 import WordSpan from "./WordSpan.jsx";
+import { secondsFormat } from "../../../lib/i18n/format.mjs";
+import { SOURCE_LOCALE } from "../../../lib/i18n/locales.mjs";
 
 // Cmd+click toggles Kata kunci on macOS, Ctrl+click elsewhere (actions.mjs keywordClick).
 function isMacPlatform() {
@@ -61,7 +63,7 @@ function isMacPlatform() {
   return /mac|iphone|ipad|ipod/i.test(platform);
 }
 
-const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const SECONDS = secondsFormat(SOURCE_LOCALE);
 const HELP_ID = "transcript-help";
 const GAP_TITLES = Object.freeze({ gap_silent: "Rapikan: jeda hening", gap_voiced: "Rapikan: jeda bersuara (dengarkan dulu)" });
 

@@ -5,6 +5,10 @@
 // Everything an item carries came from outside (an agent that scrolled social
 // media), so it is treated as untrusted text: normalized here, rendered only
 // as React text, and links are limited to plain http(s) URLs.
+import { contentCompare } from "./content-text.mjs";
+import { dateTimeFormat } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
+
 
 export const TREND_KINDS = Object.freeze(["topic", "person", "joke", "meme", "sound", "hashtag", "format", "event"]);
 export const TREND_KIND_LABELS = Object.freeze({
@@ -250,7 +254,7 @@ export function relativeTime(value, now = Date.now()) {
 export function formatDateTime(value) {
   const time = typeof value === "string" ? Date.parse(value) : NaN;
   if (!Number.isFinite(time)) return null;
-  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(time));
+  return dateTimeFormat(SOURCE_LOCALE, { dateStyle: "medium", timeStyle: "short" }).format(new Date(time));
 }
 
 export function expiryView(item, now = Date.now()) {
@@ -310,7 +314,7 @@ function compareItems(now) {
     if (score) return score;
     const updated = (Date.parse(right.updatedAt) || 0) - (Date.parse(left.updatedAt) || 0);
     if (updated) return updated;
-    return left.title.localeCompare(right.title, "id-ID");
+    return contentCompare(left.title, right.title);
   };
 }
 
