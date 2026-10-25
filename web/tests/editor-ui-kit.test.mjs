@@ -206,12 +206,19 @@ test("every control of the kit is at least var(--ed-target) (44 px) tall", () =>
 test("the accordion animates its height over --dur-2 and hides a closed body after the transition", () => {
   const source = css("ui/ui.module.css");
   const body = ruleOf(source, ".cardBody");
-  // React Aria measures the panel into --disclosure-panel-height (0px closed, the content's
-  // height while it opens, then auto) and sets hidden="until-found" once the transitions of the
+  // The body's height follows its content while it opens: a grid row from 0fr to 1fr on React
+  // Aria's data-expanded, never the height React Aria measures into --disclosure-panel-height
+  // when the card opens. A card body loads lazily, so that measure is the "Membuka kartu…" line,
+  // and the body would snap to its real height once the transition ended, moving every card
+  // header below it. React Aria still sets hidden="until-found" once the transitions of the
   // closing panel have finished; with reduced motion the tokens are 0 ms and it hides at once.
-  assert.match(body, /(?:^|;)\s*height:\s*var\(--disclosure-panel-height\)/);
+  assert.match(body, /display:\s*grid/);
+  assert.match(body, /grid-template-rows:\s*0fr/);
+  assert.match(body, /(?:^|;)\s*height:\s*auto/);
+  assert.doesNotMatch(source, /--disclosure-panel-height/);
   assert.match(body, /overflow:\s*clip/);
-  assert.match(body, /transition:[^;]*height var\(--dur-2\) var\(--ease-out\)[^;]*opacity var\(--dur-2\) var\(--ease-out\)/);
+  assert.match(body, /transition:[^;]*grid-template-rows var\(--dur-2\) var\(--ease-out\)[^;]*opacity var\(--dur-2\) var\(--ease-out\)/);
+  assert.match(ruleOf(source, '.cardBody[data-expanded="true"]') ?? "", /grid-template-rows:\s*1fr/);
   assert.equal(ruleOf(source, '.cardBody[data-open="true"]'), null, "no second open state beside React Aria's");
 });
 
