@@ -17,7 +17,7 @@ import {
   DEFAULT_CHOICES,
   RATIO_CHOICES,
   RESOLUTION_CHOICES,
-  choicesSummary,
+  choicesSummary as choicesSummaryOf,
   normalizeChoices,
   outputSizeOf,
   readStoredChoices,
@@ -27,6 +27,7 @@ import { applyCommand } from "../lib/editor/commands.mjs";
 import { createContext } from "../lib/editor/doc-model.mjs";
 import { JOB_FORM_FIELDS, OUTPUT_SIZE_IDS, parseJobOptions, validatePersistedJobOptions } from "../lib/jobs.mjs";
 import { lookPreview } from "../lib/look-preview.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
 import {
   DEFAULT_OUTPUT_SIZE,
   EDGE_MARGIN_PM,
@@ -151,6 +152,9 @@ test("Rasio and Resolusi make the job's output size; 9:16 at 720p by default", (
     }
   }
 });
+
+// The summary is catalog descriptors; the test reads them as the Indonesian text the page shows.
+const choicesSummary = (...args) => textsOf(choicesSummaryOf(...args)).join(" · ");
 
 test("the choices are kept per browser and the summary names only what differs from 9:16 720p", () => {
   assert.deepEqual(normalizeChoices({ ratio: "4:5", resolution: "2K" }), normalizeChoices(null));

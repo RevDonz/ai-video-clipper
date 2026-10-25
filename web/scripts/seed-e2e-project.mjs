@@ -34,6 +34,8 @@ const CLIPS = [
     archetype: "conflict", score: 6.9, scores: { hook: 7.1, standalone: 6.8, payoff: 6.6, emotion: 7.0, shareability: 6.9 },
   },
 ];
+/** The seeded clips' packaging, for specs that check what the seed shows (data, not catalog text). */
+export const E2E_CLIPS = Object.freeze(CLIPS.map((entry) => Object.freeze({ ...entry })));
 
 function clip(entry, position) {
   const index = position + 1;

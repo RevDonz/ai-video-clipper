@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { expect } from "@playwright/test";
 
-import { E2E_JOB_ID } from "../scripts/seed-e2e-project.mjs";
+import { E2E_CLIPS, E2E_JOB_ID } from "../scripts/seed-e2e-project.mjs";
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 // The landing's "hasil" screenshot of the real app (lib/landing-media.mjs, 08 Fase 2 F3), retaken
@@ -65,7 +65,7 @@ test.describe("landing screenshots", () => {
     }));
     await page.goto(`/projects/${E2E_JOB_ID}?klip=2`);
     const detail = page.locator("[data-clip-detail]");
-    await expect(detail.getByRole("heading", { level: 3 })).toHaveText("Kamu dengar itu?");
+    await expect(detail.getByRole("heading", { level: 3 })).toHaveText(E2E_CLIPS[1].title);
     const video = detail.locator("video");
     await expect(video).toBeVisible();
     // A frame of the clip instead of an empty player.
