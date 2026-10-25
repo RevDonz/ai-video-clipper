@@ -1,6 +1,6 @@
 // The ratchet on UI copy written in the code (rombak 07 §14): JSX text, copy attributes
-// (aria-label, placeholder, title, alt, label) with literal values, toast("…") and sentences in
-// view modules, counted per file. The count of a file may only go down, and the baseline must
+// (aria-label, placeholder, title, alt, label) with literal values, toast("…"), the string
+// branches of ?: and &&/||/?? in those places, and sentences in view modules, counted per file. The count of a file may only go down, and the baseline must
 // follow it down, so a file once cleaned stays clean. After moving copy into the catalog:
 //   UPDATE_I18N_BASELINE=1 node --test tests/i18n-hardcoded.test.mjs
 import assert from "node:assert/strict";
@@ -14,7 +14,8 @@ const BASELINE = path.join(WEB, "tests", "i18n-hardcoded.baseline.json");
 const SCANNED_DIRS = ["app", "components", "lib"];
 // Developer pages, the editor's dev fixtures and the licence notices (names and licence texts).
 const EXEMPT = [/^app\/parity-harness\//, /^components\/editor\/(?:.*\/)?__dev__\//, /^app\/licenses\/notices\.mjs$/];
-const VIEW_MODULE = /^lib\/[^/]+-view\.mjs$/;
+// View modules of 07 §8.3: lib/*-view.mjs plus the named ones that build UI text.
+const VIEW_MODULE = /^lib\/(?:[^/]+-view|dashboard-choices|stage-summary|clip-text|llm-presets|source-language)\.mjs$/;
 const UI_FILE = /\.jsx$/;
 // Files whose copy lives in the catalog already: they must stay at zero.
 const ZERO = Object.freeze([
@@ -65,6 +66,33 @@ test("the scanner counts JSX text, copy attributes, toasts and view sentences, n
     ["attr:placeholder", "Cari klip"],
     ["toast", "Tersimpan"],
   ]);
+  const branches = hardcodedCopy(parseSource(`
+    export function B({ busy, err, x, open, t, mode }) {
+      return (
+        <>
+          <button>{busy ? "Menyimpan…" : "Simpan"}</button>
+          {err && "Gagal memuat"}
+          {mode === "full" ? t("a") : null}
+          <p>{x || "Belum ada"}{x ?? \`Kosong\`}</p>
+          <input placeholder={x ? "Tambah kata kunci…" : (open ? "contoh: podcast" : "")} />
+          <a aria-label={open ? "Tutup menu" : "Buka menu"} className={open ? "is open" : "is closed"} />
+          {toast(busy ? "Tersimpan" : t("b"))}
+        </>
+      );
+    }
+  `));
+  assert.deepEqual(branches.map((hit) => [hit.kind, hit.text]), [
+    ["jsx-text", "Menyimpan…"],
+    ["jsx-text", "Simpan"],
+    ["jsx-text", "Gagal memuat"],
+    ["jsx-text", "Belum ada"],
+    ["jsx-text", "Kosong"],
+    ["attr:placeholder", "Tambah kata kunci…"],
+    ["attr:placeholder", "contoh: podcast"],
+    ["attr:aria-label", "Tutup menu"],
+    ["attr:aria-label", "Buka menu"],
+    ["toast", "Tersimpan"],
+  ]);
   const view = hardcodedCopy(parseSource(`
     import x from "./Some Path.mjs";
     const MIME = "application/json";
@@ -73,6 +101,13 @@ test("the scanner counts JSX text, copy attributes, toasts and view sentences, n
     export const B = (n) => \`Diunggah \${n} klip\`;
   `), { viewModule: true });
   assert.deepEqual(view.map((hit) => hit.text), ["Klip belum siap. Coba lagi.", "Diunggah {} klip"]);
+});
+
+test("the named view modules of 07 §8.3 are scanned as view modules", () => {
+  for (const file of ["lib/dashboard-view.mjs", "lib/dashboard-choices.mjs", "lib/stage-summary.mjs", "lib/clip-text.mjs", "lib/llm-presets.mjs", "lib/source-language.mjs", "lib/selection-v3-view.mjs"]) {
+    assert.ok(VIEW_MODULE.test(file), file);
+  }
+  assert.equal(VIEW_MODULE.test("lib/jobs.mjs"), false);
 });
 
 test("hard-coded copy per file never rises above the baseline, and the baseline follows it down", async () => {
