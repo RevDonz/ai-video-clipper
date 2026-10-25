@@ -11,6 +11,7 @@
 }
 .create {
   display: none;
+  text-decoration: none;
 }
 @media (max-width: 1023px) {
   .create {
@@ -231,6 +232,10 @@
     flex-wrap: nowrap;
     max-width: 100%;
     overflow-x: auto;
+  }
+  /* Each filter keeps its padding; the row scrolls instead of squeezing them. */
+  .filters > * {
+    flex: none;
   }
   .tools {
     flex-wrap: nowrap;

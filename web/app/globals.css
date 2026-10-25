@@ -479,7 +479,8 @@ footer {
 .pageHead h1 { margin: 0; font: 700 clamp(28px, 3.2vw, 38px)/1.1 var(--font); letter-spacing: -.02em; text-wrap: balance; }
 .pageHead p { max-width: 640px; margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.55; }
 .pageHead p b { color: var(--text); font-weight: 600; }
-.pageHeadActions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* One row of actions; stronger than `.pageHead > div` above, which would stack them in a grid. */
+.pageHead > .pageHeadActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 @media (max-width: 620px) {
   .pageHead { padding: 22px 0 18px; }
   .pageHeadActions, .pageHeadActions > .btn { flex: 1 1 auto; }
