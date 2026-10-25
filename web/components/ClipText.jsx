@@ -9,7 +9,23 @@ import {
   rewriteClipText,
   saveClipText,
 } from "../lib/clip-text.mjs";
+import { useTranslations } from "use-intl";
+
 import styles from "./ClipText.module.css";
+
+// The caption box's words in the UI language (project.text.*), by the CLIP_TEXT_COPY entry; one
+// literal key each. The routes' own messages show as they come.
+function useTextWords() {
+  const t = useTranslations("project");
+  const words = {
+    edit: t("text.edit"), editLabel: t("text.editLabel"), rewrite: t("text.rewrite"), rewriting: t("text.rewriting"),
+    pending: t("text.pending"), suggestion: t("text.suggestion"), use: t("text.use"), discard: t("text.discard"),
+    titleLabel: t("text.titleLabel"), descriptionLabel: t("text.descriptionLabel"), descriptionHint: t("text.descriptionHint"),
+    save: t("text.save"), saving: t("text.saving"), cancel: t("text.cancel"), saved: t("text.saved"), failed: t("text.failed"),
+    help: t("text.help"), settings: t("text.settings"),
+  };
+  return words;
+}
 
 const SAVED_NOTE_MS = 2600;
 const IDLE = Object.freeze({ state: "idle" });
@@ -20,6 +36,10 @@ const IDLE = Object.freeze({ state: "idle" });
 // on the server until "Simpan". Keyed by the clip: an unsaved draft and an open suggestion wait
 // in `drafts` while another clip is shown.
 export default function ClipText({ jobId, clip, editable, drafts, onSaved, view, copy }) {
+  const words = useTextWords();
+  // What the live region says comes from COPY; shown in the UI language.
+  const shownStatus = (text) => (text === COPY.saved ? words.saved : text === COPY.pending ? words.pending
+    : text.startsWith(`${COPY.suggestion}: `) ? `${words.suggestion}: ${text.slice(COPY.suggestion.length + 2)}` : text);
   const kept = useRef(drafts?.get(clip.index) ?? null);
   const [editing, setEditing] = useState(Boolean(kept.current?.draft));
   const [draft, setDraft] = useState(() => kept.current?.draft ?? clipTextDraft(clip));
@@ -165,7 +185,7 @@ export default function ClipText({ jobId, clip, editable, drafts, onSaved, view,
 
   const rewriteButtonEl = editable && (
     <button type="button" ref={rewriteButton} className="btn ghost" aria-disabled={busy || undefined} onClick={askRewrite}>
-      {busy ? COPY.rewriting : COPY.rewrite}
+      {busy ? words.rewriting : words.rewrite}
     </button>
   );
 
@@ -184,7 +204,7 @@ export default function ClipText({ jobId, clip, editable, drafts, onSaved, view,
         <form className={styles.form} onSubmit={submit} noValidate>
           <div className={styles.field}>
             <div className={styles.fieldHead}>
-              <label htmlFor={field.title}>{COPY.titleLabel}</label>
+              <label htmlFor={field.title}>{words.titleLabel}</label>
               <span id={field.titleCount} className={styles.count} data-over={form.titleOver || undefined}>
                 {form.titleCount}
               </span>
@@ -204,7 +224,7 @@ export default function ClipText({ jobId, clip, editable, drafts, onSaved, view,
           </div>
           <div className={styles.field}>
             <div className={styles.fieldHead}>
-              <label htmlFor={field.description}>{COPY.descriptionLabel}</label>
+              <label htmlFor={field.description}>{words.descriptionLabel}</label>
               <span id={field.descriptionCount} className={styles.count} data-over={form.descriptionOver || undefined}>
                 {form.descriptionCount}
               </span>
@@ -218,15 +238,15 @@ export default function ClipText({ jobId, clip, editable, drafts, onSaved, view,
               aria-invalid={descriptionProblem ? "true" : undefined}
               aria-describedby={[field.descriptionCount, field.descriptionHint, descriptionProblem && field.descriptionProblem].filter(Boolean).join(" ")}
             />
-            <p id={field.descriptionHint} className={styles.hint}>{COPY.descriptionHint}</p>
+            <p id={field.descriptionHint} className={styles.hint}>{words.descriptionHint}</p>
             {descriptionProblem && <p id={field.descriptionProblem} className={styles.problem}>{descriptionProblem}</p>}
           </div>
           {formProblem && <p className={`notice error ${styles.formProblem}`} role="alert">{formProblem}</p>}
           <div className={styles.actions}>
             <button type="submit" className="btn primary" aria-disabled={saving || !form.canSave || undefined}>
-              {saving ? COPY.saving : COPY.save}
+              {saving ? words.saving : words.save}
             </button>
-            <button type="button" className="btn ghost" onClick={closeEditor}>{COPY.cancel}</button>
+            <button type="button" className="btn ghost" onClick={closeEditor}>{words.cancel}</button>
             {rewriteButtonEl}
           </div>
         </form>
@@ -236,8 +256,8 @@ export default function ClipText({ jobId, clip, editable, drafts, onSaved, view,
           <div className={styles.actions}>
             {copy}
             {editable && (
-              <button type="button" ref={editButton} className="btn ghost" aria-label={`${COPY.edit} judul dan deskripsi`} onClick={() => openEditor()}>
-                {COPY.edit}
+              <button type="button" ref={editButton} className="btn ghost" aria-label={words.editLabel} onClick={() => openEditor()}>
+                {words.edit}
               </button>
             )}
             {rewriteButtonEl}
@@ -247,29 +267,29 @@ export default function ClipText({ jobId, clip, editable, drafts, onSaved, view,
 
       <p className={styles.status} role="status" aria-live="polite">
         {busy && <span className={`pulse ${styles.pending}`} aria-hidden="true" />}
-        {status.shown ? status.text : <span className="visuallyHidden">{status.text}</span>}
+        {status.shown ? shownStatus(status.text) : <span className="visuallyHidden">{shownStatus(status.text)}</span>}
       </p>
 
       {rewrite.state === "suggestion" && (
         <section className={styles.suggestion} aria-labelledby={`${ids}-suggestion`}>
-          <h5 id={`${ids}-suggestion`} className={styles.suggestionLabel}>{COPY.suggestion}</h5>
+          <h5 id={`${ids}-suggestion`} className={styles.suggestionLabel}>{words.suggestion}</h5>
           <p className={styles.suggestionTitle}>{rewrite.suggestion.title}</p>
           {rewrite.suggestion.description && <p className={styles.suggestionBody}>{rewrite.suggestion.description}</p>}
           <div className={styles.actions}>
-            <button type="button" className="btn" onClick={takeSuggestion}>{COPY.use}</button>
-            <button type="button" className="btn ghost" onClick={discardSuggestion}>{COPY.discard}</button>
+            <button type="button" className="btn" onClick={takeSuggestion}>{words.use}</button>
+            <button type="button" className="btn ghost" onClick={discardSuggestion}>{words.discard}</button>
           </div>
         </section>
       )}
 
       {rewrite.state === "error" && (
         <div className={`notice warning ${styles.failure}`} role="alert">
-          <strong>{rewrite.error.title}</strong>
+          <strong>{rewrite.error.title === COPY.failed ? words.failed : rewrite.error.title}</strong>
           <span>{rewrite.error.message}</span>
           {(rewrite.error.help || rewrite.error.settings) && (
             <span className={styles.links}>
-              {rewrite.error.help && <a href={rewrite.error.help}>{COPY.help}</a>}
-              {rewrite.error.settings && <a href={rewrite.error.settings}>{COPY.settings}</a>}
+              {rewrite.error.help && <a href={rewrite.error.help}>{words.help}</a>}
+              {rewrite.error.settings && <a href={rewrite.error.settings}>{words.settings}</a>}
             </span>
           )}
         </div>
