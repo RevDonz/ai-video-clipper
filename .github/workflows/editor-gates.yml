@@ -19,6 +19,11 @@ name: Editor gates (manual)
 # (--ref <branch>) once with -f ref=main and once with -f ref=<branch>. The same flag records the
 # editor route's CSS (SHA-256 per file) and up-front JS bytes, and the size of use-intl, in
 # gate-output/editor-assets.json (08 Fase 1: editor CSS byte-identical, JS growth <= use-intl).
+# -f seed=true puts one completed project (web/scripts/seed-e2e-project.mjs) in the server's jobs
+# root, so the production read-only specs (command='e2e/read-only.spec.mjs e2e/smoke.spec.mjs')
+# run as they do after a deploy; the editor listing then runs on the runner's Python (stdlib
+# only, src on the path). With command='e2e/landing-shots.spec.mjs' the landing screenshots are
+# retaken into gate-output/e2e/landing (hasil.webp, editor.webp).
 # suite=player: browser specs of the editor player. The image makes the player fixtures
 # (scripts/parity/player_fixtures.py, cases in `cases`) and serves its own app with the parity
 # harness; Chrome for Testing (`chrome`: a version or a milestone, default the parity pin) runs
@@ -66,6 +71,11 @@ on:
         options: [desktop-chromium, mobile-chromium, en-smoke]
       ttfb:
         description: For suite=e2e, also record the TTFB of /, /dashboard and /login (web/scripts/measure-ttfb.mjs) in gate-output/ttfb.json
+        required: false
+        default: false
+        type: boolean
+      seed:
+        description: For suite=e2e, seed one completed project (web/scripts/seed-e2e-project.mjs) for the read-only specs and the landing screenshots
         required: false
         default: false
         type: boolean
@@ -165,6 +175,8 @@ jobs:
       - name: Start the web app on the editor fakes
         if: inputs.suite == 'e2e'
         working-directory: web
+        env:
+          GATE_SEED: ${{ inputs.seed && '1' || '' }}
         run: |
           user=e2e-fakes
           password=$(openssl rand -hex 24)
@@ -175,6 +187,14 @@ jobs:
           echo "E2E_PASSWORD=$password" >> "$GITHUB_ENV"
           mkdir -p "$GITHUB_WORKSPACE/gate-output" "$RUNNER_TEMP/jobs" "$RUNNER_TEMP/settings"
           # An empty jobs root and settings directory: the project list after login reads them.
+          if [ "$GATE_SEED" = "1" ]; then
+            node scripts/seed-e2e-project.mjs "$RUNNER_TEMP/jobs"
+            # The editor listing (ai_clipper.edit_v2.api, stdlib only) on the runner's Python.
+            python3 -m venv "$RUNNER_TEMP/editor-python"
+            site=$("$RUNNER_TEMP/editor-python/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+            echo "$GITHUB_WORKSPACE/src" > "$site/potongin-src.pth"
+            export PYTHON_BIN="$RUNNER_TEMP/editor-python/bin/python"
+          fi
           APP_USERNAME="$user" APP_PASSWORD="$password" APP_SESSION_SECRET="$secret" \
             JOBS_ROOT="$RUNNER_TEMP/jobs" POTONGIN_SETTINGS_DIR="$RUNNER_TEMP/settings" \
             POTONGIN_EDITOR_V3=on POTONGIN_EDITOR_FAKES=1 POTONGIN_LOCALES="$GATE_LOCALES" POTONGIN_I18N_STRICT=1 \
@@ -224,6 +244,7 @@ jobs:
           E2E_EDITOR_FAKES: "1"
           EDITOR_GATES: ${{ inputs.gates && '1' || '' }}
           E2E_EN_SMOKE: ${{ inputs.project == 'en-smoke' && '1' || '' }}
+          LANDING_SHOTS: ${{ contains(inputs.command, 'landing-shots') && '1' || '' }}
         run: |
           EDITOR_GATES_OUT="$GITHUB_WORKSPACE/gate-output/e2e" npx playwright test $GATE_COMMAND --project="$GATE_PROJECT"
 

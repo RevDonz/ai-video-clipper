@@ -14,6 +14,7 @@ npm run test:e2e:read-only
 
 - `E2E_BASE_URL` defaults to `http://127.0.0.1:3000`. A local target starts `npm run dev`; set `E2E_NO_WEB_SERVER=1` when it is already managed externally.
 - `E2E_JOB_ID` optionally pins a project. Without it, the read-only tests open the newest completed project with clips, and fail on authentication, transport, missing-project, and server errors.
+- On a server with an empty jobs root (CI), `node scripts/seed-e2e-project.mjs <JOBS_ROOT>` writes one such project first; `editor-gates.yml -f suite=e2e -f seed=true` does it. The same seeded run retakes the landing screenshots with `-f command=e2e/landing-shots.spec.mjs` (written to the run's `gate-output/e2e/landing`).
 - Remote targets default to one worker, and CI is always fixed at one worker. Local runs follow Playwright's local default unless `E2E_WORKERS=N` is set; `N` must be a strict positive integer no greater than 16. Setting `E2E_WORKERS` above 1 for a remote target is an explicit concurrency-stress opt-in; production-safe coverage should retain the default single worker.
 - Credentials are read only from environment variables and no storage state is written. Do not put credentials in command-line arguments or checked-in environment files.
 
