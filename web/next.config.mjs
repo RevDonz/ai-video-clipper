@@ -10,12 +10,12 @@ export const EDITOR_PAGE_HEADERS = Object.freeze([
 ]);
 
 // Every HTML page is rendered per request in the visitor's language (cookie or Accept-Language,
-// rombak 07 §5.4), so no shared cache may keep one: private, no-store, and the inputs named.
-// The public files (landing media, licence texts) are the same for everyone and stay out.
+// rombak 07 §5.4), so no cache may keep one: private, no-store. (Vary is not set here: Next
+// replaces it on every app page with its own RSC headers.) The public files (landing media,
+// licence texts) are the same for everyone and stay out.
 export const HTML_CACHE_SOURCE = "/((?!_next/|api/|landing/|licenses/|favicon\\.ico).*)";
 export const HTML_CACHE_HEADERS = Object.freeze([
   { key: "Cache-Control", value: "private, no-store" },
-  { key: "Vary", value: "Cookie, Accept-Language" },
 ]);
 
 /** @type {import('next').NextConfig} */
