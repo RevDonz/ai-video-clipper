@@ -1,0 +1,27 @@
+{
+  "process": {
+    "queued": "Antre",
+    "running": "Diproses",
+    "completed": "Selesai",
+    "failed": "Gagal",
+    "cancelled": "Dibatalkan",
+    "deleting": "Menghapus",
+    "unknown": "Tidak dikenal"
+  },
+  "post": {
+    "scheduled": "Terjadwal",
+    "uploading": "Mengunggah",
+    "published": "Terbit",
+    "failed": "Gagal",
+    "cancelled": "Dibatalkan"
+  },
+  "detail": {
+    "maintenance": "Pemeliharaan",
+    "ownerDisabled": "Pengguna nonaktif",
+    "check": "Perlu dicek"
+  },
+  "hold": {
+    "reauth": "Hubungkan ulang akun",
+    "quota": "Menunggu kuota"
+  }
+}

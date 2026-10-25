@@ -14,8 +14,10 @@ import { memo } from "react";
 
 import { KIND_LABELS, KIND_ORDER } from "./cleanup-model.mjs";
 import styles from "./transcript.module.css";
+import { secondsFormat } from "../../../lib/i18n/format.mjs";
+import { SOURCE_LOCALE } from "../../../lib/i18n/locales.mjs";
 
-const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const SECONDS = secondsFormat(SOURCE_LOCALE);
 const seconds = (ms) => `${SECONDS.format(ms / 1000)} dtk`;
 const HINTS = Object.freeze({
   filler: "Belum dicentang otomatis: periksa dulu.",

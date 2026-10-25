@@ -16,6 +16,11 @@ function parseWorkers(raw) {
   return value;
 }
 
+// English against a server with POTONGIN_LOCALES=id,en (rombak 07 §14.1), only on request:
+// E2E_EN_SMOKE=1. The post-deploy checks (deploy/production.sh) run every project, and production
+// stays id until English ships (i18n M9).
+const enSmoke = process.env.E2E_EN_SMOKE === "1";
+
 const configuredWorkers = parseWorkers(process.env.E2E_WORKERS);
 const workers = process.env.CI ? 1 : (configuredWorkers ?? (local ? undefined : 1));
 
@@ -43,6 +48,9 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     baseURL,
+    // Indonesian, explicitly (rombak 07 §14.1): Accept-Language and the potongin_locale cookie
+    // (e2e/support/harness.mjs) both say id, so text selectors read the id catalog.
+    locale: "id-ID",
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
     trace: "off",
@@ -52,15 +60,22 @@ export default defineConfig({
   webServer: local && process.env.E2E_NO_WEB_SERVER !== "1" ? {
     command: "npm run dev",
     url: baseURL,
+    // Both languages on, so en-smoke has its English; a missing key fails the page.
+    env: { POTONGIN_LOCALES: "id,en", POTONGIN_I18N_STRICT: "1" },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   } : undefined,
   projects: [
-    { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "desktop-chromium", use: { ...devices["Desktop Chrome"], locale: "id-ID", uiLocale: "id" } },
     {
       name: "mobile-chromium",
       testMatch: /(?:read-only|smoke)\.spec\.mjs/,
-      use: { ...devices["Pixel 7"] },
+      use: { ...devices["Pixel 7"], locale: "id-ID", uiLocale: "id" },
     },
+    ...(enSmoke ? [{
+      name: "en-smoke",
+      testMatch: /(?:smoke|read-only|app-shell|i18n-locale)\.spec\.mjs/,
+      use: { ...devices["Desktop Chrome"], locale: "en-US", uiLocale: "en" },
+    }] : []),
   ],
 });

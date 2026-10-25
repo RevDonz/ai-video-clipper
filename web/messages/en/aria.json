@@ -1,0 +1,19 @@
+{
+  "mainMenu": "Main menu",
+  "close": "Close",
+  "clearSearch": "Clear search",
+  "selectAll": "Select all",
+  "selectRow": "Select row",
+  "removeTag": "Remove tag",
+  "prev": "Previous",
+  "next": "Next",
+  "page": "Page {n}",
+  "calendar": "Calendar",
+  "dismiss": "Dismiss",
+  "loading": "Loading",
+  "loadingMore": "Loading more",
+  "notifications": "Notifications",
+  "prevMonth": "Previous month",
+  "nextMonth": "Next month",
+  "moreActions": "More actions for {name}"
+}

@@ -3,6 +3,8 @@
 
 import { readyClips } from "./clip-status.mjs";
 import { isActiveStatus, projectName, projectProgress } from "./project-view.mjs";
+import { numberFormat } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
 /** Dispatched on window by a page that created, cancelled or deleted a job: the badge reads the list now. */
 export const JOBS_CHANGED_EVENT = "potongin:jobs-changed";
@@ -16,7 +18,7 @@ export const BADGE_POLL = Object.freeze({
   hideAfterFailures: 3,
 });
 
-const COUNT = new Intl.NumberFormat("id-ID");
+const COUNT = numberFormat(SOURCE_LOCALE);
 const SHOWN_FINISHED = new Set(["completed", "failed", "cancelled"]);
 
 function validJobs(jobs) {

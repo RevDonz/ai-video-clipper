@@ -48,3 +48,27 @@ test(".env.example's storage values pass the storage admission parser", async ()
   assert.equal(config.minimumFreeBytes, 16106127360n);
   assert.equal(config.activeReserveBytes, 2147483648n);
 });
+
+// The service blocks of compose.yaml, by name (two-space indented keys under services:).
+async function composeServices() {
+  const text = await repoFile("compose.yaml");
+  const services = new Map();
+  const body = (text.split(/^services:\n/m)[1] ?? "").split(/^\S/m)[0];
+  for (const block of body.split(/^(?= {2}[a-z][a-z0-9-]*:\n)/m)) {
+    const name = /^ {2}([a-z][a-z0-9-]*):\n/.exec(block)?.[1];
+    if (name) services.set(name, block);
+  }
+  return services;
+}
+
+test("the UI languages flag reaches the app service only, with id as the default", async () => {
+  // rombak 07 §3: compose names every service's environment, so .env alone would not reach it.
+  const values = await envExample();
+  assert.equal(values.get("POTONGIN_LOCALES"), "id");
+  const services = await composeServices();
+  assert.ok(services.has("app") && services.has("primary-worker") && services.has("render-worker"));
+  assert.match(services.get("app"), /^ {6}POTONGIN_LOCALES: \$\{POTONGIN_LOCALES:-id\}$/m);
+  for (const [name, block] of services) {
+    if (name !== "app") assert.doesNotMatch(block, /POTONGIN_LOCALES/, `${name} renders no UI text`);
+  }
+});

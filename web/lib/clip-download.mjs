@@ -3,6 +3,8 @@
 // Client-safe: no Node built-ins.
 
 import { projectName } from "./project-view.mjs";
+import { formatNumber } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
 // The files route accepts a `name` of ≤ 64 characters (final-files.mjs); a title adds ≤ 48.
 const NAME_LIMIT = 64;
@@ -84,9 +86,9 @@ const MB = 1024 ** 2;
 const GB = 1024 ** 3;
 
 /** "2,4 GB", "18 MB", "98 KB"; null for anything that is not a size. */
-export function formatSize(bytes) {
+export function formatSize(bytes, locale = SOURCE_LOCALE) {
   if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) return null;
-  if (bytes >= GB) return `${(bytes / GB).toLocaleString("id-ID", { maximumFractionDigits: 1 })} GB`;
-  if (bytes >= MB) return `${Math.round(bytes / MB).toLocaleString("id-ID")} MB`;
-  return `${Math.round(bytes / KB).toLocaleString("id-ID")} KB`;
+  if (bytes >= GB) return `${formatNumber(bytes / GB, locale, { maximumFractionDigits: 1 })} GB`;
+  if (bytes >= MB) return `${formatNumber(Math.round(bytes / MB), locale)} MB`;
+  return `${formatNumber(Math.round(bytes / KB), locale)} KB`;
 }

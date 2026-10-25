@@ -1,6 +1,9 @@
 // The Pengaturan "Cookies YouTube" card, DOM-free: the state from GET /api/settings/youtube-cookies,
 // the card's copy and its messages (web/lib/youtube-cookies.mjs is the server side).
 
+import { formatDateTime, formatNumber } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
+
 // Equal to MAX_COOKIES_FILE_BYTES on the server (by test); checked before a file goes out.
 export const MAX_COOKIES_UPLOAD_BYTES = 1024 * 1024;
 export const COOKIES_ACCEPT = ".txt,text/plain";
@@ -26,7 +29,7 @@ export function youtubeCookiesState(payload) {
   };
 }
 
-const count = (value) => value.toLocaleString("id-ID");
+const count = (value) => formatNumber(value);
 
 export function youtubeCookiesCopy() {
   return {
@@ -52,7 +55,7 @@ export function cookiesCountText(cookies) {
 export function cookiesUploadedText(cookies) {
   const date = new Date(cookies?.uploadedAt ?? "");
   if (Number.isNaN(date.getTime())) return null;
-  return `Diunggah ${date.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}`;
+  return `Diunggah ${formatDateTime(date, SOURCE_LOCALE, { dateStyle: "medium", timeStyle: "short" })}`;
 }
 
 const ERRORS = Object.freeze({

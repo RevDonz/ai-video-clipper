@@ -59,8 +59,10 @@ import {
 } from "./hook-model.mjs";
 import { PACK_IMAGES, imageSrc } from "./pack-images.js";
 import styles from "./panels.module.css";
+import { secondsFormat } from "../../../lib/i18n/format.mjs";
+import { SOURCE_LOCALE } from "../../../lib/i18n/locales.mjs";
 
-const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const SECONDS = secondsFormat(SOURCE_LOCALE);
 
 function TextPanelBody({ state, dispatch, api, applyAll }) {
   const { doc, plan } = state;
