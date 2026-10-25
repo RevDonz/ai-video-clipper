@@ -10,7 +10,7 @@ import { SOURCE_LOCALE, localeEntry } from "./locales.mjs";
 
 export const NAMESPACES = Object.freeze([
   "common", "shell", "status", "aria", "meta", "errors", "auth", "dashboard", "projects", "settings", "trends", "editor", "stage",
-  "reason", "hints", "project", "landing", "layout",
+  "reason", "hints", "project", "landing", "layout", "help",
 ]);
 
 // What every page gets from the root provider (07 §8.2).

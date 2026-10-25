@@ -1,0 +1,423 @@
+{
+  "title": "Help",
+  "search": {
+    "label": "Error message",
+    "placeholder": "Paste an error message",
+    "submit": "Search",
+    "hint": "The full message or just its code, for example download_bot_check",
+    "empty": "Paste an error message or its code first",
+    "noMatch": "No matching entry yet. Try a shorter part of the message, or just its code.",
+    "best": "Best match:",
+    "maybe": "Possible match:"
+  },
+  "guide": {
+    "title": "Guide",
+    "topics": {
+      "mulai": {
+        "title": "Making your first clips",
+        "intro": "One long video becomes several short clips, from one page.",
+        "steps": {
+          "1": "Open Create clips, then paste a YouTube link or choose a video file (MP4, MOV, MKV, WEBM). You can also drop the file on the page.",
+          "2": "Check Clip count, Clip length, Ratio and Layout. These choices are remembered for the next job in this browser.",
+          "3": "Press Create clips. Progress per stage shows on the page and in the side menu; the job keeps running on the server even if you close the page.",
+          "4": "When it is done, watch the clips, download the MP4 or copy the caption. Every project is kept in Projects."
+        }
+      },
+      "pilihan": {
+        "title": "Options in Create clips",
+        "intro": "What is always on screen is used almost every time; the rest is folded, with a summary of what is chosen.",
+        "terms": {
+          "count": {
+            "title": "Clip count",
+            "text": "{countMin} to {countMax} clips per video."
+          },
+          "duration": {
+            "title": "Clip length",
+            "text": "Auto {autoMin}–{autoMax} seconds, Short {shortMin}–{shortMax} seconds, Medium {mediumMin}–{mediumMax} seconds, Long {longMin}–{longMax} seconds, or Custom between {secondsMin}–{secondsMax} seconds."
+          },
+          "ratio": {
+            "title": "Ratio",
+            "text": "9:16 for TikTok, Reels and Shorts; 1:1 for the feed."
+          },
+          "layout": {
+            "title": "Layout",
+            "text": "Blurred background: the landscape video stays whole, the rest of the screen is a blurred copy. Follow face: full screen, the crop follows the speaker's face. Center crop: for videos whose subject is always in the middle. Split screen is set per clip in the editor."
+          },
+          "look": {
+            "title": "Subtitles and hook",
+            "text": "{styles} subtitle styles with their position and size, the strongest line played first, and hook text in the first 4 seconds. The 9:16 preview next to it follows your choices."
+          },
+          "moments": {
+            "title": "Steer the moment picking",
+            "text": "Focus keywords put moments that talk about them first. A time range, for example 10.30-12.05, makes that part one clip as it is. Leave both empty for automatic picking."
+          },
+          "format": {
+            "title": "Language and resolution",
+            "text": "The language spoken in the video (Indonesian, English or auto-detect) and a resolution of 720p or 1080p. 1080p is sharper but takes longer to render."
+          },
+          "srt": {
+            "title": ".srt subtitles",
+            "text": "For an uploaded file, add an .srt (up to 2 MB) so the transcript comes from that file instead of the audio."
+          }
+        }
+      },
+      "riwayat": {
+        "title": "Projects",
+        "intro": "Every result is in Projects, per video or per clip.",
+        "steps": {
+          "1": "Projects tab: one row per video, with search and a status filter. Clips tab: every clip from every project.",
+          "2": "Open a project to watch each clip, copy the title or caption, and download one clip or all of them as a ZIP.",
+          "3": "Titles and descriptions can be edited in place, or written again with Rewrite.",
+          "4": "Deleting a project removes the source video and all its clips from the server. It cannot be undone."
+        }
+      },
+      "editor": {
+        "title": "Clip editor",
+        "intro": "Open it from the Edit clip button in a project. The editor needs a screen at least 1024 px wide.",
+        "terms": {
+          "quick": {
+            "title": "Quick",
+            "text": "Cards for Hook, Caption, Caption text, Cold open, Layout, and Logo & Music next to the preview. Good for tidying the packaging."
+          },
+          "full": {
+            "title": "Full",
+            "text": "Tool icons on the left (Transcript, Text, Cold open, Layout, Logo, Music), the chosen tool's panel right of the preview, the timeline below. Cut word by word from the transcript here."
+          },
+          "save": {
+            "title": "Save and export",
+            "text": "Changes save automatically. Needs review lists what is worth checking before export; Export makes an MP4 file of the edit."
+          }
+        }
+      },
+      "tren": {
+        "title": "Trends",
+        "intro": "Topics, people, jokes and hashtags that are popular right now, sent by your agent or added by hand.",
+        "steps": {
+          "1": "Active trends are used for clip titles, hooks, descriptions and hashtags.",
+          "2": "Moments whose transcript mentions a trend move up a little; a good moment without a trend can still be picked.",
+          "3": "Turn off Use trend context when the next job does not need trends.",
+          "4": "An agent token is shown only once, when it is made. Keep it in your agent, never in a chat or a repository."
+        }
+      },
+      "pengaturan": {
+        "title": "Settings",
+        "intro": "Applies to the next job.",
+        "steps": {
+          "1": "Moment-picking AI: providers are tried from the top; if all of them fail, a local heuristic picks. Only free models can be turned on.",
+          "2": "Transcription, the default logo and text watermark, and YouTube cookies for videos that ask for a sign-in.",
+          "3": "About this system: the components this server uses, to include when you report a problem.",
+          "4": "The display language is chosen in the account menu when there is more than one. Other devices follow at their next sign-in."
+        }
+      }
+    }
+  },
+  "shortcuts": {
+    "title": "Shortcuts",
+    "key": "Key",
+    "does": "Action",
+    "or": "or",
+    "app": "App pages",
+    "appNote": "While Single-key shortcuts is on in the account menu",
+    "editor": "Editor",
+    "editorNote": "Press ? in the editor for the full list",
+    "space": "Space",
+    "appKeys": {
+      "create": "Open Create clips",
+      "search": "Go to the page's search field"
+    },
+    "editorKeys": {
+      "playPause": "Play / pause",
+      "frameBack": "Back one frame",
+      "frameForward": "Forward one frame",
+      "undo": "Undo",
+      "redo": "Redo",
+      "trimStart": "Start the clip at the selection or playhead",
+      "trimEnd": "End the clip at the selection or playhead",
+      "export": "Export",
+      "help": "Shortcut help"
+    }
+  },
+  "errors": {
+    "title": "Error messages",
+    "groups": "Error message groups",
+    "count": "{count, plural, one {# entry} other {# entries}}"
+  },
+  "entry": {
+    "shown": "On screen",
+    "cause": "Cause",
+    "fix": "Fix"
+  },
+  "actions": {
+    "create": "Open Create clips",
+    "projects": "Open Projects",
+    "settings": "Open Settings",
+    "trends": "Open Trends"
+  },
+  "groups": {
+    "unduhan": {
+      "title": "YouTube downloads",
+      "intro": "The server could not fetch the video from the YouTube link. The message shows in Create clips and on the project page."
+    },
+    "penyimpanan": {
+      "title": "Server storage",
+      "intro": "The server refused a new job, or stopped one, because of storage space."
+    },
+    "ai": {
+      "title": "Moment-picking AI",
+      "intro": "An AI provider in Settings could not be used. The job still runs: moments are picked with a local heuristic."
+    }
+  },
+  "entries": {
+    "download_private": {
+      "title": "Private video",
+      "cause": "The owner set the video to private. The server can only download videos that can be watched without signing in.",
+      "fix": {
+        "1": "Open the link in a private window. If YouTube asks you to sign in, the video really is private.",
+        "2": "Ask the owner to change the visibility to Public or Unlisted, then create the project again.",
+        "3": "Or upload the video file directly with Choose file in Create clips."
+      }
+    },
+    "download_unavailable": {
+      "title": "Video removed or unavailable",
+      "cause": "The video was removed, the channel was closed, or the link was cut off so the video ID is incomplete.",
+      "fix": {
+        "1": "Open the link in a browser and check that the video still plays.",
+        "2": "Copy the link again from the Share button on YouTube, then create the project again.",
+        "3": "If the video is really gone, upload the original file."
+      }
+    },
+    "download_age_restricted": {
+      "title": "Age-restricted video",
+      "cause": "YouTube asks for a sign-in for age-restricted videos. Without YouTube cookies the server downloads without an account, so it cannot meet that request.",
+      "fix": {
+        "1": "Upload the video file directly with Choose file in Create clips.",
+        "2": "Or upload YouTube cookies in Settings, from an account that has passed age verification."
+      }
+    },
+    "download_members_only": {
+      "title": "Members-only or paid video",
+      "cause": "This video is only for channel members or buyers. The server does not have that access.",
+      "fix": {
+        "1": "Upload the video file directly with Choose file in Create clips.",
+        "2": "If you do not have the file, pick a video everyone can watch."
+      }
+    },
+    "download_geo_blocked": {
+      "title": "Video blocked in the server's region",
+      "cause": "The owner limited the video to certain countries, and the server is outside them. A video that plays on your device may still be impossible for the server to download.",
+      "fix": {
+        "1": "Upload the video file directly with Choose file in Create clips."
+      }
+    },
+    "download_bot_check": {
+      "title": "YouTube is holding back the server",
+      "cause": "YouTube is holding back requests from the server's IP address: it asks for proof that it is not a bot or limits the number of requests (HTTP 429). Cookies from a YouTube account help the server pass that check.",
+      "fix": {
+        "1": "Upload YouTube cookies in Settings: export cookies.txt from a browser that is signed in to YouTube.",
+        "2": "Use a separate Google account, not your main one. If downloads are held back again, export the cookies again.",
+        "3": "Or upload the video file directly with Choose file in Create clips.",
+        "4": "Or create the project again later."
+      }
+    },
+    "download_ytdlp_outdated": {
+      "title": "The YouTube downloader needs an update",
+      "cause": "YouTube changed how it serves its videos, and the yt-dlp version on the server has not caught up. Signs: a format is not available, data cannot be extracted, or HTTP 403.",
+      "fix": {
+        "1": "Meanwhile, upload the video file directly with Choose file in Create clips.",
+        "2": "Server owner: raise the yt-dlp version through the weekly update PR, or follow the “YouTube broken: raise yt-dlp” steps in the operations guide."
+      }
+    },
+    "download_stalled": {
+      "title": "Download stalled",
+      "cause": "The download progress stopped and did not move for 2 minutes (the default), so the worker stopped the download. Usually the server's connection to YouTube slowed down or dropped.",
+      "fix": {
+        "1": "Create the project again in a few minutes.",
+        "2": "If it keeps stalling, upload the video file directly with Choose file in Create clips."
+      }
+    },
+    "download_failed": {
+      "title": "Download failed for another reason",
+      "cause": "yt-dlp stopped with a message Potongin does not recognise yet.",
+      "fix": {
+        "1": "Open the link in a browser and check that the video plays.",
+        "2": "Create the project again.",
+        "3": "If it fails again, paste the technical message from Create clips or the project page into the search box on this page."
+      }
+    },
+    "storage_quota_exhausted": {
+      "title": "Server storage quota is full",
+      "cause": "The saved projects use the whole job storage quota. Potongin never deletes projects by itself, so new jobs are refused until there is room.",
+      "fix": {
+        "1": "Download the clips you still need, then delete projects you no longer use in Projects. Deleting is permanent.",
+        "2": "Press Check again in Create clips, then create the project again.",
+        "3": "Server owner: raise JOBS_STORAGE_QUOTA_BYTES or enlarge the storage volume."
+      }
+    },
+    "storage_free_space_low": {
+      "title": "Too little free space on the server disk",
+      "cause": "Free space on the server disk dropped below the safe limit. Other things on the server can fill that disk too, not only Potongin projects.",
+      "fix": {
+        "1": "Delete projects you no longer use in Projects.",
+        "2": "Server owner: free up the disk (for example the Docker build cache and old images) or enlarge the volume, then press Check again in Create clips."
+      }
+    },
+    "storage_admission_unavailable": {
+      "title": "Storage status cannot be checked",
+      "cause": "The server could not count its storage use, for example because scanning the job folders ran past its time limit or the reservation record was lost. New jobs are refused so the disk does not fill up unnoticed.",
+      "fix": {
+        "1": "Wait a moment, press Check again in Create clips, then try again.",
+        "2": "Server owner: if it keeps happening, check the worker log. The job folders must be on one mount."
+      }
+    },
+    "llm_quota_exhausted": {
+      "title": "Free AI quota used up",
+      "cause": "The provider limits the number of free requests, usually per day. That model is skipped for a while, then the next model or provider is tried.",
+      "fix": {
+        "1": "Wait for the daily quota to come back.",
+        "2": "Add another free provider to Provider order so the next jobs still use AI.",
+        "3": "Or fill in Fallback model with another free model from the same provider."
+      }
+    },
+    "llm_rate_limited": {
+      "title": "AI provider rate limit hit",
+      "cause": "Too many requests in a short time for that model (HTTP 429). Potongin waits and tries again before moving to the next model.",
+      "fix": {
+        "1": "Wait a moment, then run Test connection again.",
+        "2": "Lower that provider's Requests per minute limit in Settings.",
+        "3": "Add another free provider to Provider order as a fallback."
+      }
+    },
+    "llm_auth": {
+      "title": "API key refused",
+      "cause": "The provider refused the API key (HTTP 401 or 403): the key is wrong, was revoked, or belongs to another provider.",
+      "fix": {
+        "1": "Make a new key on the provider's site through the Get API key link on its card.",
+        "2": "Press Replace in the API key field, paste the new key, then Save.",
+        "3": "Run Test connection."
+      }
+    },
+    "llm_missing_api_key": {
+      "title": "API key not filled in",
+      "cause": "This provider needs an API key, but the field is empty. If there are other providers in the list, this one is skipped.",
+      "fix": {
+        "1": "Get an API key on the provider's site through the Get API key link.",
+        "2": "Paste it into the API key field. Save, then run Test connection."
+      }
+    },
+    "llm_key_unreadable": {
+      "title": "Saved API key cannot be opened",
+      "cause": "The key is stored encrypted with the server's session secret (APP_SESSION_SECRET). If that secret changes, the old key can no longer be opened.",
+      "fix": {
+        "1": "Press Re-enter in the API key field, paste the key again, then Save.",
+        "2": "Server owner: do not change APP_SESSION_SECRET unless you have to."
+      }
+    },
+    "llm_payment_required": {
+      "title": "Model needs paid credit",
+      "cause": "This model or provider is not free, or Free models only is on while the model is a paid one.",
+      "fix": {
+        "1": "Choose a free model through Fetch model list. On OpenRouter their names end in :free.",
+        "2": "Or use another free provider in Provider order."
+      }
+    },
+    "llm_model_not_found": {
+      "title": "Model not found",
+      "cause": "The model ID is wrong or the provider has retired it. For free OpenRouter models, the account's privacy settings may also not allow free endpoints yet.",
+      "fix": {
+        "1": "Press Fetch model list and choose a model that is available.",
+        "2": "OpenRouter: allow free endpoints in your OpenRouter account's privacy settings.",
+        "3": "Save, then run Test connection."
+      }
+    },
+    "llm_timeout": {
+      "title": "AI took too long to answer",
+      "cause": "The provider did not answer within the request's time limit, or the whole AI moment picking took longer than 20 minutes. Moments were then picked without AI.",
+      "fix": {
+        "1": "Raise that provider's Timeout (seconds).",
+        "2": "For a reasoning model, set Reasoning effort to none so it answers much faster.",
+        "3": "Or choose a faster model or provider."
+      }
+    },
+    "llm_network": {
+      "title": "The provider's server cannot be reached",
+      "cause": "The Potongin server could not connect to the provider's address: the Base URL is wrong, your own server (for example Hermes, 9Router or Ollama) is down, or the server's internet connection dropped.",
+      "fix": {
+        "1": "Check the Base URL on the provider's card.",
+        "2": "For your own server, make sure it is running and can be reached from the Potongin server.",
+        "3": "Run Test connection again."
+      }
+    },
+    "llm_context_length": {
+      "title": "Transcript too long for the model",
+      "cause": "The transcript part that was sent is over the model's context limit, or the request is too large for the provider (HTTP 413).",
+      "fix": {
+        "1": "Lower that provider's Context limit (tokens) to match the model's limit.",
+        "2": "Or choose a model with a longer context."
+      }
+    },
+    "llm_context_too_small": {
+      "title": "Context limit too small",
+      "cause": "The context limit that is set is too small to hold the instructions and a transcript part together.",
+      "fix": {
+        "1": "Raise Context limit (tokens), or lower Max. answer tokens.",
+        "2": "Save, then run Test connection."
+      }
+    },
+    "llm_truncated": {
+      "title": "AI answer cut off",
+      "cause": "The model reached its answer token limit before it finished. Reasoning models hit this most, because their thinking uses tokens too.",
+      "fix": {
+        "1": "Raise Max. answer tokens.",
+        "2": "For a reasoning model, set Reasoning effort to none."
+      }
+    },
+    "llm_bad_response": {
+      "title": "AI answer cannot be read",
+      "cause": "The model answered, but not with the JSON that was asked for, or the server's response was broken.",
+      "fix": {
+        "1": "Change that provider's JSON mode (On or Off), then run Test connection.",
+        "2": "If it still fails, choose another model."
+      }
+    },
+    "llm_content_filter": {
+      "title": "Answer blocked by a content filter",
+      "cause": "The provider's safety filter blocked the model's answer, usually because it judged the transcript sensitive.",
+      "fix": {
+        "1": "Move another provider to the top of the order, or choose another model."
+      }
+    },
+    "llm_no_moments": {
+      "title": "AI found no valid moment",
+      "cause": "The AI answered, but none of its moments fit the clip length limits after they were trimmed to sentence boundaries.",
+      "fix": {
+        "1": "Widen the minimum and maximum clip length in Create clips.",
+        "2": "Check the video: a video with little speech gives the AI little to work with."
+      }
+    },
+    "llm_config_invalid": {
+      "title": "AI settings are not valid",
+      "cause": "A provider field was refused, for example a Base URL that is not valid, a model ID with spaces, or a number out of range.",
+      "fix": {
+        "1": "Open Settings and fix the marked fields.",
+        "2": "Save, then run Test connection."
+      }
+    },
+    "llm_not_configured": {
+      "title": "AI is off or not set up",
+      "cause": "AI is turned off in Settings, or no provider is complete yet. Moments are picked with a local heuristic.",
+      "fix": {
+        "1": "Turn on Enable AI (LLM) in Settings.",
+        "2": "Add at least one free provider and fill in its API key.",
+        "3": "Save, then run Test connection."
+      }
+    },
+    "llm_http": {
+      "title": "AI provider returned an error",
+      "cause": "The provider answered with another HTTP code. A 5xx code means the provider's server has a problem; a 4xx code is usually down to the settings.",
+      "fix": {
+        "1": "For 5xx: wait a moment, then run Test connection again.",
+        "2": "For 4xx: check the model, the Base URL and JSON mode, then run Test connection."
+      }
+    }
+  }
+}

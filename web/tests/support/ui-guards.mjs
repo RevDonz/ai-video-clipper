@@ -249,7 +249,10 @@ export function findKitViolations(file, raw) {
   const hits = [];
 
   for (const match of source.matchAll(/<PageHead(?=[\s/>])/g)) {
-    const close = source.indexOf("</PageHead>", match.index);
+    // A self-closing <PageHead ... /> has no body: what follows it is the page, not the head.
+    const tagEnd = scanBalanced(source, match.index, { tag: true });
+    const selfClosing = source.slice(match.index, tagEnd).endsWith("/>");
+    const close = selfClosing ? tagEnd : source.indexOf("</PageHead>", match.index);
     const body = source.slice(match.index, close === -1 ? source.length : close);
     for (const sentence of body.matchAll(/<p(?=[\s/>])/g)) {
       hits.push({ file, line: at(match.index + sentence.index), rule: "pagehead-sentence", text: "<p>" });
