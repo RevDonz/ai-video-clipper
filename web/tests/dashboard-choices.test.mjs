@@ -22,8 +22,13 @@ import {
   withSection,
   writeStoredChoices,
 } from "../lib/dashboard-choices.mjs";
-import { jobFormProblems, videoFileProblem } from "../lib/dashboard-view.mjs";
+import * as dashboardView from "../lib/dashboard-view.mjs";
 import { CAPTION_STYLES, RENDER_MODES, VIDEO_LANGUAGES, parseJobOptions } from "../lib/jobs.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The dashboard view returns catalog descriptors; compared by their Indonesian text.
+const jobFormProblems = (fields) => textsOf(dashboardView.jobFormProblems(fields));
+const videoFileProblem = (file) => textsOf(dashboardView.videoFileProblem(file));
 
 /** A localStorage stand-in; `fail` makes the named methods throw like blocked site data. */
 function memoryStorage(initial = {}, { fail = [] } = {}) {
@@ -153,14 +158,14 @@ test("only the choices are written: never the link, the file or the focus", () =
 
 test("an empty source asks for a link or a file; a dropped file must be a video the server takes", async () => {
   const valid = { sourceType: "youtube", youtubeUrl: "", video: null, limit: "3", minDuration: "20", maxDuration: "60" };
-  assert.deepEqual(jobFormProblems(valid), { youtubeUrl: "Tempel link YouTube atau pilih file video." });
-  assert.equal(videoFileProblem(null), "Pilih file video dulu.");
+  assert.deepEqual(jobFormProblems(valid), { youtubeUrl: "Tempel link YouTube atau pilih file" });
+  assert.equal(videoFileProblem(null), "Pilih file video");
   for (const name of ["a.mp4", "B.MOV", "c.mkv", "d.webm", "e.m4v", "rekaman.final.mp4"]) assert.equal(videoFileProblem({ name }), null, name);
   for (const name of ["a.avi", "foto.jpg", "mp4", "", "video.mp4.exe"]) {
-    assert.equal(videoFileProblem({ name }), "Format tidak didukung. Pakai MP4, MOV, MKV atau WEBM.", name);
+    assert.equal(videoFileProblem({ name }), "Pakai MP4, MOV, MKV atau WEBM", name);
   }
   assert.deepEqual(jobFormProblems({ ...valid, sourceType: "upload", video: { name: "a.avi" } }), {
-    video: "Format tidak didukung. Pakai MP4, MOV, MKV atau WEBM.",
+    video: "Pakai MP4, MOV, MKV atau WEBM",
   });
   // The same extensions the upload route accepts.
   const route = await readFile(new URL("../app/api/jobs/route.js", import.meta.url), "utf8");

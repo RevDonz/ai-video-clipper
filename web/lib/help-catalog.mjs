@@ -8,8 +8,8 @@
 // (dashboard-view.mjs) and the AI codes (ERROR_CODES in src/ai_clipper/llm.py, the connection
 // test's codes in llm-settings-actions.mjs and the AI fallbacks a job records in its warnings).
 
-import { STORAGE_ERROR_CODES, storageMessage } from "./dashboard-view.mjs";
-import { DOWNLOAD_ERROR_CODES, DOWNLOAD_ERROR_PATTERNS, downloadErrorMessage } from "./download-errors.mjs";
+import { STORAGE_ERROR_CODES } from "./dashboard-view.mjs";
+import { DOWNLOAD_ERROR_CODES, DOWNLOAD_ERROR_PATTERNS } from "./download-errors.mjs";
 
 export const HELP_PATH = "/bantuan";
 // A longer paste keeps only its end: a log ends with the line that made it fail.
@@ -23,16 +23,17 @@ const BUAT_KLIP = Object.freeze({ href: "/dashboard", key: "create" });
 const PROYEK = Object.freeze({ href: "/projects", key: "projects" });
 const PENGATURAN = Object.freeze({ href: "/settings", key: "settings" });
 
-// `shown` is the text the pages put on screen for the code in Indonesian, from the module that
-// writes it; the page and the search add the same message from every locale's catalog
-// (help-view.mjs). `fragments` are other pieces of the messages the code comes with (the
-// engine's, the providers', the settings page's), lower case, as the search compares them.
+// The text the pages put on screen for a code is errors.<domain>.<code> in every locale's catalog
+// (one source); the page and the search read it there (help-view.mjs), so the download and
+// storage entries carry none of their own, like the AI entries. `fragments` are other pieces of
+// the messages the code comes with (the engine's, the providers', the settings page's), lower
+// case, as the search compares them.
 function download(code, fields) {
-  return { group: "unduhan", id: code, shown: [downloadErrorMessage(code).text], action: BUAT_KLIP, ...fields };
+  return { group: "unduhan", id: code, action: BUAT_KLIP, ...fields };
 }
 
 function storage(code, fields) {
-  return { group: "penyimpanan", id: code, shown: [storageMessage(code)], action: PROYEK, ...fields };
+  return { group: "penyimpanan", id: code, action: PROYEK, ...fields };
 }
 
 // AI entries are anchored at llm_<code>: the engine's codes ("timeout", "auth") are too plain
@@ -247,7 +248,7 @@ function codeIn(text) {
 /**
  * The search index, as plain data the server hands to the page's search box: per entry id, the
  * message fragments the text is matched against and the entry's words as one text. Without
- * `texts` it holds what this module knows (codes, the Indonesian `shown`, the fragments); each
+ * `texts` it holds what this module knows (codes and fragments); each
  * item of `texts` adds one locale's catalog text, `{ [entryId]: { shown: [...], words: [...] } }`
  * (helpSearchTexts in help-view.mjs), so a message pasted from any UI language is found.
  */
@@ -304,8 +305,8 @@ function wordsScore(entry, words, index) {
 /**
  * The entry that best explains a pasted error, as `{ entry, by }`: by "code" when the text names
  * one, else by "text" (known message fragments), else by "words"; null when nothing fits.
- * `index` is buildHelpIndex(...) with the catalogs' text; without it only codes, the Indonesian
- * messages and the fragments are known.
+ * `index` is buildHelpIndex(...) with the catalogs' text; without it only codes and the fragments
+ * are known.
  */
 export function findHelpEntry(value, index = BASE_INDEX) {
   if (typeof value !== "string") return null;

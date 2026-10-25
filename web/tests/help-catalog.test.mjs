@@ -12,8 +12,8 @@ import { promisify } from "node:util";
 
 import { createTranslator } from "use-intl/core";
 
-import { STORAGE_ERROR_CODES, storageMessage } from "../lib/dashboard-view.mjs";
-import { DOWNLOAD_ERROR_CODES, classifyDownloadError, downloadErrorMessage } from "../lib/download-errors.mjs";
+import { STORAGE_ERROR_CODES, storageMessage as storageDescriptor } from "../lib/dashboard-view.mjs";
+import { DOWNLOAD_ERROR_CODES, classifyDownloadError, downloadErrorMessage as downloadDescriptors } from "../lib/download-errors.mjs";
 import {
   HELP_ENTRIES,
   HELP_GROUPS,
@@ -34,6 +34,11 @@ import { loadNamespace, loadNamespaces } from "../lib/i18n/catalog.mjs";
 import { LOCALES } from "../lib/i18n/locales.mjs";
 import { CHECK_CODES, checkMessage } from "../lib/llm-settings-actions.mjs";
 import { selectionNotices } from "../lib/selection-v3-view.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The messages the pages show for a download or storage code: catalog descriptors, in Indonesian.
+const downloadErrorMessage = (code) => textsOf(downloadDescriptors(code));
+const storageMessage = (code) => textsOf(storageDescriptor(code));
 
 const run = promisify(execFile);
 const WEB = fileURLToPath(new URL("..", import.meta.url));
@@ -214,8 +219,16 @@ test("the page's groups hold every entry once, under its anchors, in every local
 });
 
 test("download and storage entries quote the message the pages show for that code", () => {
-  for (const code of DOWNLOAD_ERROR_CODES) assert.deepEqual(helpEntry(code).shown, [downloadErrorMessage(code).text], code);
-  for (const code of STORAGE_ERROR_CODES) assert.equal(helpEntry(code).shown[0], storageMessage(code), code);
+  // The message has one source, the catalog: the entry carries none of its own, and the page
+  // quotes errors.<domain>.<code> of its locale, the text the other pages show for that code.
+  for (const code of DOWNLOAD_ERROR_CODES) {
+    assert.deepEqual(helpEntry(code).shown, [], code);
+    assert.deepEqual(view("id", helpEntry(code)).shown, [downloadErrorMessage(code).text], code);
+  }
+  for (const code of STORAGE_ERROR_CODES) {
+    assert.deepEqual(helpEntry(code).shown, [], code);
+    assert.deepEqual(view("id", helpEntry(code)).shown, [storageMessage(code)], code);
+  }
 });
 
 // A stand-in for the errors namespace of a locale whose catalog has the given messages.
@@ -224,9 +237,9 @@ function errorsWith(messages) {
   return { has: (key) => flat.has(key), raw: (key) => flat.get(key) };
 }
 
-test("an entry shows the message of its code from the locale's errors catalog, else the Indonesian one", () => {
+test("an entry shows the message of its code from the locale's errors catalog", () => {
   const entry = helpEntry("download_private");
-  assert.deepEqual(shownTexts(entry, errorsWith({})), [downloadErrorMessage("download_private").text]);
+  assert.deepEqual(shownTexts(entry, errorsWith({})), [], "download codes carry no Indonesian text of their own");
   assert.deepEqual(shownTexts(entry, errorsWith({ "download.download_private": "This video is private." })), ["This video is private."]);
   const timeout = helpEntry("llm_timeout");
   assert.deepEqual(shownTexts(timeout, errorsWith({})), [], "AI codes carry no Indonesian text of their own");
@@ -267,9 +280,9 @@ test("the index is plain data the server can hand to the search box", () => {
     for (const fragment of value.fragments) assert.equal(fragment, normalizeErrorText(fragment).replace(/[.!?]+$/, ""));
   }
   assert.equal(findHelpEntry("unduhan berhenti tidak bergerak", copy)?.entry.id, "download_stalled", "a copy searches the same");
-  // Without the catalogs the codes, the Indonesian messages and the fragments still work.
+  // Without the catalogs the codes and the fragments still work; the messages live in the catalogs.
   assert.equal(findHelpEntry("download_bot_check")?.entry.id, "download_bot_check");
-  assert.equal(findHelpEntry(downloadErrorMessage("download_private").text)?.entry.id, "download_private");
+  assert.equal(findHelpEntry(downloadErrorMessage("download_private").text, INDEX)?.entry.id, "download_private");
   assert.equal(findHelpEntry("Kena rate limit openrouter")?.entry.id, "llm_rate_limited");
   assert.equal(findHelpEntry("unduhan berhenti tidak bergerak"), null, "the loose words live in the catalogs");
   for (const bad of [null, undefined, 42, "nope"]) assert.equal(findHelpEntry("download_private", bad)?.entry.id, "download_private");

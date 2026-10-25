@@ -1,19 +1,22 @@
-// yt-dlp failures as fixed codes, each with one Indonesian reason and one suggestion.
-// Client-safe: the worker classifies, the dashboard and the project page show the text.
+// yt-dlp failures as fixed codes, each with one reason (errors.download.<code>) and one
+// suggestion (hints.download.<code>) in the catalogs. Client-safe: the worker classifies, the
+// dashboard and the project page show the text; the worker's own Indonesian line for the job
+// file comes from legacyMessage() (lib/i18n/legacy.mjs), so id has one source.
 // The codes are stable: the help page (help-catalog.mjs) links to them as /bantuan#<code>.
+import { d } from "./i18n/descriptor.mjs";
 
-const UPLOAD_INSTEAD = "Unggah file videonya langsung.";
+const message = (text, hint) => Object.freeze({ text: Object.freeze(text), hint: Object.freeze(hint) });
 
 const MESSAGES = Object.freeze({
-  download_private: Object.freeze({ text: "Video ini privat.", hint: "Pakai video yang bisa ditonton tanpa login." }),
-  download_unavailable: Object.freeze({ text: "Video ini sudah dihapus atau tidak tersedia.", hint: "Periksa link-nya di YouTube." }),
-  download_age_restricted: Object.freeze({ text: "YouTube meminta login karena video ini dibatasi usia.", hint: UPLOAD_INSTEAD }),
-  download_members_only: Object.freeze({ text: "Video ini khusus member atau berbayar.", hint: UPLOAD_INSTEAD }),
-  download_geo_blocked: Object.freeze({ text: "Video ini tidak tersedia di wilayah server.", hint: UPLOAD_INSTEAD }),
-  download_bot_check: Object.freeze({ text: "YouTube sedang menahan unduhan dari server ini.", hint: "Unggah cookies YouTube di Pengaturan." }),
-  download_ytdlp_outdated: Object.freeze({ text: "Pengunduh YouTube di server perlu diperbarui.", hint: "Sementara itu, unggah file videonya langsung." }),
-  download_stalled: Object.freeze({ text: "Unduhan macet.", hint: "Buat ulang proyek ini beberapa menit lagi." }),
-  download_failed: Object.freeze({ text: "Video YouTube gagal diunduh.", hint: "Periksa link-nya, lalu buat ulang proyek ini." }),
+  download_private: message(d("errors.download.download_private"), d("hints.download.download_private")),
+  download_unavailable: message(d("errors.download.download_unavailable"), d("hints.download.download_unavailable")),
+  download_age_restricted: message(d("errors.download.download_age_restricted"), d("hints.download.download_age_restricted")),
+  download_members_only: message(d("errors.download.download_members_only"), d("hints.download.download_members_only")),
+  download_geo_blocked: message(d("errors.download.download_geo_blocked"), d("hints.download.download_geo_blocked")),
+  download_bot_check: message(d("errors.download.download_bot_check"), d("hints.download.download_bot_check")),
+  download_ytdlp_outdated: message(d("errors.download.download_ytdlp_outdated"), d("hints.download.download_ytdlp_outdated")),
+  download_stalled: message(d("errors.download.download_stalled"), d("hints.download.download_stalled")),
+  download_failed: message(d("errors.download.download_failed"), d("hints.download.download_failed")),
 });
 
 export const DOWNLOAD_ERROR_CODES = Object.freeze(Object.keys(MESSAGES));
@@ -22,7 +25,7 @@ export function isDownloadErrorCode(code) {
   return typeof code === "string" && Object.hasOwn(MESSAGES, code);
 }
 
-/** `{ text, hint }` for a download code, else null. */
+/** `{ text, hint }` descriptors for a download code, else null. */
 export function downloadErrorMessage(code) {
   return isDownloadErrorCode(code) ? MESSAGES[code] : null;
 }

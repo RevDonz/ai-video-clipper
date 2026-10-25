@@ -17,7 +17,7 @@ const named = (value) => Object.keys(value ?? {});
 
 /**
  * The messages an entry's codes show on screen in the translator's language: errors.<domain>.<code>
- * where the catalog has it, else the Indonesian text the code's module writes (`entry.shown`).
+ * where the catalog has it, else the entry's own `shown` (none since every code's text is in the catalog).
  */
 export function shownTexts(entry, te) {
   const domain = MESSAGE_DOMAIN[entry.group];

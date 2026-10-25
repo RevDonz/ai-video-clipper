@@ -8,25 +8,27 @@ import test from "node:test";
 import { dashboardSource } from "./support/screen-sources.mjs";
 import { fileURLToPath } from "node:url";
 
-import {
-  AI_STATUS_UNREADABLE,
-  JOB_STAGE_LABELS,
-  JOB_STATUS_LABELS,
-  aiStatusView,
-  clipMetaText,
-  durationProblem,
-  focusAiMode,
-  jobActivityText,
-  jobFailureView,
-  jobFormProblems,
-  jobPercentText,
-  jobSourceLabel,
-  jobStageText,
-  JOB_STEPS,
-  jobStepText,
-  submitErrorMessage,
-} from "../lib/dashboard-view.mjs";
-import { DOWNLOAD_ERROR_CODES, downloadErrorMessage } from "../lib/download-errors.mjs";
+import * as view from "../lib/dashboard-view.mjs";
+import * as downloads from "../lib/download-errors.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The view returns catalog descriptors; these wrappers compare their Indonesian text.
+const texts = (fn) => (...args) => textsOf(fn(...args));
+const { AI_STATUS_UNREADABLE, JOB_STEPS, focusAiMode, jobPercentText } = view;
+const JOB_STAGE_LABELS = textsOf(view.JOB_STAGE_LABELS);
+const JOB_STATUS_LABELS = textsOf(view.JOB_STATUS_LABELS);
+const aiStatusView = texts(view.aiStatusView);
+const clipMetaText = texts(view.clipMetaText);
+const durationProblem = texts(view.durationProblem);
+const jobActivityText = texts(view.jobActivityText);
+const jobFailureView = texts(view.jobFailureView);
+const jobFormProblems = texts(view.jobFormProblems);
+const jobSourceLabel = texts(view.jobSourceLabel);
+const jobStageText = texts(view.jobStageText);
+const jobStepText = texts(view.jobStepText);
+const submitErrorMessage = texts(view.submitErrorMessage);
+const { DOWNLOAD_ERROR_CODES } = downloads;
+const downloadErrorMessage = texts(downloads.downloadErrorMessage);
 import { serializePublicJob, validateYouTubeUrl } from "../lib/jobs.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
@@ -150,28 +152,28 @@ test("the form is checked in Indonesian before anything is sent, like the job AP
   const valid = { sourceType: "youtube", youtubeUrl: " https://youtu.be/rBg0ZcwjVKQ ", video: null, limit: "3", minDuration: "20", maxDuration: "60" };
   assert.deepEqual(jobFormProblems(valid), {});
   assert.deepEqual(jobFormProblems({ ...valid, sourceType: "upload", youtubeUrl: "", video: { name: "a.mp4" } }), {});
-  assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: "" }), { youtubeUrl: "Tempel link YouTube atau pilih file video." });
+  assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: "" }), { youtubeUrl: "Tempel link YouTube atau pilih file" });
   for (const url of ["http://youtu.be/x", "https://youtube.com.evil.test/x", "youtu.be/x", "https://gaming.youtube.com/watch?v=x", "http://m.youtube.com/watch?v=x"]) {
-    assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: url }), { youtubeUrl: "Link harus https:// dari youtube.com atau youtu.be." }, url);
+    assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: url }), { youtubeUrl: "Link harus https:// dari youtube.com atau youtu.be" }, url);
   }
   // Mobile and YouTube Music links are YouTube links too (the job API stores them canonical).
   for (const url of ["https://m.youtube.com/watch?v=rBg0ZcwjVKQ", "https://music.youtube.com/watch?v=rBg0ZcwjVKQ", "https://youtube.com/shorts/rBg0ZcwjVKQ"]) {
     assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: url }), {}, url);
     assert.equal(validateYouTubeUrl(url), true, url);
   }
-  assert.deepEqual(jobFormProblems({ ...valid, sourceType: "upload", video: null }), { video: "Pilih file video dulu." });
-  assert.deepEqual(jobFormProblems({ ...valid, limit: "11" }), { limit: "Isi 1 sampai 10 klip." });
-  assert.deepEqual(jobFormProblems({ ...valid, limit: "2.5" }), { limit: "Isi 1 sampai 10 klip." });
-  assert.deepEqual(jobFormProblems({ ...valid, limit: "" }), { limit: "Isi 1 sampai 10 klip." });
-  assert.deepEqual(jobFormProblems({ ...valid, minDuration: "4" }), { minDuration: "Isi 5 sampai 180 detik." });
-  assert.deepEqual(jobFormProblems({ ...valid, maxDuration: "181" }), { maxDuration: "Isi 5 sampai 180 detik." });
-  assert.deepEqual(jobFormProblems({ ...valid, minDuration: "61", maxDuration: "60" }), { maxDuration: "Durasi maksimum tidak boleh kurang dari minimum." });
+  assert.deepEqual(jobFormProblems({ ...valid, sourceType: "upload", video: null }), { video: "Pilih file video" });
+  assert.deepEqual(jobFormProblems({ ...valid, limit: "11" }), { limit: "Isi 1 sampai 10 klip" });
+  assert.deepEqual(jobFormProblems({ ...valid, limit: "2.5" }), { limit: "Isi 1 sampai 10 klip" });
+  assert.deepEqual(jobFormProblems({ ...valid, limit: "" }), { limit: "Isi 1 sampai 10 klip" });
+  assert.deepEqual(jobFormProblems({ ...valid, minDuration: "4" }), { minDuration: "Isi 5 sampai 180 detik" });
+  assert.deepEqual(jobFormProblems({ ...valid, maxDuration: "181" }), { maxDuration: "Isi 5 sampai 180 detik" });
+  assert.deepEqual(jobFormProblems({ ...valid, minDuration: "61", maxDuration: "60" }), { maxDuration: "Maksimum tidak boleh kurang dari minimum" });
 });
 
 test("form problems and API errors become short Indonesian messages", () => {
   assert.equal(durationProblem("20", "60"), null);
   assert.equal(durationProblem(30, 30), null);
-  assert.equal(durationProblem("61", "60"), "Durasi maksimum tidak boleh kurang dari minimum.");
+  assert.equal(durationProblem("61", "60"), "Maksimum tidak boleh kurang dari minimum");
   assert.equal(submitErrorMessage({ code: "storage_quota_exhausted" }), "Penyimpanan server tidak cukup untuk job baru.");
   assert.equal(submitErrorMessage({ code: "queue_capacity_reached", error: "Antrean job sedang penuh." }), "Antrean job sedang penuh.");
   assert.equal(submitErrorMessage({ code: "invalid_request", error: 42 }), "Job gagal dibuat. Periksa isian lalu coba lagi.");
@@ -215,7 +217,9 @@ test("a failed job's reason, its one suggestion and the technical detail are on 
   const dashboard = await read("app/dashboard/page.jsx");
   assert.doesNotMatch(dashboard, /jobFailureView|activeJob/, "Buat klip shows no job");
   const project = await read("app/projects/[id]/page.jsx");
-  assert.match(project, /<Alert\.Description>\{projectStageText\(job\)\}<\/Alert\.Description>\s*\{hint && <Alert\.Description>\{hint\}<\/Alert\.Description>\}/);
+  assert.match(project, /<Alert\.Description>\{failureText\}<\/Alert\.Description>\s*\{hint && <Alert\.Description>\{hint\}<\/Alert\.Description>\}/);
+  assert.match(project, /const failureText = \(job\.errorCode \? null : stageText\(tAll, job\)\) \|\| msg\(tAll, projectStageText\(job\)\);/);
+  assert.match(project, /const hint = msg\(tAll, failureHint\(job\)\) \|\| null;/);
   assert.match(project, /\{serverError && \(\s*<details className=\{styles\.errorDetail\}>/);
 });
 
@@ -373,7 +377,7 @@ test("the counted steps follow the order the engine reports its stages", async (
 });
 
 test("the form's checks come as codes, and the Indonesian texts are those codes' texts", async () => {
-  const { jobFormProblemCodes, problemText } = await import("../lib/dashboard-view.mjs");
+  const { jobFormProblemCodes, problemText } = view;
   const valid = { sourceType: "youtube", youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", limit: "3", minDuration: "20", maxDuration: "60" };
   assert.deepEqual(jobFormProblemCodes(valid), {});
   assert.deepEqual(jobFormProblemCodes({ ...valid, youtubeUrl: " " }), { youtubeUrl: { code: "linkEmpty" } });
@@ -392,9 +396,9 @@ test("the form's checks come as codes, and the Indonesian texts are those codes'
   // Each descriptor reads as the message jobFormProblems has always given.
   for (const fields of [{ ...valid, youtubeUrl: "" }, { ...valid, limit: "0", maxDuration: "999" }, { ...valid, timeRanges: "abc" }]) {
     const codes = jobFormProblemCodes(fields);
-    assert.deepEqual(jobFormProblems(fields), Object.fromEntries(Object.entries(codes).map(([field, problem]) => [field, problemText(problem)])));
+    assert.deepEqual(view.jobFormProblems(fields), Object.fromEntries(Object.entries(codes).map(([field, problem]) => [field, problemText(problem)])));
   }
-  assert.equal(durationProblem(60, 30), problemText({ code: "durationOrder" }));
+  assert.deepEqual(view.durationProblem(60, 30), problemText({ code: "durationOrder" }));
 });
 
 test("the AI alert shows only when the AI needs setting up", async () => {
