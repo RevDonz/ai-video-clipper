@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { STORAGE_ERROR_CODES } from "../lib/dashboard-view.mjs";
-import { DOWNLOAD_ERROR_CODES } from "../lib/download-errors.mjs";
+import { DOWNLOAD_ERROR_CODES, downloadErrorMessage } from "../lib/download-errors.mjs";
 import { COMMAND_MESSAGES } from "../lib/editor/commands.mjs";
 import { MESSAGES as EDITOR_AI_MESSAGES, TASK_ERROR_CODES } from "../lib/editor-ai.mjs";
 import {
@@ -120,4 +120,20 @@ test("a messageId is the domain and the base code, never with the errors. prefix
   assert.equal(messageIdFor("glyph_unsupported:U+1F602", "edit"), "edit.glyph_unsupported");
   assert.equal(messageIdFor("unauthorized"), "web.unauthorized");
   assert.equal(messageIdFor("timeout", "nope"), "web.timeout");
+});
+
+async function hintsOf(locale) {
+  return JSON.parse(await readFile(path.join(MESSAGES_DIR, locale, "hints.json"), "utf8"));
+}
+
+test("every download, storage and AI code has its hint in every locale; Indonesian download hints are download-errors' own", async () => {
+  const codes = { download: [...DOWNLOAD_ERROR_CODES], storage: [...STORAGE_ERROR_CODES], llm: await llmCodes() };
+  for (const locale of await locales()) {
+    const hints = await hintsOf(locale);
+    for (const [domain, list] of Object.entries(codes)) {
+      assert.deepEqual(Object.keys(hints[domain] ?? {}).sort(), [...list].sort(), `${locale}: hints.${domain}`);
+    }
+  }
+  const id = await hintsOf(SOURCE_LOCALE);
+  for (const code of DOWNLOAD_ERROR_CODES) assert.equal(id.download[code], downloadErrorMessage(code).hint, code);
 });
