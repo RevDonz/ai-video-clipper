@@ -243,11 +243,11 @@
   background: var(--text);
 }
 
-input:checked ~ span .glyph {
+label:has(input:checked) .glyph {
   border-color: var(--bg);
 }
 
-input:checked ~ span .glyph::after {
+label:has(input:checked) .glyph::after {
   background: var(--bg);
 }
 
@@ -266,7 +266,7 @@ input:checked ~ span .glyph::after {
    both states, since the chosen corner pill underlines its name there (ui.module.css). */
 @media (forced-colors: active) {
   .glyph::after,
-  input:checked ~ span .glyph::after {
+  label:has(input:checked) .glyph::after {
     forced-color-adjust: none;
     background: CanvasText;
   }

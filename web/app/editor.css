@@ -1,0 +1,51 @@
+@layer theme, base, components, utilities;
+
+/* HeroUI v3 on Tailwind v4 for the editor (docs/plans/2026-10-24-rombak/06-editor.md §17 F0,
+   amendment X10). Imported only by app/projects/[id]/clips/[clipId]/edit/layout.jsx; the app
+   pages take app/ui.css instead, so neither page pays for the other's components.
+   Tailwind comes without preflight (globals.css @layer base stays the reset) and every rule here
+   sits in a layer, so every editor CSS Module, which is unlayered, wins over it: a module class
+   on a HeroUI part decides the look, HeroUI only fills what the module leaves unsaid.
+   Utilities are generated from the editor's sources alone. Colours are Potongin tokens, aliased
+   for HeroUI on :root in globals.css (05-ui-dashboard.md §3.4). */
+@import "tailwindcss/theme.css" layer(theme);
+@import "./ui-theme-reset.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "tw-animate-css";
+@import "@heroui/styles/base" layer(base.heroui);
+@import "@heroui/styles/themes/default" layer(theme);
+/* One stylesheet per HeroUI component the editor imports; ui-foundation.test.mjs keeps the list. */
+@import "@heroui/styles/components/disclosure.css" layer(components);
+@import "@heroui/styles/utilities";
+@import "@heroui/styles/variants";
+
+@source "../components/editor";
+
+@theme {
+  --font-sans: var(--font);
+}
+
+/* 44 px targets, as on the app pages (05 §3.5). The editor's modules usually set more. */
+@layer components {
+  .disclosure__trigger { min-height: 44px; min-width: 44px; }
+}
+
+/* Forced colours (Windows high contrast) repaint every control in the user's palette and drop
+   fills and box-shadows, so a fill cannot mark a choice there. Ported from the kit
+   (components/editor/ui/ui.module.css): every React Aria or HeroUI control the editor renders
+   that is chosen (a radio pill, a pressed toggle, later a tab or a list row) underlines its
+   text, and focus is a system-coloured outline. Layered, so a module's own forced-colours rule
+   still wins. */
+@layer components {
+  @media (forced-colors: active) {
+    [data-rac][data-selected] {
+      text-decoration: underline 2px;
+      text-underline-offset: 3px;
+    }
+
+    [data-rac][data-focus-visible] {
+      outline: 2px solid Highlight;
+      outline-offset: 2px;
+    }
+  }
+}

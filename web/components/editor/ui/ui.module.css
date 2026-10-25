@@ -12,8 +12,9 @@
   border: 0;
 }
 
+/* A group's name (React Aria's Label): a grid item, so the group's gap spaces it from the pills. */
 .legend {
-  margin-bottom: var(--ed-space-2, 8px);
+  margin: 0;
   padding: 0;
   color: var(--text-muted);
   font-size: var(--ed-font-size-note, 13px);
@@ -40,18 +41,8 @@
   border: 0;
 }
 
-/* A native radio or checkbox laid invisibly over its whole label: the click target, the focus and
-   the accessible control, while the label draws the state through :has(). */
-.cover {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: inherit;
-}
+/* React Aria keeps each radio or switch a native input, visually hidden inside its label: the label
+   is the click target and draws the state through :has(input:checked) and :has(input:focus-visible). */
 
 /* ---------- Pills (PillGroup) ---------- */
 
@@ -214,17 +205,17 @@
   transition: transform var(--dur-1), background var(--dur-1);
 }
 
-.cover:checked + .switchTrack {
+.switch:has(input:checked) .switchTrack {
   border-color: var(--text);
   background: var(--text);
 }
 
-.cover:checked + .switchTrack::after {
+.switch:has(input:checked) .switchTrack::after {
   background: var(--bg);
   transform: translateX(18px);
 }
 
-.cover:focus-visible + .switchTrack {
+.switch:has(input:focus-visible) .switchTrack {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   box-shadow: var(--ed-focus-ring);
@@ -436,16 +427,13 @@
   transform: rotate(180deg);
 }
 
+/* React Aria measures the panel into --disclosure-panel-height (0px closed, the content's height
+   while it opens, then auto) and hides it once the closing transitions have run; HeroUI fades it
+   in and out over the same time. */
 .cardBody {
-  display: grid;
-  grid-template-rows: 0fr;
-  visibility: hidden;
-  transition: grid-template-rows var(--dur-2) var(--ease-out), visibility var(--dur-2);
-}
-
-.cardBody[data-open="true"] {
-  grid-template-rows: 1fr;
-  visibility: visible;
+  height: var(--disclosure-panel-height);
+  overflow: clip;
+  transition: height var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
 }
 
 .cardInner {
@@ -487,17 +475,17 @@
     background: CanvasText;
   }
 
-  .cover:checked + .switchTrack {
+  .switch:has(input:checked) .switchTrack {
     forced-color-adjust: none;
     border-color: Highlight;
     background: Highlight;
   }
 
-  .cover:checked + .switchTrack::after {
+  .switch:has(input:checked) .switchTrack::after {
     background: HighlightText;
   }
 
-  .cover:focus-visible + .switchTrack {
+  .switch:has(input:focus-visible) .switchTrack {
     outline-color: CanvasText;
   }
 
