@@ -647,12 +647,8 @@
 }
 
 /* The stage centred between two overlay columns of equal width: the overlays sit beside the 9:16
-   frame, never over the video. Each column keeps --stage-side for them: where the stage is narrow
-   for its height (the one-layout editor at 1440 px and wider, the stage beside the transcript),
-   the frame gets shorter so that its width leaves that room. --stage-hw is the frame's height per
-   unit of width (Stage.jsx). */
+   frame, never over the video. */
 .stageArea {
-  --stage-side: 168px;
   position: relative;
   display: flex;
   flex: 1 1 auto;
@@ -660,7 +656,6 @@
   gap: var(--ed-space-3);
   min-height: 0;
   padding: var(--ed-space-3) var(--ed-space-4);
-  container-type: inline-size;
 }
 
 .stageSide {
@@ -682,12 +677,25 @@
   align-self: center;
   height: 100%;
   max-width: 100%;
-  /* 100cqw is the stage area's content width; the two columns and the two gaps stay beside it. */
-  max-height: min(100%, max(240px, calc((100cqw - 2 * var(--stage-side) - 2 * var(--ed-space-3)) * var(--stage-hw, 1.7778))));
+  max-height: 100%;
   overflow: hidden;
   border-radius: var(--ed-radius-sm);
   background: var(--bg);
   box-shadow: 0 0 0 1px var(--border), 0 18px 40px var(--shadow);
+}
+
+/* The one layout (shell/EditorShell.jsx): each overlay column keeps --stage-side. Where the stage
+   is narrow for its height (1440 px and wider, the stage beside the transcript), the frame gets
+   shorter so that its width leaves that room. --stage-hw is the frame's height per unit of width
+   (Stage.jsx). The two-view editor keeps the rules above. */
+[data-editor-shell="v2"] .stageArea {
+  --stage-side: 168px;
+  container-type: inline-size;
+}
+
+[data-editor-shell="v2"] .stageFrame {
+  /* 100cqw is the stage area's content width; the two columns and the two gaps stay beside it. */
+  max-height: min(100%, max(240px, calc((100cqw - 2 * var(--stage-side) - 2 * var(--ed-space-3)) * var(--stage-hw, 1.7778))));
 }
 
 .stageMedia {
