@@ -265,6 +265,52 @@ berjalan di F1 terbaik, dan gerbang **tidak** dilonggarkan. `--write-rules` menu
 ke `rules.v1.json`. `Split` tidak pernah diprediksi selama `AUTO_SPLIT = False` (spike RF-M2), jadi
 frame berlabel `split` dihitung tidak cocok.
 
+## Release 1 dan test split (RF-M3, RF-M4)
+
+**RF-M3 (2026-10-25).** Otomatis sekarang dibuat dari job: `renderMode: "auto"` menjalankan
+`shots.prepare_auto` per klip di dalam render-nya (camera plan dan shot plan dari satu scan),
+lalu seed menyalin `ranges` shot plan. Klip yang analisisnya gagal dirender Latar blur dengan
+warning `auto_reframe_failed:<index>`. Flag `POTONGIN_AUTO_REFRAME` bawaannya `off`: API job
+menolak Otomatis untuk job baru, sedangkan job dan dokumen Otomatis yang sudah ada tetap
+dirender (floor). Nilai `rules.v1.json` tidak berubah (`rules_id` `6b67494539ede149`).
+
+**Split dan group framing (RF-M4, dev).** Tidak ada penyetelan baru di dev:
+
+- `split`: `AUTO_SPLIT` masih `False` karena gate spike graf §A7.2 (1080p dan 720p, 1/8/48
+  run) belum dijalankan di CI. Aturan #2 jatuh ke `camera`, jadi `speakers.split_share_pm` tidak
+  bisa dinilai. Kalau spike lolos, split disetel di dev dulu, sebelum test split.
+- group framing (`face.*`, `speakers.active_pm`, `motion.still_pm`): nilainya sudah dipilih oleh
+  tahap 2 sweep RF-M1 di profil dev yang sama (agreement dev 82,5%). Tanpa profil dev baru atau
+  fitur evidence tambahan, sweep ulang memberi nilai yang sama. Menurut aturan di atas, fitur
+  evidence tambahan baru dipakai kalau gerbang test split gagal, lewat sweep dev ulang dan test
+  split **baru**.
+
+**Satu run test split.** Perintahnya sudah ada (`--profile --split test`, lalu
+`--test-run --confirm-once`, lihat Menjalankan). Run ini **belum** dijalankan karena dua hal:
+
+1. `labels.test.json` masih placeholder (`cuts_sf`/`modes` `null`). Pemilik melabeli 21 jendela
+   lewat halaman `--label` (±60–90 menit). `--test-run` menolak file yang belum lengkap, jadi
+   jendela yang terlewat tidak menghabiskan test split.
+2. Profil test diukur di CI (`suite=command`), sama seperti profil dev.
+
+`--test-run` memakai `rules.v1.json` apa adanya, tanpa sweep. Ia membuat lock `test-run.json`
+(rules, profil, dan label lewat sha, serta agreement) sebelum melaporkan hasil, dan lock yang
+di-commit menolak semua run berikutnya.
+
+**Dua gerbang RF-M4 lain:**
+
+- *SPEAKER_FRAMING multi ≤ 21,7% pada frame `camera`.* Camera plan dari scan bersama sama byte
+  dengan jalur lama (pin RF-M1), jadi frame `camera` Otomatis memakai crop yang sama dengan Ikuti
+  wajah. Angka ini tetap diukur sekali di CI dengan `scripts/eval/speaker_framing.py` (set
+  `multi`, AVA val). Status: **menunggu**.
+- *Penilaian pemilik.* Selama `AUTO_SPLIT = False`, pemilik menilai 10 klip Otomatis acak:
+  `POTONGIN_AUTO_REFRAME=on` di server uji, buat job dengan tata letak Otomatis dari video
+  sendiri, lalu nilai 10 klip pertama. Lolos kalau ≥ 8 diterima. Status: **menunggu pemilik**.
+
+| # | Job / klip | Diterima? | Catatan |
+|---|---|---|---|
+| 1–10 | (diisi pemilik) | | |
+
 ## Menjalankan
 
 ```bash
@@ -280,7 +326,12 @@ uv run python scripts/eval/auto_reframe.py --score prediksi.json --split dev --c
 # detektor shot RF-M1: profil (di CI, tanpa label), lalu sweep (tanpa footage)
 uv run python scripts/eval/auto_reframe.py --profile --split dev --cache ~/.cache/potongin-reframe --out profil-dev.json
 uv run python scripts/eval/auto_reframe.py --sweep --split dev --profiles profil-dev.json --out sweep-dev.json
+# test split, sekali (RF-M4): profil (tanpa label), lalu satu run dengan rules yang di-commit
+uv run python scripts/eval/auto_reframe.py --profile --split test --cache ~/.cache/potongin-reframe --out profil-test.json
+uv run python scripts/eval/auto_reframe.py --test-run --split test --profiles profil-test.json --confirm-once --out hasil-test.json
 ```
 
 Di GitHub Actions: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=command -f
-command='…'` dengan `--fetch` lalu perintah lain dan `--out /out/…`, cache di `/tmp`.
+command='…'` dengan `--fetch` lalu perintah lain dan `--out /out/…`, cache di `/tmp`. Di CI,
+`--test-run` diberi `--lock /out/test-run.json`; file itu lalu di-commit ke
+`docs/evaluation/auto-reframe/test-run.json` bersama hasilnya.
