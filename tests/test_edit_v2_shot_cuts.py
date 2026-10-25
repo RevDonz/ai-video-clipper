@@ -158,42 +158,6 @@ def test_a_source_ffmpeg_cannot_read_falls_back(tmp_path, ffmpeg):
     assert (found.cuts_sf, found.source) == ([25], "scene_cuts")
 
 
-def test_the_profile_measures_how_much_of_the_picture_changes(tmp_path, ffmpeg):
-    lengths = [30, 30]
-    fps = Fps(25, 1)
-    video = encode(tmp_path / "spread.mp4", shots(lengths, seed=9), "25")
-    p = shot_cuts.measure(video, window(sum(lengths), fps), fps, timeout_s=60)
-    assert set(p.blocks) == set(shot_cuts.BLOCK_LEVELS)
-    for values in (*p.blocks.values(), p.fine_e5, p.chroma_e5):
-        assert len(values) == p.frames and values[0] == 0
-    level = shot_cuts.BLOCK_LEVELS[1]
-    assert p.blocks[level][30] >= 100  # a new texture changes nearly every 16×9 block
-    assert max(p.blocks[level][k] for k in range(1, p.frames) if k != 30) <= 2
-    assert p.fine_e5[30] == max(p.fine_e5) and p.fine_e5[30] > 5_000
-    assert max(p.chroma_e5) < 1_000  # grey frames: no colour change
-
-
-def test_a_change_of_colour_alone_shows_in_the_chroma_difference(tmp_path, ffmpeg):
-    path = tmp_path / "colour.mp4"
-    subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y",
-                    "-f", "lavfi", "-i", "color=c=0x806040:s=160x90:r=25:d=1",
-                    "-f", "lavfi", "-i", "color=c=0x408060:s=160x90:r=25:d=1",
-                    "-filter_complex", "[0][1]concat=n=2:v=1[v]", "-map", "[v]",
-                    "-c:v", "libx264", "-crf", "8", "-pix_fmt", "yuv420p", str(path)],
-                   check=True, timeout=120)
-    fps = Fps(25, 1)
-    p = shot_cuts.measure(path, (0, 2000), fps, timeout_s=60)
-    assert p.chroma_e5[25] == max(p.chroma_e5) and p.chroma_e5[25] > 2_000
-
-
-def test_a_profile_without_the_spread_signals_still_reads():
-    p = profile([0, 5, 9, 3] * 5)
-    legacy = {key: value for key, value in p.to_json().items()
-              if key in ("first_sf", "scene_e5", "lag")}
-    old = Profile.from_json(legacy)
-    assert old.blocks is None and old.fine_e5 is None and old.chroma_e5 is None
-
-
 def test_a_scan_past_its_timeout_is_stopped(tmp_path, ffmpeg):
     lengths = [40, 40]
     video = encode(tmp_path / "slow.mp4", shots(lengths), "25")
@@ -289,8 +253,3 @@ def test_a_steady_pan_is_not_a_cut():
 def test_the_profile_round_trips_through_json():
     p = profile([0, 5, 9, 3] * 5)
     assert Profile.from_json(p.to_json()) == p
-    n = p.frames
-    spread = Profile(p.first_sf, p.scene_e5, p.lag,
-                     blocks={level: tuple(range(n)) for level in shot_cuts.BLOCK_LEVELS},
-                     fine_e5=tuple([7] * n), chroma_e5=tuple([1] * n))
-    assert Profile.from_json(spread.to_json()) == spread

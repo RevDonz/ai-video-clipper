@@ -2,18 +2,12 @@
 
 One FFmpeg run decodes the window ``[sf_floor(a), sf_ceil(b))`` exactly as the compiler does
 (``-ss`` with a second of pre-roll, ``-copyts``, ``fps=num/den`` and ``trim`` on the grid
-index), and measures every grid frame three times (:func:`measure`):
+index), and measures every grid frame twice (:func:`measure`):
 
 * FFmpeg's ``scene`` score on a 160 px wide picture (the filter of
   ``audio_timeline._SCENE_FILTER``, keeping every frame so any threshold can be applied later);
 * the 64×36 grey picture, from which the mean absolute difference to the frame 1, 2, 3 and 12
-  frames before is kept (``Profile.lag``, as 1/100000 of 255);
-* the spread of the change to the previous frame: FFmpeg's ``tblend`` difference of the
-  256×144 picture in 4:4:4, averaged by ``area`` scaling into 16×9 blocks of 16×16 pixels.
-  Kept per frame: how many luma blocks changed by at least each of ``BLOCK_LEVELS`` grey levels
-  (``Profile.blocks``), the mean luma difference at that size (``fine_e5``) and the mean chroma
-  difference (``chroma_e5``), both as 1/100000 of 255. A cut changes nearly every block; a
-  person moving, a dialog or a pointer changes a few.
+  frames before is kept (``Profile.lag``, as 1/100000 of 255).
 
 :func:`detect` then finds the cuts with the rules of ``resources/reframe/rules.v1.json``:
 
@@ -72,11 +66,6 @@ from .timemap import Fps
 THUMBNAIL = (64, 36)
 THUMBNAIL_BYTES = THUMBNAIL[0] * THUMBNAIL[1]
 LAGS = (1, 2, 3, 12)
-SPREAD_PICTURE = (256, 144)
-BLOCK_GRID = (16, 9)  # 16×16-pixel blocks of the spread picture
-BLOCKS = BLOCK_GRID[0] * BLOCK_GRID[1]
-BLOCK_LEVELS = (3, 6, 12, 24)  # grey levels of a block's mean difference
-SPREAD_FILE = "spread.raw"
 FLASH_FRAMES = 2  # a picture back within this many frames was a flash
 GRADUAL_HALF = 6  # half the span a gradual transition is measured over
 STILL_SHARE = 8  # the picture beside a gradual transition changes at most 1/8 of it per 3 frames
@@ -98,35 +87,21 @@ class ShotCutsError(RuntimeError):
 
 @dataclass(frozen=True)
 class Profile:
-    """Per grid frame of the window (index 0 = ``first_sf``): FFmpeg's scene score, the
-    thumbnail differences to earlier frames and the spread of the change to the previous frame
-    (module notes; 0 where there is no earlier frame). The spread signals are ``None`` in a
-    profile measured before they existed."""
+    """Per grid frame of the window (index 0 = ``first_sf``): FFmpeg's scene score and the
+    thumbnail differences to earlier frames, both as 1/100000 (0 where there is no earlier
+    frame)."""
 
     first_sf: int
     scene_e5: tuple[int, ...]
     lag: Mapping[int, tuple[int, ...]]
-    blocks: Mapping[int, tuple[int, ...]] | None = None
-    fine_e5: tuple[int, ...] | None = None
-    chroma_e5: tuple[int, ...] | None = None
 
     @property
     def frames(self) -> int:
         return len(self.scene_e5)
 
-    @property
-    def has_spread(self) -> bool:
-        return self.blocks is not None
-
     def to_json(self) -> dict[str, Any]:
-        out: dict[str, Any] = {
-            "first_sf": self.first_sf, "scene_e5": list(self.scene_e5),
-            "lag": {str(key): list(values) for key, values in sorted(self.lag.items())}}
-        if self.blocks is not None:
-            out["blocks"] = {str(key): list(values) for key, values in sorted(self.blocks.items())}
-            out["fine_e5"] = list(self.fine_e5 or ())
-            out["chroma_e5"] = list(self.chroma_e5 or ())
-        return out
+        return {"first_sf": self.first_sf, "scene_e5": list(self.scene_e5),
+                "lag": {str(key): list(values) for key, values in sorted(self.lag.items())}}
 
     @classmethod
     def from_json(cls, value: Mapping[str, Any]) -> Profile:
@@ -134,16 +109,7 @@ class Profile:
         lag = {int(key): tuple(int(v) for v in values) for key, values in value["lag"].items()}
         if set(lag) != set(LAGS) or any(len(v) != len(scene) for v in lag.values()):
             raise ValueError("a profile holds every lag for every frame")
-        if "blocks" not in value:
-            return cls(int(value["first_sf"]), scene, lag)
-        blocks = {int(key): tuple(int(v) for v in values)
-                  for key, values in value["blocks"].items()}
-        fine = tuple(int(v) for v in value["fine_e5"])
-        chroma = tuple(int(v) for v in value["chroma_e5"])
-        if set(blocks) != set(BLOCK_LEVELS) or any(
-                len(v) != len(scene) for v in (*blocks.values(), fine, chroma)):
-            raise ValueError("a profile holds every spread signal for every frame")
-        return cls(int(value["first_sf"]), scene, lag, blocks, fine, chroma)
+        return cls(int(value["first_sf"]), scene, lag)
 
 
 @dataclass(frozen=True)
@@ -163,71 +129,24 @@ def _difference(a: bytes, b: bytes) -> int:
     return (2 * total * SCALE + denominator) // (2 * denominator)
 
 
-def _mean_e5(plane: bytes) -> int:
-    denominator = len(plane) * 255
-    return (2 * sum(plane) * SCALE + denominator) // (2 * denominator)
-
-
-def spread_of(diffs: Sequence[bytes]) -> tuple[dict[int, tuple[int, ...]], tuple[int, ...],
-                                               tuple[int, ...]]:
-    """``(blocks, fine_e5, chroma_e5)`` (module notes) of per-frame block differences: each
-    item is the Y, U and V planes of the 16×9 averaged difference picture (frame 0 is 0)."""
-    blocks: dict[int, list[int]] = {level: [] for level in BLOCK_LEVELS}
-    fine, chroma = [], []
-    for k, diff in enumerate(diffs):
-        if len(diff) != 3 * BLOCKS:
-            raise ValueError("three planes of blocks per frame")
-        luma = diff[:BLOCKS]
-        for level in BLOCK_LEVELS:
-            blocks[level].append(0 if k == 0 else sum(1 for v in luma if v >= level))
-        fine.append(0 if k == 0 else _mean_e5(luma))
-        chroma.append(0 if k == 0 else _mean_e5(diff[BLOCKS:]))
-    return ({level: tuple(values) for level, values in blocks.items()}, tuple(fine),
-            tuple(chroma))
-
-
-def profile_from_frames(first_sf: int, frames: Sequence[bytes], scene_e5: Sequence[int],
-                        spread: Sequence[bytes] | None = None) -> Profile:
-    """The profile of decoded 64×36 grey frames, their scene scores and (when measured) the
-    block differences of :func:`spread_of`."""
+def profile_from_frames(first_sf: int, frames: Sequence[bytes],
+                        scene_e5: Sequence[int]) -> Profile:
+    """The profile of decoded 64×36 grey frames and their scene scores."""
     if len(scene_e5) != len(frames):
         raise ValueError("one scene score per frame")
     lag = {}
     for distance in LAGS:
         lag[distance] = tuple(0 if k < distance else _difference(frames[k], frames[k - distance])
                               for k in range(len(frames)))
-    if spread is None:
-        return Profile(first_sf, tuple(scene_e5), lag)
-    if len(spread) != len(frames):
-        raise ValueError("one block difference per frame")
-    blocks, fine, chroma = spread_of(spread)
-    return Profile(first_sf, tuple(scene_e5), lag, blocks, fine, chroma)
+    return Profile(first_sf, tuple(scene_e5), lag)
 
 
 def _filter(fps: Fps, first: int, end: int) -> str:
     return (f"[0:v]fps={fps.num}/{fps.den},trim=start_pts={first}:end_pts={end},"
-            f"split=3[score][small][wide];"
+            f"split=2[score][small];"
             f"[score]scale=160:-2,select='gte(scene,0)',"
             f"metadata=mode=print:key=lavfi.scene_score:file=scene.txt,nullsink;"
-            f"[small]scale={THUMBNAIL[0]}:{THUMBNAIL[1]},format=gray[thumbs];"
-            f"[wide]scale={SPREAD_PICTURE[0]}:{SPREAD_PICTURE[1]},format=yuv444p,"
-            f"tblend=all_mode=difference,"
-            f"scale={BLOCK_GRID[0]}:{BLOCK_GRID[1]}:flags=area,format=yuv444p[spread]")
-
-
-def _spread_frames(raw: bytes, frames: int) -> list[bytes]:
-    """The block differences aligned with the grid frames: ``tblend`` gives one per frame
-    from the second on (some builds also pass the first frame through), so item ``k`` is
-    frame ``k`` against frame ``k − 1`` and item 0 is zero."""
-    size = 3 * BLOCKS
-    if len(raw) % size:
-        raise ShotCutsError("ffmpeg returned no whole block frames")
-    items = [raw[i:i + size] for i in range(0, len(raw), size)]
-    if len(items) == frames:
-        items = items[1:]
-    if len(items) != frames - 1:
-        raise ShotCutsError("ffmpeg returned block frames that do not match the window")
-    return [bytes(size), *items]
+            f"[small]scale={THUMBNAIL[0]}:{THUMBNAIL[1]},format=gray[thumbs]")
 
 
 def _kill(process: subprocess.Popen) -> None:
@@ -278,7 +197,7 @@ def measure(source: Path, window_ms: tuple[int, int], fps: Fps, *, timeout_s: fl
                 *PROTOCOL_WHITELIST, "-threads", str(FFMPEG_THREADS),
                 "-ss", seek_arg(first, fps), "-copyts", "-i", str(Path(source).resolve()),
                 "-filter_complex", _filter(fps, first, end), "-map", "[thumbs]",
-                "-f", "rawvideo", "pipe:1", "-map", "[spread]", "-f", "rawvideo", SPREAD_FILE]
+                "-f", "rawvideo", "pipe:1"]
         try:
             process = subprocess.Popen(argv, cwd=work, env=env, stdin=subprocess.DEVNULL,
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -305,12 +224,7 @@ def measure(source: Path, window_ms: tuple[int, int], fps: Fps, *, timeout_s: fl
             text = (Path(work) / "scene.txt").read_text(encoding="utf-8", errors="replace")
         except FileNotFoundError as exc:
             raise ShotCutsError("ffmpeg wrote no scene scores") from exc
-        try:
-            spread_raw = (Path(work) / SPREAD_FILE).read_bytes()
-        except FileNotFoundError as exc:
-            raise ShotCutsError("ffmpeg wrote no block differences") from exc
-        spread = _spread_frames(spread_raw, len(frames))
-    return profile_from_frames(first, frames, _scores(text, first, len(frames)), spread)
+    return profile_from_frames(first, frames, _scores(text, first, len(frames)))
 
 
 # --- detecting ---------------------------------------------------------------------------------
