@@ -2,7 +2,7 @@
   "root": {
     "title": "Potongin AI · Long videos into ready-to-publish content",
     "titleTemplate": "%s · Potongin",
-    "description": "Cut long Indonesian videos into 9:16 clips with subtitles, hook text and captions. Processed on your own server."
+    "description": "Cut long Indonesian videos into 9:16 clips with subtitles, hook text and captions. Processed on a self-hosted server."
   },
   "login": {
     "title": "Sign in",
@@ -13,7 +13,7 @@
     "description": "Paste a video link or upload a file, then set up the clips."
   },
   "projects": {
-    "title": "Projects",
+    "title": "History",
     "description": "Every project and its clips: search, watch, copy captions, download or delete."
   },
   "editor": {
@@ -25,7 +25,7 @@
     "description": "Set up AI, transcription, logo, watermark and YouTube cookies without editing the server's .env."
   },
   "trends": {
-    "title": "Trends",
+    "title": "Trend context",
     "description": "Trends, people, jokes and hashtags your agent reports, for clip packaging that fits."
   },
   "help": {
