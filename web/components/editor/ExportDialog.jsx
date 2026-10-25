@@ -14,6 +14,8 @@ import { exportDownload } from "../../lib/clip-entry-view.mjs";
 import styles from "./shell.module.css";
 import { canStartExport, exportChecks, exportStepView } from "./export-flow.mjs";
 import { safeApiHref } from "./shell-model.mjs";
+import { dateTimeFormat } from "../../lib/i18n/format.mjs";
+import { SOURCE_LOCALE } from "../../lib/i18n/locales.mjs";
 
 const ACTIVE = new Set(["saving", "submitting", "running"]);
 const AUDIO_NOTES = new Set(["peak_reduced", "loudness_clamped"]);
@@ -26,7 +28,7 @@ const FAILURE_HELP = {
 
 function formatTime(ms) {
   if (!Number.isFinite(ms)) return "";
-  return new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
+  return dateTimeFormat(SOURCE_LOCALE, { hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
 }
 
 function CopyField({ label, value, copyLabel }) {

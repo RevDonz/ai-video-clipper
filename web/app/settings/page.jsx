@@ -29,6 +29,8 @@ import {
 import { llmStatusView } from "../../lib/selection-v3-view.mjs";
 import { systemInfoRows } from "../../lib/system-info-view.mjs";
 import "./settings.css";
+import { formatDateTime, formatNumber } from "../../lib/i18n/format.mjs";
+import { SOURCE_LOCALE } from "../../lib/i18n/locales.mjs";
 
 // The page's parts by task, in page order: what picks the moments, what writes the words, how
 // every clip looks by default, what YouTube downloads need, and the server itself.
@@ -77,13 +79,13 @@ function keyedErrors(providers, raw) {
 function formatTime(value) {
   if (!value) return null;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+  return Number.isNaN(date.getTime()) ? null : formatDateTime(date, SOURCE_LOCALE, { dateStyle: "medium", timeStyle: "short" });
 }
 
 function formatSeconds(value) {
   if (typeof value !== "number") return "?";
   if (value < 0.001) return "<0,001";
-  return value.toLocaleString("id-ID", { maximumFractionDigits: value < 1 ? 3 : 1 });
+  return formatNumber(value, SOURCE_LOCALE, { maximumFractionDigits: value < 1 ? 3 : 1 });
 }
 
 function presetBadges(name, freeOnly) {

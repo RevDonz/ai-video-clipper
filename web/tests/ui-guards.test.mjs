@@ -13,6 +13,7 @@ import {
   findContrastFailures,
   findCssColourLiterals,
   findJsColourLiterals,
+  VERSION_WORDING,
   findVersionWording,
   jsSegments,
   listFiles,
@@ -113,6 +114,22 @@ test("no page, component, library or worker script puts version wording on scree
   assert.ok(sources.length > 40, "the scan reaches the sources");
   const found = sources.flatMap(({ file, source }) => findVersionWording(file, source));
   assert.deepEqual(found, [], `version wording on screen (AGENTS.md "Latest only"):\n${where(found)}`);
+});
+
+test("no message of any locale's catalog carries version wording or an engine fallback name", async () => {
+  // The catalogs are UI copy too (rombak 07 §7.5, §14), in every language.
+  const { catalogLocales, flatten, readCatalog } = await import("./support/i18n-scan.mjs");
+  const patterns = [...VERSION_WORDING, /engine_fallback/];
+  const found = [];
+  const locales = await catalogLocales();
+  assert.ok(locales.includes("id") && locales.includes("en"));
+  for (const locale of locales) {
+    for (const [key, value] of flatten(await readCatalog(locale))) {
+      if (typeof value !== "string") continue;
+      for (const pattern of patterns) if (pattern.test(value)) found.push(`${locale}: ${key} ${value}`);
+    }
+  }
+  assert.deepEqual(found, [], found.join("\n"));
 });
 
 // 2. Colours only from the tokens

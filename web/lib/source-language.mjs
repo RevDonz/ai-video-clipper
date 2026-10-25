@@ -1,16 +1,17 @@
 // The note on a YouTube job whose video, by YouTube's own metadata, is not in Indonesian.
 // Client-safe. The worker stores the code yt-dlp reports (scripts/run-job.mjs readVideoLanguage)
 // as job.sourceLanguage; the note never blocks or changes the job.
+import { displayNames } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
+
 
 const LANGUAGE_CODE = /^[a-z]{2,3}$/;
 // "in" is the old code for Indonesian.
 const INDONESIAN = new Set(["id", "in", "ind"]);
-let languageNames = null;
 
 function languageName(code) {
   try {
-    languageNames ??= new Intl.DisplayNames(["id"], { type: "language" });
-    const name = languageNames.of(code);
+    const name = displayNames(SOURCE_LOCALE, { type: "language" }).of(code);
     return name && name.toLowerCase() !== code ? name : null;
   } catch {
     return null;

@@ -8,7 +8,7 @@ const originalEnv = { ...process.env };
 async function importFresh(path, env = {}) {
   process.env = { ...originalEnv, ...env };
   for (const key of [
-    "CI", "E2E_ALLOW_SKIP", "E2E_USERNAME", "E2E_PASSWORD", "E2E_JOB_ID", "E2E_BASE_URL", "E2E_WORKERS",
+    "CI", "E2E_ALLOW_SKIP", "E2E_USERNAME", "E2E_PASSWORD", "E2E_JOB_ID", "E2E_BASE_URL", "E2E_WORKERS", "E2E_EN_SMOKE",
   ]) {
     if (!(key in env)) delete process.env[key];
   }
@@ -113,6 +113,32 @@ test("config disables credential-bearing artifacts and gives mobile read-only co
   const mobile = config.projects.find((project) => project.name === "mobile-chromium");
   assert.match(String(mobile.testMatch), /read-only/);
   assert.match(String(mobile.testMatch), /smoke/);
+});
+
+test("every project opens pages in Indonesian; en-smoke exists only on request", async () => {
+  const credentials = { E2E_USERNAME: "user", E2E_PASSWORD: "secret", CI: "1" };
+  const { default: config } = await importFresh("../playwright.config.mjs", credentials);
+  assert.equal(config.use.locale, "id-ID");
+  assert.deepEqual(config.projects.map((project) => project.name), ["desktop-chromium", "mobile-chromium"]);
+  for (const project of config.projects) {
+    assert.equal(project.use.locale, "id-ID", project.name);
+    assert.equal(project.use.uiLocale, "id", project.name);
+  }
+  // The post-deploy checks run every project against production, which stays id (rombak 07 §14.1).
+  const { default: withEnglish } = await importFresh("../playwright.config.mjs", { ...credentials, E2E_EN_SMOKE: "1" });
+  const en = withEnglish.projects.find((project) => project.name === "en-smoke");
+  assert.ok(en, "E2E_EN_SMOKE=1 adds en-smoke");
+  assert.equal(en.use.locale, "en-US");
+  assert.equal(en.use.uiLocale, "en");
+  for (const spec of ["smoke", "read-only", "app-shell", "i18n-locale"]) assert.match(`${spec}.spec.mjs`, en.testMatch, spec);
+  assert.doesNotMatch("editor-flow.spec.mjs", en.testMatch);
+});
+
+test("the harness sets the potongin_locale cookie of the project on every context", async () => {
+  const source = await readFile(new URL("../e2e/support/harness.mjs", import.meta.url), "utf8");
+  assert.match(source, /export const LOCALE_COOKIE = "potongin_locale";/);
+  assert.match(source, /uiLocale: \["id", \{ option: true \}\]/);
+  assert.match(source, /await context\.addCookies\(\[\{ name: LOCALE_COOKIE, value: uiLocale, url: origin,/);
 });
 
 test("worker concurrency is bounded, remote-safe by default, and fixed at one in CI", async () => {

@@ -3,13 +3,13 @@ import { redirect } from "next/navigation";
 import AppShell from "../../components/AppShell.jsx";
 import { HELP_ENTRIES, HELP_GROUPS, HELP_PATH, findHelpEntry, helpAnchors } from "../../lib/help-catalog.mjs";
 import { GUIDE_SHORTCUTS, GUIDE_TOPICS } from "../../lib/help-guide.mjs";
+import { routeMetadata } from "../../lib/i18n/server.mjs";
 import HelpSearch from "./HelpSearch.jsx";
 import styles from "./bantuan.module.css";
 
-export const metadata = {
-  title: "Bantuan",
-  description: "Cara memakai Potongin, dan arti setiap kode error beserta cara memperbaikinya.",
-};
+export async function generateMetadata() {
+  return routeMetadata("help");
+}
 
 // One topic of the guide: steps to follow, or terms with what each means; the editor's topic
 // adds the keys worth learning first. Sections, not articles: the error entries are the articles.

@@ -1,0 +1,27 @@
+{
+  "process": {
+    "queued": "Queued",
+    "running": "Processing",
+    "completed": "Done",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "deleting": "Deleting",
+    "unknown": "Unknown"
+  },
+  "post": {
+    "scheduled": "Scheduled",
+    "uploading": "Uploading",
+    "published": "Published",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "detail": {
+    "maintenance": "Maintenance",
+    "ownerDisabled": "User disabled",
+    "check": "Needs review"
+  },
+  "hold": {
+    "reauth": "Reconnect account",
+    "quota": "Waiting for quota"
+  }
+}

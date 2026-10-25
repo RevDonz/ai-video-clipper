@@ -1,0 +1,49 @@
+{
+  "web": {
+    "invalid_request": "Permintaan tidak valid",
+    "unauthorized": "Sesi login diperlukan",
+    "csrf_rejected": "Origin permintaan tidak diizinkan",
+    "rate_limited": "Terlalu banyak permintaan",
+    "queue_capacity_reached": "Antrean job sedang penuh",
+    "job_service_unavailable": "Layanan pembuatan job sementara tidak tersedia",
+    "request_too_large": "Permintaan terlalu besar",
+    "method_not_allowed": "Metode tidak didukung",
+    "not_found": "Tidak ditemukan",
+    "job_not_found": "Proyek tidak ditemukan",
+    "login_invalid": "Nama pengguna atau kata sandi salah",
+    "locale_unsupported": "Bahasa tidak didukung",
+    "db_busy": "Database sedang sibuk",
+    "db_unavailable": "Database tidak tersedia",
+    "password_change_required": "Ganti kata sandi dulu",
+    "reauth_required": "Masukkan kata sandi lagi",
+    "user_queue_full": "Antrean Anda penuh",
+    "user_rate_limited": "Terlalu banyak permintaan dari akun ini",
+    "user_storage_quota": "Kuota penyimpanan habis",
+    "source_host_not_allowed": "Situs sumber tidak didukung",
+    "source_rejected_kind": "Link ini bukan video",
+    "source_private_address": "Alamat sumber tidak diizinkan",
+    "source_rejected_duration": "Durasi video di luar batas",
+    "source_rejected_format": "Format video tidak didukung",
+    "source_rejected_codec": "Codec video tidak didukung",
+    "source_platform_off": "Platform sumber sedang dimatikan",
+    "unknown": "Terjadi masalah"
+  },
+  "http": {
+    "s400": "Permintaan tidak valid",
+    "s401": "Sesi login diperlukan",
+    "s403": "Akses ditolak",
+    "s404": "Halaman tidak ditemukan",
+    "s413": "Permintaan terlalu besar",
+    "s429": "Terlalu banyak permintaan",
+    "s500": "Terjadi masalah",
+    "s502": "Server tidak menjawab",
+    "s503": "Layanan sementara tidak tersedia"
+  },
+  "global": {
+    "documentTitle": "Gagal dimuat · Potongin",
+    "title": "Potongin gagal dimuat",
+    "body": "Coba lagi. Kalau tetap gagal, muat ulang halaman.",
+    "retry": "Coba lagi",
+    "openCreate": "Buka Buat klip"
+  }
+}

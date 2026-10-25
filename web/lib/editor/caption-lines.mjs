@@ -5,6 +5,7 @@
 // the words artifact, so timing never moves. Pure: no DOM, no store.
 import { COMMAND_MESSAGES, CommandRejected, applyCommand } from "./commands.mjs";
 import { LIMITS, normalizeText } from "./doc-model.mjs";
+import { contentUpper } from "../content-text.mjs";
 
 /** §2.4: the most tokens one row's draft may hold. */
 export const LINE_LIMITS = Object.freeze({ tokens: 40, wordText: LIMITS.wordText });
@@ -123,7 +124,7 @@ export function draftTokens(draft) {
 
 // §2.3 step 3: under upper case the viewer sees and retypes capitals, so case does not count.
 function sameRule(upper) {
-  return upper ? (a, b) => a === b || a.toLocaleUpperCase("id") === b.toLocaleUpperCase("id") : (a, b) => a === b;
+  return upper ? (a, b) => a === b || contentUpper(a) === contentUpper(b) : (a, b) => a === b;
 }
 
 // §2.3 step 4: a longest common subsequence of the row's words and the draft's tokens. A word pairs

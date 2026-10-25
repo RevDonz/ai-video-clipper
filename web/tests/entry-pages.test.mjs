@@ -28,11 +28,17 @@ test("landing copy is Indonesian, has no em dash, version label or template buzz
 });
 
 test("the landing's title and link preview text follow the same copy rules", async () => {
+  // Both come from meta.root of every locale's catalog (rombak 07 §8.4).
   const layout = await read("app/layout.jsx");
-  const metadata = /export const metadata = (\{[\s\S]*?\n\});/.exec(layout);
-  assert.ok(metadata, "root metadata");
-  assert.doesNotMatch(metadata[1], FORBIDDEN_COPY);
-  assert.match(metadata[1], /description: "[^"]+"/);
+  assert.match(layout, /export async function generateMetadata\(\)/);
+  assert.match(layout, /description: t\("root\.description"\)/);
+  for (const locale of ["id", "en"]) {
+    const { root } = JSON.parse(await read(`messages/${locale}/meta.json`));
+    for (const text of [root.title, root.description]) {
+      assert.ok(typeof text === "string" && text.trim(), locale);
+      assert.doesNotMatch(text, FORBIDDEN_COPY, locale);
+    }
+  }
 });
 
 test("every landing anchor points at a section that exists, and the CTAs reach the dashboard", async () => {

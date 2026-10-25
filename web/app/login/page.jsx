@@ -1,10 +1,13 @@
 import Brand from "../../components/Brand.jsx";
 import { LANDING_MEDIA } from "../../lib/landing-media.mjs";
+import { routeMetadata } from "../../lib/i18n/server.mjs";
 import { loginErrorMessage, safeNextPath } from "../../lib/login-view.mjs";
 import styles from "./login.module.css";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Masuk" };
+export async function generateMetadata() {
+  return routeMetadata("login");
+}
 
 export default async function LoginPage({ searchParams }) {
   const params = await searchParams;

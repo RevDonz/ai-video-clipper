@@ -1,11 +1,11 @@
 import AppShell from "../../components/AppShell.jsx";
+import { routeMetadata } from "../../lib/i18n/server.mjs";
 import { FONTS, FREETYPE_CREDIT, JASSUB, MEDIABUNNY, WEB } from "./notices.mjs";
 import styles from "./licenses.module.css";
 
-export const metadata = {
-  title: "Lisensi",
-  description: "Lisensi perangkat lunak dan font pihak ketiga yang dipakai Potongin, dengan versi dan kode sumbernya.",
-};
+export async function generateMetadata() {
+  return routeMetadata("licenses");
+}
 
 const fileName = (href) => href.slice(href.lastIndexOf("/") + 1);
 

@@ -19,6 +19,7 @@ import { loadLlmEnv } from "./llm-settings.mjs";
 import { updateCompletedJob } from "./primary-job-queue.mjs";
 import { runPythonCli } from "./python-cli.mjs";
 import { EDITOR_RATE_LIMITS, TokenBucketLimiter, retryAfterSeconds } from "./rate-limit.mjs";
+import { formatNumber } from "./i18n/format.mjs";
 
 export const MAX_TEXT_BODY_BYTES = 32 * 1024;
 export const MAX_REWRITE_BODY_BYTES = 256;
@@ -39,7 +40,7 @@ export const MESSAGES = Object.freeze({
   payload_too_large: "Teksnya terlalu panjang untuk dikirim.",
   title_empty: "Judul tidak boleh kosong.",
   title_too_long: `Judul paling banyak ${CLIP_TEXT_LIMITS.title} karakter.`,
-  description_too_long: `Deskripsi paling banyak ${CLIP_TEXT_LIMITS.storedDescription.toLocaleString("id-ID")} karakter.`,
+  description_too_long: `Deskripsi paling banyak ${formatNumber(CLIP_TEXT_LIMITS.storedDescription)} karakter.`,
   not_found: "Proyek ini tidak ada atau sudah dihapus.",
   clip_not_found: "Klip ini tidak ada di proyek ini.",
   not_ready: "Judul dan deskripsi bisa diubah setelah proyek selesai.",

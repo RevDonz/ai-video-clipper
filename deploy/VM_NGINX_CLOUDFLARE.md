@@ -61,6 +61,11 @@ sertifikat origin tersebut di NPM dan gunakan mode SSL Cloudflare `Full (strict)
 3. SSL/TLS mode: `Full (strict)`.
 4. Aktifkan Always Use HTTPS.
 5. Jangan cache `/api/*` melalui Cache Rules.
+6. Jangan cache halaman HTML di edge (juga di Nginx Proxy Manager). Setiap halaman dirender per
+   permintaan dalam bahasa pengunjung (cookie `potongin_locale` atau `Accept-Language`), dan
+   aplikasi mengirim `Cache-Control: private, no-store` serta `Vary: Cookie, Accept-Language`.
+   Kalau ada aturan cache untuk HTML, cache key-nya tidak boleh mengabaikan cookie. Yang aman
+   di-cache hanya `/_next/static/*` (nama file ber-hash).
 
 Batas upload Cloudflare bergantung paket akun. Jika upload file besar ditolak di
 edge, gunakan input URL YouTube, naikkan paket, atau buat hostname upload terpisah

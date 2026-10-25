@@ -45,6 +45,7 @@ import {
   scopedEnvName,
 } from "./llm-presets.mjs";
 import { readLlmStatus } from "./llm-status.mjs";
+import { contentLower } from "./content-text.mjs";
 
 export const SETTINGS_VERSION = 1;
 export const SETTINGS_FILE_NAME = "llm-settings.json";
@@ -322,7 +323,7 @@ function providerList(raw, issues, options) {
   const names = new Set();
   return raw.map((entry, index) => {
     const result = providerEntry(entry, `providers[${index}]`, issues, seen, options);
-    const name = result?.out.name?.toLocaleLowerCase("id");
+    const name = result?.out.name === undefined ? undefined : contentLower(result.out.name);
     if (name !== undefined) {
       // The failover chain and badge show these names: two servers must not look alike.
       if (names.has(name)) issues.push({ field: `providers[${index}].name`, message: "Nama ini sudah dipakai server lain." });

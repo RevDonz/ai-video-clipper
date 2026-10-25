@@ -2,6 +2,7 @@
 // payload into an editable draft of strings and back into a PUT body, with the
 // same rules the server applies (lib/llm-presets.mjs). No Node built-ins.
 
+import { contentLower } from "./content-text.mjs";
 import {
   CUSTOM_PROVIDERS,
   LLM_PRESETS,
@@ -148,7 +149,7 @@ export function draftToPayload(draft, baseUpdatedAt = null) {
     const name = isCustomProvider(item.provider) ? (item.name || "").trim() : "";
     if (name) {
       const problem = displayNameProblem(name);
-      const folded = name.toLocaleLowerCase("id");
+      const folded = contentLower(name);
       if (problem) errors[`${prefix}.name`] = `Nama ${problem}.`;
       else if (names.has(folded)) errors[`${prefix}.name`] = "Nama ini sudah dipakai server lain.";
       else out.name = name;

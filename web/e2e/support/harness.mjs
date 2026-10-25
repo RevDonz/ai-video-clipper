@@ -128,8 +128,20 @@ export function expectFailedRequest(page, status, method, path) {
   });
 }
 
+export const LOCALE_COOKIE = "potongin_locale";
+
 export const test = base.extend({
   launchOptions: [chrome ? { executablePath: chrome } : {}, { scope: "worker", option: true }],
+  // The UI language every page of the project opens in (rombak 07 §14.1): the potongin_locale
+  // cookie, set per project (playwright.config.mjs; en-smoke uses "en"). null sets no cookie.
+  uiLocale: ["id", { option: true }],
+  context: async ({ context, uiLocale, baseURL }, use) => {
+    if (uiLocale) {
+      const origin = baseURL || settings.baseURL;
+      await context.addCookies([{ name: LOCALE_COOKIE, value: uiLocale, url: origin, sameSite: "Lax", secure: origin.startsWith("https:") }]);
+    }
+    await use(context);
+  },
   // A test that fakes a failure on purpose names what it expects, per test:
   // expectFailures(page, { api: [/^409 POST .*\/hook$/], console: [/status of 409 .*\/hook\)$/] }).
   // Anything else still fails the test.

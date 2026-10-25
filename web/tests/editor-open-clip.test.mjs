@@ -109,7 +109,10 @@ test("the editor page opens a clip id or klip-<n>, passes the uploads and LLM fl
   assert.match(source, /const ref = clipRefFromSegment\(segment\);/);
   assert.match(source, /if \(mode === "off" \|\| !here\) notFound\(\);/);
   assert.match(source, /<EditorApp jobId=\{id\} clipId=\{ref\.clipId\} clipIndex=\{ref\.index\} runtimeKind=\{mode\} features=\{\{ uploads: flags\.uploads, llm: flags\.llm \}\} \/>/);
-  assert.match(source, /title: "Edit klip · Potongin"/);
+  // The title comes from meta.editor (rombak 07 §8.4); the root template adds " · Potongin" once.
+  assert.match(source, /return routeMetadata\("editor", \{ robots: \{ index: false, follow: false \} \}\);/);
+  const meta = JSON.parse(await readFile(new URL("../messages/id/meta.json", import.meta.url), "utf8"));
+  assert.equal(meta.editor.title, "Edit klip");
 });
 
 test("a finished prepare that leaves the clip closed says why at once instead of polling (W3 verifier)", async () => {

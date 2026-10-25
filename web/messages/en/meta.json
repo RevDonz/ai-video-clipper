@@ -1,0 +1,43 @@
+{
+  "root": {
+    "title": "Potongin AI · Long videos into ready-to-publish content",
+    "titleTemplate": "%s · Potongin",
+    "description": "Cut long Indonesian videos into 9:16 clips with subtitles, hook text and captions. Processed on your own server."
+  },
+  "login": {
+    "title": "Sign in",
+    "description": "Sign in to create, track and download clips."
+  },
+  "dashboard": {
+    "title": "Create clips",
+    "description": "Paste a video link or upload a file, then set up the clips."
+  },
+  "projects": {
+    "title": "Projects",
+    "description": "Every project and its clips: search, watch, copy captions, download or delete."
+  },
+  "editor": {
+    "title": "Edit clip",
+    "description": "Edit the text, layout, audio and logo of one clip."
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Set up AI, transcription, logo, watermark and YouTube cookies without editing the server's .env."
+  },
+  "trends": {
+    "title": "Trends",
+    "description": "Trends, people, jokes and hashtags your agent reports, for clip packaging that fits."
+  },
+  "help": {
+    "title": "Help",
+    "description": "How to use Potongin, what each error code means and how to fix it."
+  },
+  "licenses": {
+    "title": "Licenses",
+    "description": "Third-party software and font licenses Potongin uses, with their versions and source code."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The address is wrong, or the page no longer exists."
+  }
+}

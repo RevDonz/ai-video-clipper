@@ -3,6 +3,8 @@
 
 import { llmWarningHelpHref } from "./help-catalog.mjs";
 import { TREND_KIND_LABELS, TREND_LIMITS, cleanLine } from "./trend-view.mjs";
+import { secondsFormat } from "./i18n/format.mjs";
+import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
 export const ARCHETYPE_LABELS = Object.freeze({
   curiosity_gap: "Bikin penasaran",
@@ -34,7 +36,7 @@ export function archetypeLabel(code) {
 
 export function formatTenths(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  return value.toLocaleString("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return secondsFormat(SOURCE_LOCALE).format(value);
 }
 
 /** A 0–10 score, or null when the value is not on that scale (V1 scores are not). */

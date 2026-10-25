@@ -1,6 +1,7 @@
 // "Ubah" and "Tulis ulang" in the project page's detail panel (plan 2026-10-20 P2): the words on
 // screen, the form's state and the two requests. Client-safe; the routes are clip-text-api.mjs.
 import { helpHref } from "./help-catalog.mjs";
+import { formatNumber } from "./i18n/format.mjs";
 
 // The job's own limits (lib/jobs.mjs CLIP_TEXT_LIMITS title and storedDescription; a test keeps
 // them equal, that module is server-only). Characters are counted as the server counts them.
@@ -35,7 +36,7 @@ const FIELD_OF = Object.freeze({ title_empty: "title", title_too_long: "title", 
 const SETTINGS_CODES = new Set(["llm_disabled", "llm_settings", "llm_unavailable"]);
 
 const characters = (text) => Array.from(text).length;
-const number = (value) => value.toLocaleString("id-ID");
+const number = (value) => formatNumber(value);
 const oneLine = (text) => (typeof text === "string" ? text.replace(/\s+/gu, " ").trim() : "");
 // Line ends and the spaces around lines, as the server cleans them.
 const block = (text) => (typeof text === "string"

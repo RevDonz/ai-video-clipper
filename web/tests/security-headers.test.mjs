@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import nextConfig, { EDITOR_PAGE_HEADERS as NEXT_EDITOR_HEADERS } from "../next.config.mjs";
+import nextConfig, { HTML_CACHE_SOURCE, EDITOR_PAGE_HEADERS as NEXT_EDITOR_HEADERS } from "../next.config.mjs";
 import { createEditorRateLimits } from "../lib/rate-limit.mjs";
 import {
   API_HEADERS,
@@ -49,6 +49,25 @@ test("the editor page headers are the ones next.config.mjs sends on the editor r
   const rules = await nextConfig.headers();
   const editor = rules.find((rule) => rule.source === "/projects/:id/clips/:clipId/edit");
   assert.deepEqual(editor?.headers, [...NEXT_EDITOR_HEADERS]);
+});
+
+test("every HTML page, the editor's too, is private and never stored: it is rendered per language", async () => {
+  // rombak 07 §5.4: the language comes from the cookie or Accept-Language, so no shared cache.
+  const rules = await nextConfig.headers();
+  const html = rules.find((rule) => rule.source === HTML_CACHE_SOURCE);
+  assert.deepEqual(html?.headers, [
+    { key: "Cache-Control", value: "private, no-store" },
+    { key: "Vary", value: "Cookie, Accept-Language" },
+  ]);
+  // Next's path-to-regexp source "/(<pattern>)": the pattern is matched against the path without "/".
+  const pattern = new RegExp(`^${HTML_CACHE_SOURCE.slice(2, -1)}$`);
+  for (const page of ["", "dashboard", "login", "projects/x", "projects/a/clips/b/edit", "licenses", "bantuan"]) assert.ok(pattern.test(page), page);
+  for (const file of ["_next/static/chunks/a.js", "api/health", "api/jobs", "favicon.ico", "landing/sesudah.mp4", "licenses/web/next-LICENSE.txt"]) {
+    assert.ok(!pattern.test(file), file);
+  }
+  // Header keys differ, so the editor's isolation headers and these never collide.
+  const editorKeys = new Set(NEXT_EDITOR_HEADERS.map(({ key }) => key.toLowerCase()));
+  assert.ok(html.headers.every(({ key }) => !editorKeys.has(key.toLowerCase())));
 });
 
 test("secureRoute: the session first, then the origin of a mutation, then ids, then the rate limit", async () => {

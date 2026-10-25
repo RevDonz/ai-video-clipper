@@ -14,11 +14,14 @@ import EditorApp from "../../../../../../components/editor/EditorApp.jsx";
 import { editorPageMode } from "../../../../../../components/editor/shell-model.mjs";
 import { SESSION_COOKIE, verifySessionToken } from "../../../../../../lib/auth.mjs";
 import { readEditorFlags } from "../../../../../../lib/editor/flags.mjs";
+import { routeMetadata } from "../../../../../../lib/i18n/server.mjs";
 import { clipRefFromSegment, editorHref } from "../../../../../../lib/editor/open-clip.mjs";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Edit klip · Potongin", robots: { index: false, follow: false } };
+export async function generateMetadata() {
+  return routeMetadata("editor", { robots: { index: false, follow: false } });
+}
 
 export default async function EditorPage({ params }) {
   const mode = editorPageMode(process.env);
