@@ -53,13 +53,22 @@ test("the baseline names the selector and the viewport of 06 §2.3", () => {
   expect(BASELINE.viewport).toEqual({ width: 1366, height: 768 });
 });
 
+/** Waits until the lazily loaded panel or card body is on the page and not loading. */
+async function settled(page, body) {
+  await expect(body).toHaveCount(1, { timeout: 30_000 });
+  await expect(body).not.toHaveAttribute("aria-busy", "true");
+}
+
 test("before: the two-view editor, Mode Cepat and every Mode Lengkap tab", async ({ page }) => {
   await openShell(page, "?mode=cepat", { shell: "legacy" });
+  // Caption, the card open on load, past its lazy body's "Membuka kartu…".
+  await expect(page.locator('#card-caption-region [data-quick-body="caption"]')).toBeVisible({ timeout: 30_000 });
   measured.before.cepat = await countControls(page);
   for (const [id, name] of Object.entries(LEGACY_TABS)) {
     await page.goto(`${new URL(page.url()).pathname}?mode=lengkap&panel=${id}`);
     await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("tab", { name, exact: true })).toHaveAttribute("aria-selected", "true");
+    await settled(page, page.locator(`#editor-panel section[data-panel="${id}"]`));
     measured.before.lengkap[id] = await countControls(page);
   }
 });
@@ -68,6 +77,7 @@ test("after: each of the five tabs as it opens, one tab panel each, never above 
   await openShell(page);
   for (const id of TAB_IDS) {
     await openPanel(page, id);
+    await settled(page, panelRegion(page).locator("section[data-panel]"));
     await expect(panelRegion(page).getByRole("tabpanel")).toHaveCount(1);
     await expect(page.locator('[role="tabpanel"]:visible')).toHaveCount(1);
     measured.after[id] = await countControls(page);

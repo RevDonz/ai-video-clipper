@@ -29,7 +29,10 @@ export function panelTab(page, id) {
   return panelRegion(page).getByRole("tab", { name: tabName(id), exact: true });
 }
 
-/** Opens the tab of `id` and waits until its panel is the one shown; returns the panel. */
+/**
+ * Opens the tab of `id` and waits until its panel is the one shown and has loaded (panels load
+ * lazily: until then the tab panel holds only the "opening" note); returns the panel.
+ */
 export async function openPanel(page, id) {
   const tab = panelTab(page, id);
   await tab.click();
@@ -37,5 +40,6 @@ export async function openPanel(page, id) {
   const panel = panelRegion(page).getByRole("tabpanel");
   await expect(panel).toHaveCount(1);
   await expect(panel).toHaveAttribute("aria-labelledby", (await tab.getAttribute("id")) ?? "");
+  await expect(panel.locator("section[data-panel]")).toHaveCount(1, { timeout: 30_000 });
   return panel;
 }
