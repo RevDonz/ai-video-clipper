@@ -1,6 +1,10 @@
-import AppShell from "../components/AppShell.jsx";
+import dynamic from "next/dynamic";
+
 import NotFoundActions from "../components/NotFoundActions.jsx";
 import "./status-page.css";
+
+// Above every route, the editor's included: the shell (ui.css, HeroUI) loads only when this renders.
+const AppShell = dynamic(() => import("../components/AppShell.jsx"));
 
 export const metadata = {
   title: "Halaman tidak ditemukan",
