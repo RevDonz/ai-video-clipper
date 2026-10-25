@@ -1,9 +1,10 @@
-// Pengaturan "Cookies YouTube" (docs/operations/UNDUHAN_YOUTUBE.md). /api/settings/youtube-cookies
+// Pengaturan → YouTube → cookies.txt (docs/operations/UNDUHAN_YOUTUBE.md). /api/settings/youtube-cookies
 // is faked in the browser (page.route), so nothing on the server changes; the AI form keeps
 // talking to the server. Every cookie value here is a plain made-up word.
 import { expect } from "@playwright/test";
 
-import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { openSettingsTab } from "./support/settings.mjs";
 
 const ENDPOINT = "**/api/settings/youtube-cookies";
 const UPLOADED_AT = "2026-10-21T08:00:00.000Z";
@@ -35,14 +36,14 @@ async function fakeCookies(page, state, { post = null } = {}) {
   return seen;
 }
 
-const card = (page) => page.getByRole("region", { name: "Cookies YouTube" });
+const card = (page) => page.getByRole("region", { name: "cookies.txt", exact: true });
 
 test.describe("Cookies YouTube", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
   test("upload, see the count, replace and remove the cookies", async ({ page }) => {
     const seen = await fakeCookies(page, { cookies: null, problem: null, secretConfigured: true });
-    await login(page, "/settings");
+    await openSettingsTab(page, "youtube");
     const section = card(page);
     await section.scrollIntoViewIfNeeded();
     await expect(section.getByText("Belum ada cookies")).toBeVisible();
@@ -64,7 +65,7 @@ test.describe("Cookies YouTube", () => {
 
   test("a file over 1 MB is refused before it is sent", async ({ page }) => {
     const seen = await fakeCookies(page, { cookies: null, problem: null, secretConfigured: true });
-    await login(page, "/settings");
+    await openSettingsTab(page, "youtube");
     const section = card(page);
     await section.locator('input[type="file"]').setInputFiles({ name: "cookies.txt", mimeType: "text/plain", buffer: Buffer.alloc(1024 * 1024 + 1, 0x41) });
     await expect(section.getByRole("alert")).toHaveText("File terlalu besar. Maksimal 1 MB.");
@@ -73,13 +74,13 @@ test.describe("Cookies YouTube", () => {
 
   test("cookies without a login cookie get a warning", async ({ page }) => {
     await fakeCookies(page, { cookies: { ...STORED, count: 3, signedIn: false }, problem: null, secretConfigured: true });
-    await login(page, "/settings");
+    await openSettingsTab(page, "youtube");
     await expect(card(page)).toContainText("Tidak ada cookie login di file ini.");
   });
 
   test("without the sealing secret the card says so and keeps upload off", async ({ page }) => {
     await fakeCookies(page, { cookies: null, problem: null, secretConfigured: false });
-    await login(page, "/settings");
+    await openSettingsTab(page, "youtube");
     const section = card(page);
     await expect(section.getByRole("alert")).toContainText("Kunci enkripsi pengaturan belum tersedia");
     await expect(section.getByRole("button", { name: "Pilih file" })).toBeDisabled();
@@ -87,7 +88,7 @@ test.describe("Cookies YouTube", () => {
 
   test("stored cookies that no longer open ask for a new upload and stay removable", async ({ page }) => {
     await fakeCookies(page, { cookies: STORED, problem: "unreadable", secretConfigured: true });
-    await login(page, "/settings");
+    await openSettingsTab(page, "youtube");
     const section = card(page);
     await expect(section.getByRole("alert")).toHaveText("Cookies tersimpan tidak bisa dibuka. Unggah ulang.");
     await expect(section.getByRole("button", { name: "Hapus" })).toBeEnabled();
@@ -102,7 +103,7 @@ test.describe("Cookies YouTube refusals", () => {
     await fakeCookies(page, { cookies: STORED, problem: null, secretConfigured: true }, {
       post: { status: 422, body: { error: "File ini berformat JSON, bukan cookies.txt.", code: "cookies_json" } },
     });
-    await login(page, "/settings");
+    await openSettingsTab(page, "youtube");
     const section = card(page);
     await section.locator('input[type="file"]').setInputFiles({ name: "cookies.json", mimeType: "application/json", buffer: Buffer.from("[]") });
     await expect(section.getByRole("alert")).toHaveText("File ini berformat JSON. Ekspor ulang sebagai cookies.txt (format Netscape).");
@@ -117,7 +118,7 @@ test.describe("Cookies YouTube refusals", () => {
       const body = calls === 1 ? { error: "x", code: "settings_unavailable" } : { cookies: null, problem: null, secretConfigured: true };
       return route.fulfill({ status: calls === 1 ? 503 : 200, contentType: "application/json", body: JSON.stringify(body) });
     });
-    await login(page, "/settings");
+    await openSettingsTab(page, "youtube");
     const section = card(page);
     await expect(section.getByRole("alert")).toHaveText(/Cookies YouTube tidak bisa dimuat\./);
     await section.getByRole("button", { name: "Coba lagi" }).click();
@@ -132,7 +133,7 @@ test.describe("Cookies YouTube at 390 px", () => {
 
   test("fits the phone: no horizontal scroll, buttons at least 44 px tall", async ({ page }) => {
     await fakeCookies(page, { cookies: { ...STORED, count: 12345 }, problem: null, secretConfigured: true });
-    await login(page, "/settings");
+    await openSettingsTab(page, "youtube");
     const section = card(page);
     await section.scrollIntoViewIfNeeded();
     await expect(section.getByRole("button", { name: "Hapus" })).toBeVisible();
