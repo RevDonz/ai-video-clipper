@@ -11,7 +11,6 @@
   "app/settings/page.jsx": 130,
   "app/settings/TranscriptionCard.jsx": 16,
   "app/settings/YoutubeCookiesCard.jsx": 9,
-  "app/trends/page.jsx": 38,
   "app/ui-harness/HarnessModal.jsx": 5,
   "app/ui-harness/UiHarness.jsx": 23,
   "components/Brand.jsx": 2,
@@ -70,12 +69,7 @@
   "components/editor/ViewSwitch.jsx": 1,
   "components/LandingClip.jsx": 1,
   "components/StageSummary.jsx": 1,
-  "components/trends/CopyButton.jsx": 4,
-  "components/trends/TrendAgentPanel.jsx": 49,
   "components/trends/TrendChips.jsx": 3,
-  "components/trends/TrendFields.jsx": 6,
-  "components/trends/TrendItemCard.jsx": 24,
-  "components/trends/TrendManualForm.jsx": 7,
   "lib/clip-entry-view.mjs": 14,
   "lib/clip-text.mjs": 15,
   "lib/dashboard-choices.mjs": 21,
@@ -89,6 +83,6 @@
   "lib/source-language.mjs": 2,
   "lib/system-info-view.mjs": 6,
   "lib/transcription-settings-view.mjs": 20,
-  "lib/trend-view.mjs": 36,
+  "lib/trend-view.mjs": 1,
   "lib/youtube-cookies-view.mjs": 24
 }

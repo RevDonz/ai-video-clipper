@@ -526,8 +526,11 @@ test("the history offers 'Edit klip' only on finished projects whose clips the e
 test("the history offers 'Edit klip' on finished projects while the editor is on", async () => {
   const source = await read("app/projects/page.jsx");
   assert.match(source, /setEditor\(payload\.editor === true\)/);
-  assert.match(source, /const editable = historyOffersEdit\(job, editor\);/);
-  assert.match(source, /href=\{`\/projects\/\$\{encodeURIComponent\(job\.id\)\}#klip`\}/);
+  // Proyek's ⋯ (05 §6.8): Edit klip opens the first rendered clip in the editor, as a plain link,
+  // only where historyOffersEdit allows it (lib/projects-list-view.mjs editableClipIndex).
+  assert.match(source, /const index = editableClipIndex\(job, editor\);/);
+  assert.match(source, /\{index !== null && \(\s*<Dropdown\.Item id="edit" href=\{editorHref\(job\.id, \{ index \}\)\}/);
+  assert.match(await read("lib/projects-list-view.mjs"), /if \(!historyOffersEdit\(job, editor\)\) return null;/);
   const route = await read("app/api/jobs/route.js");
   assert.match(route, /\.\.\.jobListFlags\(process\.env\)/);
   const flags = await read("lib/editor/flags.mjs");
@@ -536,8 +539,12 @@ test("the history offers 'Edit klip' on finished projects while the editor is on
 
 test("the history links each project to its page and deletes without a browser dialog", async () => {
   const source = await read("app/projects/page.jsx");
-  assert.match(source, /href=\{`\/projects\/\$\{encodeURIComponent\(job\.id\)\}`\}/);
+  assert.match(source, /const projectHref = \(job\) => `\/projects\/\$\{encodeURIComponent\(job\.id\)\}`;/);
+  assert.match(source, /<Table\.Row id=\{job\.id\} href=\{projectHref\(job\)\}/);
+  assert.match(source, /<a className=\{styles\.cardLink\} href=\{projectHref\(job\)\}>/);
   assert.match(source, /method: "DELETE"/);
-  assert.match(source, /Hapus permanen\?/);
+  // The confirmation is an in-page AlertDialog (05 §6.8), its question from the catalog.
+  assert.match(source, /<AlertDialog\b/);
+  assert.match(source, /t\("delete\.confirm", \{ count: jobs\.length \}\)/);
   assert.doesNotMatch(source, /(?<![\w.])confirm\(/);
 });

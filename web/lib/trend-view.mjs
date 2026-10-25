@@ -1,16 +1,32 @@
-// Presentation helpers for the Konteks Tren page (/trends). Client-safe and
-// pure: no Node built-ins, no fetch, no DOM. Spec: docs/plans/2026-09-25-konteks-tren.md
-// (§1 item model, §3.2 UI routes, §5 UI).
+// Presentation helpers for the Tren page (/trends). Client-safe and pure: no Node built-ins,
+// no fetch, no DOM. Spec: docs/plans/2026-09-25-konteks-tren.md (§1 item model, §3.2 UI routes,
+// §5 UI) and 05-ui-dashboard.md §6.9. Copy comes back as catalog descriptors (trends.*,
+// lib/i18n/descriptor.mjs); dates take the UI locale.
 //
 // Everything an item carries came from outside (an agent that scrolled social
 // media), so it is treated as untrusted text: normalized here, rendered only
 // as React text, and links are limited to plain http(s) URLs.
 import { contentCompare } from "./content-text.mjs";
-import { dateTimeFormat } from "./i18n/format.mjs";
+import { d } from "./i18n/descriptor.mjs";
+import { dateTimeFormat, intlOf } from "./i18n/format.mjs";
 import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
 
 export const TREND_KINDS = Object.freeze(["topic", "person", "joke", "meme", "sound", "hashtag", "format", "event"]);
+// The kind names as descriptors (trends.kind.*), "other" included.
+export const TREND_KIND_NAMES = Object.freeze({
+  topic: d("trends.kind.topic"),
+  person: d("trends.kind.person"),
+  joke: d("trends.kind.joke"),
+  meme: d("trends.kind.meme"),
+  sound: d("trends.kind.sound"),
+  hashtag: d("trends.kind.hashtag"),
+  format: d("trends.kind.format"),
+  event: d("trends.kind.event"),
+  other: d("trends.kind.other"),
+});
+// Indonesian kind names for the project page's trend chips (lib/selection-v3-view.mjs), which
+// still take text; the trends page uses TREND_KIND_NAMES.
 export const TREND_KIND_LABELS = Object.freeze({
   topic: "Topik",
   person: "Orang",
@@ -22,20 +38,20 @@ export const TREND_KIND_LABELS = Object.freeze({
   event: "Peristiwa",
 });
 const OTHER_KIND = "other";
-const OTHER_KIND_LABEL = "Lainnya";
 
 export const TREND_PLATFORMS = Object.freeze(["tiktok", "instagram", "youtube", "x", "facebook", "news", "other"]);
+// Platform names are the same in every language; "Berita" and "Lainnya" are not.
 export const TREND_PLATFORM_LABELS = Object.freeze({
   tiktok: "TikTok",
   instagram: "Instagram",
   youtube: "YouTube",
   x: "X",
   facebook: "Facebook",
-  news: "Berita",
-  other: "Lainnya",
+  news: d("trends.platform.news"),
+  other: d("trends.platform.other"),
 });
 
-export const TREND_SENSITIVITY_LABELS = Object.freeze({ normal: "Normal", sensitive: "Sensitif" });
+export const TREND_SENSITIVITY_LABELS = Object.freeze({ normal: d("trends.sensitivity.normal"), sensitive: d("trends.sensitivity.sensitive") });
 
 export const TREND_LIMITS = Object.freeze({
   title: 80,
@@ -58,15 +74,15 @@ export const TREND_LIMITS = Object.freeze({
 });
 
 export const TREND_STATUS_FILTERS = Object.freeze([
-  { id: "all", label: "Semua" },
-  { id: "active", label: "Aktif" },
-  { id: "disabled", label: "Nonaktif" },
-  { id: "expired", label: "Kedaluwarsa" },
+  { id: "all", label: d("trends.status.all") },
+  { id: "active", label: d("trends.status.active") },
+  { id: "disabled", label: d("trends.status.disabled") },
+  { id: "expired", label: d("trends.status.expired") },
 ]);
 
-export const TREND_STATUS_LABELS = Object.freeze({ active: "Aktif", disabled: "Nonaktif", expired: "Kedaluwarsa" });
+export const TREND_STATUS_LABELS = Object.freeze({ active: d("trends.status.active"), disabled: d("trends.status.disabled"), expired: d("trends.status.expired") });
 
-export const SESSION_TEXT = "Sesi login berakhir. Muat ulang halaman untuk masuk lagi.";
+export const SESSION_TEXT = d("trends.error.session");
 export const GUIDE_URL = "https://github.com/RevDonz/ai-video-clipper/blob/main/docs/integrations/hermes-trends/README.md";
 export const INGEST_PATH = "/api/ingest/trends";
 export const TOKEN_ENV = "POTONGIN_INGEST_TOKEN";
@@ -210,18 +226,20 @@ export function normalizeTrendList(payload) {
   };
 }
 
+/** The descriptor of a kind's name; an unknown kind is "Lainnya". */
 export function trendKindLabel(kind) {
-  return TREND_KIND_LABELS[kind] || OTHER_KIND_LABEL;
+  return Object.hasOwn(TREND_KIND_NAMES, kind) ? TREND_KIND_NAMES[kind] : TREND_KIND_NAMES.other;
 }
 
+/** The platforms' names: text for brands, descriptors for the rest. */
 export function platformLabels(platforms) {
   return (Array.isArray(platforms) ? platforms : []).map((platform) => TREND_PLATFORM_LABELS[platform]).filter(Boolean);
 }
 
 export function sourceLabel(source) {
-  if (source === "manual") return "Manual";
+  if (source === "manual") return d("trends.source.manual");
   const text = cleanLine(source);
-  return text ? `Agen: ${text}` : "Tidak diketahui";
+  return text ? d("trends.source.agent", { name: text }) : d("trends.source.unknown");
 }
 
 /** "expired" (expiry reached, whatever the switch says), "disabled" or "active". */
@@ -233,37 +251,47 @@ export function trendItemStatus(item, now = Date.now()) {
 
 // --- Time -------------------------------------------------------------------------
 
-function span(ms) {
-  const minutes = Math.round(ms / MINUTE);
-  if (minutes < 60) return `${Math.max(1, minutes)} menit`;
-  const hours = Math.round(ms / HOUR);
-  if (hours < 24) return `${hours} jam`;
-  return `${Math.max(1, Math.round(ms / DAY))} hari`;
+// RelativeTimeFormat per locale and style: numbers always ("dalam 1 hari", "2 hari yang lalu";
+// "in 1 day", "2 hours ago"), words only for "now" ("sekarang").
+const relativeFormats = new Map();
+function relativeFormat(locale, numeric = "always") {
+  const intl = intlOf(locale);
+  const key = `${intl}\u0000${numeric}`;
+  if (!relativeFormats.has(key)) relativeFormats.set(key, new Intl.RelativeTimeFormat(intl, { numeric }));
+  return relativeFormats.get(key);
 }
 
-/** "dalam 3 hari", "2 jam lalu", "baru saja"…, or null for an unreadable time. */
-export function relativeTime(value, now = Date.now()) {
+/** "dalam 3 hari", "2 jam yang lalu", "sekarang"… in `locale`, or null for an unreadable time. */
+export function relativeTime(value, now = Date.now(), locale = SOURCE_LOCALE) {
   const time = typeof value === "string" ? Date.parse(value) : NaN;
   if (!Number.isFinite(time)) return null;
   const delta = time - now;
-  if (Math.abs(delta) < MINUTE) return delta > 0 ? "kurang dari 1 menit lagi" : "baru saja";
-  return delta > 0 ? `dalam ${span(delta)}` : `${span(-delta)} lalu`;
+  const sign = delta < 0 ? -1 : 1;
+  const ms = Math.abs(delta);
+  if (ms < MINUTE) return relativeFormat(locale, "auto").format(0, "second");
+  const format = relativeFormat(locale);
+  const minutes = Math.round(ms / MINUTE);
+  if (minutes < 60) return format.format(sign * Math.max(1, minutes), "minute");
+  const hours = Math.round(ms / HOUR);
+  if (hours < 24) return format.format(sign * hours, "hour");
+  return format.format(sign * Math.max(1, Math.round(ms / DAY)), "day");
 }
 
-/** A readable absolute date and time in Indonesian, or null. */
-export function formatDateTime(value) {
+/** A readable absolute date and time in `locale`, or null. */
+export function formatDateTime(value, locale = SOURCE_LOCALE) {
   const time = typeof value === "string" ? Date.parse(value) : NaN;
   if (!Number.isFinite(time)) return null;
-  return dateTimeFormat(SOURCE_LOCALE, { dateStyle: "medium", timeStyle: "short" }).format(new Date(time));
+  return dateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(time));
 }
 
-export function expiryView(item, now = Date.now()) {
+/** The expiry as `{label, tone, absolute}`: "Berakhir dalam 3 hari", "Kedaluwarsa 2 hari yang lalu". */
+export function expiryView(item, now = Date.now(), locale = SOURCE_LOCALE) {
   const expires = item?.expiresAt ? Date.parse(item.expiresAt) : NaN;
-  if (!Number.isFinite(expires)) return { text: "Tanpa tanggal kedaluwarsa", tone: "ok", absolute: null };
-  const relative = relativeTime(item.expiresAt, now);
-  const absolute = formatDateTime(item.expiresAt);
-  if (expires <= now) return { text: `Kedaluwarsa ${relative}`, tone: "expired", absolute };
-  return { text: `Berakhir ${relative}`, tone: expires - now < DAY ? "soon" : "ok", absolute };
+  if (!Number.isFinite(expires)) return { label: d("trends.expiry.none"), tone: "ok", absolute: null };
+  const when = relativeTime(item.expiresAt, now, locale);
+  const absolute = formatDateTime(item.expiresAt, locale);
+  if (expires <= now) return { label: d("trends.expiry.expired", { when }), tone: "expired", absolute };
+  return { label: d("trends.expiry.ends", { when }), tone: expires - now < DAY ? "soon" : "ok", absolute };
 }
 
 function pad(value) {
@@ -288,15 +316,15 @@ export function expiryDateBounds(now = Date.now()) {
  */
 export function expiryFromDateInput(value, now = Date.now()) {
   const match = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
-  if (!match) return { error: "Tanggal kedaluwarsa tidak valid." };
+  if (!match) return { error: d("trends.invalid.expiry") };
   const [year, month, day] = [Number(match[1]), Number(match[2]) - 1, Number(match[3])];
   const end = new Date(year, month, day, 23, 59, 0, 0);
   if (end.getFullYear() !== year || end.getMonth() !== month || end.getDate() !== day) {
-    return { error: "Tanggal kedaluwarsa tidak valid." };
+    return { error: d("trends.invalid.expiry") };
   }
   const bounds = expiryDateBounds(now);
-  if (value < bounds.min) return { error: "Tanggal kedaluwarsa harus hari ini atau setelahnya." };
-  if (value > bounds.max) return { error: `Tanggal kedaluwarsa maksimal ${TREND_LIMITS.maxExpiryDays} hari dari sekarang.` };
+  if (value < bounds.min) return { error: d("trends.invalid.expiryPast") };
+  if (value > bounds.max) return { error: d("trends.invalid.expiryFar", { days: TREND_LIMITS.maxExpiryDays }) };
   const latest = now + TREND_LIMITS.maxExpiryDays * DAY - MINUTE;
   const time = Math.max(Math.min(end.getTime(), latest), now + MINUTE);
   return { iso: new Date(time).toISOString() };
@@ -405,37 +433,37 @@ export function parseHashtags(text) {
 
 function validateTitle(value) {
   const title = cleanLine(value);
-  if (!title) return { value: title, error: "Judul wajib diisi." };
-  if (codePoints(title) > TREND_LIMITS.title) return { value: title, error: `Judul maksimal ${TREND_LIMITS.title} karakter.` };
+  if (!title) return { value: title, error: d("trends.invalid.titleRequired") };
+  if (codePoints(title) > TREND_LIMITS.title) return { value: title, error: d("trends.invalid.titleLong", { max: TREND_LIMITS.title }) };
   return { value: title };
 }
 
 function validateSummary(value) {
   const summary = cleanMultiline(value);
-  if (codePoints(summary) > TREND_LIMITS.summary) return { value: summary, error: `Ringkasan maksimal ${TREND_LIMITS.summary} karakter.` };
+  if (codePoints(summary) > TREND_LIMITS.summary) return { value: summary, error: d("trends.invalid.summaryLong", { max: TREND_LIMITS.summary }) };
   if (summary && summary.split("\n").length > TREND_LIMITS.summaryLines) {
-    return { value: summary, error: `Ringkasan maksimal ${TREND_LIMITS.summaryLines} baris.` };
+    return { value: summary, error: d("trends.invalid.summaryLines", { max: TREND_LIMITS.summaryLines }) };
   }
   return { value: summary };
 }
 
 function validateKeywords(text) {
   const keywords = parseKeywords(text);
-  if (!keywords.length) return { value: keywords, error: "Isi minimal satu kata kunci: cara orang menyebut tren ini di video." };
-  if (keywords.length > TREND_LIMITS.keywords) return { value: keywords, error: `Maksimal ${TREND_LIMITS.keywords} kata kunci.` };
+  if (!keywords.length) return { value: keywords, error: d("trends.invalid.keywordsRequired") };
+  if (keywords.length > TREND_LIMITS.keywords) return { value: keywords, error: d("trends.invalid.keywordsMany", { max: TREND_LIMITS.keywords }) };
   const bad = keywords.find((keyword) => codePoints(keyword) < TREND_LIMITS.keywordMin || codePoints(keyword) > TREND_LIMITS.keywordMax);
   if (bad !== undefined) {
-    return { value: keywords, error: `Kata kunci “${truncate(bad, 20)}” harus ${TREND_LIMITS.keywordMin}–${TREND_LIMITS.keywordMax} karakter.` };
+    return { value: keywords, error: d("trends.invalid.keywordLength", { keyword: truncate(bad, 20), min: TREND_LIMITS.keywordMin, max: TREND_LIMITS.keywordMax }) };
   }
   return { value: keywords };
 }
 
 function validateHashtags(text) {
   const hashtags = parseHashtags(text);
-  if (hashtags.length > TREND_LIMITS.hashtags) return { value: hashtags, error: `Maksimal ${TREND_LIMITS.hashtags} hashtag.` };
+  if (hashtags.length > TREND_LIMITS.hashtags) return { value: hashtags, error: d("trends.invalid.hashtagsMany", { max: TREND_LIMITS.hashtags }) };
   const bad = hashtags.find((tag) => !HASHTAG.test(tag));
   if (bad !== undefined) {
-    return { value: hashtags, error: `Hashtag “${truncate(bad, 30)}” tidak valid: pakai huruf, angka, atau _ saja (maks ${TREND_LIMITS.hashtagBody}).` };
+    return { value: hashtags, error: d("trends.invalid.hashtag", { hashtag: truncate(bad, 30), max: TREND_LIMITS.hashtagBody }) };
   }
   return { value: hashtags };
 }
@@ -445,7 +473,7 @@ function validateScore(text) {
   if (!raw) return { value: null };
   const score = Number(raw);
   if (!/^\d{1,3}$/.test(raw) || score < TREND_LIMITS.scoreMin || score > TREND_LIMITS.scoreMax) {
-    return { value: null, error: "Skor harus bilangan bulat 0–100." };
+    return { value: null, error: d("trends.invalid.score") };
   }
   return { value: score };
 }
@@ -459,7 +487,7 @@ export function trendCreatePayload(draft, now = Date.now()) {
   const errors = {};
   const payload = {};
   if (TREND_KINDS.includes(draft.kind)) payload.kind = draft.kind;
-  else errors.kind = "Pilih jenis tren yang valid.";
+  else errors.kind = d("trends.invalid.kind");
 
   const checks = {
     title: validateTitle(draft.title),
@@ -475,7 +503,7 @@ export function trendCreatePayload(draft, now = Date.now()) {
   if (checks.hashtags.value.length) payload.hashtags = checks.hashtags.value;
 
   const platforms = Array.isArray(draft.platforms) ? draft.platforms : [];
-  if (platforms.some((platform) => !TREND_PLATFORMS.includes(platform))) errors.platforms = "Pilih platform dari daftar.";
+  if (platforms.some((platform) => !TREND_PLATFORMS.includes(platform))) errors.platforms = d("trends.invalid.platforms");
   else if (platforms.length) payload.platforms = TREND_PLATFORMS.filter((platform) => platforms.includes(platform));
 
   if (checks.score.value !== null) payload.score = checks.score.value;
@@ -521,7 +549,7 @@ export function trendPatchPayload(item, draft, now = Date.now()) {
   const sensitivity = draft.sensitivity === "sensitive" ? "sensitive" : "normal";
   if (sensitivity !== item.sensitivity) payload.sensitivity = sensitivity;
   if (draft.expiresDate !== dateInputValue(item.expiresAt)) {
-    if (!draft.expiresDate) errors.expiresAt = "Tanggal kedaluwarsa wajib diisi.";
+    if (!draft.expiresDate) errors.expiresAt = d("trends.invalid.expiryRequired");
     else {
       const expiry = expiryFromDateInput(draft.expiresDate, now);
       if (expiry.error) errors.expiresAt = expiry.error;
@@ -538,8 +566,8 @@ export function trendPatchPayload(item, draft, now = Date.now()) {
 
 export function validateTokenLabel(value) {
   const label = cleanLine(value);
-  if (!label) return { label, error: "Label token wajib diisi, mis. “Hermes VPS”." };
-  if (codePoints(label) > TREND_LIMITS.tokenLabel) return { label, error: `Label maksimal ${TREND_LIMITS.tokenLabel} karakter.` };
+  if (!label) return { label, error: d("trends.invalid.tokenLabelRequired") };
+  if (codePoints(label) > TREND_LIMITS.tokenLabel) return { label, error: d("trends.invalid.tokenLabelLong", { max: TREND_LIMITS.tokenLabel }) };
   return { label, error: null };
 }
 
@@ -573,17 +601,19 @@ export function activeTokenCount(tokens) {
   return (tokens || []).filter((token) => !token.revokedAt).length;
 }
 
-const UNKNOWN_TIME = "tidak diketahui";
+const UNKNOWN_TIME = d("trends.token.unknownTime");
 
-export function tokenView(token, now = Date.now()) {
+/** A token row: status, prefix, created and last-used times (text or descriptors) in `locale`. */
+export function tokenView(token, now = Date.now(), locale = SOURCE_LOCALE) {
   const revoked = Boolean(token.revokedAt);
+  const revokedAt = formatDateTime(token.revokedAt, locale);
   return {
     status: revoked ? "revoked" : "active",
-    statusLabel: revoked ? `Dicabut ${formatDateTime(token.revokedAt) || ""}`.trim() : "Aktif",
+    statusLabel: revoked ? (revokedAt ? d("trends.token.revokedAt", { at: revokedAt }) : d("trends.token.revoked")) : d("trends.token.active"),
     prefixText: token.prefix ? `${token.prefix}…` : "",
-    createdText: formatDateTime(token.createdAt) || UNKNOWN_TIME,
-    lastUsedText: token.lastUsedAt ? relativeTime(token.lastUsedAt, now) || UNKNOWN_TIME : "Belum pernah dipakai",
-    lastUsedAbsolute: formatDateTime(token.lastUsedAt),
+    createdText: formatDateTime(token.createdAt, locale) || UNKNOWN_TIME,
+    lastUsedText: token.lastUsedAt ? relativeTime(token.lastUsedAt, now, locale) || UNKNOWN_TIME : d("trends.token.neverUsed"),
+    lastUsedAbsolute: formatDateTime(token.lastUsedAt, locale),
   };
 }
 
@@ -613,17 +643,14 @@ export function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
-const CURL_SAMPLE = Object.freeze({
-  items: [{
-    externalId: "contoh:tren-uji-coba",
-    kind: "topic",
-    title: "Tren uji coba",
-    summary: "Item contoh dari halaman Konteks Tren. Hapus setelah uji coba.",
-    keywords: ["tren uji coba"],
-    platforms: ["tiktok"],
-    score: 50,
-  }],
-});
+// The sample item's title and summary come from the catalog in the UI language
+// (trends.agent.sampleTitle, trends.agent.sampleSummary); the keyword is its title.
+function curlSample({ title, summary }) {
+  const name = cleanLine(title) || "test";
+  const item = { externalId: "contoh:tren-uji-coba", kind: "topic", title: name };
+  if (cleanLine(summary)) item.summary = cleanLine(summary);
+  return { items: [{ ...item, keywords: [name.toLowerCase()], platforms: ["tiktok"], score: 50 }] };
+}
 
 /**
  * A copy-paste curl example, as in the Hermes kit: the token is pasted into a
@@ -633,7 +660,7 @@ const CURL_SAMPLE = Object.freeze({
  * goes to curl on stdin (-H @-) from the printf builtin, so the token never
  * appears in a process's arguments, where ps would show it.
  */
-export function curlExample({ origin } = {}) {
+export function curlExample({ origin, title = "", summary = "" } = {}) {
   const endpoint = shellQuote(ingestEndpoint(origin) || INGEST_PATH);
   const header = `printf 'Authorization: Bearer %s\\n' "$${TOKEN_ENV}" |`;
   return [
@@ -642,25 +669,34 @@ export function curlExample({ origin } = {}) {
     `${header} curl -sS -X POST ${endpoint} \\`,
     "  -H @- \\",
     "  -H 'Content-Type: application/json' \\",
-    `  --data ${shellQuote(JSON.stringify(CURL_SAMPLE))}`,
+    `  --data ${shellQuote(JSON.stringify(curlSample({ title, summary })))}`,
   ].join("\n");
 }
 
 // --- Errors -----------------------------------------------------------------------------
 
-const STATUS_MESSAGES = {
-  0: "Server tidak bisa dihubungi. Periksa koneksi lalu coba lagi.",
-  403: "Permintaan ditolak oleh server. Muat ulang halaman lalu coba lagi.",
-  404: "Data tidak ditemukan, mungkin sudah dihapus. Muat ulang daftar.",
-  413: "Isian terlalu besar untuk disimpan.",
-  429: "Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.",
-  503: "Penyimpanan konteks tren sedang tidak tersedia. Coba lagi nanti.",
-};
+const STATUS_MESSAGES = Object.freeze({
+  0: d("trends.error.offline"),
+  403: d("trends.error.forbidden"),
+  404: d("trends.error.notFound"),
+  413: d("trends.error.tooLarge"),
+  429: d("trends.error.rateLimited"),
+  503: d("trends.error.unavailable"),
+});
+const REQUEST_FAILED = d("trends.error.failed");
 
-/** A short Indonesian message for a failed request ({ status, payload }); server text is cleaned and bounded. */
-export function apiErrorMessage({ status, payload } = {}, fallback = "Permintaan gagal.") {
+/**
+ * What to say about a failed request ({ status, payload }): a descriptor for the known cases, the
+ * catalog text of the server's messageId when it sends one ({ error } for msg, rombak 07 §10),
+ * else the server's own words, cleaned and bounded, else `fallback`.
+ */
+export function apiErrorMessage({ status, payload } = {}, fallback = REQUEST_FAILED) {
   if (status === 401) return SESSION_TEXT;
   if (status === 0) return STATUS_MESSAGES[0];
-  const serverText = payload && typeof payload === "object" ? truncate(cleanLine(payload.error), 300) : "";
+  const body = payload && typeof payload === "object" ? payload : null;
+  const serverText = body ? truncate(cleanLine(body.error), 300) : "";
+  if (body && typeof body.messageId === "string" && body.messageId) {
+    return { error: { messageId: body.messageId, code: body.code, params: body.params, legacyText: serverText || null } };
+  }
   return serverText || STATUS_MESSAGES[status] || fallback;
 }

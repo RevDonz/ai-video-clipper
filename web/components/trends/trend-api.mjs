@@ -1,8 +1,8 @@
-// Browser client for the Konteks Tren UI routes (spec §3.2). Session cookie +
+// Browser client for the Tren UI routes (spec §3.2). Session cookie +
 // same-origin only; the machine routes (/api/ingest/trends, Bearer token) are
 // never called from the page. Every method resolves to
 //   { ok, status, data, error, field }
-// where `error` is a short Indonesian message and `data` is normalized for
+// where `error` is what to show (text or a catalog descriptor) and `data` is normalized for
 // display. An aborted request rejects with the AbortError, like fetch.
 
 import {
@@ -12,6 +12,7 @@ import {
   normalizeTrendItem,
   normalizeTrendList,
 } from "../../lib/trend-view.mjs";
+import { d } from "../../lib/i18n/descriptor.mjs";
 
 export const TREND_ROUTES = Object.freeze({
   trends: "/api/context/trends",
@@ -19,7 +20,7 @@ export const TREND_ROUTES = Object.freeze({
   tokens: "/api/context/tokens",
 });
 
-const UNRECOGNIZED = "Respons server tidak dikenali. Muat ulang halaman.";
+const UNRECOGNIZED = d("trends.error.unrecognized");
 const EDITABLE_FIELDS = new Set(["kind", "title", "summary", "keywords", "hashtags", "platforms", "score", "sensitivity", "expiresAt", "enabled", "label"]);
 
 const LABEL_CODES = new Set(["invalid_label", "label_taken"]);
@@ -86,51 +87,51 @@ export function createTrendApi(fetchImpl = (...args) => globalThis.fetch(...args
   return {
     async loadTrends(options = {}) {
       const result = await send(TREND_ROUTES.trends, options);
-      if (!result.ok) return failure(result, "Konteks tren tidak bisa dimuat.");
+      if (!result.ok) return failure(result, d("trends.error.load"));
       const data = normalizeTrendList(result.payload);
       return data ? success(result, data) : { ...failure(result, UNRECOGNIZED), error: UNRECOGNIZED };
     },
 
     async createTrend(input) {
       const result = await send(TREND_ROUTES.trends, { method: "POST", body: input });
-      return result.ok ? success(result, itemFrom(result.payload)) : failure(result, "Tren belum tersimpan.");
+      return result.ok ? success(result, itemFrom(result.payload)) : failure(result, d("trends.error.create"));
     },
 
     async updateTrend(id, patch) {
       const result = await send(itemUrl(id), { method: "PATCH", body: patch });
-      return result.ok ? success(result, itemFrom(result.payload)) : failure(result, "Perubahan belum tersimpan.");
+      return result.ok ? success(result, itemFrom(result.payload)) : failure(result, d("trends.error.update"));
     },
 
     async deleteTrend(id) {
       const result = await send(itemUrl(id), { method: "DELETE" });
-      return result.ok ? success(result, null) : failure(result, "Tren belum terhapus.");
+      return result.ok ? success(result, null) : failure(result, d("trends.error.delete"));
     },
 
     async setEnabled(enabled) {
       const result = await send(TREND_ROUTES.settings, { method: "PUT", body: { enabled } });
-      if (!result.ok) return failure(result, "Pengaturan belum tersimpan.");
+      if (!result.ok) return failure(result, d("trends.error.settings"));
       const saved = typeof result.payload?.enabled === "boolean" ? result.payload.enabled : enabled;
       return success(result, { enabled: saved });
     },
 
     async loadTokens(options = {}) {
       const result = await send(TREND_ROUTES.tokens, options);
-      if (!result.ok) return failure(result, "Daftar token tidak bisa dimuat.");
+      if (!result.ok) return failure(result, d("trends.error.tokens"));
       const tokens = normalizeTokenList(result.payload);
       return tokens ? success(result, tokens) : { ...failure(result, UNRECOGNIZED), error: UNRECOGNIZED };
     },
 
     async createToken(label) {
       const result = await send(TREND_ROUTES.tokens, { method: "POST", body: { label } });
-      if (!result.ok) return failure(result, "Token belum dibuat.");
+      if (!result.ok) return failure(result, d("trends.error.tokenCreate"));
       const created = createdTokenFrom(result.payload);
-      if (!created) return { ok: false, status: result.status, data: null, error: "Server tidak mengembalikan token yang valid. Muat ulang daftar token.", field: null };
+      if (!created) return { ok: false, status: result.status, data: null, error: d("trends.error.tokenInvalid"), field: null };
       return success(result, created);
     },
 
     async revokeToken(id) {
       const result = await send(tokenUrl(id), { method: "DELETE" });
-      return result.ok ? success(result, null) : failure(result, "Token belum dicabut.");
+      return result.ok ? success(result, null) : failure(result, d("trends.error.tokenRevoke"));
     },
   };
 }

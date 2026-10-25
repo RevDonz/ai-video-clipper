@@ -1,60 +1,126 @@
 "use client";
 
+// Tren (05-ui-dashboard.md §6.9): the switch that lets the next jobs use trends, the trend list
+// with search and the Jenis and Status filters, Tambah tren and Ubah in a Modal, Hapus behind an
+// AlertDialog, and for the admin the Agen tab (endpoint and tokens). Trends only shape a clip's
+// packaging when its transcript names them (docs/plans/2026-09-25-konteks-tren.md).
+import { Button, Label, ListBox, Select, Skeleton, Switch } from "@heroui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "use-intl";
 
 import AppShell from "../../components/AppShell.jsx";
+import { useShellData } from "../../components/ShellData.jsx";
 import TrendAgentPanel from "../../components/trends/TrendAgentPanel.jsx";
-import TrendItemCard from "../../components/trends/TrendItemCard.jsx";
-import TrendManualForm from "../../components/trends/TrendManualForm.jsx";
+import TrendFormModal from "../../components/trends/TrendFormModal.jsx";
+import TrendList from "../../components/trends/TrendList.jsx";
 import { createTrendApi } from "../../components/trends/trend-api.mjs";
+import AlertDialog from "../../components/ui/AlertDialog.jsx";
+import PageHead from "../../components/ui/PageHead.jsx";
+import SearchField from "../../components/ui/SearchField.jsx";
+import Tabs from "../../components/ui/Tabs.jsx";
+import { toast } from "../../components/ui/Toast.jsx";
+import { msg } from "../../lib/i18n/descriptor.mjs";
+import { localeOfIntl } from "../../lib/i18n/locales.mjs";
 import {
   TREND_KINDS,
-  TREND_KIND_LABELS,
+  TREND_KIND_NAMES,
   TREND_STATUS_FILTERS,
   filterTrendItems,
-  formatDateTime,
   groupTrendItems,
   normalizeTrendItem,
-  relativeTime,
   trendCounts,
 } from "../../lib/trend-view.mjs";
 import "./trends.css";
 
 const CLOCK_MS = 60_000;
+// ?tab= words, the same in every UI language (07 §5).
+const TAB_PARAM = Object.freeze({ list: "daftar", agent: "agen" });
+
+function FilterSelect({ label, value, onChange, options }) {
+  return (
+    <Select className="trFilter" selectedKey={value} onSelectionChange={(key) => { if (key !== null) onChange(key); }}>
+      <Label>{label}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox>
+          {options.map((option) => (
+            <ListBox.Item key={option.id} id={option.id} textValue={option.label}>
+              {option.label}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
+  );
+}
+
+function DeleteDialog({ item, busy, onConfirm, onClose }) {
+  const t = useTranslations("trends");
+  return (
+    <AlertDialog isOpen={Boolean(item)} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
+      <AlertDialog.Backdrop>
+        <AlertDialog.Container size="sm">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>{item ? t("delete.confirm", { title: item.title }) : ""}</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>{item && item.source !== "manual" ? t("delete.agentBody") : t("delete.body")}</p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>{t("delete.cancel")}</Button>
+              <Button variant="danger" isPending={busy} onPress={onConfirm}>{busy ? t("delete.busy") : t("delete.submit")}</Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </AlertDialog>
+  );
+}
 
 export default function TrendsPage() {
+  const t = useTranslations("trends");
+  const tAll = useTranslations();
+  const locale = localeOfIntl(useLocale());
+  const shell = useShellData();
+  const isAdmin = (shell?.user?.role ?? "admin") === "admin";
   const api = useMemo(() => createTrendApi(), []);
   const [loadState, setLoadState] = useState("loading");
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState(null);
   const [items, setItems] = useState([]);
   const [enabled, setEnabled] = useState(true);
   const [lastIngestAt, setLastIngestAt] = useState(null);
   const [pendingEnabled, setPendingEnabled] = useState(null); // optimistic while the PUT is in flight
-  const [tokensState, setTokensState] = useState({ state: "loading", tokens: [], error: "" });
+  const [pending, setPending] = useState(() => new Map()); // item id → optimistic switch state
+  const [tokensState, setTokensState] = useState({ state: "loading", tokens: [], error: null });
   const [origin, setOrigin] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [tab, setTab] = useState("list");
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
   const [status, setStatus] = useState("all");
-  const [notice, setNotice] = useState(null);
-  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState(null); // { mode: "add" } | { mode: "edit", item }
+  const [removing, setRemoving] = useState(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
   const mounted = useRef(true);
-  const listHeading = useRef(null);
 
   async function loadTrends({ quiet = false } = {}) {
     if (!quiet) setLoadState("loading");
     const result = await api.loadTrends();
     if (!mounted.current) return;
     if (!result.ok) {
-      if (quiet) setNotice({ tone: "error", text: result.error });
+      if (quiet) toast(msg(tAll, result.error), { variant: "danger" });
       else {
-        setLoadError(result.status === 404 ? "Fitur Konteks Tren belum tersedia di server ini." : result.error);
-        setLoadState("error");
+        setLoadError(result.status === 404 ? null : result.error);
+        setLoadState(result.status === 404 ? "unavailable" : "error");
       }
       return;
     }
     setItems(result.data.items);
-    if (!quiet && result.data.items.length === 0) setAddOpen(true);
     setEnabled(result.data.enabled);
     setLastIngestAt(result.data.lastIngestAt);
     setNow(Date.now());
@@ -62,17 +128,18 @@ export default function TrendsPage() {
   }
 
   async function loadTokens({ quiet = false } = {}) {
-    if (!quiet) setTokensState((current) => ({ ...current, state: "loading", error: "" }));
+    if (!isAdmin) return;
+    if (!quiet) setTokensState((current) => ({ ...current, state: "loading", error: null }));
     const result = await api.loadTokens();
     if (!mounted.current) return;
-    setTokensState(result.ok
-      ? { state: "ready", tokens: result.data, error: "" }
-      : { state: "error", tokens: [], error: result.error });
+    setTokensState(result.ok ? { state: "ready", tokens: result.data, error: null } : { state: "error", tokens: [], error: result.error });
   }
 
   useEffect(() => {
     mounted.current = true;
     setOrigin(window.location.origin);
+    const asked = new URLSearchParams(window.location.search).get("tab");
+    if (asked === TAB_PARAM.agent && isAdmin) setTab("agent");
     void loadTrends();
     void loadTokens();
     const clock = setInterval(() => setNow(Date.now()), CLOCK_MS);
@@ -80,29 +147,43 @@ export default function TrendsPage() {
       mounted.current = false;
       clearInterval(clock);
     };
+    // The page loads once; later reloads are explicit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Shows the new state at once and reverts on failure; never disabled, so
-  // keyboard focus stays on the switch.
-  async function toggleEnabled(event) {
+  function chooseTab(next) {
+    if (next !== "list" && next !== "agent") return;
+    setTab(next);
+    const url = next === "agent" ? `/trends?tab=${TAB_PARAM.agent}` : "/trends";
+    window.history.replaceState(window.history.state, "", url);
+  }
+
+  // Shows the new state at once and reverts on failure.
+  async function toggleEnabled(next) {
     if (pendingEnabled !== null) return;
-    const next = event.target.checked;
     setPendingEnabled(next);
-    setNotice(null);
     const result = await api.setEnabled(next);
     if (!mounted.current) return;
     setPendingEnabled(null);
     if (result.ok) {
       setEnabled(result.data.enabled);
-      setNotice({
-        tone: "ok",
-        text: result.data.enabled
-          ? "Konteks tren dipakai lagi mulai job berikutnya."
-          : "Konteks tren dimatikan. Job berikutnya berjalan persis seperti tanpa tren; item tetap tersimpan.",
-      });
+      toast(result.data.enabled ? t("toast.on") : t("toast.off"), { variant: "success" });
     } else {
-      setNotice({ tone: "error", text: result.error });
+      toast(msg(tAll, result.error), { variant: "danger" });
     }
+  }
+
+  async function toggleItem(item, next) {
+    if (pending.has(item.id)) return;
+    setPending((current) => new Map(current).set(item.id, next));
+    const result = await updateItem(item, { enabled: next });
+    setPending((current) => {
+      const copy = new Map(current);
+      copy.delete(item.id);
+      return copy;
+    });
+    if (result.ok) toast(next ? t("toast.itemOn", { title: item.title }) : t("toast.itemOff", { title: item.title }), { variant: "success" });
+    else if (result.status !== 404) toast(msg(tAll, result.error), { variant: "danger" });
   }
 
   async function createItem(payload) {
@@ -112,6 +193,8 @@ export default function TrendsPage() {
       if (result.data) setItems((current) => [result.data, ...current.filter((entry) => entry.id !== result.data.id)]);
       else await loadTrends({ quiet: true });
       setNow(Date.now());
+      setForm(null);
+      toast(t("toast.added", { title: payload.title }), { variant: "success" });
     }
     return result;
   }
@@ -125,21 +208,34 @@ export default function TrendsPage() {
       setNow(Date.now());
     } else if (result.status === 404) {
       setItems((current) => current.filter((entry) => entry.id !== item.id));
-      setNotice({ tone: "error", text: `“${item.title}” sudah tidak ada di server; daftar diperbarui.` });
+      toast(t("toast.gone", { title: item.title }), { variant: "danger" });
     }
     return result;
   }
 
-  async function deleteItem(item) {
-    const result = await api.deleteTrend(item.id);
-    if (!mounted.current) return result;
+  async function saveEdit(item, patch) {
+    const result = await updateItem(item, patch);
     if (result.ok || result.status === 404) {
-      setItems((current) => current.filter((entry) => entry.id !== item.id));
-      setNotice({ tone: "ok", text: `“${item.title}” dihapus.` });
-      requestAnimationFrame(() => listHeading.current?.focus());
+      setForm(null);
+      if (result.ok) toast(t("toast.saved"), { variant: "success" });
       return { ...result, ok: true };
     }
     return result;
+  }
+
+  async function confirmRemove() {
+    const item = removing;
+    setRemoveBusy(true);
+    const result = await api.deleteTrend(item.id);
+    if (!mounted.current) return;
+    setRemoveBusy(false);
+    setRemoving(null);
+    if (result.ok || result.status === 404) {
+      setItems((current) => current.filter((entry) => entry.id !== item.id));
+      toast(t("toast.deleted", { title: item.title }), { variant: "success" });
+    } else {
+      toast(msg(tAll, result.error), { variant: "danger" });
+    }
   }
 
   async function createToken(label) {
@@ -156,155 +252,103 @@ export default function TrendsPage() {
 
   const switchOn = pendingEnabled ?? enabled;
   const counts = trendCounts(items, now);
-  const visible = filterTrendItems(items, { query, kind, status }, now);
-  const groups = groupTrendItems(visible, now);
+  const visible = groupTrendItems(filterTrendItems(items, { query, kind, status }, now), now).flatMap((group) => group.items);
   const filtered = query.trim() !== "" || kind !== "all" || status !== "all";
-  const lastIngestRelative = relativeTime(lastIngestAt, now);
+  const kindOptions = [
+    { id: "all", label: `${t("filter.allKinds")} (${counts.all})` },
+    ...TREND_KINDS.map((entry) => ({ id: entry, label: `${msg(tAll, TREND_KIND_NAMES[entry])} (${counts.byKind[entry] || 0})` })),
+    ...(counts.byKind.other > 0 ? [{ id: "other", label: `${msg(tAll, TREND_KIND_NAMES.other)} (${counts.byKind.other})` }] : []),
+  ];
+  const statusOptions = TREND_STATUS_FILTERS.map((entry) => ({ id: entry.id, label: `${msg(tAll, entry.label)} (${entry.id === "all" ? counts.all : counts[entry.id]})` }));
+  const resetFilters = () => { setQuery(""); setKind("all"); setStatus("all"); };
+
+  const list = (
+    <>
+      <div className="trTools" role="search">
+        <SearchField className="trSearch" value={query} onChange={setQuery} aria-label={t("search")}>
+          <SearchField.Group>
+            <SearchField.SearchIcon />
+            <SearchField.Input placeholder={t("searchHint")} />
+            <SearchField.ClearButton />
+          </SearchField.Group>
+        </SearchField>
+        <FilterSelect label={t("filter.kind")} value={kind} onChange={setKind} options={kindOptions} />
+        <FilterSelect label={t("filter.status")} value={status} onChange={setStatus} options={statusOptions} />
+      </div>
+      <p className="visuallyHidden" role="status" aria-live="polite">{filtered ? t("found", { count: visible.length }) : ""}</p>
+      {items.length === 0 ? (
+        <div className="trEmpty">
+          <h2>{t("empty")}</h2>
+          {isAdmin && <Button variant="secondary" onPress={() => setForm({ mode: "add" })}>{t("add")}</Button>}
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="trEmpty">
+          <h2>{t("notFound")}</h2>
+          <Button variant="secondary" onPress={resetFilters}>{t("reset")}</Button>
+        </div>
+      ) : (
+        <TrendList items={visible} now={now} locale={locale} isAdmin={isAdmin} pending={pending}
+          onToggle={toggleItem} onEdit={(item) => setForm({ mode: "edit", item })} onDelete={setRemoving} />
+      )}
+    </>
+  );
 
   return (
     <AppShell current="/trends" className="trendsPage">
+      <div className="shell trPage">
+        <PageHead title={t("title")}>
+          <Switch isSelected={switchOn} onChange={toggleEnabled} isDisabled={loadState !== "ready"}>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t("use")}
+            </Switch.Content>
+          </Switch>
+          {isAdmin && loadState === "ready" && <Button variant="primary" onPress={() => setForm({ mode: "add" })}>{t("add")}</Button>}
+        </PageHead>
 
-      <header className="shell pageHead">
-        <div>
-          <h1>Konteks Tren</h1>
-          <p>
-            Topik, orang, jokes, dan hashtag yang sedang ramai, dari agen Anda atau ditambah manual. Dipakai untuk
-            judul, hook, dan hashtag klip kalau transkripnya <b>benar-benar menyebut</b> trennya.
-          </p>
-        </div>
-      </header>
+        {loadState === "ready" && (
+          <p className="trSummaryLine">{t("summary", { active: counts.active, inactive: counts.disabled, expired: counts.expired })}</p>
+        )}
 
-      {notice && (
-        <div className="shell">
-          <p className={`trAlert page ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
-            <span>{notice.text}</span>
-            <button type="button" className="btn ghost trDismiss" onClick={() => setNotice(null)} aria-label="Tutup pesan">×</button>
-          </p>
-        </div>
-      )}
-
-      {loadState === "loading" && <div className="shell"><div className="panel trState" role="status">Memuat konteks tren…</div></div>}
-      {loadState === "error" && (
-        <div className="shell">
-          <div className="panel trState" role="alert">
-            <p>{loadError || "Konteks tren tidak bisa dimuat."}</p>
-            <button type="button" className="btn primary" onClick={() => loadTrends()}>Coba lagi</button>
+        {loadState === "loading" && (
+          <div className="trSkeleton" aria-hidden="true">
+            {Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="trSkeletonRow" />)}
           </div>
-        </div>
-      )}
+        )}
+        {loadState === "loading" && <span className="visuallyHidden" role="status">{t("loading")}</span>}
+        {loadState === "unavailable" && <div className="trEmpty" role="status"><h2>{t("unavailable")}</h2></div>}
+        {loadState === "error" && (
+          <div className="trAlert" role="alert">
+            <strong>{t("loadFailed")}</strong>
+            {loadError ? <span>{msg(tAll, loadError)}</span> : null}
+            <Button variant="secondary" onPress={() => loadTrends()}>{tAll("common.retry")}</Button>
+          </div>
+        )}
 
-      {loadState === "ready" && (
-        <div className="trLayout shell">
-          <section className="panel trCard" aria-labelledby="tr-status-title">
-            <div className="trCardHead"><h2 id="tr-status-title">Pemakaian</h2><p>Berlaku untuk job berikutnya.</p></div>
-            <div className="trUsage">
-              <label className="trMainSwitch">
-                <input type="checkbox" role="switch" checked={switchOn} onChange={toggleEnabled} aria-busy={pendingEnabled !== null || undefined} aria-describedby="tr-switch-help" />
-                <span>
-                  <strong>Pakai konteks tren di pemilihan klip</strong>
-                  <small id="tr-switch-help">
-                    {switchOn
-                      ? "Aktif. Tren hanya dipakai kalau transkrip klip menyebut kata kuncinya. Tanpa tren yang cocok, hasil job sama seperti biasa."
-                      : "Mati. Job berjalan tanpa tren. Item tetap tersimpan dan agen tetap bisa mengirim."}
-                  </small>
-                </span>
-              </label>
-              <dl className="trStats">
-                <div><dt>Aktif</dt><dd>{counts.active}</dd></div>
-                <div><dt>Nonaktif</dt><dd>{counts.disabled}</dd></div>
-                <div><dt>Kedaluwarsa</dt><dd>{counts.expired}</dd></div>
-                <div><dt>Sensitif</dt><dd>{counts.sensitive}</dd></div>
-              </dl>
-            </div>
-            <p className="trFootnote">
-              {lastIngestAt
-                ? <>Kiriman agen terakhir <span title={formatDateTime(lastIngestAt) || undefined}>{lastIngestRelative}</span>.</>
-                : "Belum ada kiriman dari agen. Hubungkan agen di bagian Integrasi agen."}
-              {" "}Item kedaluwarsa tidak dipakai dan terhapus otomatis 7 hari kemudian.
-            </p>
-          </section>
+        {loadState === "ready" && (isAdmin ? (
+          <Tabs selectedKey={tab} onSelectionChange={chooseTab} className="trTabs">
+            <Tabs.List aria-label={t("tab.label")}>
+              <Tabs.Tab id="list">{t("tab.list")}</Tabs.Tab>
+              <Tabs.Tab id="agent">{t("tab.agent")}</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel id="list">{list}</Tabs.Panel>
+            <Tabs.Panel id="agent">
+              <TrendAgentPanel origin={origin} tokensState={tokensState} now={now} locale={locale} lastIngestAt={lastIngestAt}
+                onCreateToken={createToken} onRevokeToken={revokeToken} onReloadTokens={() => loadTokens()} />
+            </Tabs.Panel>
+          </Tabs>
+        ) : list)}
+      </div>
 
-          <section className="panel trCard" aria-labelledby="tr-list-title">
-            <div className="trCardHead">
-              <h2 id="tr-list-title" ref={listHeading} tabIndex={-1}>Daftar tren</h2>
-              <p>{counts.all} item: aktif dan kedaluwarsa ≤ 7 hari. Teks dari agen hanya data, tidak pernah dijalankan sebagai perintah.</p>
-            </div>
-
-            <details className="trAdd" open={addOpen} onToggle={(event) => setAddOpen(event.currentTarget.open)}>
-              <summary>
-                <span>+ Tambah tren manual</span>
-                <small>Tren yang belum dikirim agen</small>
-              </summary>
-              <TrendManualForm now={now} onCreate={createItem} />
-            </details>
-
-            <div className="trFilters" role="search">
-              <div className="trField trSearch">
-                <label htmlFor="tr-search">Cari</label>
-                <input id="tr-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Judul, kata kunci, hashtag…" autoComplete="off" />
-              </div>
-              <div className="trField">
-                <label htmlFor="tr-kind">Jenis</label>
-                <select id="tr-kind" value={kind} onChange={(event) => setKind(event.target.value)}>
-                  <option value="all">Semua jenis ({counts.all})</option>
-                  {TREND_KINDS.map((entry) => <option key={entry} value={entry}>{TREND_KIND_LABELS[entry]} ({counts.byKind[entry] || 0})</option>)}
-                  {counts.byKind.other > 0 && <option value="other">Lainnya ({counts.byKind.other})</option>}
-                </select>
-              </div>
-              <div className="trStatusFilter segmented" role="group" aria-label="Filter status">
-                {TREND_STATUS_FILTERS.map((entry) => (
-                  <button key={entry.id} type="button" aria-pressed={status === entry.id} className={status === entry.id ? "active" : ""} onClick={() => setStatus(entry.id)}>
-                    {entry.label} <span>{entry.id === "all" ? counts.all : counts[entry.id]}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="visuallyHidden" role="status" aria-live="polite">{filtered ? `${visible.length} tren cocok` : ""}</p>
-
-            {items.length === 0 ? (
-              <div className="trEmpty big">
-                <strong>Belum ada tren</strong>
-                <p>Hubungkan agen di bagian Integrasi agen, atau tambah tren manual di atas.</p>
-              </div>
-            ) : groups.length === 0 ? (
-              <div className="trEmpty big">
-                <strong>Tidak ada tren yang cocok</strong>
-                <p>Ubah kata pencarian atau filter.</p>
-                <button type="button" className="btn" onClick={() => { setQuery(""); setKind("all"); setStatus("all"); }}>Reset filter</button>
-              </div>
-            ) : (
-              groups.map((group) => (
-                <section key={group.kind} className="trGroup" aria-labelledby={`tr-group-${group.kind}`}>
-                  <h3 id={`tr-group-${group.kind}`}>{group.label} <span>{group.items.length}</span></h3>
-                  <div className="trGrid">
-                    {group.items.map((item) => (
-                      <TrendItemCard
-                        key={item.id}
-                        item={item}
-                        now={now}
-                        onUpdate={(patch) => updateItem(item, patch)}
-                        onDelete={() => deleteItem(item)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))
-            )}
-          </section>
-
-          <section className="panel trCard" aria-labelledby="tr-agent-title">
-            <div className="trCardHead"><h2 id="tr-agent-title">Integrasi agen (Hermes)</h2><p>Endpoint dan token supaya agen luar mengisi konteks tren otomatis.</p></div>
-            <TrendAgentPanel
-              origin={origin}
-              tokensState={tokensState}
-              now={now}
-              onCreateToken={createToken}
-              onRevokeToken={revokeToken}
-              onReloadTokens={() => loadTokens()}
-            />
-          </section>
-        </div>
-      )}
+      <TrendFormModal
+        mode={form?.mode ?? "add"}
+        item={form?.mode === "edit" ? form.item : null}
+        now={now}
+        isOpen={Boolean(form)}
+        onClose={() => setForm(null)}
+        onSubmit={(payload) => (form?.mode === "edit" ? saveEdit(form.item, payload) : createItem(payload))}
+      />
+      <DeleteDialog item={removing} busy={removeBusy} onConfirm={confirmRemove} onClose={() => setRemoving(null)} />
     </AppShell>
   );
 }

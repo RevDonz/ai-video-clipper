@@ -87,9 +87,17 @@ test("Pengaturan shows the Transkripsi card on its own, and it never asks the se
   assert.match(card, /type="password"/);
 });
 
-test("Konteks Tren says its switch applies to the next job, without naming an engine", async () => {
+// Tren (05 §6.9) has no sentence under its head any more: the switch's result says it.
+test("Tren says its switch applies to the next job, without naming an engine", async () => {
   const page = withoutComments(await read("app/trends/page.jsx"));
-  assert.match(page, /Berlaku untuk job berikutnya\./);
+  assert.match(page, /toast\(result\.data\.enabled \? t\("toast\.on"\) : t\("toast\.off"\)/);
+  for (const locale of ["id", "en"]) {
+    const trends = await catalog(locale, "trends");
+    for (const key of ["on", "off"]) {
+      assert.match(trends.toast[key], locale === "id" ? /job berikutnya$/ : /next job$/, `${locale} trends.toast.${key}`);
+      assert.doesNotMatch(trends.toast[key], /\bmesin\b|\bengine\b|\bV[1-3]\b/i);
+    }
+  }
 });
 
 // --- Copy -----------------------------------------------------------------------------------
@@ -165,17 +173,23 @@ test("no bare tone class in globals.css leaks onto .statusPill.error, .notice.er
   }
 });
 
-test("both pages hang their buttons on the shared .btn and lime only on the main action", async () => {
+test("both pages hang their buttons on the shared kit and lime only on the main action", async () => {
   const settings = await read("app/settings/page.jsx");
-  const trends = [
-    await read("app/trends/page.jsx"),
-    ...await Promise.all((await filesUnder("components/trends", /\.jsx$/)).map(read)),
-  ].join("\n");
+  const trendFiles = ["app/trends/page.jsx", ...await filesUnder("components/trends", /\.jsx$/)];
+  const trends = (await Promise.all(trendFiles.map(read))).join("\n");
   for (const [name, source] of [["settings", settings], ["trends", trends]]) {
     assert.doesNotMatch(source, /className="(primaryAction|secondaryAction|trPrimary|trSecondary|iconButton|confirmDelete|saveEditor|discard)\b/, name);
-    assert.match(source, /className="btn primary"/, `${name} has a primary action`);
   }
+  assert.match(settings, /className="btn primary"/, "settings has a primary action");
   assert.equal(settings.match(/btn primary/g).length, 3, "Simpan, the retry after a failed load, and the .env import");
+  // Tren is on HeroUI (05 §6.9): one lime action on the page (Tambah tren) and one per dialog file.
+  assert.doesNotMatch(trends, /className="btn\b/, "no hand-made .btn left on Tren");
+  const page = await read("app/trends/page.jsx");
+  assert.equal(page.match(/variant="primary"/g).length, 1, "Tambah tren");
+  assert.match(page, /<Button variant="primary" onPress=\{\(\) => setForm\(\{ mode: "add" \}\)\}>\{t\("add"\)\}<\/Button>/);
+  for (const file of trendFiles) {
+    assert.ok(((await read(file)).match(/variant="primary"/g) || []).length <= 1, `${file}: at most one primary action`);
+  }
 });
 
 test("Pengaturan is the whole page's name and every save button says what it saves", async () => {
