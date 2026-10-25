@@ -78,3 +78,62 @@ test("no editor CSS module gives one class two different displays", () => {
     .map((item) => `${path.relative(EDITOR, file)} ${item}`));
   assert.deepEqual(found, []);
 });
+
+// --- the editor's HeroUI layer (rombak 06 §17 F0, amendment X10) -----------------------------------
+// app/editor.css brings Tailwind's and HeroUI's theme and base onto the editor page, layered.
+// A layered custom property loses to an unlayered one of the same name (globals.css :root), but
+// it fills one the editor reads and nobody unlayered sets, which would change the editor quietly.
+// HeroUI's base also colours every border it finds no colour for (`* { border-color }`).
+
+const WEB = path.resolve(EDITOR, "..", "..");
+
+function cssUnder(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return cssUnder(full);
+    return entry.name.endsWith(".css") ? [full] : [];
+  });
+}
+
+const withoutComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+const definedIn = (css) => new Set([...withoutComments(css).matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]));
+
+test("no custom property the editor reads is newly set by editor.css's Tailwind or HeroUI layers", () => {
+  const reads = new Set();
+  const own = new Set();
+  for (const file of cssUnder(EDITOR)) {
+    const source = readFileSync(file, "utf8");
+    for (const match of withoutComments(source).matchAll(/var\((--[\w-]+)/g)) reads.add(match[1]);
+    for (const name of definedIn(source)) own.add(name);
+  }
+  assert.ok(reads.size > 50, `the scan reaches the editor's tokens (${reads.size})`);
+  // Unlayered tokens (globals.css :root, the editor's own modules) always win.
+  const unlayered = definedIn(readFileSync(path.join(WEB, "app", "globals.css"), "utf8"));
+  const layered = new Set();
+  const sheets = [
+    ...cssUnder(path.join(WEB, "node_modules", "@heroui", "styles", "dist", "themes")),
+    ...cssUnder(path.join(WEB, "node_modules", "@heroui", "styles", "dist", "base")),
+    path.join(WEB, "node_modules", "tailwindcss", "theme.css"),
+    path.join(WEB, "app", "editor.css"),
+    path.join(WEB, "app", "ui-theme-reset.css"),
+  ];
+  for (const file of sheets) for (const name of definedIn(readFileSync(file, "utf8"))) layered.add(name);
+  assert.ok(layered.has("--ease-out") && layered.has("--accent"), "the scan reads Tailwind's and HeroUI's themes");
+  const filled = [...reads].filter((name) => layered.has(name) && !unlayered.has(name) && !own.has(name));
+  assert.deepEqual(filled, []);
+});
+
+test("every border an editor stylesheet draws names its colour, so HeroUI's base cannot recolour it", () => {
+  const found = [];
+  for (const file of cssUnder(EDITOR)) {
+    const source = withoutComments(readFileSync(file, "utf8"));
+    for (const match of source.matchAll(/(?:^|[;{\s])(border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?)\s*:\s*([^;}]+)/g)) {
+      const value = match[2].trim();
+      // A width and a style without a colour take currentColor, unless a layered rule sets one.
+      if (!/\b(?:solid|dashed|dotted|double|groove|ridge|inset|outset)\b/.test(value)) continue;
+      if (/var\(|#|rgb|hsl|color-mix|currentColor|transparent|inherit|\b(?:Canvas|CanvasText|Highlight|HighlightText|ButtonText|ButtonFace|GrayText|LinkText|Field|FieldText|Mark|MarkText|AccentColor|AccentColorText|ButtonBorder)\b/.test(value)) continue;
+      found.push(`${path.relative(EDITOR, file)} ${match[1]}: ${value}`);
+    }
+  }
+  assert.deepEqual(found, []);
+});

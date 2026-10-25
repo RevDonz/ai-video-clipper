@@ -320,7 +320,7 @@ test("AC4: after a click on a pack pill or a swatch, Ctrl+Z, ', ? and K still wo
   await page.keyboard.press(" ");
   await expect(playButton(page, "Putar")).toBeVisible();
   // A swatch: Ctrl+Z undoes it from the swatch itself.
-  const swatches = page.getByRole("group", { name: "Warna sorot" }).getByRole("radio");
+  const swatches = page.getByRole("radiogroup", { name: "Warna sorot" }).getByRole("radio");
   const highlight = (await editorState(page)).doc.captions.overrides.highlight;
   const target = (await swatches.count()) > 1 && (await swatches.nth(0).isChecked()) ? swatches.nth(1) : swatches.nth(0);
   await target.click();
@@ -881,7 +881,7 @@ test("AC13: under forced colours a chosen view, pill, tile, pressed toggle, swit
   expect(await underlined(views.filter({ hasText: "Lengkap" }))).toBe(false);
 
   const caption = page.locator("#card-caption-region");
-  const size = caption.getByRole("group", { name: "Ukuran" });
+  const size = caption.getByRole("radiogroup", { name: "Ukuran" });
   expect(await underlined(label(size, "Sedang")), "the chosen pill").toBe(true);
   expect(await underlined(label(size, "Kecil"))).toBe(false);
   const packs = caption.getByRole("group", { name: "Gaya caption" });
@@ -911,7 +911,7 @@ test("AC13: under forced colours a chosen view, pill, tile, pressed toggle, swit
   expect(off.trackAdjust).not.toBe("none");
   await caption.getByRole("switch", { name: "Tampilkan caption" }).click();
 
-  const swatches = caption.getByRole("radiogroup", { name: "Warna sorot" }).or(caption.getByRole("group", { name: "Warna sorot" }));
+  const swatches = caption.getByRole("radiogroup", { name: "Warna sorot" });
   const rings = await swatches.locator("label").evaluateAll((labels) => labels.map((element) => ({
     checked: element.querySelector("input").checked,
     ring: [...element.querySelectorAll("*")].some((node) => getComputedStyle(node).outlineStyle !== "none" && node.tagName !== "INPUT"),
@@ -938,7 +938,7 @@ test("the Cold open card's chosen style and whoosh switch use the neutral select
     return { background: style.backgroundColor, border: style.borderTopColor };
   });
   const caption = page.locator("#card-caption-region");
-  const pill = await fill(caption.getByRole("group", { name: "Ukuran" }).locator("label").filter({ hasText: "Sedang" }));
+  const pill = await fill(caption.getByRole("radiogroup", { name: "Ukuran" }).locator("label").filter({ hasText: "Sedang" }));
   const captionTrack = await caption.getByRole("switch", { name: "Tampilkan caption" }).evaluate((input) => {
     const style = getComputedStyle(input.nextElementSibling);
     return { background: style.backgroundColor, border: style.borderTopColor, knob: getComputedStyle(input.nextElementSibling, "::after").backgroundColor };

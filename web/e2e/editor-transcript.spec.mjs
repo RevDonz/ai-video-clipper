@@ -509,12 +509,12 @@ test.describe("text panel", () => {
     await expect(packs.getByRole("radio", { name: "Bold" })).toBeChecked();
     const sizes = await packs.locator("img").evaluateAll((images) => images.map((image) => [image.naturalWidth, image.naturalHeight]));
     expect(sizes).toEqual([[320, 80], [320, 80], [320, 80], [320, 80], [320, 80], [320, 80]]);
-    const words = page.getByRole("group", { name: "Kata per baris" });
+    const words = page.getByRole("radiogroup", { name: "Kata per baris" });
     await expect(words.getByRole("radio", { name: "3" })).toBeChecked();
     await words.getByRole("radio", { name: "1" }).check();
     expect(await lastCommand(page)).toEqual({ type: "SetCaptionOverride", args: { key: "words_max", value: 1 }, mergeKey: null });
     await expect(words.getByRole("radio", { name: "1" })).toBeChecked();
-    const entrance = page.getByRole("group", { name: "Animasi masuk" });
+    const entrance = page.getByRole("radiogroup", { name: "Animasi masuk" });
     await expect(entrance.getByRole("radio", { name: "Tanpa" })).toBeChecked();
     await entrance.getByRole("radio", { name: "Blur" }).check();
     expect(await lastCommand(page)).toEqual({ type: "SetCaptionOverride", args: { key: "entrance", value: "blur" }, mergeKey: null });
@@ -541,9 +541,9 @@ test.describe("text panel", () => {
     expect((await currentDoc(page)).captions.overrides.size_pm).toBeGreaterThan(1000);
     await page.getByRole("checkbox", { name: "Huruf besar semua" }).check();
     expect(await lastCommand(page)).toMatchObject({ type: "SetCaptionOverride", args: { key: "case", value: "upper" } });
-    await page.getByRole("group", { name: "Warna sorot" }).getByRole("radio", { name: "Hijau" }).check();
+    await page.getByRole("radiogroup", { name: "Warna sorot" }).getByRole("radio", { name: "Hijau" }).check();
     expect(await lastCommand(page)).toMatchObject({ type: "SetCaptionOverride", args: { key: "highlight", value: "#3DF5A6" } });
-    await page.getByRole("group", { name: "Warna kata kunci" }).getByRole("radio", { name: "Biru" }).check();
+    await page.getByRole("radiogroup", { name: "Warna kata kunci" }).getByRole("radio", { name: "Biru" }).check();
     expect(await lastCommand(page)).toMatchObject({ type: "SetCaptionOverride", args: { key: "emphasis", value: "#52C7FF" } });
   });
 

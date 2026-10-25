@@ -757,7 +757,7 @@ test("Kemampuan 5, caption + 6 gaya: each pack, position, size, words per line, 
   expect(new Set(Object.values(shas)).size, "six packs, six distinct ASS").toBe(6);
   const text = panelOf(page, "text");
   // Kata per baris: the engine regroups the lines at once (CONTRACTS §5.30); Sorot's own count is 3.
-  const words = text.getByRole("group", { name: "Kata per baris" });
+  const words = text.getByRole("radiogroup", { name: "Kata per baris" });
   await expect(words.getByRole("radio", { name: "3" })).toBeChecked();
   await words.getByRole("radio", { name: "1" }).check();
   expect((await waitSaved(page)).doc.captions.overrides.words_max).toBe(1);
@@ -768,7 +768,7 @@ test("Kemampuan 5, caption + 6 gaya: each pack, position, size, words per line, 
   await words.getByRole("radio", { name: "3" }).check();
   expect(Object.hasOwn((await waitSaved(page)).doc.captions.overrides, "words_max")).toBe(false);
   // Animasi masuk (CONTRACTS §5.39): the engine opens every line; Tanpa gives the same bytes back.
-  const entrance = text.getByRole("group", { name: "Animasi masuk" });
+  const entrance = text.getByRole("radiogroup", { name: "Animasi masuk" });
   await expect(entrance.getByRole("radio", { name: "Tanpa" })).toBeChecked();
   const withoutEntrance = (await settledPlan(page)).text.assSha256;
   await entrance.getByRole("radio", { name: "Fade" }).check();
@@ -783,7 +783,7 @@ test("Kemampuan 5, caption + 6 gaya: each pack, position, size, words per line, 
   await nudgeSlider(text.getByRole("slider", { name: "Posisi caption" }), "ArrowLeft", 4);
   await nudgeSlider(text.getByRole("slider", { name: "Ukuran caption" }), "ArrowRight", 2);
   await text.getByRole("checkbox", { name: "Huruf besar semua" }).check();
-  for (const swatch of await text.getByRole("group", { name: "Warna sorot" }).getByRole("radio").all()) {
+  for (const swatch of await text.getByRole("radiogroup", { name: "Warna sorot" }).getByRole("radio").all()) {
     if (await swatch.isChecked()) continue;
     await swatch.check();
     break;

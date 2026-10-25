@@ -284,7 +284,7 @@ test.describe("caption gizmo (harness)", () => {
   test("Mode Cepat: a drag to Atas presses the Caption card's Atas pill", async ({ page }) => {
     const errors = await openHarness(page, {}, `${ORIGIN}/?mode=cepat`);
     const card = await openCard(page, "caption");
-    const positions = card.getByRole("group", { name: "Posisi" });
+    const positions = card.getByRole("radiogroup", { name: "Posisi" });
     await expect(positions.getByRole("radio", { name: "Bawah" })).toBeChecked();
     await dragTo(page, 38400);
     await expect.poll(() => yOf(page)).toBe(38000);

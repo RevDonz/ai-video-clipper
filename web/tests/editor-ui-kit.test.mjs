@@ -9,6 +9,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { ICONS, ICON_NAMES } from "../components/editor/ui/icon-paths.mjs";
+import { renderWith, splitDomProps } from "../components/editor/ui/dom-props.mjs";
 import { accordionIds, menuItemRole, menuMove } from "../components/editor/ui/kit-model.mjs";
 import { cssRules } from "./support/ui-guards.mjs";
 
@@ -95,9 +96,18 @@ test("a menu item with a checked state is a menuitemcheckbox", () => {
 test("an accordion's header controls its region, and the region is named by the header's label alone", () => {
   assert.deepEqual(accordionIds("card-hook"), { button: "card-hook-button", label: "card-hook-label", region: "card-hook-region" });
   const source = readFileSync(path.join(editorDir, "ui", "AccordionCard.jsx"), "utf8");
-  assert.match(source, /aria-controls=\{ids\.region\}/);
+  // HeroUI's Disclosure (React Aria): the trigger gets aria-expanded and aria-controls pointing at
+  // the panel, whose id the card sets, so the region is the one the header controls.
+  assert.match(source, /^import \{ Disclosure \} from "@heroui\/react";$/m);
+  assert.match(source, /<Disclosure\.Trigger id=\{ids\.button\}/);
+  assert.match(source, /<Disclosure\.Content id=\{ids\.region\} role="region"/);
   assert.match(source, /<span id=\{ids\.label\}/);
-  assert.match(source, /role="region" aria-labelledby=\{ids\.label\}/);
+  // React Aria names the panel by the whole trigger (label and summary); the card renders it
+  // named by the label alone, so it reads "Caption", not the card's summary with it.
+  assert.match(source, /render=\{\(props\) => <div \{\.\.\.props\} aria-labelledby=\{ids\.label\} \/>\}/);
+  // Closed is inert at once (React Aria hides the panel only after its height transition).
+  assert.match(source, /data-open=\{open \? "true" : "false"\} inert=\{!open\}/);
+  assert.match(source, /isExpanded=\{Boolean\(open\)\}/);
 });
 
 test("the kit's stylesheets exist where the components import them", () => {
@@ -108,6 +118,60 @@ test("the kit's stylesheets exist where the components import them", () => {
     assert.match(source, /^"use client";/, file);
     assert.match(source, /export default function [A-Z]\w*\(/, file);
   }
+});
+
+// --- the kit on HeroUI and React Aria (rombak 06 §17 F0) ------------------------------------------
+
+// Each control keeps the props it had (every caller stays as it is) and now stands on the
+// primitive that gives it its keyboard, focus and locale behaviour.
+const KIT_API = Object.freeze({
+  "PillGroup.jsx": ["{ legend, name, options, value, onChange, disabled = false, describedBy, columns, legendHidden = false }",
+    /^import \{ Label, Radio, RadioGroup \} from "react-aria-components";$/m],
+  "Swatches.jsx": ["{ legend, name, value, options, onChange, disabled = false, note }",
+    /^import \{ Label, Radio, RadioGroup \} from "react-aria-components";$/m],
+  "Switch.jsx": ["{ label, checked, onChange, disabled = false, describedBy, title }",
+    /^import \{ Switch as AriaSwitch \} from "react-aria-components";$/m],
+  "PillToggle.jsx": ["{ pressed, onPressedChange, onClick, children, className, disabled = false, ...button }",
+    /^import \{ ToggleButton \} from "react-aria-components";$/m],
+  "AccordionCard.jsx": ["{ id, label, summary, open, onToggle, children, headingLevel = 2 }",
+    /^import \{ Disclosure \} from "@heroui\/react";$/m],
+});
+
+test("the kit's controls keep their props and stand on HeroUI or React Aria", () => {
+  for (const [file, [props, primitive]] of Object.entries(KIT_API)) {
+    const source = readFileSync(path.join(editorDir, "ui", file), "utf8");
+    const name = file.replace(/\.jsx$/, "");
+    assert.ok(source.includes(`export default function ${name}(${props})`), `${file} keeps its props`);
+    assert.match(source, primitive, `${file} imports its primitive`);
+    // No native control of its own beside the primitive's.
+    assert.doesNotMatch(source, /<input\b|<fieldset\b|<legend\b/, `${file} renders no native input or fieldset itself`);
+  }
+  // A group of radios is React Aria's radiogroup, named by its label (visible or for screen
+  // readers only); a value off the options presses no pill and leaves the group reachable by Tab.
+  for (const file of ["PillGroup.jsx", "Swatches.jsx"]) {
+    const source = readFileSync(path.join(editorDir, "ui", file), "utf8");
+    assert.match(source, /value=\{options\.some\(\(option\) => option\.(?:id|value) === value\) \? value : null\}/, file);
+    assert.match(source, /isDisabled=\{disabled\}/, file);
+    assert.match(source, /<Label className=/, file);
+  }
+  // The menu button stays the kit's own WAI-ARIA menu button: React Aria's Menu skips a disabled
+  // item, while the kit keeps it in place, focusable, with its reason as the description (§8.2).
+  const menu = readFileSync(path.join(editorDir, "ui", "MenuButton.jsx"), "utf8");
+  assert.match(menu, /aria-disabled=\{item\.disabled \? "true" : undefined\} aria-describedby=\{reasonId\}/);
+});
+
+test("React Aria's own DOM props go to the primitive, the rest to the element it renders", () => {
+  const onPointerDown = () => {};
+  const { rac, extra } = splitDomProps({
+    id: "x", "aria-label": "Zona aman", "aria-describedby": "d", "data-kind": "zone", onPointerDown, style: { color: "red" },
+    title: "Zona aman (')", "aria-keyshortcuts": "'", tabIndex: 0,
+  });
+  assert.deepEqual(Object.keys(rac).sort(), ["aria-describedby", "aria-label", "data-kind", "id", "onPointerDown", "style"]);
+  assert.deepEqual(extra, { title: "Zona aman (')", "aria-keyshortcuts": "'", tabIndex: 0 });
+  assert.equal(renderWith("button", {}), undefined, "nothing to add: React Aria renders its own element");
+  const element = renderWith("button", extra)({ id: "x", className: "c", children: "Zona aman" });
+  assert.equal(element.type, "button");
+  assert.deepEqual(element.props, { id: "x", className: "c", children: "Zona aman", title: "Zona aman (')", "aria-keyshortcuts": "'", tabIndex: 0 });
 });
 
 test("motion in the kit comes from the duration tokens only (reduced motion sets them to 0 ms)", () => {
@@ -139,16 +203,16 @@ test("every control of the kit is at least var(--ed-target) (44 px) tall", () =>
   }
 });
 
-test("the accordion animates its rows over --dur-2 and hides a closed body after the transition", () => {
+test("the accordion animates its height over --dur-2 and hides a closed body after the transition", () => {
   const source = css("ui/ui.module.css");
   const body = ruleOf(source, ".cardBody");
-  assert.match(body, /grid-template-rows:\s*0fr/);
-  assert.match(body, /visibility:\s*hidden/);
-  // visibility is discrete: it stays visible while the rows close and turns visible at once on open.
-  assert.match(body, /transition:[^;]*grid-template-rows var\(--dur-2\) var\(--ease-out\)[^;]*visibility var\(--dur-2\)/);
-  const open = ruleOf(source, '.cardBody[data-open="true"]');
-  assert.match(open, /grid-template-rows:\s*1fr/);
-  assert.match(open, /visibility:\s*visible/);
+  // React Aria measures the panel into --disclosure-panel-height (0px closed, the content's
+  // height while it opens, then auto) and sets hidden="until-found" once the transitions of the
+  // closing panel have finished; with reduced motion the tokens are 0 ms and it hides at once.
+  assert.match(body, /(?:^|;)\s*height:\s*var\(--disclosure-panel-height\)/);
+  assert.match(body, /overflow:\s*clip/);
+  assert.match(body, /transition:[^;]*height var\(--dur-2\) var\(--ease-out\)[^;]*opacity var\(--dur-2\) var\(--ease-out\)/);
+  assert.equal(ruleOf(source, '.cardBody[data-open="true"]'), null, "no second open state beside React Aria's");
 });
 
 // --- task B: the cards, the panels' lime and the card-sized controls (§8.1, §8.4, §9.2) -------------
