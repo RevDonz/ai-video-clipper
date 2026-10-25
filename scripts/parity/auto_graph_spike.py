@@ -10,13 +10,26 @@ modes:
    the centre crop's chain. The last one settles open item #18 of the plan: whether a
    ``fill_center`` frame drawn as a camera crop at ``centre_x`` is the centre crop's frame. The
    number of filter contexts must not grow from 1 to 48 runs.
-2. **With split (A7.2, candidate K1 overlay).** ``split=2``: one branch is the fallback chain,
-   the other a split chain whose crops follow the range per frame; ``overlay`` with an
-   ``enable`` of the split frames puts the split on top. It passes when every frame matches its
-   pure chain, the contexts stay constant, the render runs under the 3 GiB address-space limit
-   of a render (``prlimit --as``) with a peak RSS below 3 GiB at 48 runs, and it takes at most
-   1.15× the fallback chain's time. K2 (streamselect) and K3 (maskedmerge) are only needed if
-   K1 fails; this script reports K1.
+2. **With split (A7.2).** ``split=2``: one branch is the fallback chain, the other a split
+   chain whose crops follow the range per frame. The candidates join the two on the split
+   frames in three ways, measured in the order of 04 §A7.2:
+
+   * **K1 overlay**: ``overlay`` with an ``enable`` of the split frames;
+   * **K2 streamselect**: ``streamselect`` whose ``map`` a ``sendcmd`` switches at every range
+     edge (the command is due half a frame before the edge's frame);
+   * **K3 maskedmerge**: ``maskedmerge`` with a mask that is white on the split frames (a
+     ``color`` source of the clip's length, turned white by ``lutyuv`` with K1's ``enable``).
+
+   A candidate passes when every frame matches its pure chain, the contexts stay constant, the
+   render runs under the 3 GiB address-space limit of a render (``prlimit --as``) with a peak
+   RSS below 3 GiB at 48 runs, and it takes at most 1.15× the fallback chain's time. The first
+   passing candidate is the one used (``verdict.split_candidate``); none passing keeps
+   ``AUTO_SPLIT = False``.
+
+Contexts of the fallback chain: with one run every frame is ``camera`` and the chain is the bare
+camera chain (4 contexts); once any frame is ``fit_blur`` (or a no-face frame) it is the
+fallback chain (10 contexts). That 4 → 10 step is the chain's two shapes, not growth with the
+number of ranges, so "contexts constant" compares the runs above one (8 and 48).
 
 The result is JSON on stdout (``--out`` also writes it). ``AUTO_SPLIT`` in
 ``src/ai_clipper/edit_v2/__init__.py`` is set to ``True`` only after a passing run, recorded in
@@ -165,6 +178,52 @@ def k1_chain(modes: Sequence[str], camera_x: Sequence[int], crops: Sequence[dict
             f"[k1A][k1B]overlay=0:0:format=yuv444:enable='{enabled}'[vout]")
 
 
+def _edges(modes: Sequence[str]) -> list[tuple[int, bool]]:
+    """The frames where the split state changes, with the state from there on."""
+    out = []
+    for n, mode in enumerate(modes):
+        state = mode == "split"
+        if n == 0 or state != (modes[n - 1] == "split"):
+            out.append((n, state))
+    return out
+
+
+def k2_chain(modes: Sequence[str], camera_x: Sequence[int], crops: Sequence[dict[str, Any]],
+             size: tuple[int, int]) -> str:
+    """K2: ``streamselect`` between the fallback chain (map 0) and the split chain (map 1),
+    switched by ``sendcmd`` at each edge, half a frame before the edge's timestamp."""
+    base_modes = ["camera" if mode == "split" else mode for mode in modes]
+    commands = []
+    for n, state in _edges(modes):
+        at = max(0.0, (n - 0.5) * FPS.den / FPS.num)
+        commands.append(f"{at:.6f} streamselect@k2 map {int(state)}")
+    return (f"[vcat]split=2[k2a][k2b];"
+            f"{fallback_chain(base_modes, camera_x, size, '[k2a]', '[k2A0]')};"
+            f"[k2A0]sendcmd=c='{';'.join(commands)}'[k2A];"
+            f"{split_frame_chain(crops, size, '[k2b]', '[k2B]')};"
+            f"[k2A][k2B]streamselect@k2=inputs=2:map=0[vout]")
+
+
+def k3_chain(modes: Sequence[str], camera_x: Sequence[int], crops: Sequence[dict[str, Any]],
+             size: tuple[int, int]) -> str:
+    """K3: ``maskedmerge`` of the fallback chain and the split chain with a mask that is white
+    (255 in every plane) on split frames and black elsewhere."""
+    base_modes = ["camera" if mode == "split" else mode for mode in modes]
+    enabled = _expr([int(mode == "split") for mode in modes])
+    width, height = OUTPUT
+    seconds = len(modes) * FPS.den / FPS.num
+    return (f"[vcat]split=2[k3a][k3b];"
+            f"{fallback_chain(base_modes, camera_x, size, '[k3a]', '[k3A]')};"
+            f"{split_frame_chain(crops, size, '[k3b]', '[k3B]')};"
+            f"color=c=black:s={width}x{height}:r={FPS.num}/{FPS.den}:d={seconds:.6f},"
+            f"format={layouts.WORKING_FORMAT},lutyuv=y=0:u=0:v=0,"
+            f"lutyuv=y=255:u=255:v=255:enable='{enabled}'[k3M];"
+            f"[k3A][k3B][k3M]maskedmerge[vout]")
+
+
+CANDIDATES = {"k1_overlay": k1_chain, "k2_streamselect": k2_chain, "k3_maskedmerge": k3_chain}
+
+
 def contexts(graph: str) -> int:
     bare = re.sub(r"'[^']*'", "''", graph)
     return sum(len([f for f in chain.split(",") if f]) for chain in bare.split(";"))
@@ -221,7 +280,8 @@ def spike(size_name: str, size: tuple[int, int], seconds: int, run_counts: Seque
             for mode in MODES}
     report: dict[str, Any] = {"frames": frames, "pure": {
         mode: {k: v for k, v in result.items() if k != "md5"} for mode, result in pure.items()},
-        "without_split": {}, "k1_overlay": {}}
+        "without_split": {}, **{name: {} for name in CANDIDATES}}
+    references: dict[str, list[str]] = {}
     for runs in run_counts:
         modes = run_modes(frames, runs, MODES)
         result = render(source, fallback_chain(modes, camera_x, size, "[vcat]", "[vout]"),
@@ -232,56 +292,77 @@ def spike(size_name: str, size: tuple[int, int], seconds: int, run_counts: Seque
             "fill_center_frames": modes.count("fill_center")}
         split_modes = run_modes(frames, runs, ("camera", "split", "fill_center", "fit_blur"))
         crops = split_crops(frames, runs)
-        k1 = render(source, k1_chain(split_modes, camera_x, crops, size), work,
-                    f"{size_name}-k1-{runs}")
-        mismatched = 0
-        if k1["ok"]:
-            references: dict[str, list[str]] = {}
-            for index, mode in enumerate(split_modes):
-                if mode != "split":
-                    reference = pure[mode]["md5"]
-                else:
-                    key = json.dumps(crops[index], sort_keys=True)
-                    if key not in references:
-                        chain = layouts.split_chain(crops[index], label_in="[vcat]",
-                                                    label_out="[vout]", source=size, **CHAIN)
-                        references[key] = render(source, chain, work,
-                                                 f"{size_name}-split-{len(references)}")["md5"]
-                    reference = references[key]
-                if index >= len(k1["md5"]) or index >= len(reference) or \
-                        k1["md5"][index] != reference[index]:
-                    mismatched += 1
-        else:
-            mismatched = frames
         base = render(source, fallback_chain(
             ["camera" if m == "split" else m for m in split_modes], camera_x, size, "[vcat]",
-            "[vout]"), work, f"{size_name}-k1base-{runs}")
-        report["k1_overlay"][str(runs)] = {
-            **{k: v for k, v in k1.items() if k != "md5"}, "mismatched_frames": mismatched,
-            "time_vs_fallback": round(k1["seconds"] / base["seconds"], 3)
-            if base["seconds"] else None}
+            "[vout]"), work, f"{size_name}-base-{runs}")
+        for name, chain in CANDIDATES.items():
+            result = render(source, chain(split_modes, camera_x, crops, size), work,
+                            f"{size_name}-{name}-{runs}")
+            mismatched = (split_mismatches(split_modes, crops, result, pure, references,
+                                           source=source, size=size, work=work,
+                                           size_name=size_name)
+                          if result["ok"] else frames)
+            report[name][str(runs)] = {
+                **{k: v for k, v in result.items() if k != "md5"},
+                "mismatched_frames": mismatched,
+                "time_vs_fallback": round(result["seconds"] / base["seconds"], 3)
+                if base["seconds"] else None}
     return report
 
 
-def verdict(reports: dict[str, Any], run_counts: Sequence[int]) -> dict[str, Any]:
-    def constant(block: str) -> bool:
-        return all(len({r[block][str(n)]["contexts"] for n in run_counts if n > 1}) == 1
-                   for r in reports.values())
+def split_mismatches(modes: Sequence[str], crops: Sequence[dict[str, Any]],
+                     result: dict[str, Any], pure: dict[str, dict[str, Any]],
+                     references: dict[str, list[str]], *, source: Path, size: tuple[int, int],
+                     work: Path, size_name: str) -> int:
+    """Frames of a split candidate whose md5 is not their pure chain's (for a split frame, the
+    pure split chain of that frame's crops, rendered once per crop)."""
+    wrong = 0
+    for index, mode in enumerate(modes):
+        if mode != "split":
+            reference = pure[mode]["md5"]
+        else:
+            key = json.dumps(crops[index], sort_keys=True)
+            if key not in references:
+                chain = layouts.split_chain(crops[index], label_in="[vcat]", label_out="[vout]",
+                                            source=size, **CHAIN)
+                references[key] = render(source, chain, work,
+                                         f"{size_name}-split-{len(references)}")["md5"]
+            reference = references[key]
+        if index >= len(result["md5"]) or index >= len(reference) or \
+                result["md5"][index] != reference[index]:
+            wrong += 1
+    return wrong
 
+
+def contexts_constant(reports: dict[str, Any], block: str, run_counts: Sequence[int]) -> bool:
+    """The contexts of every run count above one are equal (module notes: one run is the bare
+    camera chain)."""
+    return all(len({r[block][str(n)]["contexts"] for n in run_counts if n > 1}) <= 1
+               for r in reports.values())
+
+
+def candidate_passes(reports: dict[str, Any], name: str, run_counts: Sequence[int]) -> bool:
+    biggest = str(max(run_counts))
+    return (all(r[name][str(n)]["mismatched_frames"] == 0
+                for r in reports.values() for n in run_counts)
+            and contexts_constant(reports, name, run_counts)
+            and all(r[name][biggest]["ok"] and r[name][biggest]["max_rss_bytes"] < RLIMIT_AS
+                    for r in reports.values())
+            and all((r[name][str(n)]["time_vs_fallback"] or 99) <= TIME_BUDGET
+                    for r in reports.values() for n in run_counts))
+
+
+def verdict(reports: dict[str, Any], run_counts: Sequence[int]) -> dict[str, Any]:
     without = all(r["without_split"][str(n)]["mismatched_frames"] == 0
                   for r in reports.values() for n in run_counts)
-    biggest = str(max(run_counts))
-    k1 = (all(r["k1_overlay"][str(n)]["mismatched_frames"] == 0
-              for r in reports.values() for n in run_counts)
-          and constant("k1_overlay")
-          and all(r["k1_overlay"][biggest]["ok"]
-                  and r["k1_overlay"][biggest]["max_rss_bytes"] < RLIMIT_AS
-                  for r in reports.values())
-          and all((r["k1_overlay"][str(n)]["time_vs_fallback"] or 99) <= TIME_BUDGET
-                  for r in reports.values() for n in run_counts))
-    return {"without_split_p_frame": without, "without_split_contexts_constant":
-            constant("without_split"), "fill_center_equals_centre_crop": without,
-            "k1_passes": k1, "auto_split": k1}
+    passes = {name: candidate_passes(reports, name, run_counts) for name in CANDIDATES}
+    chosen = next((name for name in CANDIDATES if passes[name]), None)
+    return {"without_split_p_frame": without,
+            "without_split_contexts_constant": contexts_constant(reports, "without_split",
+                                                                 run_counts),
+            "fill_center_equals_centre_crop": without,
+            **{f"{name.split('_')[0]}_passes": value for name, value in passes.items()},
+            "split_candidate": chosen, "auto_split": chosen is not None}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
