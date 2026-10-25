@@ -358,9 +358,21 @@ punya dokumen pemilik yang menang bila berbeda. `lampiran/` hanya catatan sejara
 Fase 11). Q8 format jam = 24 jam di semua bahasa (default, bisa diubah). Q3–Q7 dan Q10–Q12
 memakai default sampai tenggatnya (08 §7).
 
+**Keputusan pemilik 2026-10-25** ("setuju semua"):
+- Penyimpangan `fairnessKey` di `job.json`, bukan di request render (01 §6.2, CONTRACTS §5.59):
+  disetujui.
+- Ambang performa Q11 memakai default (20 posting/14 hari, n ≥ 5 per grup, batas +0,2, gabungan
+  0,4).
+- Data YouTube untuk profil performa: kebijakan YouTube melarang metrik turunan dari data API
+  (`docs/operations/SOSMED.md` §1). Profil memakai CSV ekspor YouTube Studio; metrik turunan dari
+  data API baru dipakai bila izinnya didapat di audit YouTube (diputuskan atas delegasi pemilik).
+- TikTok tetap dicoba lewat audit, dengan risiko penolakan "menyalin konten dari platform lain"
+  dicatat di `SOSMED.md`.
+- Node 24 (PR #36) di-merge setelah disk produksi diukur (`docs/editor/OPERASIONAL.md` §3).
+
 **G0 (gerbang sebelum Fase 0):**
 - [x] Redesign UX di `main` (PR #30).
-- [ ] PR amandemen G0 disetujui pemilik: `DESIGN.md` (pola sasaran per fase, kata status, bagian
+- [x] PR amandemen G0 disetujui pemilik (2026-10-25): `DESIGN.md` (pola sasaran per fase, kata status, bagian
   Bahasa), `AGENTS.md` (copy dari katalog, clean-room, migrasi aditif, guard auth sinkron, suite
   `editor-gates`), `docs/glosarium.md` (baru), dan dokumen ini.
 - [ ] Pemilik mendaftarkan app Google (YouTube Data API), TikTok dan Meta dalam mode testing;
