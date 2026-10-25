@@ -158,12 +158,11 @@ WARNING_PARAMS: dict[str, tuple[str, ...]] = {
 }
 WARNING_CODES = tuple(WARNING_PARAMS)
 
-# Warnings about one clip: <clip> is the clip's rank for the selection's codes, its index (its
-# clip-XX number) for the rendering's.
-RANK_WARNINGS = frozenset({"clip_trimmed_to_media", "cold_open_beyond_media", "clip_beyond_media"})
-INDEX_WARNINGS = frozenset(
-    {"engine_fallback", "clip_failed", "thumbnail_failed", "auto_reframe_failed"}
-)
+# Warnings about one rendered clip that its manifest entry repeats as ``warning_codes``: <clip> is
+# its index (its clip-XX number). ``engine_fallback`` and ``clip_failed`` are on the entry already
+# (``fallbacks``, ``status`` and ``error_code``); the media-fit codes name the selection's rank
+# before clips past the video were dropped, so they stay in the summary only.
+CLIP_WARNINGS = frozenset({"thumbnail_failed", "auto_reframe_failed"})
 
 _DIGITS = frozenset("0123456789")
 
@@ -203,13 +202,10 @@ def warning_codes(warnings: object) -> list[dict[str, object]]:
     return [item for item in coded if item is not None]
 
 
-def clip_warning_codes(warnings: object, *, index: int, rank: int) -> list[dict[str, object]]:
-    """The coded warnings that name one clip, by its ``rank`` or its ``index``."""
-    found = []
-    for item in warning_codes(warnings):
-        number = item["params"].get("clip")  # type: ignore[union-attr]
-        if (item["code"] in RANK_WARNINGS and number == rank) or (
-            item["code"] in INDEX_WARNINGS and number == index
-        ):
-            found.append(item)
-    return found
+def clip_warning_codes(warnings: object, index: int) -> list[dict[str, object]]:
+    """The coded :data:`CLIP_WARNINGS` that name the clip with this ``index``."""
+    return [
+        item
+        for item in warning_codes(warnings)
+        if item["code"] in CLIP_WARNINGS and item["params"] == {"clip": index}
+    ]
