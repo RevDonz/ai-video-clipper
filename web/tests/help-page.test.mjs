@@ -54,7 +54,8 @@ test("the project page, the dashboard and the settings test result link their er
   assert.match(dashboard, /storageHelpHref\(storage\.admission\.code\)/);
   assert.match(dashboard, /help: storageHelpHref\(payload\.code\)/);
   assert.match(dashboard, /message\.help && <a [^>]*href=\{message\.help\}/);
-  const settings = await read("app/settings/page.jsx");
+  // Pengaturan's AI tab lives in its own component since Dashboard F5.
+  const settings = await read("app/settings/AiSettings.jsx");
   assert.match(settings, /helpHref\(test\.result\.code\)/);
   assert.match(settings, /result\?\.help && <>\{" "\}<a [^>]*href=\{result\.help\}/);
 });

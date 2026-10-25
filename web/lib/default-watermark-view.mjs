@@ -1,6 +1,7 @@
-// The Pengaturan "Teks watermark bawaan" card, DOM-free: the state from GET
-// /api/settings/watermark, the form, its payload and the card's copy (web/lib/default-watermark.mjs
-// is the server side).
+// The Pengaturan "Watermark" card (tab Tampilan), DOM-free: the state from GET
+// /api/settings/watermark, the form, its payload, and the card's messages as descriptors
+// `{ key, values? }` under the "settings" namespace (rombak 07 §8.3). web/lib/default-watermark.mjs
+// is the server side.
 import { cleanWatermarkText, watermarkPoints } from "../components/editor/panels/watermark-model.mjs";
 import { DEFAULT_WATERMARK, LIMITS, WATERMARK_OPACITY_RANGE, WATERMARK_POSITIONS, WATERMARK_SIZE_RANGE } from "./editor/doc-model.mjs";
 
@@ -24,11 +25,13 @@ export function defaultWatermarkForm(watermark) {
   return { text: watermark.text, pos: watermark.pos, size_pm: watermark.size_pm, opacity_pm: watermark.opacity_pm };
 }
 
-/** `{ payload }` for PUT, or `{ error }` when the text is empty or too long. */
+/** `{ payload }` for PUT, or `{ error }` (a descriptor) when the text is empty or too long. */
 export function defaultWatermarkPayload(form) {
   const text = cleanWatermarkText(form.text);
-  if (!text) return { error: "Tulis teks watermark dulu." };
-  if (watermarkPoints(text) > LIMITS.watermarkText) return { error: `Teks watermark maksimal ${LIMITS.watermarkText} karakter.` };
+  if (!text) return { error: { key: "appearance.watermarkError.empty" } };
+  if (watermarkPoints(text) > LIMITS.watermarkText) {
+    return { error: { key: "appearance.watermarkError.tooLong", values: { max: LIMITS.watermarkText } } };
+  }
   return { payload: { text, pos: form.pos, size_pm: form.size_pm, opacity_pm: form.opacity_pm } };
 }
 
@@ -39,13 +42,29 @@ export function formMatches(form, watermark) {
     && form.size_pm === watermark.size_pm && form.opacity_pm === watermark.opacity_pm;
 }
 
-/** The card's text. `autoClips`: the automatic clips render with the editor's engine. */
+/**
+ * Whether the form holds a change to save: against the stored watermark, or, with none stored,
+ * against the empty form a new one starts from.
+ */
+export function watermarkDirty(form, watermark) {
+  if (watermark) return !formMatches(form, watermark);
+  const blank = defaultWatermarkForm(null);
+  return form.text !== blank.text || form.pos !== blank.pos || form.size_pm !== blank.size_pm || form.opacity_pm !== blank.opacity_pm;
+}
+
+/** The facts under the card. `autoClips`: the automatic clips render with the editor's engine. */
 export function defaultWatermarkCopy({ autoClips = false } = {}) {
   return {
-    where: "Satu baris teks, misalnya nama akun Anda, ditulis otomatis di setiap klip baru. Klip yang sudah ada tidak berubah.",
-    reach: autoClips
-      ? "Ikut di file klip otomatis dan saat klip dibuka di editor."
-      : "Dipakai saat klip dibuka di editor dan ikut di hasil ekspornya. File klip otomatis tetap tanpa teks watermark.",
-    perClip: "Per klip bisa diubah atau dihapus di panel Logo editor.",
+    reach: { key: autoClips ? "appearance.watermarkReach.auto" : "appearance.watermarkReach.editor" },
+    perClip: { key: "appearance.watermarkPerClip" },
   };
 }
+
+/** Every key this module can name, for the catalog test and the card's lookup. */
+export const DEFAULT_WATERMARK_VIEW_KEYS = Object.freeze([
+  "appearance.watermarkError.empty",
+  "appearance.watermarkError.tooLong",
+  "appearance.watermarkReach.auto",
+  "appearance.watermarkReach.editor",
+  "appearance.watermarkPerClip",
+]);

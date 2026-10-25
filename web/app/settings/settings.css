@@ -1,405 +1,162 @@
-/* Pengaturan (/settings). Colours, radii and motion come from the tokens in globals.css
-   (docs/design/TOKENS.md); buttons, status pills, notices and panels are the shared .btn, .statusPill,
-   .notice and .panel. Every class here belongs to this page only. */
+/* Pengaturan (/settings, 05-ui-dashboard.md §6.10). Colours, radii and motion come from the tokens
+   in globals.css (docs/design/TOKENS.md); the controls are HeroUI's, styled by app/ui.css. Every
+   class here belongs to this page only. */
 
 /* The floating save bar must never cover the field that has focus. */
 html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 
 .settingsPage { padding-bottom: 16px; }
-/* The parts of the page by task, as jump links under the heading. */
-.settingsIndex { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
-.settingsIndex a {
+.settingsShell { display: grid; gap: 0; }
+
+/* Tabs: one row, scrolling sideways on a phone instead of wrapping into a second row. */
+.settingsTabs { display: grid; gap: 20px; }
+.settingsTabList { overflow-x: auto; scrollbar-width: thin; }
+.settingsTabDot { margin-left: 6px; color: var(--warning); font-size: 10px; line-height: 1; }
+.settingsPanel { display: grid; gap: 16px; min-width: 0; }
+
+/* Cards */
+.settingsCard {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  scroll-margin-top: 16px;
+}
+.settingsCard:focus-visible { outline-offset: 4px; }
+.settingsCardTitle { margin: 0; font: 700 19px/1.25 var(--font); letter-spacing: -.01em; }
+.settingsSectionHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.settingsStack { display: grid; gap: 16px; min-width: 0; }
+.settingsRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.settingsRowEnd { align-items: flex-end; }
+.settingsGrow { flex: 1 1 240px; min-width: 0; }
+.settingsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
+.settingsWide { grid-column: 1 / -1; }
+.settingsField, .settingsTextField, .settingsSelect { display: grid; gap: 6px; min-width: 0; }
+.settingsTextField .settingsRow > input { flex: 1 1 220px; min-width: 0; }
+.settingsLabel { font-size: 14px; font-weight: 600; }
+.settingsMuted { margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+.settingsEmpty { margin: 0; padding: 24px; border: 1px dashed var(--border); border-radius: var(--radius-m); color: var(--text-muted); text-align: center; }
+.settingsFieldError { margin: 0; color: var(--danger); font-size: 13px; }
+.settingsSwitches { display: flex; flex-wrap: wrap; gap: 8px 32px; }
+.settingsSwitch { align-items: flex-start; }
+.settingsKeys { color: var(--text-muted); }
+
+/* A stand-alone link ("Ambil API key ↗", "Lisensi") is a full tap target. */
+.settingsLink {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  color: var(--text-muted);
-  font: 500 14px/1.2 var(--font);
+  min-height: 44px;
+  color: var(--info);
+  font-weight: 600;
   text-decoration: none;
-  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+  white-space: nowrap;
 }
-.settingsIndex a:hover { border-color: var(--border-strong); background: var(--surface-2); color: var(--text); }
-.settingsLayout, .settingsAbout { scroll-margin-top: 16px; }
+.settingsLink:hover { text-decoration: underline; }
+.settingsLinks { margin: 0; }
 
-.settingsLayout { display: grid; gap: 16px; }
-.settingsTop { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 16px; align-items: start; }
-.settingsCard { min-width: 0; padding: 24px; }
-.settingsCardHead { margin-bottom: 16px; }
-.settingsCardHead h2 { margin: 0 0 4px; font: 700 19px/1.25 var(--font); letter-spacing: -.01em; }
-.settingsCardHead p { max-width: 760px; margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.5; }
-.settingsState {
-  display: grid;
-  justify-items: center;
-  gap: 14px;
-  padding: 40px 24px;
-  color: var(--text-muted);
-  text-align: center;
-}
-.settingsState p { margin: 0; color: var(--text); }
+.settingsStatus { margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.settingsStatus[data-tone="ok"] { color: var(--success); }
+.settingsStatus[data-tone="error"] { color: var(--danger); }
+.settingsStatus[data-tone="info"] { color: var(--info); }
+.settingsNotice, .settingsLoadError { overflow-wrap: anywhere; }
+.settingsLoadError, .settingsImport { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.settingsLoading { display: grid; gap: 10px; }
+.settingsSkeleton { height: 44px; border-radius: var(--radius-m); }
 
-/* Status AI: the dot marks the real state and always sits next to its text. */
-.settingsStatus {
+/* A stored key: its state and its buttons in one row. */
+.settingsKeyState {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 0;
-  padding: 12px 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-m);
   background: var(--surface-2);
-  color: var(--text);
-  font: 500 14px/1.45 var(--font);
-  overflow-wrap: anywhere;
-  transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+  font-size: 14px;
 }
-.settingsStatus i { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--text-muted); }
-.settingsStatus.ok { border-color: var(--success-border); background: var(--success-bg); }
-.settingsStatus.ok i { background: var(--success); }
-.settingsStatus.warning { border-color: var(--warning-border); background: var(--warning-bg); }
-.settingsStatus.warning i { background: var(--warning); }
-.settingsStatus.error { border-color: var(--danger-border); background: var(--danger-bg); }
-.settingsStatus.error i { background: var(--danger); }
-.settingsSource { margin: 10px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.settingsKeyState > span { flex: 1 1 auto; font-weight: 600; }
+.settingsKeyState[data-tone="ok"] > span { color: var(--success); }
+.settingsKeyState[data-tone="warning"] > span { color: var(--warning); }
+.settingsKeyState[data-tone="error"] > span { color: var(--danger); }
 
-.settingsNotice { margin: 12px 0 0; font-size: 13px; }
-.settingsNotice strong { font-weight: 700; }
-.settingsNotice span { color: var(--text); }
-.settingsPage .settingsImport { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.settingsImport > div { display: grid; gap: 4px; }
-.settingsImport .btn { flex: none; }
-
-/* Umum */
-.settingsToggles { display: grid; gap: 4px; }
-.settingsToggle {
+/* Logo and cookies.txt: a preview (or the count) beside its buttons; a dragged file lights it. */
+.settingsMedia {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin: 0 -12px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
   padding: 12px;
+  border: 1px dashed var(--border);
   border-radius: var(--radius-m);
-  cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out);
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
 }
-.settingsToggle:hover { background: var(--surface-2); }
-.settingsToggle input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; }
-.settingsToggle span { display: grid; gap: 4px; }
-.settingsToggle strong { font: 600 15px/1.35 var(--font); }
-.settingsToggle small { color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.settingsMedia[data-over="true"] { border-color: var(--info); background: var(--info-bg); }
+.settingsMediaText { display: grid; flex: 1 1 220px; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.settingsThumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  overflow: hidden;
+  border-radius: var(--radius-m);
+  background: var(--surface-3);
+}
+.settingsThumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.settingsProgress { display: grid; gap: 8px; }
+.settingsProgressName { overflow-wrap: anywhere; }
+.settingsFacts { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+.settingsRange { width: 100%; min-height: 44px; accent-color: var(--text); }
 
-/* Urutan penyedia */
-.providerList { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
-.providerCard {
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-l);
-  scroll-margin: 24px;
-  transition: border-color var(--dur-2) var(--ease-out);
-}
-.providerCard:hover, .providerCard:focus-within { border-color: var(--border-strong); }
-.providerCard.off { border-style: dashed; }
-.providerCard.off .providerIdentity h3 { color: var(--text-muted); }
-.providerHead { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
-/* The rank is the failover order, the one number on this page that carries meaning. */
-.providerRank {
+/* Tentang sistem */
+.settingsSystemList { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px 24px; margin: 0; }
+.settingsSystemItem { display: grid; gap: 4px; min-width: 0; }
+.settingsSystemItem dt { color: var(--text-muted); font-size: 13px; }
+.settingsSystemItem dt small { display: block; font-size: 12px; }
+.settingsSystemItem dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.settingsSystemItem[data-known="false"] dd { color: var(--text-muted); font-weight: 500; }
+
+/* AI: the provider order */
+.settingsProviders { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.settingsProvider { display: grid; gap: 12px; min-width: 0; transition: opacity var(--dur-2) var(--ease-out); }
+.settingsProvider[data-off="true"] { opacity: .72; }
+.settingsProviderHead { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.settingsRank {
   display: grid;
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: var(--radius-s);
-  background: var(--surface-3);
-  color: var(--text);
-  font: 700 14px/1 var(--font);
-  font-variant-numeric: tabular-nums;
-}
-.providerCard.off .providerRank { background: transparent; box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--text-muted); }
-.providerIdentity { min-width: 0; }
-.providerIdentity h3 { margin: 0; font: 700 16px/1.3 var(--font); letter-spacing: -.01em; overflow-wrap: anywhere; }
-.providerMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; color: var(--text-muted); font-size: 13px; overflow-wrap: anywhere; }
-.providerMeta code {
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: var(--surface-3);
-  color: var(--text-muted);
-  font: 500 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-.providerTools { display: flex; align-items: center; gap: 6px; }
-.providerTools .providerTool { min-width: 44px; padding: 8px 12px; }
-
-.settingsSwitch {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  margin-right: 6px;
-  color: var(--text);
-  font: 600 13px var(--font);
-  cursor: pointer;
-}
-.settingsSwitch input {
-  appearance: none;
-  position: relative;
-  flex: none;
-  width: 38px;
-  height: 22px;
-  margin: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--surface-3);
-  cursor: pointer;
-  transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out);
-}
-.settingsSwitch input::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  transition: transform var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
-}
-.settingsSwitch input:checked { border-color: var(--text); background: var(--text); }
-.settingsSwitch input:checked::after { transform: translateX(16px); background: var(--bg); }
-.settingsSwitch input:not(:checked) + span { color: var(--text-muted); }
-
-.providerDescription { max-width: 880px; margin: 12px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.55; }
-.providerDescription a, .presetActions a { margin-right: 12px; color: var(--info); font-weight: 600; text-decoration: none; white-space: nowrap; }
-.providerDescription a:hover, .presetActions a:hover { text-decoration: underline; }
-
-.providerFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
-.settingsField { display: grid; gap: 6px; align-content: start; min-width: 0; }
-.settingsField.wide { grid-column: 1 / -1; }
-.settingsField > label, .settingsField > span { color: var(--text); font-size: 13px; font-weight: 600; }
-.settingsField input, .settingsField select { width: 100%; min-height: 44px; padding: 10px 12px; font: 500 14px var(--font); }
-.settingsField :is(input, select):focus-visible { border-color: var(--focus); }
-.settingsField [aria-invalid="true"] { border-color: var(--danger); }
-.settingsField small { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
-.settingsField small b { color: var(--text); }
-.settingsField .fieldError { color: var(--danger); font-weight: 600; }
-.inlineRow { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
-.inlineRow input { flex: 1; min-width: 0; }
-.inlineRow .btn { flex: none; }
-.modelPickers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-
-.keyState {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 4px 4px 4px 12px;
-  border: 1px solid var(--border-strong);
   border-radius: var(--radius-m);
-  background: var(--surface-2);
-  font-size: 13px;
-  font-weight: 600;
+  background: var(--surface-3);
+  font-weight: 700;
 }
-.keyState > span { flex: 1; min-width: 130px; }
-.keyState.ok { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
-.keyState.warn { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
-.keyState.error { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
-
-.providerAdvanced { margin-top: 16px; border-top: 1px solid var(--border); }
-.providerAdvanced summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  border-radius: var(--radius-s);
-  color: var(--text);
-  font: 600 13px var(--font);
-  cursor: pointer;
-  list-style: none;
-}
-/* A flex summary loses the browser's marker; this chevron turns down when the section opens. */
-.providerAdvanced summary::-webkit-details-marker, .addProvider summary::-webkit-details-marker { display: none; }
-.providerAdvanced summary::before, .addProvider summary::before {
-  content: "";
-  flex: none;
-  width: 7px;
-  height: 7px;
-  margin: 0 2px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform var(--dur-2) var(--ease-out);
-}
-.providerAdvanced[open] summary::before, .addProvider[open] summary::before { transform: rotate(45deg); }
-.providerAdvanced[open] .advancedGrid { animation: rise-in var(--dur-2) var(--ease-out); }
-.advancedGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 8px 0 4px; }
-
-.providerFooter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
-.testResult { flex: 1; min-width: 200px; margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
-.testResult.ok { color: var(--success); font-weight: 600; }
-.testResult.error { color: var(--danger); font-weight: 600; }
-.testResult.muted { color: var(--text-muted); }
-/* A failed test's entry on /bantuan, in the link colour so it reads apart from the red result. */
-.testHelp { border-radius: var(--radius-s); white-space: nowrap; }
-.providerEmpty {
-  padding: 20px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-l);
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.addProvider { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface-2); }
-.addProvider summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
-  min-height: 52px;
-  padding: 12px 16px;
-  border-radius: var(--radius-l);
-  font: 600 14px var(--font);
-  cursor: pointer;
-  list-style: none;
-}
-.addProvider summary small { margin-left: auto; color: var(--text-muted); font: 500 13px var(--font); }
-.addProvider[open] .presetGrid { animation: rise-in var(--dur-2) var(--ease-out); }
-.presetGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0 14px 14px; list-style: none; }
-.presetCard {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  transition: border-color var(--dur-2) var(--ease-out);
-}
-.presetCard:hover { border-color: var(--border-strong); }
-.presetHead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.presetHead strong { margin-right: 4px; font: 700 14px var(--font); }
-.presetCard > p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
-.presetCard > p.notice { color: var(--text); font-size: 12px; }
-.presetActions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; font-size: 13px; }
-.presetActions a { display: inline-flex; align-items: center; min-height: 44px; }
-.addProviderNote { margin: 0; padding: 0 16px 14px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
-
-/* Tentang sistem: facts to copy into a bug report, so a quiet spec sheet with no accent. Unknown
-   values step back to muted text, so a missing source is visible at a glance. */
-.settingsAbout { margin-top: 16px; }
-.systemState { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.5; }
-.systemState p { margin: 0; }
-.systemState.error p { color: var(--text); }
-.systemList {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0 20px;
-  margin: 0;
-  animation: rise-in var(--dur-2) var(--ease-out);
-}
-.systemItem { display: grid; align-content: start; gap: 6px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--border); }
-.systemItem dt { display: grid; gap: 2px; color: var(--text); font: 600 13px/1.35 var(--font); }
-.systemItem dt small { color: var(--text-muted); font: 500 12px/1.4 var(--font); }
-.systemItem dd {
-  margin: 0;
-  color: var(--text);
-  font: 700 16px/1.3 var(--font);
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-.systemItem.unknown dd { color: var(--text-muted); font-size: 14px; font-weight: 500; }
-
-/* Logo bawaan: the logo sits on the editor Logo panel's checkerboard so its transparent parts
-   show; the row outlines while a file is dragged over it. No lime: the accent stays on Simpan. */
-.logoBody {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-  margin: 0 -12px;
-  padding: 12px;
-  border: 1px dashed transparent;
-  border-radius: var(--radius-l);
-  transition: border-color var(--dur-1) var(--ease-out);
-}
-.logoBody[data-over="true"] { border-color: var(--text-muted); }
-.logoThumb {
+.settingsProviderName { display: grid; gap: 4px; min-width: 0; }
+.settingsProviderName h3 { margin: 0; font: 700 16px/1.3 var(--font); overflow-wrap: anywhere; }
+.settingsProviderMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.settingsProviderTools { display: flex; gap: 8px; }
+.settingsMore {
   display: grid;
   place-items: center;
-  width: 96px;
-  height: 96px;
-  overflow: hidden;
-  border: 1px solid var(--border);
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-m);
-  background-color: var(--surface);
-  background-image:
-    linear-gradient(45deg, var(--surface-3) 25%, transparent 25%, transparent 75%, var(--surface-3) 75%),
-    linear-gradient(45deg, var(--surface-3) 25%, transparent 25%, transparent 75%, var(--surface-3) 75%);
-  background-position: 0 0, 8px 8px;
-  background-size: 16px 16px;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
 }
-.logoThumb.empty { border: 1px dashed var(--border-strong); background-image: none; }
-.logoThumb img { max-width: 100%; max-height: 100%; object-fit: contain; animation: fade-in var(--dur-2) var(--ease-out); }
-.logoText { display: grid; gap: 4px; min-width: 0; }
-.logoName { font: 600 15px/1.35 var(--font); overflow-wrap: anywhere; }
-.logoMeta { color: var(--text-muted); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
-.logoActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.logoProgress { display: grid; gap: 8px; margin-top: 12px; }
-.logoProgressHead { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
-.logoProgressName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.logoTrack { height: 6px; overflow: hidden; border-radius: 3px; background: var(--surface-3); }
-.logoBar { height: 100%; background: var(--text); transition: width var(--dur-2) var(--ease-out); }
-.logoProgress .btn { justify-self: start; }
-.logoStatus, .cookiesStatus, .transcriptionStatus { margin: 12px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; animation: rise-in var(--dur-2) var(--ease-out); }
-.logoStatus.ok, .cookiesStatus.ok, .transcriptionStatus.ok { color: var(--success); }
-.logoFacts, .cookiesFacts {
-  display: grid;
-  gap: 4px;
-  margin: 14px 0 0;
-  padding: 12px 0 0;
-  border-top: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.5;
-  list-style: none;
-}
-
-/* Teks watermark bawaan: the provider fields' grid; the sliders keep a 44 px target without the
-   text inputs' padding. Simpan stays plain: the page's lime is its own save bar. */
-.watermarkCard .settingsField input[type="range"] { min-height: 44px; padding: 0; }
-.watermarkActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-
-/* Cookies YouTube: Logo bawaan's row without a picture. The count leads, the buttons sit at its
-   end and drop below it on a phone; the row outlines while a file is dragged over it. */
-.cookiesBody {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 16px;
-  margin: 0 -12px;
-  padding: 12px;
-  border: 1px dashed transparent;
-  border-radius: var(--radius-l);
-  transition: border-color var(--dur-1) var(--ease-out);
-}
-.cookiesBody[data-over="true"] { border-color: var(--text-muted); }
-.cookiesText { display: grid; flex: 1 1 260px; gap: 4px; min-width: 0; }
-.cookiesCount { font: 600 15px/1.35 var(--font); font-variant-numeric: tabular-nums; }
-.cookiesMeta { color: var(--text-muted); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
-.cookiesActions { display: flex; flex-wrap: wrap; gap: 8px; }
-
-/* Transkripsi: the Groq switch, then where its key comes from (Pengaturan AI or this card). */
-.transcriptionKey { margin-top: 8px; }
-.transcriptionKeySource { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
-.transcriptionKeySource p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
-.transcriptionKey small a { color: var(--info); font-weight: 600; text-decoration: none; white-space: nowrap; }
-.transcriptionKey small a:hover { text-decoration: underline; }
+.settingsMore:hover { background: var(--surface-2); }
+.settingsAdvancedTrigger { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 44px; font-weight: 600; text-align: left; }
+.settingsPresetHead { padding: 8px 12px 4px; color: var(--text-muted); font-size: 13px; font-weight: 600; }
+.settingsPresetItem { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
 
 /* Save bar: it floats over the scrolling form, so it is the page's one raised surface. It sticks
-   to the bottom of the page column (not the window), so it never covers the sidebar.
-   The border brightens and the lime Simpan wakes up only when there is something to save. */
+   to the bottom of the page column (not the window), so it never covers the sidebar. */
 .settingsSaveBar {
   position: sticky;
   z-index: 20;
@@ -414,58 +171,31 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-l);
   background: var(--surface);
-  box-shadow: 0 12px 40px var(--bg);
-  transition: border-color var(--dur-2) var(--ease-out);
+  box-shadow: var(--overlay-shadow);
+  animation: settings-bar-in var(--dur-2) var(--ease-out);
 }
-.settingsSaveBar.dirty { border-color: var(--text-muted); }
-.settingsSaveState { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.settingsSaveState > div { display: grid; gap: 2px; min-width: 0; }
-.settingsSaveState p { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-.settingsSaveState small { color: var(--text-muted); font-size: 12px; }
+.settingsSaveState { display: flex; align-items: center; gap: 10px; min-width: 0; margin: 0; font-size: 14px; font-weight: 600; }
+.settingsSaveDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warning); }
+.settingsSaveState[data-tone="error"] .settingsSaveDot { background: var(--danger); }
 .settingsSaveActions { display: flex; flex: none; gap: 8px; }
-.settingsSaveActions .btn { min-width: 104px; }
-.settingsSaveDot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  transition: background-color var(--dur-2) var(--ease-out);
+@keyframes settings-bar-in { from { opacity: 0; transform: translateY(8px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .settingsSaveBar { animation: none; }
+  .settingsMedia, .settingsProvider { transition: none; }
 }
-.settingsSaveDot.dirty { background: var(--warning); }
-.settingsSaveDot.saving { background: var(--info); animation: loading-pulse 1.2s var(--ease-in-out) infinite; }
-.settingsSaveDot.success { background: var(--success); }
-.settingsSaveDot.error { background: var(--danger); }
 
 @media (max-width: 900px) {
-  .settingsTop { grid-template-columns: 1fr; }
-  .advancedGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .systemList { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 20px; }
+  .settingsSystemList { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 620px) {
   html:has(.settingsSaveBar) { scroll-padding-bottom: 190px; }
-  .settingsPage { padding-bottom: 8px; }
-  .settingsIndex a { flex: 1 1 auto; justify-content: center; min-height: 44px; }
-  .settingsCard { padding: 18px; }
-  .providerCard { padding: 14px; }
-  .providerHead { grid-template-columns: 36px minmax(0, 1fr); gap: 12px; }
-  .providerTools { grid-column: 1 / -1; flex-wrap: wrap; }
-  .providerTools .providerTool.danger { margin-left: auto; }
-  .providerFields, .advancedGrid, .presetGrid, .modelPickers { grid-template-columns: 1fr; }
-  .systemList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-  .logoBody { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }
-  .logoThumb { width: 72px; height: 72px; }
-  .logoActions .btn, .watermarkActions .btn { flex: 1; }
-  .cookiesActions { flex: 1 1 100%; }
-  .cookiesActions .btn { flex: 1; }
-  .settingsPage .settingsImport { display: grid; }
-  .inlineRow { flex-wrap: wrap; }
-  .inlineRow input { flex-basis: 100%; }
-  .inlineRow .btn { flex: 1; }
+  .settingsCard { padding: 16px; }
+  .settingsGrid { grid-template-columns: 1fr; }
+  .settingsSystemList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settingsProviderHead { grid-template-columns: 36px minmax(0, 1fr); }
+  .settingsProviderTools { grid-column: 1 / -1; justify-content: flex-end; }
+  .settingsThumb { width: 72px; height: 72px; }
   .settingsSaveBar { bottom: 8px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: calc(100% - 16px); margin-top: 16px; padding: 12px; }
-  .keyState { padding: 8px; }
-  .keyState > span { flex-basis: 100%; padding-left: 4px; }
-  .keyState .btn { flex: 1; }
-  .settingsSaveState small { display: none; }
-  .settingsSaveActions .btn { flex: 1; }
+  .settingsSaveActions > * { flex: 1; }
 }

@@ -1,5 +1,7 @@
-// The Pengaturan "Logo bawaan" card, DOM-free: the state from GET /api/settings/logo, its copy
-// and its messages (web/lib/default-logo.mjs is the server side).
+// The Pengaturan "Logo" card (tab Tampilan), DOM-free: the state from GET /api/settings/logo and
+// its messages as descriptors `{ key, values? }` under the "settings" namespace (rombak 07 §8.3).
+// A refusal named by the editor's logo upload keeps its `message` until the editor moves to the
+// catalog (Fase 11). web/lib/default-logo.mjs is the server side.
 import { LOGO_ACCEPT, logoUploadError } from "../components/editor/gizmos/logo-upload.mjs";
 
 // What the editor's Logo panel accepts, so a logo that works there works here.
@@ -22,30 +24,38 @@ export function defaultLogoState(payload) {
   };
 }
 
-/** The card's text. `autoClips`: the automatic clips render with the editor's engine. */
+/** The facts under the card. `autoClips`: the automatic clips render with the editor's engine. */
 export function defaultLogoCopy({ autoClips = false } = {}) {
   return {
-    where: "Dipasang otomatis di setiap klip baru, di pojok kanan atas. Klip yang sudah ada tidak berubah.",
-    reach: autoClips
-      ? "Ikut di file klip otomatis dan saat klip dibuka di editor."
-      : "Dipakai saat klip dibuka di editor dan ikut di hasil ekspornya. File klip otomatis tetap tanpa logo.",
-    perClip: "Per klip bisa diganti atau dihapus di panel Logo editor.",
-    hint: "PNG, JPEG, atau WebP, maksimal 10 MB. PNG berlatar transparan hasilnya paling rapi.",
+    reach: { key: autoClips ? "appearance.logoReach.auto" : "appearance.logoReach.editor" },
+    perClip: { key: "appearance.logoPerClip" },
+    hint: { key: "appearance.logoHint" },
   };
 }
 
-/** The message of a failed upload (`cancelled`: the person stopped it, not an error). */
+/** A failed upload: `{ code, cancelled, key }` from the catalog, or the upload's own `message`. */
 export function defaultLogoUploadError(error) {
   if (error?.code === "settings_unavailable") {
-    return { code: error.code, cancelled: false, message: "Folder pengaturan di server belum bisa dipakai." };
+    return { code: error.code, cancelled: false, key: "common.error.settingsUnavailable" };
   }
   if (error?.code === "unauthorized" || error?.status === 401) {
-    return { code: "unauthorized", cancelled: false, message: "Sesi login berakhir. Muat ulang halaman untuk masuk lagi." };
+    return { code: "unauthorized", cancelled: false, key: "common.error.session" };
   }
   return logoUploadError(error);
 }
 
 /** "300 × 100 px". */
 export function logoSize(logo) {
-  return `${logo.w} × ${logo.h} px`;
+  return { key: "appearance.logoSize", values: { w: logo.w, h: logo.h } };
 }
+
+/** Every key this module can name, for the catalog test and the card's lookup. */
+export const DEFAULT_LOGO_VIEW_KEYS = Object.freeze([
+  "appearance.logoReach.auto",
+  "appearance.logoReach.editor",
+  "appearance.logoPerClip",
+  "appearance.logoHint",
+  "appearance.logoSize",
+  "common.error.settingsUnavailable",
+  "common.error.session",
+]);

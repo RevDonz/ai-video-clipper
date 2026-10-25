@@ -27,11 +27,23 @@ import {
 import {
   COOKIES_ACCEPT,
   MAX_COOKIES_UPLOAD_BYTES,
+  cookiesCountText,
   cookiesErrorMessage,
   cookiesSavedMessage,
-  youtubeCookiesCopy,
+  cookiesUploadedText,
   youtubeCookiesState,
 } from "../lib/youtube-cookies-view.mjs";
+import { loadNamespace } from "../lib/i18n/catalog.mjs";
+import { settingsText } from "./support/settings-text.mjs";
+
+// What the tab writes for an upload (app/settings/YoutubeCookiesCard.jsx): the saved sentence,
+// then "Dibuang: …" with the parts joined as a list.
+function savedSentence(answer, code = "id") {
+  const { saved, dropped } = cookiesSavedMessage(answer);
+  if (!dropped.length) return settingsText(saved, code);
+  const list = new Intl.ListFormat(code === "id" ? "id-ID" : "en-US", { type: "unit" }).format(dropped.map((part) => settingsText(part, code)));
+  return `${settingsText(saved, code)} ${settingsText({ key: "youtube.droppedList", values: { list } }, code)}`;
+}
 
 const NOW_MS = Date.parse("2026-10-21T08:00:00.000Z");
 const FUTURE = String(Math.floor(NOW_MS / 1000) + 365 * 24 * 3600);
@@ -414,23 +426,34 @@ test("the card reads only the status fields and caps uploads like the server", (
 });
 
 test("the card's copy advises a separate Google account and explains each refusal", () => {
-  const copy = youtubeCookiesCopy();
-  assert.ok(copy.facts.some((fact) => /akun Google terpisah/.test(fact)));
-  for (const text of [copy.where, copy.hint, copy.notSignedIn, copy.unreadable, copy.secretMissing, ...copy.facts]) {
-    assert.ok(text.length > 0 && text.length <= 140, text);
-    assert.doesNotMatch(text, /—|\bkamu\b|\bV[1-3]\b/);
+  // The tab's words are in the catalog now (rombak 07 §8.3); the card's head sentence went with
+  // the tabbed Pengaturan (05 §6.10: no <p> card heads).
+  for (const lang of ["id", "en"]) {
+    const copy = loadNamespace(lang, "settings").youtube;
+    if (lang === "id") assert.match(copy.facts.separate, /akun Google terpisah/);
+    for (const text of [copy.hint, copy.notSignedIn, copy.unreadable, copy.secretMissing, ...Object.values(copy.facts)]) {
+      assert.ok(text.length > 0 && text.length <= 140, text);
+      assert.doesNotMatch(text, /—|\bkamu\b|\bV[1-3]\b/);
+    }
   }
   for (const code of ["cookies_json", "cookies_utf16", "cookies_not_text", "cookies_not_netscape", "cookies_empty", "cookies_no_youtube", "cookies_expired", "cookies_too_large", "secret_missing", "unsupported_media_type"]) {
-    const message = cookiesErrorMessage({ status: 422, code });
-    assert.ok(message.length > 0 && message.length <= 120, `${code}: ${message}`);
-    assert.notEqual(message, cookiesErrorMessage({ status: 500, code: "lain" }), code);
+    for (const lang of ["id", "en"]) {
+      const message = settingsText(cookiesErrorMessage({ status: 422, code }), lang);
+      assert.ok(message.length > 0 && message.length <= 120, `${code}: ${message}`);
+      assert.notEqual(message, settingsText(cookiesErrorMessage({ status: 500, code: "lain" }), lang), code);
+    }
   }
-  assert.match(cookiesErrorMessage({ status: 422, code: "cookies_json" }), /JSON/);
-  assert.match(cookiesErrorMessage({ status: 422, code: "cookies_utf16" }), /UTF-8/);
-  assert.match(cookiesErrorMessage({ status: 401 }), /Sesi login/);
-  assert.equal(cookiesSavedMessage({ cookies: { count: 2 }, skipped: { otherSites: 0, expired: 0, invalid: 0 } }), "2 cookie YouTube tersimpan.");
+  assert.deepEqual(cookiesErrorMessage({ status: 422, code: "cookies_json" }), { key: "youtube.error.json" });
+  assert.match(settingsText(cookiesErrorMessage({ status: 422, code: "cookies_json" })), /JSON/);
+  assert.match(settingsText(cookiesErrorMessage({ status: 422, code: "cookies_utf16" })), /UTF-8/);
+  assert.match(settingsText(cookiesErrorMessage({ status: 401 })), /Sesi login/);
+  assert.equal(savedSentence({ cookies: { count: 2 }, skipped: { otherSites: 0, expired: 0, invalid: 0 } }), "2 cookie YouTube tersimpan.");
   assert.equal(
-    cookiesSavedMessage({ cookies: { count: 2 }, skipped: { otherSites: 120, expired: 1, invalid: 3 } }),
+    savedSentence({ cookies: { count: 2 }, skipped: { otherSites: 120, expired: 1, invalid: 3 } }),
     "2 cookie YouTube tersimpan. Dibuang: 120 dari situs lain, 1 kedaluwarsa, 3 baris rusak.",
   );
+  assert.equal(savedSentence({ cookies: { count: 1 }, skipped: { otherSites: 0, expired: 0, invalid: 1 } }, "en"), "1 YouTube cookie saved. Dropped: 1 broken line.");
+  assert.equal(settingsText(cookiesCountText({ count: 42 })), "42 cookie tersimpan");
+  assert.equal(cookiesUploadedText({ uploadedAt: "kemarin" }), null);
+  assert.ok(cookiesUploadedText({ uploadedAt: "2026-10-21T08:00:00.000Z" }).values.at instanceof Date);
 });

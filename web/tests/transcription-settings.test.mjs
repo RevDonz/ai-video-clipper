@@ -20,9 +20,10 @@ import {
   saveTranscriptionSettings,
   transcriptionEngineEnv,
 } from "../lib/transcription-settings.mjs";
+import { loadNamespace } from "../lib/i18n/catalog.mjs";
+import { settingsText } from "./support/settings-text.mjs";
 import {
   GROQ_KEY_URL,
-  transcriptionCopy,
   transcriptionErrorMessage,
   transcriptionNotice,
   transcriptionSavedMessage,
@@ -274,14 +275,20 @@ test("the card keeps only known state fields", () => {
 });
 
 test("the card says plainly that the audio goes to Groq and when local Whisper is used", () => {
-  const copy = transcriptionCopy();
+  // The tab's words are in the catalog now (rombak 07 §8.3).
+  const copy = loadNamespace("id", "settings").transcription;
   assert.match(copy.privacy, /Groq/);
   assert.match(copy.privacy, /pihak ketiga/);
   assert.match(copy.privacy, /Whisper/);
+  assert.equal(copy.groq, "Transkrip lewat Groq");
+  assert.equal(copy.key, "API key Groq");
   assert.equal(GROQ_KEY_URL, "https://console.groq.com/keys");
-  for (const text of Object.values(copy).flat()) {
-    assert.ok(!/—/.test(text), "no em dash");
-    assert.ok(!/\bV\d\b|\bbaru\b|\bnew\b/i.test(text), "no version or 'new' wording");
+  const strings = (node) => (typeof node === "string" ? [node] : Object.values(node).flatMap(strings));
+  for (const code of ["id", "en"]) {
+    for (const text of strings(loadNamespace(code, "settings").transcription)) {
+      assert.ok(!/—/.test(text), "no em dash");
+      assert.ok(!/\bV\d\b|\bbaru\b|\bnew\b/i.test(text), `no version or 'new' wording: ${text}`);
+    }
   }
 });
 
@@ -293,15 +300,21 @@ test("the card warns about a missing, unreadable or unsavable key", () => {
   assert.equal(transcriptionNotice({ ...base, key: "unreadable", ownKey: true }).tone, "error");
   assert.equal(transcriptionNotice({ ...base, secretConfigured: false }).tone, "error");
   assert.equal(transcriptionNotice({ ...base, problem: "corrupt" }).tone, "error");
+  assert.deepEqual(transcriptionNotice({ ...base, key: "unreadable", ownKey: true }), { tone: "error", key: "transcription.notice.unreadable" });
+  assert.equal(settingsText(transcriptionNotice({ ...base, key: "unreadable", ownKey: true })), "API key Groq tersimpan tidak bisa dibuka. Isi ulang.");
+  assert.equal(settingsText(transcriptionNotice({ ...base, enabled: true })), "Isi API key Groq. Tanpa key, Whisper di server ini yang dipakai.");
+  assert.match(settingsText(transcriptionNotice({ ...base, secretConfigured: false })), /Kunci enkripsi pengaturan belum tersedia/);
 });
 
 test("the card names what the next job uses after a save, and each refusal", () => {
-  assert.match(transcriptionSavedMessage({ enabled: true, key: "own" }), /Groq/);
-  assert.match(transcriptionSavedMessage({ enabled: false, key: "own" }), /Whisper/);
-  assert.match(transcriptionSavedMessage({ enabled: true, key: "missing" }), /API key/);
-  assert.match(transcriptionErrorMessage({ status: 401 }), /Sesi login/);
-  assert.match(transcriptionErrorMessage({ status: 0 }), /Koneksi/);
-  assert.match(transcriptionErrorMessage({ status: 422, code: "invalid", error: "API key harus berupa teks ASCII tanpa spasi." }), /API key/);
-  assert.match(transcriptionErrorMessage({ status: 503, code: "secret_missing" }), /enkripsi/);
-  assert.match(transcriptionErrorMessage({ status: 500, code: "whatever" }), /gagal/);
+  const text = (descriptor) => settingsText(descriptor);
+  assert.match(text(transcriptionSavedMessage({ enabled: true, key: "own" })), /Groq/);
+  assert.match(text(transcriptionSavedMessage({ enabled: false, key: "own" })), /Whisper/);
+  assert.equal(text(transcriptionSavedMessage({ enabled: true, key: "missing" })), "Tersimpan. Isi API key Groq supaya Groq bisa dipakai.");
+  assert.match(text(transcriptionErrorMessage({ status: 401 })), /Sesi login/);
+  assert.match(text(transcriptionErrorMessage({ status: 0 })), /Koneksi/);
+  // The server's own words for a refused value are shown as they are.
+  assert.deepEqual(transcriptionErrorMessage({ status: 422, code: "invalid", error: "API key harus berupa teks ASCII tanpa spasi." }), { text: "API key harus berupa teks ASCII tanpa spasi." });
+  assert.match(text(transcriptionErrorMessage({ status: 503, code: "secret_missing" })), /enkripsi/);
+  assert.match(text(transcriptionErrorMessage({ status: 500, code: "whatever" })), /gagal/);
 });

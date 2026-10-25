@@ -1,11 +1,12 @@
-// The Pengaturan "Transkripsi" card, DOM-free: the state from GET /api/settings/transcription, the
-// card's copy and its messages (web/lib/transcription-settings.mjs is the server side).
+// The Pengaturan "Transkripsi" tab, DOM-free: the state from GET /api/settings/transcription and
+// the tab's messages as descriptors (rombak 07 §8.3): `{ key, values? }` names a message under the
+// "settings" namespace, `{ text }` carries the server's own words for a refused value. The words
+// are in web/messages/<locale>/settings.json; web/lib/transcription-settings.mjs is the server side.
 
 export const GROQ_KEY_URL = "https://console.groq.com/keys";
 
 const KEY_SOURCES = new Set(["llm", "own", "missing", "unreadable"]);
 const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-const SESSION_TEXT = "Sesi login berakhir. Muat ulang halaman untuk masuk lagi.";
 
 /** `{enabled, key, ownKey, llmKey, secretConfigured, updatedAt, problem}` from an answer. */
 export function transcriptionState(payload) {
@@ -20,44 +21,47 @@ export function transcriptionState(payload) {
   };
 }
 
-export function transcriptionCopy() {
-  return {
-    where: "Untuk video tanpa subtitle YouTube yang layak. Bawaannya Whisper di server ini.",
-    toggle: "Transkrip lewat Groq",
-    privacy: "Audio video dikirim ke Groq, layanan pihak ketiga. Kalau gagal atau kuota gratisnya habis, Whisper di server ini yang dipakai.",
-    llmKey: "Memakai API key Groq dari Pengaturan AI.",
-    keyLabel: "API key Groq",
-    keySaved: "API key tersimpan",
-    keyHelp: "Disimpan terenkripsi dan tidak ditampilkan lagi.",
-  };
-}
-
-/** The one warning the card shows under the switch, or null. */
+/** The one warning the tab shows under the switch, `{ tone, key }`, or null. */
 export function transcriptionNotice(state) {
-  if (state.problem === "corrupt") return { tone: "error", text: "File pengaturan transkripsi rusak. Simpan ulang untuk menimpanya." };
-  if (!state.secretConfigured) return { tone: "error", text: "Kunci enkripsi pengaturan belum tersedia di server, jadi API key belum bisa disimpan." };
-  if (state.key === "unreadable") return { tone: "error", text: "API key Groq tersimpan tidak bisa dibuka. Isi ulang." };
-  if (state.enabled && state.key === "missing") return { tone: "warning", text: "Isi API key Groq. Tanpa key, Whisper di server ini yang dipakai." };
+  if (state.problem === "corrupt") return { tone: "error", key: "transcription.notice.corrupt" };
+  if (!state.secretConfigured) return { tone: "error", key: "transcription.notice.secretMissing" };
+  if (state.key === "unreadable") return { tone: "error", key: "transcription.notice.unreadable" };
+  if (state.enabled && state.key === "missing") return { tone: "warning", key: "transcription.notice.keyMissing" };
   return null;
 }
 
 /** What the next job uses, after a save. */
 export function transcriptionSavedMessage(state) {
-  if (!state.enabled) return "Tersimpan. Job berikutnya memakai Whisper di server ini.";
-  if (state.key === "llm" || state.key === "own") return "Tersimpan. Job berikutnya mencoba Groq dulu.";
-  return "Tersimpan. Isi API key Groq supaya Groq bisa dipakai.";
+  if (!state.enabled) return { key: "transcription.saved.whisper" };
+  if (state.key === "llm" || state.key === "own") return { key: "transcription.saved.groq" };
+  return { key: "transcription.saved.needsKey" };
 }
 
 const ERRORS = Object.freeze({
-  secret_missing: "Kunci enkripsi pengaturan belum tersedia di server.",
-  settings_unavailable: "Folder pengaturan di server belum bisa dipakai.",
-  csrf_rejected: "Permintaan ditolak. Muat ulang halaman, lalu coba lagi.",
+  secret_missing: "common.error.secretMissing",
+  settings_unavailable: "common.error.settingsUnavailable",
+  csrf_rejected: "common.error.csrf",
 });
 
 /** The message of a refused change: `{status, code, error}` from the answer (status 0: offline). */
 export function transcriptionErrorMessage({ status, code, error } = {}) {
-  if (status === 401) return SESSION_TEXT;
-  if (status === 0) return "Koneksi terputus. Coba lagi.";
-  if (code === "invalid" && typeof error === "string" && error) return error;
-  return Object.hasOwn(ERRORS, code) ? ERRORS[code] : "Pengaturan transkripsi gagal disimpan. Coba lagi.";
+  if (status === 401) return { key: "common.error.session" };
+  if (status === 0) return { key: "common.error.offline" };
+  if (code === "invalid" && typeof error === "string" && error) return { text: error };
+  return { key: Object.hasOwn(ERRORS, code) ? ERRORS[code] : "transcription.error.failed" };
 }
+
+/** Every key this module can name, for the catalog test and the tab's lookup. */
+export const TRANSCRIPTION_VIEW_KEYS = Object.freeze([
+  "transcription.notice.corrupt",
+  "transcription.notice.secretMissing",
+  "transcription.notice.unreadable",
+  "transcription.notice.keyMissing",
+  "transcription.saved.whisper",
+  "transcription.saved.groq",
+  "transcription.saved.needsKey",
+  "transcription.error.failed",
+  "common.error.session",
+  "common.error.offline",
+  ...Object.values(ERRORS),
+]);

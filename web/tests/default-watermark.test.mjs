@@ -25,7 +25,9 @@ import {
   defaultWatermarkPayload,
   defaultWatermarkState,
   formMatches,
+  watermarkDirty,
 } from "../lib/default-watermark-view.mjs";
+import { settingsText } from "./support/settings-text.mjs";
 import { autoFileIsSeed } from "../lib/editor/doc-model.mjs";
 import { fakeDoc } from "../components/editor/__dev__/fakes.mjs";
 
@@ -205,14 +207,30 @@ test("the card's state, form and copy", () => {
   assert.deepEqual(defaultWatermarkForm(null), { text: "", pos: "top_center", size_pm: 1000, opacity_pm: 850 });
   assert.deepEqual(defaultWatermarkForm({ ...MARK, pos: "bottom_left", updatedAtMs: 5 }), { ...MARK, pos: "bottom_left" });
   assert.deepEqual(defaultWatermarkPayload({ ...MARK, text: " @akun " }), { payload: { ...MARK, text: "@akun" } });
-  assert.equal(defaultWatermarkPayload({ ...MARK, text: "" }).error, "Tulis teks watermark dulu.");
+  assert.deepEqual(defaultWatermarkPayload({ ...MARK, text: "" }).error, { key: "appearance.watermarkError.empty" });
+  assert.equal(settingsText(defaultWatermarkPayload({ ...MARK, text: "" }).error), "Tulis teks watermark dulu.");
+  const long = defaultWatermarkPayload({ ...MARK, text: "x".repeat(41) }).error;
+  assert.deepEqual(long, { key: "appearance.watermarkError.tooLong", values: { max: 40 } });
+  assert.equal(settingsText(long), "Teks watermark maksimal 40 karakter.");
+  // Dirty: against the stored text, or with none stored against the empty form.
+  assert.equal(watermarkDirty(defaultWatermarkForm(null), null), false);
+  assert.equal(watermarkDirty({ ...defaultWatermarkForm(null), pos: "bottom_right" }, null), true);
+  assert.equal(watermarkDirty({ ...MARK, text: "@potongin.klip " }, { ...MARK, updatedAtMs: 5 }), false);
+  assert.equal(watermarkDirty({ ...MARK, opacity_pm: 500 }, { ...MARK, updatedAtMs: 5 }), true);
   assert.ok(formMatches({ ...MARK, text: "@potongin.klip " }, { ...MARK, updatedAtMs: 5 }));
   assert.ok(!formMatches({ ...MARK, size_pm: 1200 }, { ...MARK, updatedAtMs: 5 }));
   assert.ok(!formMatches(MARK, null));
   const auto = defaultWatermarkCopy({ autoClips: true });
   const editor = defaultWatermarkCopy({ autoClips: false });
-  assert.match(auto.reach, /file klip otomatis/);
-  assert.match(editor.reach, /tetap tanpa teks watermark/);
-  assert.match(editor.perClip, /panel Logo/);
-  for (const text of [...Object.values(auto), ...Object.values(editor)]) assert.ok(!text.includes("—"), text);
+  assert.deepEqual(auto, { reach: { key: "appearance.watermarkReach.auto" }, perClip: { key: "appearance.watermarkPerClip" } });
+  assert.deepEqual(editor.reach, { key: "appearance.watermarkReach.editor" });
+  assert.match(settingsText(auto.reach), /file klip otomatis/);
+  assert.match(settingsText(editor.reach), /tetap tanpa teks watermark/);
+  assert.match(settingsText(editor.perClip), /panel Logo/);
+  for (const code of ["id", "en"]) {
+    for (const descriptor of [...Object.values(auto), ...Object.values(editor)]) {
+      const text = settingsText(descriptor, code);
+      assert.ok(text.length > 0 && !text.includes("—"), text);
+    }
+  }
 });
