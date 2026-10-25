@@ -60,3 +60,14 @@ test("the primary worker trims the automatic clips' silent pauses unless .env tu
 test("the filler pre-check of Rapikan stays off until the owner confirms the labels", async () => {
   assert.equal((await fillerLexicon()).precheck, false);
 });
+
+// The one-layout editor's flag (rombak 06 §17, 08 Fase 10): only the app reads it, legacy until
+// the phase passes; v2 shows the new shell and legacy rolls it back without a rebuild.
+test("compose passes POTONGIN_EDITOR_SHELL to the app only, legacy by default, and .env.example names v2 and the rollback", async () => {
+  const source = await compose();
+  assert.match(service(source, "app"), /^ {6}POTONGIN_EDITOR_SHELL: \$\{POTONGIN_EDITOR_SHELL:-legacy\}$/m);
+  for (const name of ["primary-worker", "render-worker"]) assert.doesNotMatch(service(source, name), /POTONGIN_EDITOR_SHELL/, name);
+  const text = await envExample();
+  assert.match(text, /^# POTONGIN_EDITOR_SHELL=legacy$/m);
+  assert.match(text, /POTONGIN_EDITOR_SHELL=v2\b/);
+});

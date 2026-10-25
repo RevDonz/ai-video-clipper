@@ -1,0 +1,12 @@
+{
+  "about": "Controls visible per place of the editor when it opens (docs/plans/2026-10-24-rombak/06-editor.md §2.3). null = not measured yet: web/e2e/editor-control-count.spec.mjs writes the measured counts to the gates artifact, and they are copied here as they came.",
+  "selector": "button, [role=button], [role=tab], [role=switch], [role=radio], input, select, textarea",
+  "viewport": { "width": 1366, "height": 768 },
+  "fixture": "editor fakes (components/editor/__dev__/fakes.mjs), one clip",
+  "measuredAt": null,
+  "before": {
+    "cepat": null,
+    "lengkap": { "transcript": null, "text": null, "coldopen": null, "layout": null, "logo": null, "music": null }
+  },
+  "after": { "text": null, "layout": null, "audio": null, "logo": null, "coldopen": null }
+}
