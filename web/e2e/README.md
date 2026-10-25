@@ -37,9 +37,9 @@ Every page fixture records console errors, uncaught page errors, failed requests
 
 Tracing, screenshots, videos, and HTML reports are disabled, and Playwright output is never preserved. This avoids retaining browser views, typed credentials, or account-identifying UI by default and in CI. Terminal output can still contain application-generated error text and URLs, so handle CI logs according to the deployment's data policy. Generated result/report directories are ignored by git.
 
-## Konteks Tren
+## Tren
 
-`e2e/trends.spec.mjs` covers the `/trends` page and the "Nyambung tren" chips on V3 clips. By default it fakes the `/api/context/*` routes inside the browser (and the job API for the chip test), so it changes no server data and runs against any target. It checks that hostile item text stays text, that mutations are same-origin with no browser dialogs, that a new token is shown once and gone after hiding and after a reload, keyboard reach, and no horizontal scroll at 390 px.
+`e2e/trends.spec.mjs` covers the `/trends` page and the "Nyambung tren" chips on V3 clips. By default it fakes the `/api/context/*` routes inside the browser (and the job API for the chip test), so it changes no server data and runs against any target. Selectors are roles with names from the catalog (`L(key)`): the table and its rows, the Jenis and Status `Select`s (button, then option), the Tambah tren / Ubah tren dialog, Hapus behind an `alertdialog`, the item and page switches, and the Agen tab (`?tab=agen`). It checks that hostile item text stays text, that mutations are same-origin with no browser dialogs, that a new token is shown once in a dialog and gone after Selesai and after a reload, keyboard reach (Escape closes the confirmation and the focus returns to ⋯), and no horizontal scroll at 390 px.
 
 The live block talks to the real routes and runs only with `E2E_ALLOW_MUTATION=1` and `E2E_TRENDS_LIVE=1`. It creates and deletes one manual item, creates and revokes one token, asserts that the token list never contains the token value or a hash, and that the revoked token gets 401 on `GET /api/ingest/trends`.
 
@@ -140,9 +140,13 @@ npx playwright test --project=desktop-chromium e2e/bantuan.spec.mjs
 
 In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/bantuan.spec.mjs`.
 
-## Riwayat: Klip
+## Proyek
 
-`e2e/history-clips.spec.mjs` covers the "Proyek | Klip" switch on Riwayat: the clip grid with the project page's posters (neutral score pill, its mark for 8 and up, the project name on each card), the "Hari ini" heading and the older page under "Lebih lama", the choice kept across a reload, "Muat lagi" appending the next page and moving the focus to its first card, the search and the "Skor 8+" and "Minggu ini" chips reaching the request, "Tampilkan semua klip" after an empty result, a card opening its clip on the project page (`?klip=N`, that poster focused), a refused listing with "Coba lagi" (in a second tab, as the refusal is the point), and at 390 px posters two across, 44 px targets and no horizontal scroll. It fakes `GET /api/clips` and the opened job inside the browser; the real listing is covered by `web/tests/clip-library.test.mjs`.
+`e2e/projects.spec.mjs` covers `/projects` with a faked job list and delete: the status filter with counts and the search kept in the URL (`?status=`, `?q=`), "Tidak ditemukan" and Tampilkan semua, ⋯ with Buka and Edit klip as links, a single delete behind an `alertdialog` (Batal keeps it), a batch delete where one request is refused (toast "1 dihapus, 1 gagal", the refused row stays selected), and at 360 px the card list, Buat klip in the head and no horizontal scroll.
+
+## Proyek: Klip
+
+`e2e/history-clips.spec.mjs` covers the "Proyek | Klip" tabs of Proyek (`?tab=klip`, remembered without it): the clip grid with the project page's posters (neutral score pill, its mark for 8 and up, the project name on each card), the "Hari ini" heading and the older page under "Lebih lama", the choice kept across a reload, "Muat lagi" appending the next page and moving the focus to its first card, the search and the "Skor 8+" and "Minggu ini" chips reaching the request, "Tampilkan semua klip" after an empty result, a card opening its clip on the project page (`?klip=N`, that poster focused), a refused listing with "Coba lagi" (in a second tab, as the refusal is the point), and at 390 px posters two across, 44 px targets and no horizontal scroll. It fakes `GET /api/clips` and the opened job inside the browser; the real listing is covered by `web/tests/clip-library.test.mjs`.
 
 ```bash
 E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
