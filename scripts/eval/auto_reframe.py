@@ -38,8 +38,18 @@ grid profile of ``edit_v2.shot_cuts.measure`` (scene scores and frame difference
 of ``shot_context.scan_evidence`` and how long each took. ``--sweep`` then runs both stages of
 ``docs/evaluation/AUTO_REFRAME.md`` on those profiles without footage: stage 1 the cut keys, stage
 2 the mode keys with the cuts of stage 1. ``--write-rules`` writes the chosen values to
-``resources/reframe/rules.v1.json``. The sweep runs on the dev split only; the test split stays
-locked until RF-M4.
+``resources/reframe/rules.v1.json``. The sweep runs on the dev split only.
+
+The test split runs once (RF-M4), with the committed rules and no sweep::
+
+    uv run python scripts/eval/auto_reframe.py --profile --split test --cache DIR --out TEST-PROFILES.json
+    uv run python scripts/eval/auto_reframe.py --test-run --split test --profiles TEST-PROFILES.json \\
+        --confirm-once --out TEST-RESULT.json [--lock OUT/test-run.json]
+
+Profiling reads no label, so it may run any time. ``--test-run`` refuses unless every test window
+is labelled (``labels.test.json``, the owner's), then creates the lock (``test-run.json``: rules,
+profiles and labels by sha, the agreement) before it reports; the committed lock
+``docs/evaluation/auto-reframe/test-run.json`` refuses every later run.
 """
 
 from __future__ import annotations
@@ -74,6 +84,7 @@ RESULT_SCHEMA = "potongin.reframe-result/1"
 PREDICTION_SCHEMA = "potongin.reframe-prediction/1"
 PROFILE_SCHEMA = "potongin.reframe-profile/1"
 SWEEP_SCHEMA = "potongin.reframe-sweep/1"
+TEST_RUN_SCHEMA = "potongin.reframe-test-run/1"
 RULES_PATH = ROOT / "resources" / "reframe" / "rules.v1.json"
 
 WINDOW_MS = 120_000
@@ -1178,6 +1189,77 @@ def sweep(profiles: Mapping[str, Any], labels: Mapping[str, Any], registry: Mapp
     }
 
 
+def _sha256(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"))
+                          .encode("utf-8")).hexdigest()
+
+
+def run_test_split(profiles: Mapping[str, Any], labels: Mapping[str, Any],
+                   registry: Mapping[str, Any], *, lock: Path, confirm: bool,
+                   rules_path: Path = RULES_PATH, ran_at: str | None = None) -> dict[str, Any]:
+    """The single test-split run of RF-M4 (``docs/evaluation/AUTO_REFRAME.md``): the committed
+    rules (no sweep) on profiled test windows, scored once against the owner's labels.
+
+    Everything is checked before anything is written: the lock (absent, ``confirm``), the labels
+    (every test window labelled: a window the owner left unmarked fails here and leaves the
+    split unrun), the profiles (test ones, one per labelled window). Then ``lock`` is created
+    exclusively, naming the rules, the profiles and the labels, and the result is returned.
+    The agreement gate is decided here; SPEAKER_FRAMING and the owner's rating are separate
+    measurements (``pending``)."""
+    from ai_clipper.edit_v2.shots import load_rules
+
+    check_test_lock(lock, confirm=confirm)
+    if profiles.get("schema") != PROFILE_SCHEMA or profiles.get("split") != "test":
+        raise LabelError(f"the test-split run needs test profiles ({PROFILE_SCHEMA})")
+    check_labels(labels, registry, "test")
+    by_id = {entry["id"]: entry for entry in labels["windows"]}
+    rows = profiles["windows"]
+    if sorted(row["id"] for row in rows) != sorted(by_id):
+        raise LabelError("the profiles must cover every labelled test window once")
+    for row in rows:
+        if list(by_id[row["id"]]["window_sf"]) != list(row["window_sf"]):
+            raise LabelError(f"{row['id']}: the profiled window is not the labelled one")
+    rules = load_rules(rules_path)
+    cache: dict = {}
+    cuts = {row["id"]: _detect_row(row, rules, cache) for row in rows}
+    categories = {w["id"]: w["category"] for w in split_windows(registry, "test")}
+    windows = _window_rows(rows, by_id, cuts, rules, categories, cache)
+    summary = _block(windows)
+    agreement_met = summary["agreement"] is not None and summary["agreement"] >= GATES["agreement"]
+    record = {
+        "schema": TEST_RUN_SCHEMA, "split": "test",
+        "ran_at": ran_at or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "rules_id": rules.rules_id, "profiles_sha256": _sha256(profiles),
+        "labels_sha256": _sha256(labels), "agreement": summary["agreement"],
+        "agreement_gate_met": agreement_met,
+    }
+    with open(lock, "x", encoding="utf-8") as handle:  # once: a second run cannot start
+        handle.write(json.dumps(record, indent=1) + "\n")
+    return {
+        **record, "schema": RESULT_SCHEMA, "opencv": profiles.get("opencv"),
+        "python": profiles.get("python"), "gates": GATES,
+        "summary": summary,
+        "gate": {
+            "agreement": {"need": GATES["agreement"], "got": summary["agreement"],
+                          "met": agreement_met},
+            # the camera plan of every camera range is today's, byte for byte (RF-M1 pin), so
+            # this is measured once on AVA val with scripts/eval/speaker_framing.py
+            "speaker_framing_multi": {"need": GATES["speaker_framing_multi"],
+                                      "status": "pending"},
+            "owner_accepts": {"need": GATES["owner_accepts"], "status": "pending"},
+        },
+        "cut": {key: summary[key] for key in ("precision", "recall", "f1", "tp", "fp", "fn")},
+        "scan": {"windows_within_budget": sum(w["scan_within_budget"] for w in windows),
+                 "windows": len(windows),
+                 "max_measure_s": max((w["seconds"]["shot_cuts_measure"] for w in windows),
+                                      default=None)},
+        "by_category": {category: _block([w for w in windows if w["category"] == category])
+                        for category in CATEGORIES
+                        if any(w["category"] == category for w in windows)},
+        "windows": windows,
+    }
+
+
 def write_rules(chosen: Mapping[str, int], path: Path = RULES_PATH) -> str:
     """Write the chosen sweep values into the rules file; returns the new ``rules_id``."""
     from ai_clipper.edit_v2.shots import load_rules
@@ -1215,6 +1297,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="sweep the rules on --profiles output (RF-M1/RF-M4)")
     action.add_argument("--profile", action="store_true",
                         help="measure what the sweep needs, without reading labels")
+    action.add_argument("--test-run", action="store_true",
+                        help="the single test-split run of RF-M4 on --profiles (--confirm-once)")
     action.add_argument("--timing", action="store_true", help="scan time per window")
     action.add_argument("--predict", action="store_true",
                         help="measure today's camera mode without reading labels")
@@ -1232,8 +1316,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="--sheets: one tile per second, no candidate sheets")
     parser.add_argument("--confirm-once", action="store_true",
                         help="the single test-split run of RF-M4")
+    parser.add_argument("--lock", type=Path,
+                        help="--test-run: where the lock is written (default: the committed one,"
+                             " which is checked either way)")
     args = parser.parse_args(argv)
-    if args.cache is None and not (args.sweep or args.score is not None):
+    if args.cache is None and not (args.sweep or args.test_run or args.score is not None):
         parser.error("--cache is needed")
     registry = json.loads(args.registry.read_text(encoding="utf-8"))
     check_registry(registry)
@@ -1278,14 +1365,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.out.write_text(label_page(windows, args.split, args.cache), encoding="utf-8")
         print(f"{args.out}")
         return 0
+    if args.profile:  # measures only: no label is read, so the test split may be profiled
+        if args.split == "all" or args.out is None:
+            parser.error("--profile needs one split and --out")
+        profiles = profile_split(registry, args.split, args.cache, args.only)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(profiles) + "\n", encoding="utf-8")
+        return 0
+    if args.test_run:
+        if args.split != "test" or args.profiles is None or args.out is None:
+            parser.error("--test-run runs on the test split and needs --profiles and --out")
+        lock = TEST_LOCK if args.lock is None else args.lock
+        try:
+            check_test_lock(TEST_LOCK, confirm=args.confirm_once)  # the committed lock counts too
+            labels = json.loads((LABEL_DIR / "labels.test.json").read_text(encoding="utf-8"))
+            result = run_test_split(json.loads(args.profiles.read_text(encoding="utf-8")),
+                                    labels, registry, lock=lock, confirm=args.confirm_once)
+        except (TestSplitLocked, LabelError) as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
+        print(json.dumps({key: result[key] for key in ("rules_id", "gate", "cut", "scan")},
+                         indent=1))
+        return 0
     if args.split == "test":
         try:
             check_test_lock(TEST_LOCK, confirm=args.confirm_once)
         except TestSplitLocked as exc:
             print(exc, file=sys.stderr)
             return 2
-    if args.split == "test":
-        print("the test split's single run is wired up in RF-M4", file=sys.stderr)
+        print("the test split runs once, from test profiles: --test-run", file=sys.stderr)
         return 2
     if args.sweep:
         if args.split != "dev" or args.profiles is None:
@@ -1299,13 +1409,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.out.write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
         if args.write_rules:
             print(f"rules_id {write_rules(result['chosen'])}")
-        return 0
-    if args.profile:
-        if args.split == "all" or args.out is None:
-            parser.error("--profile needs one split and --out")
-        profiles = profile_split(registry, args.split, args.cache, args.only)
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(json.dumps(profiles) + "\n", encoding="utf-8")
         return 0
     if args.split == "all":
         parser.error("measure one split")
