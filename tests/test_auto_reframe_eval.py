@@ -253,6 +253,68 @@ def test_stage_two_breaks_ties_with_fewer_non_camera_frames(harness):
     assert harness.pick_mode_config(rows) == {"k": 2}
 
 
+def _profiled_window(harness, *, cuts, faces_until):
+    """A profiled 120 s dev window at 25 fps (frames 0–3000): hard cuts where ``cuts`` are and
+    one centred, still face in every sample before ``faces_until`` (frames), none after."""
+    from ai_clipper.edit_v2.shot_cuts import LAGS
+
+    n = 3000
+    diff = [0] * n
+    scene = [0] * n
+    for cut in cuts:
+        diff[cut] = 40_000
+        scene[cut] = 50_000
+    lag = {}
+    for distance in LAGS:
+        lag[str(distance)] = [min(sum(diff[max(k - distance + 1, 0):k + 1]), 100_000)
+                              if k >= distance else 0 for k in range(n)]
+    lag["1"] = diff
+    times = [i * 0.75 for i in range(160)]
+    samples = [{"cut": False,
+                "faces": [[880, 300, 160, 200, 0.4]] if t * 25 < faces_until else []}
+               for t in times]
+    return {"id": "rf-90", "fps": [25, 1], "window_sf": [0, n], "window_ms": [0, 120_000],
+            "profile": {"first_sf": 0, "scene_e5": scene, "lag": lag},
+            "scan": {"times": times, "width": 1920, "height": 1080,
+                     "frame_diff": [0.01] * len(times), "samples": samples},
+            "coarse_cuts_ms": [], "seconds": {"shot_cuts_measure": 4.0, "evidence_scan": 3.0}}
+
+
+def test_the_sweep_runs_both_stages_on_profiles(harness, tmp_path):
+    registry = {"reframe_eval": {"windows": [
+        {"id": "rf-90", "split": "dev", "category": "single_speaker", "fps": [25, 1],
+         "start_ms": 0, "duration_ms": 120_000}]}}
+    labels = {"schema": harness.LABELS_SCHEMA, "split": "dev", "windows": [
+        {"id": "rf-90", "fps": [25, 1], "window_sf": [0, 3000], "cuts_sf": [1000, 2000],
+         "modes": ["fill_center", "fill_center", "fit_blur"]}]}
+    profiles = {"schema": harness.PROFILE_SCHEMA, "split": "dev", "opencv": "x", "python": "3",
+                "windows": [_profiled_window(harness, cuts=[1000, 2000], faces_until=2000)]}
+    result = harness.sweep(profiles, labels, registry)
+    assert result["cut"]["gate_met"] is True
+    assert (result["cut"]["precision"], result["cut"]["recall"]) == (1.0, 1.0)
+    assert result["mode"]["agreement"] == 1.0
+    assert len(result["stage1"]) == 75 and "cuts" not in result["stage1"][0]
+    assert set(result["chosen"]) == set(harness.SWEEP_GRID)
+    assert result["scan"] == {"windows_within_budget": 1, "windows": 1, "max_measure_s": 4.0}
+    assert result["by_category"]["single_speaker"]["agreement"] == 1.0
+    # the test split never goes through the sweep, and the profiles must be dev ones
+    with pytest.raises(harness.LabelError):
+        harness.sweep({**profiles, "split": "test"}, labels, registry)
+
+
+def test_the_chosen_values_are_written_to_the_rules_file(harness, tmp_path):
+    from ai_clipper.edit_v2.shots import load_rules
+
+    target = tmp_path / "rules.v1.json"
+    target.write_text(harness.RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    chosen = {key: values[0] for key, values in harness.SWEEP_GRID.items()}
+    rules_id = harness.write_rules(chosen, target)
+    rules = load_rules(target)
+    assert rules.rules_id == rules_id
+    assert rules.cut_coarse_scene_pm == 200 and rules.motion_still_pm == 20
+    assert rules.scan_timeout_s == load_rules(harness.RULES_PATH).scan_timeout_s
+
+
 # --- gates and the test-split lock ---------------------------------------------------------------
 
 
@@ -271,6 +333,66 @@ def test_the_test_split_runs_once_and_only_on_purpose(harness, tmp_path):
     lock.write_text("{}", encoding="utf-8")
     with pytest.raises(harness.TestSplitLocked):
         harness.check_test_lock(lock, confirm=True)
+
+
+def _test_split(harness, *, labelled=True):
+    registry = {"reframe_eval": {"windows": [
+        {"id": "rf-90", "split": "test", "category": "single_speaker", "fps": [25, 1],
+         "start_ms": 0, "duration_ms": 120_000}]}}
+    entry = {"id": "rf-90", "fps": [25, 1], "window_sf": [0, 3000],
+             "cuts_sf": [1000, 2000] if labelled else None,
+             "modes": ["fill_center", "fill_center", "fit_blur"] if labelled else None}
+    labels = {"schema": harness.LABELS_SCHEMA, "split": "test", "windows": [entry]}
+    profiles = {"schema": harness.PROFILE_SCHEMA, "split": "test", "opencv": "x", "python": "3",
+                "windows": [_profiled_window(harness, cuts=[1000, 2000], faces_until=2000)]}
+    return registry, labels, profiles
+
+
+def test_the_test_split_run_scores_the_committed_rules_once(harness, tmp_path):
+    from ai_clipper.edit_v2.shots import load_rules
+
+    registry, labels, profiles = _test_split(harness)
+    lock = tmp_path / "test-run.json"
+    result = harness.run_test_split(profiles, labels, registry, lock=lock, confirm=True,
+                                    ran_at="2026-10-25T00:00:00Z")
+    assert result["rules_id"] == load_rules(harness.RULES_PATH).rules_id
+    assert result["windows"][0]["match"][0] == 2  # both cuts found
+    assert result["gate"]["agreement"]["need"] == 0.85
+    assert result["gate"]["agreement"]["met"] == (result["summary"]["agreement"] >= 0.85)
+    assert result["gate"]["speaker_framing_multi"]["status"] == "pending"
+    assert result["gate"]["owner_accepts"] == {"need": [8, 10], "status": "pending"}
+    record = json.loads(lock.read_text(encoding="utf-8"))
+    assert record == {key: result[key] for key in record if key != "schema"} | {
+        "schema": harness.TEST_RUN_SCHEMA}
+    assert record["ran_at"] == "2026-10-25T00:00:00Z" and record["split"] == "test"
+    with pytest.raises(harness.TestSplitLocked):  # once
+        harness.run_test_split(profiles, labels, registry, lock=lock, confirm=True)
+
+
+def test_the_test_split_does_not_run_unconfirmed_unlabelled_or_on_dev_profiles(harness,
+                                                                               tmp_path):
+    registry, labels, profiles = _test_split(harness)
+    lock = tmp_path / "test-run.json"
+    with pytest.raises(harness.TestSplitLocked):
+        harness.run_test_split(profiles, labels, registry, lock=lock, confirm=False)
+    _registry, unlabelled, _profiles = _test_split(harness, labelled=False)
+    with pytest.raises(harness.LabelError):  # a window the owner left unmarked
+        harness.run_test_split(profiles, unlabelled, registry, lock=lock, confirm=True)
+    with pytest.raises(harness.LabelError):
+        harness.run_test_split({**profiles, "split": "dev"}, labels, registry, lock=lock,
+                               confirm=True)
+    with pytest.raises(harness.LabelError):
+        harness.run_test_split({**profiles, "windows": []}, labels, registry, lock=lock,
+                               confirm=True)
+    assert not lock.exists()  # nothing ran, so the split is still unspent
+
+
+def test_the_committed_test_labels_still_wait_for_the_owner(harness):
+    """The test split has not run: no lock is committed, and the label file is the placeholder
+    the owner fills with the --label page."""
+    assert not harness.TEST_LOCK.exists()
+    labels = json.loads((harness.LABEL_DIR / "labels.test.json").read_text(encoding="utf-8"))
+    assert labels["labelled_by"] == "owner"
 
 
 def test_the_label_page_lists_the_fetched_windows(harness, tmp_path):

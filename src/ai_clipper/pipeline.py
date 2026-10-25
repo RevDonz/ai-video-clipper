@@ -66,6 +66,14 @@ something fell back, in this order: ``no_face`` (face-track, and no face for at 
 engine's ``no_face_report``, the new engine's ``AutoClip.no_face_ms``) and ``engine_fallback``
 (rendered by ``render_vertical`` after the new engine failed). Other clips keep their shape.
 
+**Otomatis** (``render_mode="auto"``, rombak 04 §A8.1; V3 only, else ``ValueError``). With
+``edit-v2`` the stage ``reframe`` is reported once, and each clip's analysis
+(``edit_v2.shots.prepare_auto``: camera plan, shot cuts, one layout per shot) runs inside its
+render; a clip whose analysis fails is seeded and rendered Latar blur with the summary warning
+``auto_reframe_failed:<index>``, and the job goes on. The legacy renderer has no automatic layout:
+with ``legacy`` (or a clip's fallback) the clip is rendered ``fit-blur`` and gets
+``engine_fallback:<index>`` and ``"fallbacks": ["engine_fallback"]``.
+
 **Konteks Tren.** With ``trend_context`` (the worker's ``analysis/trend-context.json``
 snapshot, CLI ``--trend-context``), the active trend items are read with
 :func:`load_trend_context` right before selection and passed to :func:`select_clips_v3`. Only
@@ -120,8 +128,9 @@ the transcript-quality file codes (``no_word_timestamps``,
 ``llm_not_configured``, ``llm_failed:<code>`` (``deadline`` when the wall-clock bound ran out).
 After the selector's codes: ``clip_trimmed_to_media:<rank>``, ``cold_open_beyond_media:<rank>``,
 ``clip_beyond_media:<rank>``, then ``llm_providers:<n>`` and ``llm_models:<n>`` (several
-engines answered; the summary names the first), then ``engine_fallback:<index>``,
-``clip_failed:<index>`` and ``thumbnail_failed:<index>`` in clip order. A failed run starts with
+engines answered; the summary names the first), then ``auto_reframe_failed:<index>``,
+``engine_fallback:<index>``, ``clip_failed:<index>`` and ``thumbnail_failed:<index>`` in clip
+order. A failed run starts with
 ``pipeline_failed:<stage>``.
 
 **Stage summaries** (V3, ``stage_summary``): once a stage has a result the run already knows,
@@ -179,6 +188,7 @@ from .ranking import (
 )
 from .render import (
     HOOK_DURATION_MAX_SECONDS,
+    RENDER_MODES,
     _create_sibling_temp,
     _probe_source,
     _unlink_if_same,
@@ -260,6 +270,17 @@ MAX_SUMMARY_WARNING_CHARS = 160
 MAX_MANIFEST_HASHTAGS = 10
 # A face-track clip without a face for at least this share of its length is noted ``no_face``.
 NO_FACE_CLIP_SHARE = 0.5
+# Otomatis (rombak 04 §A8.1): one layout per shot, V3 and the new engine only. The legacy
+# renderer (the rollback switch, or a clip's fallback) has no automatic layout and renders such
+# a clip as Latar blur.
+AUTO_RENDER_MODE = "auto"
+JOB_RENDER_MODES = (*RENDER_MODES, AUTO_RENDER_MODE)
+
+
+def legacy_render_mode(render_mode: str) -> str:
+    """The render mode the legacy renderer draws for a job's ``render_mode``."""
+    return "fit-blur" if render_mode == AUTO_RENDER_MODE else render_mode
+
 # The manifest's ``error_code`` of a clip that failed to render (web/lib/clip-status.mjs).
 CLIP_RENDER_FAILED = "render_failed"
 CLIP_RENDER_TIMEOUT = "render_timeout"
@@ -1536,6 +1557,9 @@ def _render_v3_clips(
         else {"join_style": cold_open_join.style, "join_sfx": cold_open_join.sfx}
     )
     wanted = None if ranks is None else set(ranks)
+    if render_mode == AUTO_RENDER_MODE and renderer is not None:
+        # each clip's shot analysis runs with its render (AutoRenderer)
+        report("reframe", 64, "Menganalisis shot tiap klip")
     _schedule_edit_v2(renderer, [
         (clip.rank, output_dir / f"clip-{index:02d}.mp4")
         for index, (clip, _teaser) in enumerate(plans, start=1)
@@ -1582,7 +1606,13 @@ def _render_v3_clips(
                     if getattr(auto, "no_face_ms", None) is not None:
                         no_face.append(auto.no_face_ms / 1000)
                     rendered = getattr(auto, "seconds", None)
-            engine_fallback = engine_fields is not None and engine_fields["render_engine"] == "legacy"
+                    if getattr(auto, "reframe_failed", False):
+                        warnings.append(f"auto_reframe_failed:{index}")
+            elif render_mode == AUTO_RENDER_MODE:
+                warnings.append(f"engine_fallback:{index}")  # the legacy engine: Latar blur
+            engine_fallback = (
+                engine_fields is not None and engine_fields["render_engine"] == "legacy"
+            ) or (engine_fields is None and render_mode == AUTO_RENDER_MODE)
             if engine_fields is None or engine_fallback:
                 try:
                     render_vertical(
@@ -1593,7 +1623,7 @@ def _render_v3_clips(
                         transcript=transcription.segments,
                         width=width,
                         height=height,
-                        render_mode=render_mode,
+                        render_mode=legacy_render_mode(render_mode),
                         cold_open=teaser,
                         hook_text=clip.hook_text if hook_overlay else None,
                         hook_duration=hook_duration,
@@ -1722,7 +1752,7 @@ def render_v3_job(
     options = job.get("options") if isinstance(job, dict) else None
     options = options if isinstance(options, dict) else {}
     render_mode = options.get("renderMode", "fit-blur")
-    validate_render_mode(render_mode)
+    validate_render_mode(legacy_render_mode(render_mode))
     caption_style = _choice(options.get("captionStyle", "karaoke"), "caption_style", PACK_IDS)
     caption_position = _choice(options.get("captionPosition", "bottom"), "caption_position",
                                tuple(CAPTION_POSITIONS))
@@ -1873,10 +1903,12 @@ def run_pipeline(
         ranges = check_ranges(ranges, limit)
         if ranges and selection_mode is not SelectionMode.V3:
             raise ValueError("ranges need selection_mode v3")
+        if render_mode == AUTO_RENDER_MODE and selection_mode is not SelectionMode.V3:
+            raise ValueError("render_mode auto needs selection_mode v3")
         if selection_mode is SelectionMode.V3:
             min_duration, max_duration = _clip_bounds(min_duration, max_duration)
         report("analyzing", 26, "Memeriksa video dan memuat model AI")
-        validate_render_mode(render_mode)
+        validate_render_mode(legacy_render_mode(render_mode))
 
         if v3_state is not None:
             transcription, transcript_path, clips = _run_v3(

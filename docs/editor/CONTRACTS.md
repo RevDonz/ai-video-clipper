@@ -486,6 +486,11 @@ every later reader sees.
 - *Amended 2026-10-21 (§5.45):* the reserved layout mode `split` is valid under `schema_minor: 0`
   with its `layout.split`. Every other document is unchanged in meaning; an older server refuses
   the mode with `op_disabled` and the key with `unknown_key`.
+- *Amended 2026-10-25 (§5.63):* the layout mode `auto` with the optional `layout.ranges` (rules
+  V1–V9) and the optional `base.shots` is valid under `schema_minor: 0`, in place of Stage 2's
+  `layout.ranges`. A document without them is unchanged in meaning and compiles byte-identically;
+  an older server refuses `auto` with `range_invalid` and the keys with `unknown_key`. A `split`
+  range stays `op_disabled` until the RF-M2 graph spike passes (`AUTO_SPLIT`).
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
   (an alias table is added in Stage 2).
 - FINAL puts the resolver in JS. If Stage 2 adopts that, the Python resolver becomes the
@@ -4755,8 +4760,26 @@ drill (rombak 03 §12.3, §15.2).
 
 ## 5.63 Automatic layout: the shot plan and `layout.ranges` (2026-10-24)
 
-Contract only; no code exists. Owner: rombak 04 §A5–§A7 (this section restates its §A6 for the
-document; on a difference 04 wins). Minor-0 amendment: no new `schema_minor`; an older server
+Owner: rombak 04 §A5–§A7 (this section restates its §A6 for the document; on a difference 04
+wins). Built so far (RF-M1, RF-M2, 2026-10-25): `edit_v2/shot_cuts.py`, `shot_context.py`,
+`edit_v2/shots.py` (decisions, shot plan file, `canonical_ranges`, `merge_user_ranges`,
+vectors `tests/fixtures/edit_v2/shot-vectors.json`), the validator rules below, the plan, the
+compiler's ranges branch and the plate key. `face_window.scan_window(frame_diff=)`,
+`detect_window(scan=)` and `camera.build_camera_plan(scan=)` share one scan between the camera
+plan (bytes unchanged) and the shot evidence. RF-M3 (2026-10-25, release 1 = the floor): the
+seed (`renderMode: "auto"` → `layout.default = {mode: "auto", no_face: "fit_blur"}`, the shot
+plan's ranges with `origin: "auto"`, `base.shots`, `base.camera`; a clip whose analysis fails is
+seeded `fit_blur` with the summary warning `auto_reframe_failed:<index>`), the pipeline (stage
+`reframe`, the analysis inside each clip's render), the CLI (`--render-mode auto`, V3 only; the
+legacy renderer draws such a clip as `fit-blur` with `engine_fallback`, and `prepare` seeds that
+file as `fit_blur`), the render queue, `preview_cli prepare {layout: "auto"}` (`shots: "ready" |
+"failed"`) and the job API behind `POTONGIN_AUTO_REFRAME` (default `off`: a new job asking for
+`auto` is `400 auto_reframe_off`; a stored `auto` job and document are always read and rendered).
+`scripts/ops/auto_layout_downgrade.py` takes every automatic seed, revision and job back to
+`fit_blur` before a rollback below the floor (`docs/editor/OPERASIONAL.md`). The shot
+plan's `fps` is the object `{num, den}` shown below (the camera plan keeps `[num, den]`). A
+missing `base.shots` on an `auto` document is `range_invalid` (`/base/shots`) at validation; a
+missing or unreadable shot plan file is `analysis_missing` (`ref="shots"`) at render. Minor-0 amendment: no new `schema_minor`; an older server
 refuses a new document with `unknown_key` or `range_invalid` (§3.8). The PR that ships the
 validator (RF-M2) adds the §3.8 amendment bullet. `RENDER_SEMANTICS` stays 2. Built in Fase 5–7
 (RF-M1 … RF-M6) and Fase 11 (F4b, the per-shot commands). Flag `POTONGIN_AUTO_REFRAME` gates

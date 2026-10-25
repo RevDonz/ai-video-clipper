@@ -47,6 +47,8 @@ services:
       # on. The auto clips render with the editor's compiler (edit-v2); legacy is the rollback
       # switch. Set any flag in .env (off, or legacy for the engine) without a rebuild.
       POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
+      # Otomatis (rombak 04 §0.2): off keeps it out of new jobs; automatic clips still render.
+      POTONGIN_AUTO_REFRAME: ${POTONGIN_AUTO_REFRAME:-off}
       POTONGIN_EDITOR_V3: ${POTONGIN_EDITOR_V3:-on}
       POTONGIN_EDITOR_UPLOADS: ${POTONGIN_EDITOR_UPLOADS:-on}
       POTONGIN_EDITOR_LLM: ${POTONGIN_EDITOR_LLM:-on}
@@ -163,6 +165,8 @@ services:
       # Which engine renders the auto clips: edit-v2 (the editor's compiler, release default) or
       # legacy (the rollback switch).
       POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
+      # Otomatis (rombak 04 §0.2): off keeps it out of new jobs; automatic clips still render.
+      POTONGIN_AUTO_REFRAME: ${POTONGIN_AUTO_REFRAME:-off}
       # Silent pauses in the auto clips shrink to 0.2 s (on, release default); off is the
       # rollback switch (docs/editor/OPERASIONAL.md §2).
       POTONGIN_AUTO_PAUSE_TRIM: ${POTONGIN_AUTO_PAUSE_TRIM:-on}
@@ -257,6 +261,8 @@ services:
       JOBS_ROOT: /data/jobs
       RENDER_STORAGE_CLI: /app/scripts/render-storage-admission.mjs
       POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
+      # Otomatis (rombak 04 §0.2): off keeps it out of new jobs; automatic clips still render.
+      POTONGIN_AUTO_REFRAME: ${POTONGIN_AUTO_REFRAME:-off}
       JOBS_STORAGE_QUOTA_BYTES: ${JOBS_STORAGE_QUOTA_BYTES:?required}
       JOBS_STORAGE_MIN_FREE_BYTES: ${JOBS_STORAGE_MIN_FREE_BYTES:?required}
       JOBS_STORAGE_ACTIVE_RESERVE_BYTES: ${JOBS_STORAGE_ACTIVE_RESERVE_BYTES:?required}

@@ -1,0 +1,316 @@
+{
+ "schema": "potongin.auto-graph-spike/1",
+ "fps": [
+  30,
+  1
+ ],
+ "output": [
+  720,
+  1280
+ ],
+ "run_counts": [
+  1,
+  8,
+  48
+ ],
+ "sizes": [
+  "1080p",
+  "720p"
+ ],
+ "reports": {
+  "1080p": {
+   "frames": 600,
+   "pure": {
+    "camera": {
+     "ok": true,
+     "error": "",
+     "seconds": 3.807,
+     "max_rss_bytes": 145854464,
+     "contexts": 4
+    },
+    "fill_center": {
+     "ok": true,
+     "error": "",
+     "seconds": 3.841,
+     "max_rss_bytes": 142852096,
+     "contexts": 4
+    },
+    "fit_blur": {
+     "ok": true,
+     "error": "",
+     "seconds": 7.632,
+     "max_rss_bytes": 171130880,
+     "contexts": 9
+    }
+   },
+   "without_split": {
+    "1": {
+     "ok": true,
+     "error": "",
+     "seconds": 3.83,
+     "max_rss_bytes": 144039936,
+     "contexts": 4,
+     "mismatched_frames": 0,
+     "fill_center_frames": 0
+    },
+    "8": {
+     "ok": true,
+     "error": "",
+     "seconds": 5.781,
+     "max_rss_bytes": 171905024,
+     "contexts": 10,
+     "mismatched_frames": 0,
+     "fill_center_frames": 225
+    },
+    "48": {
+     "ok": true,
+     "error": "",
+     "seconds": 6.207,
+     "max_rss_bytes": 172302336,
+     "contexts": 10,
+     "mismatched_frames": 0,
+     "fill_center_frames": 200
+    }
+   },
+   "k1_overlay": {
+    "1": {
+     "ok": true,
+     "error": "",
+     "seconds": 5.322,
+     "max_rss_bytes": 174678016,
+     "contexts": 16,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.396
+    },
+    "8": {
+     "ok": true,
+     "error": "",
+     "seconds": 7.315,
+     "max_rss_bytes": 197705728,
+     "contexts": 22,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.274
+    },
+    "48": {
+     "ok": true,
+     "error": "",
+     "seconds": 7.475,
+     "max_rss_bytes": 197304320,
+     "contexts": 22,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.272
+    }
+   },
+   "k2_streamselect": {
+    "1": {
+     "ok": true,
+     "error": "",
+     "seconds": 4.772,
+     "max_rss_bytes": 157962240,
+     "contexts": 17,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.252
+    },
+    "8": {
+     "ok": true,
+     "error": "",
+     "seconds": 6.806,
+     "max_rss_bytes": 186384384,
+     "contexts": 23,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.185
+    },
+    "48": {
+     "ok": true,
+     "error": "",
+     "seconds": 7.053,
+     "max_rss_bytes": 188194816,
+     "contexts": 23,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.2
+    }
+   },
+   "k3_maskedmerge": {
+    "1": {
+     "ok": true,
+     "error": "",
+     "seconds": 5.7,
+     "max_rss_bytes": 174141440,
+     "contexts": 20,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.496
+    },
+    "8": {
+     "ok": true,
+     "error": "",
+     "seconds": 7.758,
+     "max_rss_bytes": 202076160,
+     "contexts": 26,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.351
+    },
+    "48": {
+     "ok": true,
+     "error": "",
+     "seconds": 7.733,
+     "max_rss_bytes": 204206080,
+     "contexts": 26,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.316
+    }
+   }
+  },
+  "720p": {
+   "frames": 600,
+   "pure": {
+    "camera": {
+     "ok": true,
+     "error": "",
+     "seconds": 3.384,
+     "max_rss_bytes": 118718464,
+     "contexts": 4
+    },
+    "fill_center": {
+     "ok": true,
+     "error": "",
+     "seconds": 3.404,
+     "max_rss_bytes": 116617216,
+     "contexts": 4
+    },
+    "fit_blur": {
+     "ok": true,
+     "error": "",
+     "seconds": 6.931,
+     "max_rss_bytes": 144060416,
+     "contexts": 9
+    }
+   },
+   "without_split": {
+    "1": {
+     "ok": true,
+     "error": "",
+     "seconds": 3.475,
+     "max_rss_bytes": 118484992,
+     "contexts": 4,
+     "mismatched_frames": 0,
+     "fill_center_frames": 0
+    },
+    "8": {
+     "ok": true,
+     "error": "",
+     "seconds": 5.04,
+     "max_rss_bytes": 144650240,
+     "contexts": 10,
+     "mismatched_frames": 0,
+     "fill_center_frames": 225
+    },
+    "48": {
+     "ok": true,
+     "error": "",
+     "seconds": 5.18,
+     "max_rss_bytes": 144474112,
+     "contexts": 10,
+     "mismatched_frames": 0,
+     "fill_center_frames": 200
+    }
+   },
+   "k1_overlay": {
+    "1": {
+     "ok": true,
+     "error": "",
+     "seconds": 4.853,
+     "max_rss_bytes": 147681280,
+     "contexts": 16,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.447
+    },
+    "8": {
+     "ok": true,
+     "error": "",
+     "seconds": 6.302,
+     "max_rss_bytes": 170352640,
+     "contexts": 22,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.237
+    },
+    "48": {
+     "ok": true,
+     "error": "",
+     "seconds": 6.237,
+     "max_rss_bytes": 173494272,
+     "contexts": 22,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.255
+    }
+   },
+   "k2_streamselect": {
+    "1": {
+     "ok": true,
+     "error": "",
+     "seconds": 4.238,
+     "max_rss_bytes": 131366912,
+     "contexts": 17,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.264
+    },
+    "8": {
+     "ok": true,
+     "error": "",
+     "seconds": 5.915,
+     "max_rss_bytes": 159023104,
+     "contexts": 23,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.161
+    },
+    "48": {
+     "ok": true,
+     "error": "",
+     "seconds": 5.776,
+     "max_rss_bytes": 161271808,
+     "contexts": 23,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.162
+    }
+   },
+   "k3_maskedmerge": {
+    "1": {
+     "ok": true,
+     "error": "",
+     "seconds": 5.139,
+     "max_rss_bytes": 147148800,
+     "contexts": 20,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.533
+    },
+    "8": {
+     "ok": true,
+     "error": "",
+     "seconds": 6.425,
+     "max_rss_bytes": 175349760,
+     "contexts": 26,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.262
+    },
+    "48": {
+     "ok": true,
+     "error": "",
+     "seconds": 6.432,
+     "max_rss_bytes": 175669248,
+     "contexts": 26,
+     "mismatched_frames": 0,
+     "time_vs_fallback": 1.294
+    }
+   }
+  }
+ },
+ "verdict": {
+  "without_split_p_frame": true,
+  "without_split_contexts_constant": true,
+  "fill_center_equals_centre_crop": true,
+  "k1_passes": false,
+  "k2_passes": false,
+  "k3_passes": false,
+  "split_candidate": null,
+  "auto_split": false
+ }
+}

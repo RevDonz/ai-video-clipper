@@ -7,9 +7,12 @@ import Busboy from "busboy";
 import { requireAuth } from "../../../lib/auth.mjs";
 import { snapshotDefaultLogo } from "../../../lib/default-logo.mjs";
 import { snapshotDefaultWatermark } from "../../../lib/default-watermark.mjs";
-import { jobListFlags } from "../../../lib/editor/flags.mjs";
+import { jobListFlags, readAutoReframeFlag } from "../../../lib/editor/flags.mjs";
+import { namespaceWithFallback } from "../../../lib/i18n/catalog.mjs";
+import { SOURCE_LOCALE } from "../../../lib/i18n/locales.mjs";
 import { sameOriginMutation } from "../../../lib/request-security.mjs";
 import {
+  AutoReframeError,
   RetiredSelectionModeError,
   TimeRangeError,
   jobOptionInputFromForm,
@@ -66,10 +69,17 @@ export function validatePrimaryRequestLength(headers, env = process.env) {
   return length;
 }
 
-export function parseJobFormOptions(form) {
+export function parseJobFormOptions(form, env = process.env) {
   // Every job form field parseJobOptions reads, including the Fokus klip focusTerms/focusNote
-  // and the Rentang waktu timeRanges.
-  return parseJobOptions(jobOptionInputFromForm(form));
+  // and the Rentang waktu timeRanges. Otomatis only while POTONGIN_AUTO_REFRAME is on.
+  return parseJobOptions(jobOptionInputFromForm(form), { autoReframe: readAutoReframeFlag(env) });
+}
+
+/** The 400 body of an AutoReframeError: its text read from the "id" errors catalog by messageId. */
+export function autoReframeErrorBody(error) {
+  const errors = namespaceWithFallback(SOURCE_LOCALE, "errors");
+  const text = error.messageId.split(".").reduce((node, key) => node?.[key], errors);
+  return { error: typeof text === "string" ? text : errors.web.unknown, code: error.code, messageId: error.messageId };
 }
 
 export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBytes, maximumRequestBytes = maximumUploadBytes + MULTIPART_OVERHEAD_BYTES, renewal = {}) {
@@ -358,6 +368,9 @@ export async function POST(request) {
     }
     if (error instanceof RetiredSelectionModeError) {
       return postJson({ error: RETIRED_SELECTION_MESSAGE, code: error.code }, { status: 400 });
+    }
+    if (error instanceof AutoReframeError) {
+      return postJson(autoReframeErrorBody(error), { status: 400 });
     }
     // An attached .srt the engine could not read: the reason, in Indonesian.
     if (error instanceof SubtitleUploadError) {

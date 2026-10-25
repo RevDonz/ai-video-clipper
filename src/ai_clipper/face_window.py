@@ -109,12 +109,16 @@ def _silent(_done: int, _total: int) -> None:
 @dataclass(frozen=True, slots=True)
 class Scan:
     """What :func:`scan_window` measured: sample times (seconds from the window start), one
-    :class:`speaker_track.Sample` per time, and the source size."""
+    :class:`speaker_track.Sample` per time, and the source size. ``frame_diff`` (only when the
+    scan was asked for it) is per sample the mean thumbnail difference from the previous
+    sample, as a share of 255 (the value the cut flag compares; 0.0 for the first sample and
+    for a sample whose frame could not be read)."""
 
     times: list[float]
     samples: list[Sample]
     width: int
     height: int
+    frame_diff: list[float] | None = None
 
 
 class _Interval:
@@ -171,11 +175,14 @@ def scan_window(
     end: float,
     sample_interval: float = 0.75,
     progress: Callable[[int, int], None] | None = None,
+    frame_diff: bool = False,
 ) -> Scan:
     """Faces, mouth motion and cut flags over ``[start, end)`` (seconds). Raises
     ``RuntimeError`` when OpenCV cannot read the source or the face model is missing.
     ``progress(done, total)`` is called with ``(0, total)`` first and then once per sample as
-    its interval ends, in order."""
+    its interval ends, in order. ``frame_diff=True`` also keeps each sample's thumbnail
+    difference (``Scan.frame_diff``, the auto layout's motion evidence); without it the scan is
+    today's."""
     try:
         import cv2
     except ImportError as exc:  # pragma: no cover - exercised without optional extra
@@ -198,6 +205,7 @@ def scan_window(
         times = sample_times(start, end, sample_interval)
         total = len(times)
         samples: list[Sample] = []
+        diffs: list[float] = []
         report(0, total)
         with one_opencv_thread(cv2):
             detector = face_model.YuNet(cv2, source_width, source_height)
@@ -250,14 +258,16 @@ def scan_window(
                     capture.set(cv2.CAP_PROP_POS_MSEC, (start + relative_time) * 1000)
                     ok, frame = capture.read()
                 open_cut = False
+                change = 0.0
                 if ok:
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     thumbnail = cv2.resize(gray, THUMBNAIL)
                     if previous_thumbnail is not None:
-                        change = cv2.absdiff(thumbnail, previous_thumbnail).mean() / 255
+                        change = float(cv2.absdiff(thumbnail, previous_thumbnail).mean() / 255)
                         open_cut = bool(change >= CUT_CHANGE)
                     previous_thumbnail = thumbnail
                     interval = _Interval(cv2, face_model, frame, detector.detect(frame))
+                diffs.append(change)
             if sequential and interval is not None:
                 last = int((start + times[-1] + sample_interval) * fps + 0.5)
                 advance(min(last, stop))
@@ -265,7 +275,8 @@ def scan_window(
                 close(len(times) - 1, open_cut)
     finally:
         capture.release()
-    return Scan(times=times, samples=samples, width=source_width, height=source_height)
+    return Scan(times=times, samples=samples, width=source_width, height=source_height,
+                frame_diff=diffs if frame_diff else None)
 
 
 def detect_window(
@@ -277,15 +288,23 @@ def detect_window(
     progress: Callable[[int, int], None] | None = None,
     rules: Rules = RULES,
     boxes: bool = False,
+    scan: Scan | None = None,
 ) -> tuple:
     """The speaking face over ``[start, end)`` (seconds): ``(times, raw centres, cuts,
     source_w, source_h)`` with ``None`` where no face was found. See the module docstring.
 
     With ``boxes=True`` a sixth value follows: the framed face per sample as ``(x, y, w, h)``
     shares of the source frame (``None`` without a face), for the caption check
-    (CONTRACTS §5.50)."""
-    scan = scan_window(source, start=start, end=end, sample_interval=sample_interval,
-                       progress=progress)
+    (CONTRACTS §5.50).
+
+    ``scan`` is a scan of this window made already (the auto layout's evidence shares it,
+    rombak 04 §A4): it is used instead of decoding the window again, and must have this
+    window's sample times. Nothing is reported through ``progress`` then."""
+    if scan is None:
+        scan = scan_window(source, start=start, end=end, sample_interval=sample_interval,
+                           progress=progress)
+    elif scan.times != sample_times(start, end, sample_interval):
+        raise ValueError("the scan is of another window")
     faces, switches = choose_faces(scan.samples, width=scan.width, rules=rules)
     centres = [None if face is None else min(max(face.centre / scan.width, 0.0), 1.0)
                for face in faces]

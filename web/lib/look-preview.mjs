@@ -5,7 +5,7 @@
 // output pixels of a 720-wide render (720×1280, or 720×720 at 1:1: the resolution scales it all);
 // web/tests/look-preview.test.mjs and caption-look.test.mjs keep every number equal to the
 // engine's. Pure and DOM-free.
-import { CAPTION_POSITION_CHOICES, CAPTION_SIZE_CHOICES, CAPTION_STYLE_CHOICES, LAYOUT_CHOICES, RATIO_CHOICES, normalizeChoices } from "./dashboard-choices.mjs";
+import { CAPTION_POSITION_CHOICES, CAPTION_SIZE_CHOICES, CAPTION_STYLE_CHOICES, RATIO_CHOICES, layoutChoices, normalizeChoices } from "./dashboard-choices.mjs";
 import { PREVIEW_BACKDROP } from "./editor/content-colours.mjs";
 import { textHeight, uiZone } from "./output-frame.mjs";
 
@@ -64,14 +64,15 @@ const round2 = (value) => Math.round(value * 100) / 100;
  * (`fit`: the whole landscape video in `band` over its blurred copy; `fill`: cropped to the
  * frame), the subtitle thumbnail with its spot and size, the hook bar or null, the TikTok zone
  * (`tiktok` false and an empty zone at 1:1), whether each text sits in it, the note and the
- * accessible name.
+ * accessible name. `autoReframe` (POTONGIN_AUTO_REFRAME) lets Otomatis through, drawn as a full
+ * 9:16 picture (most of its shots are crops).
  */
-export function lookPreview(raw, { editor = false, engine } = {}) {
-  const choices = normalizeChoices(raw, { engine });
+export function lookPreview(raw, { editor = false, engine, autoReframe = false } = {}) {
+  const choices = normalizeChoices(raw, { engine, autoReframe });
   const ratio = RATIO_CHOICES.find((entry) => entry.id === choices.ratio);
   const { w, h } = ratio.tall ? PREVIEW_FRAME : SQUARE_FRAME;
   const sizes = textHeight({ w, h });
-  const layout = LAYOUT_CHOICES.find((entry) => entry.id === choices.renderMode);
+  const layout = layoutChoices({ autoReframe }).find((entry) => entry.id === choices.renderMode);
   const style = CAPTION_STYLE_CHOICES.find((entry) => entry.id === choices.captionStyle);
   const position = CAPTION_POSITION_CHOICES.find((entry) => entry.id === choices.captionPosition);
   const size = CAPTION_SIZE_CHOICES.find((entry) => entry.id === choices.captionSize);

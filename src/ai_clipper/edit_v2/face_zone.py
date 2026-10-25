@@ -27,6 +27,7 @@ from typing import Any
 from ..captions_ass import load_pack
 from . import CAPTION_PRESETS, PACK_IDS
 from . import layouts as _layouts
+from . import shots as _shots
 from . import timemap as tm
 from .doc import Issue
 
@@ -117,7 +118,7 @@ def _crop_x(doc: Mapping[str, Any], plan: Mapping[str, Any], source: tuple[int, 
     """The crop x of source frame ``sf`` in the scaled source, or ``None`` where face-track
     shows the frame with latar blur."""
     layout = doc["layout"]
-    mode = layout["default"]["mode"]
+    mode = _shots.mode_of(doc, sf)  # a range's mode under the automatic layout (§5.63)
     if layout.get("keyframes"):
         return _layouts.keyframe_positions(layout["keyframes"], source=source, output=output,
                                            first_sf=sf, count=1)[0]
@@ -157,6 +158,7 @@ def face_rects(face: Sequence[int], doc: Mapping[str, Any], plan: Mapping[str, A
             if rect is not None:
                 rects.append(rect)
         return rects
+    mode = _shots.mode_of(doc, sf)  # a range's mode under the automatic layout (§5.63)
     crop_x = None if mode == "fit_blur" else _crop_x(doc, plan, source, output, sf)
     if crop_x is None:  # fit-blur, or face-track's latar blur fallback: the whole picture
         fit = min(out_w / src_w, out_h / src_h)

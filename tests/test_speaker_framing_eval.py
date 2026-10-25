@@ -113,3 +113,38 @@ def test_the_committed_set_is_well_formed(harness):
     for clip in document["clips"]:
         assert clip["duration"] == 20.0 and 900 <= clip["start"] <= 1780
         assert clip["steps"] >= harness.MIN_STEPS
+
+
+def test_misses_can_count_only_the_steps_otomatis_frames_with_the_camera(harness):
+    size = (1920, 1080)
+    truth = [[0.2]] * 10
+    times = [0.0, 0.75]
+    only = [True] * 4 + [False] * 6
+    assert harness.misses(truth, times, [0.8, 0.8], [False] * 2, size, only=only) == (4, 4)
+    assert harness.misses(truth, times, [0.2, 0.2], [False] * 2, size, only=only) == (0, 4)
+
+
+def test_camera_steps_follow_the_shot_ranges(harness):
+    ranges = [{"in_sf": 0, "out_sf": 15, "mode": "camera"},
+              {"in_sf": 15, "out_sf": 30, "mode": "fit_blur"},
+              {"in_sf": 30, "out_sf": 60, "mode": "camera"}]
+    steps = harness.camera_steps(ranges, (30, 1), count=20)
+    # a 0.1 s step is three frames: steps 0-4 camera, 5-9 fit_blur, 10-19 camera
+    assert steps == [True] * 5 + [False] * 5 + [True] * 10
+
+
+def test_the_otomatis_gate_reads_the_camera_frames_of_multi_windows(harness):
+    def auto_row(clip_id, kind, missed, speech):
+        base = row(clip_id, kind, 40, 15)
+        base["auto_camera"] = {"missed": missed, "speech": speech, "camera_steps": speech,
+                               "steps": 200}
+        return base
+
+    rows = [auto_row(f"m{i}", "multi", 20, 100) for i in range(4)] + [
+        auto_row("s0", "single", 90, 100)]
+    auto = harness.summarise(rows)["auto_reframe"]
+    assert auto["multi_error"] == pytest.approx(0.20)
+    assert auto["max"] == pytest.approx(0.217) and auto["pass"]
+    worse = [auto_row(f"m{i}", "multi", 23, 100) for i in range(4)]
+    assert not harness.summarise(worse)["auto_reframe"]["pass"]
+    assert "auto_reframe" not in harness.summarise([row("m0", "multi", 40, 15)])

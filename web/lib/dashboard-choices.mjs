@@ -16,6 +16,13 @@ export const LAYOUT_CHOICES = Object.freeze([
   { id: "face-track", name: renderModeName("face-track"), description: "Layar penuh, potongan mengikuti wajah pembicara." },
   { id: "center-crop", name: renderModeName("center-crop"), description: "Untuk video yang subjeknya selalu di tengah." },
 ]);
+// Otomatis (rombak 04 §A8.1): a layout per shot, first in the list, never the default (opt-in).
+export const AUTO_LAYOUT_CHOICE = Object.freeze({ id: "auto", name: renderModeName("auto") });
+
+/** The Layout choices Buat klip offers: Otomatis first only while POTONGIN_AUTO_REFRAME is on. */
+export function layoutChoices({ autoReframe = false } = {}) {
+  return autoReframe === true ? [AUTO_LAYOUT_CHOICE, ...LAYOUT_CHOICES] : LAYOUT_CHOICES;
+}
 
 // Every caption pack, named as the editor names it (components/editor/panels/caption-model.mjs);
 // the ids are lib/jobs.mjs CAPTION_STYLES. The legacy engine (the rollback switch) draws only
@@ -199,7 +206,7 @@ export function withDuration(choices, id) {
  * A complete set of choices from anything (stored JSON included); each unusable field is the
  * default. `engine`: a caption look that engine does not draw is the default too.
  */
-export function normalizeChoices(raw, { engine } = {}) {
+export function normalizeChoices(raw, { engine, autoReframe = false } = {}) {
   const value = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const pick = (list, id, fallback) => (byId(list, id) ? id : fallback);
   const flag = (name) => (typeof value[name] === "boolean" ? value[name] : DEFAULT_CHOICES[name]);
@@ -207,7 +214,7 @@ export function normalizeChoices(raw, { engine } = {}) {
   const choices = {
     ...DEFAULT_CHOICES,
     limit: numberText(value.limit, CLIP_LIMITS.count.min, CLIP_LIMITS.count.max, true) ?? DEFAULT_CHOICES.limit,
-    renderMode: pick(LAYOUT_CHOICES, value.renderMode, DEFAULT_CHOICES.renderMode),
+    renderMode: pick(layoutChoices({ autoReframe }), value.renderMode, DEFAULT_CHOICES.renderMode),
     captionStyle: pick(look.styles, value.captionStyle, DEFAULT_CHOICES.captionStyle),
     captionPosition: pick(look.positions ?? [], value.captionPosition, DEFAULT_CHOICES.captionPosition),
     captionSize: pick(look.sizes ?? [], value.captionSize, DEFAULT_CHOICES.captionSize),
@@ -244,7 +251,7 @@ export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
     const entry = byId(list, id);
     if (entry && id !== fallback) parts.push(entry.name);
   }
-  for (const [list, id] of [[LAYOUT_CHOICES, choices.renderMode], [CAPTION_STYLE_CHOICES, choices.captionStyle]]) {
+  for (const [list, id] of [[layoutChoices({ autoReframe: true }), choices.renderMode], [CAPTION_STYLE_CHOICES, choices.captionStyle]]) {
     const entry = byId(list, id);
     if (entry) parts.push(entry.name);
   }
@@ -263,19 +270,19 @@ export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
 }
 
 /** The stored choices, or the defaults when nothing usable is stored or reading throws. */
-export function readStoredChoices(storage) {
+export function readStoredChoices(storage, options = {}) {
   try {
     const raw = storage?.getItem(CHOICES_KEY) ?? null;
-    return normalizeChoices(raw === null ? null : JSON.parse(raw));
+    return normalizeChoices(raw === null ? null : JSON.parse(raw), options);
   } catch {
-    return normalizeChoices(null);
+    return normalizeChoices(null, options);
   }
 }
 
 /** Stores the choices (only the fields in DEFAULT_CHOICES); false when the storage refuses. Never throws. */
-export function writeStoredChoices(storage, choices) {
+export function writeStoredChoices(storage, choices, options = {}) {
   if (!storage) return false;
-  const normalized = normalizeChoices(choices);
+  const normalized = normalizeChoices(choices, options);
   const record = Object.fromEntries(Object.keys(DEFAULT_CHOICES).map((name) => [name, normalized[name]]));
   try {
     storage.setItem(CHOICES_KEY, JSON.stringify(record));

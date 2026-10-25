@@ -750,7 +750,7 @@ export default function DashboardPage() {
                   <label key={layout.id} className={`${styles.choice} ${renderMode === layout.id ? styles.selected : ""}`}>
                     <input type="radio" name="renderMode" value={layout.id} checked={renderMode === layout.id} onChange={() => updateChoices({ renderMode: layout.id })} />
                     <span className={`${styles.frame} ${styles[layout.id]}`} aria-hidden="true"><i /></span>
-                    <span className={styles.choiceText}><strong>{layout.name}</strong><small>{layout.description}</small></span>
+                    <span className={styles.choiceText}><strong>{layout.name}</strong>{layout.description && <small>{layout.description}</small>}</span>
                   </label>
                 ))}
               </div>

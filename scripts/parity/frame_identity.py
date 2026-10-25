@@ -36,8 +36,11 @@ Run (stdlib only; the reference image has no pytest); each gate writes
         ai-video-clipper:editor-ref /app/.venv/bin/python scripts/parity/frame_identity.py all \\
         --evidence docs/editor/evidence/W1
 
-Gates: ``p-frame``, ``p-plate``, ``g1g2``, ``g-det``, ``pf-render`` (report only), or ``all``
-(one workspace, so renders are shared). ``--cpus 4`` gives PF-RENDER the 4 CPUs of its budget.
+Gates: ``p-frame``, ``p-plate``, ``g1g2``, ``g-det``, ``pf-render`` (report only),
+``p-frame-auto`` (the automatic layout's P-FRAME row of rombak 04 §A10: ``AUTO_CASES``), or
+``all`` (one workspace, so renders are shared). ``--cpus 4`` gives PF-RENDER the 4 CPUs of its
+budget; ``p-frame-auto`` is run once under ``taskset -c 0`` and once under ``taskset -c 0-3``
+(CPU 1 and 4).
 """
 
 from __future__ import annotations
@@ -485,6 +488,9 @@ class Case:
     # rect keeps the source's first row (y 0), where the frame index is.
     zoom_pm: int = 1000
     content: tuple[int, int, int, int] | None = None
+    # layout.ranges (CONTRACTS §5.63, layout "auto"): (in_sf, out_sf, mode) partitioning the
+    # window, origin "auto", with base.shots.
+    ranges: tuple[tuple[int, int, str], ...] = ()
 
     @property
     def picture(self) -> tuple[int, int]:
@@ -570,6 +576,29 @@ P_PLATE_CASES = (*(
          output=(720, 720)),
     Case("plate_split_square", (30000, 1001), 900, "split", cuts=10, captions=False,
          split=SPLIT_SQUARE, output=(1080, 1080)))
+# Otomatis (rombak 04 §A10 P-FRAME, CONTRACTS §5.63): the window partitioned into ranges of
+# mixed modes, the camera's no-face fallback on (as the seed writes it), each case with one
+# range edge on a piece edge (a removal's end) and one inside a piece. Kept out of
+# P_FRAME_CASES, whose cases the browser player fixtures also draw.
+AUTO_CASES = (
+    Case("cfr_30_auto", (30, 1), 900, "auto", no_face="fit_blur",
+         ranges=((0, 176, "camera"), (176, 360, "fill_center"), (360, 600, "fit_blur"),
+                 (600, 900, "camera"))),
+    Case("cfr_2997_auto", (30000, 1001), 900, "auto", no_face="fit_blur",
+         ranges=((0, 176, "fit_blur"), (176, 360, "camera"), (360, 600, "fill_center"),
+                 (600, 900, "fit_blur"))),
+    Case("auto_zoom_content", (30, 1), 900, "auto", no_face="fit_blur", zoom_pm=1250,
+         content=PILLARBOX_43,
+         ranges=((0, 241, "fill_center"), (241, 500, "camera"), (500, 900, "fit_blur"))),
+    Case("auto_mixed_2", (30, 1), 900, "auto", no_face="fit_blur",
+         ranges=((0, 217, "fit_blur"), (217, 900, "camera"))),
+    Case("auto_mixed_3", (25, 1), 760, "auto", no_face="fit_blur",
+         ranges=((0, 152, "camera"), (152, 450, "fit_blur"), (450, 760, "fill_center"))),
+)
+# The automatic layout with manual framing: the validator refuses it (§5.63 V8), nothing renders.
+AUTO_KEYFRAMES = Case("auto_keyframes", (30, 1), 900, "auto", no_face="fit_blur",
+                      keyframes=KEYFRAMES_900,
+                      ranges=((0, 450, "camera"), (450, 900, "fit_blur")))
 PF_RENDER_CASES = tuple(
     Case(f"pf_60s_{layout}", (30000, 1001), 2_000, layout, source_size=(1280, 720), cuts=5,
          hook=True)
@@ -679,18 +708,9 @@ class Workspace:
                        hook=("Hook sintetis", 45) if case.hook else None, logo=logo,
                        assets=assets, join_style=case.join_style, whoosh=case.whoosh)
         doc["base"]["window_ms"] = window_ms
-        doc["layout"]["default"]["no_face"] = case.no_face
-        if case.keyframes:
-            doc["layout"]["keyframes"] = [{"sf": sf, "pan_e5": pan, "move": move}
-                                          for sf, pan, move in case.keyframes]
-        if case.split:
-            doc["layout"]["split"] = split_of(case)
-        if case.zoom_pm != 1000:
-            doc["layout"]["zoom_pm"] = case.zoom_pm
-        if case.content is not None:
-            doc["base"]["source"]["content_rect"] = dict(zip("xywh", case.content, strict=True))
+        apply_layout(doc, case)
         camera = (make_camera(duration_ms, case.fps, case.source_size, case.output)
-                  if case.layout == "camera" else None)
+                  if uses_camera(case) else None)
         self.clips[case.name] = {"case": case, "source": source, "doc": doc,
                                  "words": make_words(duration_ms), "camera": camera,
                                  "assets": assets}
@@ -763,6 +783,39 @@ class Workspace:
         return self.renders[key]
 
 
+def apply_layout(doc: dict[str, Any], case: Case) -> None:
+    """The case's layout keys beyond the mode (no-face fallback, keyframes, split, zoom,
+    content rect, ranges) written into ``doc``."""
+    doc["layout"]["default"]["no_face"] = case.no_face
+    if case.keyframes:
+        doc["layout"]["keyframes"] = [{"sf": sf, "pan_e5": pan, "move": move}
+                                      for sf, pan, move in case.keyframes]
+    if case.split:
+        doc["layout"]["split"] = split_of(case)
+    if case.zoom_pm != 1000:
+        doc["layout"]["zoom_pm"] = case.zoom_pm
+    if case.content is not None:
+        doc["base"]["source"]["content_rect"] = dict(zip("xywh", case.content, strict=True))
+    if case.ranges:
+        doc["layout"]["ranges"] = [{"in_sf": a, "out_sf": b, "mode": mode, "origin": "auto"}
+                                   for a, b, mode in case.ranges]
+        # the shot plan's sha (CONTRACTS §5.63); the compiler reads the ranges, not the plan
+        doc["base"]["shots"] = {"sha256": hashlib.sha256(
+            json.dumps(case.ranges).encode("utf-8")).hexdigest()}
+
+
+def uses_camera(case: Case) -> bool:
+    return case.layout == "camera" or any(mode == "camera" for _a, _b, mode in case.ranges)
+
+
+def mode_at(case: Case, sf: int) -> str:
+    """The mode the case shows source-grid frame ``sf`` with."""
+    for a, b, mode in case.ranges:
+        if a <= sf < b:
+            return mode
+    return case.layout
+
+
 def geometry(layout: str, source: tuple[int, int], output: tuple[int, int],
              zoom_pm: int = 1000) -> dict[str, float]:
     """Where the rows of ``source`` (the picture the layout lays out) land in the output (for
@@ -820,11 +873,31 @@ def fallback_frames(case: Case, plan: Any) -> frozenset[int]:
     """The source-grid frames ``case`` shows with the no-face fallback (fit-blur geometry)."""
     from ai_clipper.edit_v2 import layouts
 
+    count = max(piece.out_sf for piece in plan.pieces)
+    if case.layout == "auto":  # fit_blur ranges, and camera ranges' frames without a face
+        flags = (layouts.no_face_frames(plan.camera, plan.fps, first_sf=0, count=count)
+                 if plan.camera is not None and case.no_face == "fit_blur" else [False] * count)
+        return frozenset(sf for sf in range(count)
+                         if mode_at(case, sf) == "fit_blur"
+                         or (mode_at(case, sf) == "camera" and flags[sf]))
     if case.layout != "camera" or case.no_face != "fit_blur" or case.keyframes:
         return frozenset()
-    count = max(piece.out_sf for piece in plan.pieces)
     flags = layouts.no_face_frames(plan.camera, plan.fps, first_sf=0, count=count)
     return frozenset(sf for sf, shown in enumerate(flags) if shown)
+
+
+def hidden_index_frames(case: Case, plan: Any, fallback: frozenset[int]) -> frozenset[int]:
+    """Source-grid frames whose picture leaves out the barcode's index rows, so no frame index
+    can be read: a crop frame (face-track or potong tengah, not shown with the fit-blur
+    fallback) zoomed in (§5.52) crops the picture around its middle, and the index sits on the
+    source's first rows. Only the automatic layout has such frames among the P-FRAME cases (the
+    plain zoom cases are latar blur); ``p_frame_auto`` proves them md5-identical to the pure
+    chain of their mode instead."""
+    if case.zoom_pm == 1000:
+        return frozenset()
+    count = max(piece.out_sf for piece in plan.pieces)
+    return frozenset(sf for sf in range(count)
+                     if mode_at(case, sf) in ("camera", "fill_center") and sf not in fallback)
 
 
 def index_decoder(case: Case, layout: str | None = None) -> Callable[[bytes], int | None]:
@@ -832,6 +905,8 @@ def index_decoder(case: Case, layout: str | None = None) -> Callable[[bytes], in
     the geometry of ``layout`` (default: the case's)."""
     media = _media()
     pattern = media.Pattern.for_size(*case.source_size)
+    if (layout or case.layout) == "auto":  # every frame not read as fit_blur is a crop
+        layout = "camera"
     if (layout or case.layout) == "split":
         band = split_band(case, "top")
         where = {"scale": band["scale"], "top": band["top"]}
@@ -902,6 +977,7 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
             return grid[sf - first] if first <= sf < end else None
 
         fallback = fallback_frames(case, plan)
+        hidden = hidden_index_frames(case, plan, fallback)
         decoders = {False: index_decoder(case), True: index_decoder(case, "fit_blur")}
 
         def index_of(plane: bytes, sf: int, fallback=fallback, decoders=decoders) -> int | None:
@@ -915,7 +991,7 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
         cells = ws.cells(case)
         size = cells["cell_frames"]
         decoded: dict[int, list[int | None]] = {}
-        cell_frames = cell_mismatches = short_cells = padded = 0
+        cell_frames = cell_mismatches = short_cells = padded = hidden_cells = 0
         for k in cells["cells"]:
             path = cells["dir"] / f"c{k:07d}.mp4"
             decoded[k] = [index_of(p, k * size + i)
@@ -926,11 +1002,16 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
                 if k * size + i < low:  # below the document's window: never shown
                     padded += 1
                     continue
+                if k * size + i in hidden:  # the picture leaves the index out
+                    hidden_cells += 1
+                    continue
                 cell_frames += 1
                 cell_mismatches += value is None or value != at(k * size + i)
         plate_mismatches = 0
         for n in range(plan.total_frames):
             sf = tm.out_to_src(n, plan.pieces)[1]
+            if sf in hidden:
+                continue
             frames = decoded.get(sf // size, [])
             got = frames[sf % size] if sf % size < len(frames) else None
             plate_mismatches += got is None or got != expected[n]
@@ -947,10 +1028,16 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
             "grid_undecodable": sum(value is None for value in grid),
             "output_frames": plan.total_frames,
             "final_frames": len(final),
+            "final_frames_checked": len(final) - sum(sources[n] in hidden
+                                                     for n in range(min(len(final), len(sources)))),
             "final_mismatches": sum(
-                a is None or a != b for a, b in zip(final, expected)
+                a is None or a != b for n, (a, b) in enumerate(zip(final, expected))
+                if sources[n] not in hidden
             ) + abs(len(final) - plan.total_frames),
             "plate_output_frames": plan.total_frames,
+            "plate_output_frames_checked": plan.total_frames - sum(sf in hidden for sf in sources),
+            "index_hidden_output_frames": sum(sf in hidden for sf in sources),
+            "index_hidden_cell_frames": hidden_cells,
             "plate_mismatches": plate_mismatches,
             "plate_cells": len(cells["cells"]),
             "plate_cell_frames_checked": cell_frames,
@@ -975,15 +1062,80 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
         "plate_cells_with_wrong_length": sum(r["plate_cells_with_wrong_length"]
                                              for r in results),
         "grid_undecodable": sum(r["grid_undecodable"] for r in results),
+        "final_frames_checked": sum(r["final_frames_checked"] for r in results),
+        "plate_output_frames_checked": sum(r["plate_output_frames_checked"] for r in results),
+        "index_hidden_output_frames": sum(r["index_hidden_output_frames"] for r in results),
     }
-    passed = (totals["final_frames"] >= P_FRAME_MIN_FRAMES
-              and totals["plate_output_frames"] >= P_FRAME_MIN_FRAMES
+    passed = (totals["final_frames_checked"] >= P_FRAME_MIN_FRAMES
+              and totals["plate_output_frames_checked"] >= P_FRAME_MIN_FRAMES
               and not totals["final_mismatches"] and not totals["plate_mismatches"]
               and not totals["plate_cell_mismatches"]
               and not totals["plate_cells_with_wrong_length"]
               and not totals["grid_undecodable"])
     return {"threshold": {"min_frames": P_FRAME_MIN_FRAMES, "mismatches": 0}, "cases": results,
             "totals": totals, "pass": passed}
+
+
+# --- P-FRAME of the automatic layout (rombak 04 §A10) ------------------------------------------
+
+
+def frame_md5s(path: Path) -> list[str]:
+    """The md5 of every decoded video frame of a lossless render (``framemd5``)."""
+    out = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-map", "0:v:0",
+                          "-f", "framemd5", "-"], capture_output=True, text=True, check=True,
+                         timeout=1800).stdout
+    return [line.rsplit(",", 1)[1].strip() for line in out.splitlines()
+            if line and not line.startswith("#")]
+
+
+def pure_case(case: Case, mode: str) -> Case:
+    """The case under one plain layout: no ranges, everything else the same."""
+    from dataclasses import replace
+
+    return replace(case, name=f"{case.name}__{mode}", layout=mode, ranges=())
+
+
+def p_frame_auto(ws: Workspace, cases: Sequence[Case] = AUTO_CASES) -> dict[str, Any]:
+    """P-FRAME of compiled Otomatis documents: every output frame of the final and of the plate
+    cells shows its grid frame (the barcode check of :func:`p_frame`, read with the geometry of
+    its range's mode), and every frame of the lossless ``reference`` render is md5-identical to
+    the same frame of the reference render of the document under that range's mode alone (the
+    pure chain). The automatic layout with manual framing must be refused (``range_invalid``)."""
+    from collections import Counter
+
+    from ai_clipper.edit_v2.doc import validate_doc
+
+    frames = p_frame(ws, cases)
+    rows = []
+    for case in cases:
+        plan = ws.plan(case)
+        sources = [tm.out_to_src(n, plan.pieces)[1] for n in range(plan.total_frames)]
+        modes = [mode_at(case, sf) for sf in sources]
+        auto = frame_md5s(ws.render(case, "reference")["path"])
+        wrong: dict[str, int] = {}
+        for mode in sorted(set(modes)):
+            pure = frame_md5s(ws.render(pure_case(case, mode), "reference")["path"])
+            wrong[mode] = sum(1 for n, shown in enumerate(modes) if shown == mode and (
+                n >= len(auto) or n >= len(pure) or auto[n] != pure[n]))
+        rows.append({"case": case.name, "fps": list(case.fps), "ranges": len(case.ranges),
+                     "output_frames": plan.total_frames, "reference_frames": len(auto),
+                     "frames_by_mode": dict(sorted(Counter(modes).items())),
+                     "md5_mismatches_by_mode": wrong})
+    clip = ws.clip(AUTO_KEYFRAMES)
+    refused = validate_doc(clip["doc"], words=clip["words"], assets={}, seed=None)
+    keyframes = sorted({(issue.code, issue.path) for issue in refused.errors})
+    keyframes_refused = ("range_invalid", "/layout/keyframes") in keyframes
+    md5_mismatches = sum(sum(row["md5_mismatches_by_mode"].values()) for row in rows)
+    length_mismatches = sum(row["reference_frames"] != row["output_frames"] for row in rows)
+    return {"frames": frames, "pure_chain": rows,
+            "totals": {"md5_mismatches": md5_mismatches,
+                       "reference_length_mismatches": length_mismatches},
+            "auto_keyframes": {"errors": [list(item) for item in keyframes],
+                               "refused": keyframes_refused},
+            "cpus": {"os_cpu_count": os.cpu_count(),
+                     "affinity": len(os.sched_getaffinity(0)), "cgroup_quota": _cpu_quota()},
+            "pass": (frames["pass"] and not md5_mismatches and not length_mismatches
+                     and keyframes_refused)}
 
 
 # --- P-PLATE (server part) --------------------------------------------------------------------
@@ -1312,6 +1464,7 @@ GATES: dict[str, tuple[str, Callable[[Workspace], dict[str, Any]]]] = {
     "g1g2": ("G1-G2", g1_g2),
     "g-det": ("G-DET", g_det),
     "pf-render": ("PF-RENDER", pf_render),
+    "p-frame-auto": ("P-FRAME-AUTO", p_frame_auto),
 }
 
 

@@ -28,7 +28,10 @@ with the legacy engine (``engine_fallback:<rank>``); :meth:`AutoRenderer.fallbac
 the ``seed.json`` this run wrote for it, so no seed claims the new engine for a legacy file (the
 editor's ``prepare`` later seeds it as a legacy-engine clip; the analysis files stay). A
 face-track clip's result also carries ``no_face_ms``, its length inside the camera plan's
-``no_face`` spans, for the manifest's ``fallbacks``.
+``no_face`` spans, for the manifest's ``fallbacks``. An automatic clip (``render_mode="auto"``,
+CONTRACTS §5.63) runs ``shots.prepare_auto`` in a heavy slot and writes its camera plan and
+``shots.<sha16>.json`` before the seed; when that analysis fails it is seeded Latar blur and its
+result says ``reframe_failed`` (the pipeline's ``auto_reframe_failed:<rank>``).
 
 **Exports (plan §4.6).** :func:`render_request` runs one ``render-request-v3`` for the
 render-worker: it checks every field it reads before any work (``RenderFailed``,
@@ -70,6 +73,7 @@ import math
 import os
 import re
 import stat
+import sys
 import threading
 import time
 import zlib
@@ -94,6 +98,7 @@ from . import cleanup as _cleanup
 from . import loudness as _loudness
 from . import plates as _plates
 from . import seed as _seed
+from . import shots as _shots
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, manifest_clip_id
 from .doc import (
@@ -290,8 +295,13 @@ def load_render_inputs(job_dir: Path, doc: Mapping[str, Any], *,
         seed_doc: Mapping[str, Any] | None = store.seed(clip_dir)[0]
     except errors.NotFound:
         seed_doc = None
-    camera = (_load_camera(clip_dir, doc)
-              if doc["layout"]["default"]["mode"] == "camera" else None)
+    # face-track, or a camera range of the automatic layout (§5.63)
+    camera = _load_camera(clip_dir, doc) if _shots.uses_camera(doc) else None
+    if doc["layout"]["default"]["mode"] == "auto":
+        shots = doc["base"].get("shots")
+        if not isinstance(shots, Mapping):
+            raise errors.AnalysisMissing("analysis_missing", path="/base/shots", ref="shots")
+        _shots.load_shot_plan(clip_dir, shots["sha256"])  # its shot plan must be there
     assets = store.load_assets(clip_dir, doc.get("assets", {}).keys())
     if validate:
         validation = validate_doc(doc, words=words, assets=assets, seed=seed_doc)
@@ -940,7 +950,7 @@ def render_request(
 class AutoOptions:
     """The pipeline options a seed depends on (plan §3.5)."""
 
-    render_mode: str  # face-track | fit-blur | center-crop
+    render_mode: str  # face-track | fit-blur | center-crop | auto (rombak 04 §A8.1)
     caption_style: str  # a caption pack (PACK_IDS)
     cold_open: bool
     hook_overlay: bool
@@ -983,10 +993,17 @@ class AutoClip:
     no_face_ms: int | None = None
     # The rendered length (seconds): the seed's pieces, so pause trims are left out.
     seconds: float | None = None
+    # Automatic layout: the analysis failed, so the clip was seeded and rendered Latar blur.
+    reframe_failed: bool = False
 
     def manifest_fields(self) -> dict[str, Any]:
         return {"clip_id": self.clip_id, "render_engine": self.render_engine,
                 "render_key": self.render_key, "plan_sha256": self.plan_sha256}
+
+
+def _blur_job(job: Mapping[str, Any]) -> dict[str, Any]:
+    """``job`` with the Latar blur render mode (an automatic clip without its analysis)."""
+    return {**job, "options": {**job["options"], "renderMode": "fit-blur"}}
 
 
 def output_seconds(document: Mapping[str, Any]) -> float:
@@ -1067,6 +1084,7 @@ class AutoRenderer:
         self.written: dict[int, tuple[Path, tuple[int, int]]] = {}
         self.clip_ids: dict[int, str] = {}
         self.no_face: dict[int, list[list[int]]] = {}  # face-track: the camera plan's spans
+        self.reframe_failed: set[int] = set()  # auto: the ranks seeded Latar blur instead
         # The Pengaturan default logo the job was created with, stored where the seeds render,
         # and its default text watermark.
         job_root = job_dir_for(self.job_dir)
@@ -1093,10 +1111,14 @@ class AutoRenderer:
         job = {**self.options.job(self.job_id, time.time_ns() // 1_000_000), "logo": self.logo,
                "watermark": self.watermark}
         face_track = self.options.render_mode == "face-track"
+        auto = self.options.render_mode == "auto"
         common = {"clip": clip, "job": job, "source_info": self.source_info,
                   "selection_sha": self.selection_sha}
+        # The clip id, window and grid do not depend on the layout; the automatic layout's
+        # analysis needs them first, so its provisional seed is Latar blur's.
         provisional = _seed.build_seed(words_sha=ZERO_SHA, words_count=0,
-                                       camera_sha=ZERO_SHA if face_track else None, **common)
+                                       camera_sha=ZERO_SHA if face_track else None,
+                                       **{**common, "job": _blur_job(job) if auto else job})
         clip_id_value = provisional["clip_id"]
         self.clip_ids[rank] = clip_id_value
         window = (provisional["base"]["window_ms"][0], provisional["base"]["window_ms"][1])
@@ -1125,9 +1147,17 @@ class AutoRenderer:
             _write_or_match(directory / _camera.camera_file_name(camera_raw), camera_raw)
             camera_sha = sha256_hex(camera_raw)
             self.no_face[rank] = camera_plan["no_face"]
+        shot_plan = None
+        if auto:
+            analysed = self._reframe(directory, window, fps, words)
+            if analysed is None:  # Latar blur for this clip; the job goes on (rombak 04 §A8.1)
+                self.reframe_failed.add(rank)
+                common["job"] = _blur_job(common["job"])
+            else:
+                camera_sha, shot_plan = analysed
         seed_doc = _seed.build_seed(words_sha=sha256_hex(words_raw),
                                     words_count=len(words["words"]), camera_sha=camera_sha,
-                                    **common)
+                                    shot_plan=shot_plan, **common)
         path = directory / SEED_FILE
         if write_immutable(path, _seed.encode_seed(seed_doc)):
             info = os.lstat(path)
@@ -1139,6 +1169,31 @@ class AutoRenderer:
                 raise _seed.SeedError("another seed exists for this clip")
         document, _etag = store.seed(directory)  # render from the file (plan §3.5)
         return directory, document
+
+    def _reframe(self, directory: Path, window: tuple[int, int], fps: Fps,
+                 words: Mapping[str, Any]) -> tuple[str, dict[str, Any]] | None:
+        """The automatic layout's analysis of one clip (``shots.prepare_auto``: the camera plan
+        and the shot plan from one face scan), both published in the clip directory; returns
+        ``(camera sha, shot plan)``, or ``None`` when the analysis failed (one log line)."""
+        rect = self.source_info["probe"].get("content_rect")
+        content = None if rect is None else [rect[key] for key in ("x", "y", "w", "h")]
+        try:
+            with self._heavy:  # the face scan and the shot scan, like the camera plan
+                camera_plan, shot_plan = _shots.prepare_auto(
+                    self.source, window, fps, output=(self.options.width, self.options.height),
+                    scene_cuts_ms=words.get("scene_cuts_ms", ()), content=content)
+            camera_raw = _camera.encode_camera_plan(camera_plan)
+            _write_or_match(directory / _camera.camera_file_name(camera_raw), camera_raw)
+            _shots.write_shot_plan(directory, shot_plan)
+        except errors.Cancelled:
+            raise
+        except Exception as error:  # noqa: BLE001 - the clip falls back to Latar blur
+            code = getattr(error, "code", None)
+            detail = code if isinstance(code, str) and re.fullmatch(r"[a-z_]{1,40}", code) else "-"
+            print(f"potongin: auto_reframe_failed: {type(error).__name__} {detail}",
+                  file=sys.stderr, flush=True)
+            return None
+        return sha256_hex(camera_raw), shot_plan
 
     def _seconds(self, rank: int) -> float:
         """The clip's expected output length: its window plus its cold open."""
@@ -1211,7 +1266,8 @@ class AutoRenderer:
                         render_key=result.render_key, plan_sha256=result.plan_sha256,
                         cold_open=cold_open, result=result, cold_open_join=join,
                         no_face_ms=None if spans is None else _no_face_ms(spans, document),
-                        seconds=output_seconds(document))
+                        seconds=output_seconds(document),
+                        reframe_failed=rank in self.reframe_failed)
 
     def fallback(self, rank: int) -> str | None:
         """Before the legacy engine renders the clip of ``rank``: remove the ``seed.json`` this

@@ -189,6 +189,194 @@ sinyal yang sama dengan detektor RF-M1, jadi recall detektor itu di dev kemungki
 test split yang dilabeli pemilik di halaman `--label` tidak memakai kandidat. `rf-17` berisi satu gambar sampul diam; jendela ini terlewat saat penyaringan sebelum split
 dan tetap dipakai (label `fit_blur`) supaya split tidak berubah setelah lembar dev dilihat.
 
+## Detektor shot dan sweep (RF-M1)
+
+Kode: `src/ai_clipper/edit_v2/shot_cuts.py` (cut), `src/ai_clipper/shot_context.py` (evidence per
+shot), `src/ai_clipper/edit_v2/shots.py` (keputusan, shot plan). Ambang: `resources/reframe/rules.v1.json`.
+
+**Cara detektor bekerja (satu proses FFmpeg per jendela):** jendela didekode di grid dokumen
+persis seperti kompiler (`-ss` dengan pre-roll 1 dtk, `-copyts`, `fps`, `trim` di indeks grid).
+Setiap frame grid diukur dua kali: skor `scene` FFmpeg di gambar lebar 160 px (filter
+`audio_timeline._SCENE_FILTER`, semua frame disimpan) dan gambar abu-abu 64×36, dari mana selisih
+rata-rata ke frame 1, 2, 3 dan 12 frame sebelumnya disimpan. Lalu:
+
+1. kandidat = frame dengan skor `scene` > `cut.coarse_scene_pm`, ditambah flag cut camera plan;
+2. di ±500 ms tiap kandidat, frame dengan selisih terbesar ke frame sebelumnya adalah cut bila
+   selisih itu ≥ `cut.refine_diff_pm` **dan** frame itu membawa ≥ separuh perubahan dari dua frame
+   sebelumnya sampai frame sesudahnya (langkah dissolve atau gerak kamera tidak); gambar yang
+   kembali dalam ≤ 2 frame adalah kilat, bukan cut;
+3. lompatan tunggal: selisih ≥ separuh `cut.refine_diff_pm` yang ≥ 4× selisih kedua tetangganya
+   (cut di antara dua gambar mirip, yang skor `scene`-nya rendah), dengan syarat yang sama;
+4. transisi bertahap (fade, dissolve, wipe): 12 frame yang ujung-ujungnya berbeda ≥
+   `cut.refine_diff_pm`, tanpa satu frame pun yang membawa separuh perubahan itu, dengan gambar
+   diam sebelum dan sesudahnya (selisih per 3 frame ≤ 1/8 perubahan; gerak kamera tidak lolos).
+   Cut-nya frame pertama saat separuh perubahan frame-ke-frame sudah terjadi (gambar baru ≥ 50%).
+   Dua transisi yang berjarak ≤ 24 frame adalah satu dip lewat hitam/putih: cut-nya yang kedua,
+   saat gambar baru datang;
+5. dua cut yang lebih dekat dari `cut.min_gap_ms`: yang lebih kuat dipertahankan.
+
+Langkah 3, 4 dan aturan kilat ditambahkan di atas rancangan 04 §A3 karena baseline menunjukkan
+wipe dan fade tidak tertangkap (recall satu pembicara 0,10) dan label menyebut kilat bukan cut;
+konstantanya (2 frame, 4×, separuh, 12 frame, 1/8, 24 frame) tetap, tidak ikut sweep. Pengukuran
+satu proses untuk seluruh jendela menggantikan dekode ±500 ms per kandidat dari 04 §A3: hasil per
+frame sama, dan profil yang sama bisa dinilai ulang untuk setiap konfigurasi sweep tanpa footage.
+
+### Hasil sweep dev (2026-10-25)
+
+Profil diukur di GitHub Actions tanpa membaca label (`--profile`, run
+[40185140026](https://github.com/RevDonz/ai-video-clipper/actions/runs/40185140026), image produksi):
+`docs/evaluation/auto-reframe/profiles-dev-2026-10-25.json`. Sweep dua tahap di profil itu
+(`--sweep`, bisa diulang tanpa footage): `docs/evaluation/auto-reframe/sweep-dev-2026-10-25.json`.
+Nilai terpilih ditulis ke `resources/reframe/rules.v1.json` (`rules_id` `6b67494539ede149`):
+
+| Kunci | Nilai |
+|---|---|
+| `cut.coarse_scene_pm` / `refine_diff_pm` / `min_gap_ms` | 200 / 130 / 800 |
+| `face.present_pm` / `small_w_pm` / `centre_pm` | 400 / 80 / 60 |
+| `speakers.active_pm` / `split_share_pm` | 100 / 300 |
+| `motion.still_pm` | 20 |
+
+| Gerbang (dev) | Syarat | Hasil |
+|---|---|---|
+| Cut, ±1 frame (21 jendela, 95 cut) | P ≥ 0,95 dan R ≥ 0,90 | **gagal**: P 0,915 · R 0,789 · F1 0,847 (75 benar, 7 salah, 20 terlewat) |
+| Waktu pindai (CI) | ≤ 15 dtk + 0,5 dtk/cut | lolos di 21/21 jendela, maks 9,99 dtk |
+| Agreement mode (dev, informatif; gerbangnya test split di RF-M4) | ≥ 85% | 82,5% (baseline hari ini 23,0%; Latar blur di semua frame 63,1%) |
+
+Tidak ada konfigurasi cut yang memenuhi kedua lantai, jadi tahap 2 berjalan di F1 terbaik dan
+gerbang cut RF-M1 dicatat **gagal**; lantainya tidak dilonggarkan. Per kategori: dua orang dan panel
+P = R = 1,0; gameplay/b-roll P 0,94 · R 0,85 (`rf-49` memuat 9 dari 20 cut terlewat); satu pembicara
+P 0,85 · R 0,55 (`rf-10`: 7 cut di antara sudut yang hampir sama, selisih 64×36 hanya 3–10%); layar
+P 0,33 · R 0,33 (`rf-37`: pindah dialog yang menurut label bukan cut; `rf-44`: ganti slide dengan
+selisih 6–7%). Agreement per kategori: layar 100%, gameplay/b-roll 87%, satu pembicara 79%, panel
+75%, dua orang 72% (frame `split` berlabel selalu salah selama `AUTO_SPLIT = False`).
+
+Detektor diperbaiki dua kali di dev sebelum nilai ini dipilih (dicatat supaya tidak tampak satu
+kali coba): versi pertama (tanpa syarat separuh perubahan, tanpa lompatan tunggal, tanpa dip)
+memberi P 0,784 · R 0,726; versi kedua (dengan syarat separuh dan posisi 50%) P 0,843 · R 0,737.
+Langkah berikutnya untuk menutup celah tanpa melonggarkan gerbang: sinyal cut yang lebih halus
+dari 64×36 abu-abu (warna atau resolusi lebih tinggi untuk `rf-10` dan slide), lalu sweep ulang di
+dev; test split tetap tertutup sampai RF-M4.
+
+### Sinyal cut yang lebih halus (2026-10-25, setelah review)
+
+Langkah di atas dicoba. Satu run FFmpeg per jendela juga mengukur sebaran perubahan ke frame
+sebelumnya: selisih `tblend` gambar 256×144 dalam 4:4:4, dirata-rata `area` ke 16×9 blok
+(16×16 px). Per frame: jumlah blok luma yang berubah ≥ 3, 6, 12 dan 24 level abu-abu, selisih luma
+rata-rata di 256×144, dan selisih chroma rata-rata. Profil dev baru diukur di CI tanpa membaca
+label (run [40194281422](https://github.com/RevDonz/ai-video-clipper/actions/runs/40194281422)),
+lalu dinilai di dev:
+
+| Yang diukur | Hasil di dev |
+|---|---|
+| Blok berubah (≥ 6 level, dari 144) | `rf-37` dialog (bukan cut) 101–131, `rf-44` ganti slide (cut) 90–100; `rf-10` cut sudut hampir sama 28–108, cut salahnya 30–41; cut benar dan salah `rf-49` bertumpuk |
+| Chroma | `rf-44` cut 5–9, `rf-37` dialog 9–12; `rf-10` cut 9–65, cut salah 3 dan 23 |
+| Aturan "lompatan tunggal" dari sebaran blok (240 konfigurasi level/jumlah/rasio/lantai) | terbaik P 0,890 · R 0,853 (81 benar, 10 salah, 14 terlewat) |
+| Lompatan tunggal di bawah lantai sekarang (selisih ≥ 1,5–3% dan ≥ 5–8× tetangga) | terbaik P 0,872 · R 0,863 |
+| Akhir gerak mendadak (selisih naik lalu gambar diam, untuk `rf-10`) | P 0,860 · R 0,905, atau P 0,876 · R 0,895 |
+| Detektor sekarang (pembanding) | P 0,915 · R 0,789 |
+| Waktu ukur dengan sinyal sebaran | rata-rata 13,3 dtk per jendela (tanpa: 6,8 dtk) |
+
+Tidak ada kombinasi yang memenuhi P ≥ 0,95 dan R ≥ 0,90. Recall bisa naik ke 0,90, tetapi presisi
+turun ke 0,86–0,88: yang membatasi adalah perbedaan yang ditetapkan label, bukan resolusi sinyal.
+Dialog yang muncul di rekaman layar (`rf-37`, bukan cut) dan ganti slide (`rf-44`, cut) mengubah
+gambar sama luas dan sama besar; di `rf-49` (game showcase, label paling tidak pasti) cut benar dan
+salah tidak terpisah oleh ukuran apa pun di atas. Karena tidak ada aturan yang memakainya dan waktu
+ukurnya dua kali lipat, sinyal sebaran tidak dipertahankan di kode (commit revert-nya mencatat
+angka yang sama). Detektor dan `rules.v1.json` tidak berubah; gerbang cut RF-M1 tetap **gagal** dan
+tidak dilonggarkan.
+
+Sweep dua tahap diulang di profil dev baru (`--sweep`): pilihan sama dengan sebelumnya
+(`rules_id` `6b67494539ede149`, cut P 0,915 · R 0,789, `cut.gate_met: false`, agreement dev 82,5%),
+21/21 jendela dalam anggaran waktu.
+
+**Butuh keputusan pemilik** (gerbang ini tidak bisa diloloskan lagi tanpa melonggarkannya atau
+mengubah label setelah melihat detektor, dan keduanya dilarang):
+
+1. lanjut dengan detektor ini (gerbang cut RF-M1 tetap tercatat gagal, Otomatis tetap di belakang
+   flag `off`);
+2. detektor shot berbasis model (dependensi baru, butuh persetujuan; Q2), lalu profil dev dan sweep
+   baru; atau
+3. menulis ulang aturan label untuk dialog di rekaman layar dan menu di game, lalu melabel ulang
+   **seluruh** dev oleh pemilik (bukan implementer) sebelum sweep baru.
+
+**Sweep tanpa footage:** `--profile` (di CI, tanpa membaca label) menyimpan profil grid, scan wajah
+dan waktu tiap jendela; `--sweep --profiles …` menjalankan tahap 1 (75 konfigurasi `cut.*`) dan
+tahap 2 (1.728 konfigurasi kunci lain dengan cut tahap 1) di mana saja. Kalau tidak ada konfigurasi
+cut yang memenuhi P ≥ 0,95 dan R ≥ 0,90, hasil mencatat `cut.gate_met: false`, tahap 2 tetap
+berjalan di F1 terbaik, dan gerbang **tidak** dilonggarkan. `--write-rules` menulis nilai terpilih
+ke `rules.v1.json`. `Split` tidak pernah diprediksi selama `AUTO_SPLIT = False` (spike RF-M2), jadi
+frame berlabel `split` dihitung tidak cocok.
+
+## Release 1 dan test split (RF-M3, RF-M4)
+
+**RF-M3 (2026-10-25).** Otomatis sekarang dibuat dari job: `renderMode: "auto"` menjalankan
+`shots.prepare_auto` per klip di dalam render-nya (camera plan dan shot plan dari satu scan),
+lalu seed menyalin `ranges` shot plan. Klip yang analisisnya gagal dirender Latar blur dengan
+warning `auto_reframe_failed:<index>`. Flag `POTONGIN_AUTO_REFRAME` bawaannya `off`: API job
+menolak Otomatis untuk job baru, sedangkan job dan dokumen Otomatis yang sudah ada tetap
+dirender (floor). Nilai `rules.v1.json` tidak berubah (`rules_id` `6b67494539ede149`).
+
+**Split dan group framing (RF-M4, dev).**
+
+- `split`: spike graf §A7.2 sudah dijalankan di CI (run
+  [40194008287](https://github.com/RevDonz/ai-video-clipper/actions/runs/40194008287), 1080p dan
+  720p, 1/8/48 run; `docs/editor/SPIKES.md` §8). K1 overlay, K2 streamselect dan K3 maskedmerge
+  semuanya md5-tepat dengan konteks konstan dan RSS < 0,2 GiB, tetapi waktunya 1,16–1,53× rantai
+  fallback (anggaran 1,15×). Tidak ada yang lolos, jadi `AUTO_SPLIT` tetap `False`, aturan #2 jatuh
+  ke `camera`, dan RF-M4 hanya menyetel group framing (04 §A7.2).
+- group framing (`face.*`, `speakers.active_pm`, `motion.still_pm`): tahap 2 sweep dijalankan
+  ulang di profil dev baru (run 40194281422, di atas). Agreement tertinggi tetap di nilai yang sama
+  (`face.present_pm` 400, `small_w_pm` 80, `centre_pm` 60, `speakers.active_pm` 100,
+  `motion.still_pm` 20; agreement dev 82,5%), jadi `rules.v1.json` tidak berubah. Fitur evidence
+  tambahan baru dipakai kalau gerbang test split gagal, lewat sweep dev ulang dan test split
+  **baru**.
+
+**Satu run test split.** Perintahnya sudah ada (`--profile --split test`, lalu
+`--test-run --confirm-once`, lihat Menjalankan). Run ini **belum** dijalankan karena dua hal:
+
+1. `labels.test.json` masih placeholder (`cuts_sf`/`modes` `null`). Pemilik melabeli 21 jendela
+   lewat halaman `--label` (±60–90 menit). `--test-run` menolak file yang belum lengkap, jadi
+   jendela yang terlewat tidak menghabiskan test split.
+2. Profil test diukur di CI (`suite=command`), sama seperti profil dev.
+
+`--test-run` memakai `rules.v1.json` apa adanya, tanpa sweep. Ia membuat lock `test-run.json`
+(rules, profil, dan label lewat sha, serta agreement) sebelum melaporkan hasil, dan lock yang
+di-commit menolak semua run berikutnya.
+
+**Dua gerbang RF-M4 lain:**
+
+- *SPEAKER_FRAMING multi ≤ 21,7% pada frame `camera`.* Diukur di CI (run
+  [40194033621](https://github.com/RevDonz/ai-video-clipper/actions/runs/40194033621), image
+  produksi, OpenCV 4.14.0): `speaker_framing.py run --kind multi --auto` merencanakan Otomatis
+  per jendela AVA val dengan `rules.v1.json` yang di-commit, lalu menghitung galat pembicara hanya
+  di langkah 0,1 dtk yang ada di shot `camera`. Hasil (24 jendela `multi`, tidak ada yang
+  terlewat): galat di frame `camera` Otomatis **17,8%** ≤ 21,7%, **lolos**; 52,8% langkah
+  dibingkai `camera`, sisanya Latar blur (10 jendela seluruhnya Latar blur). Galat Ikuti wajah
+  di semua frame set yang sama 21,3%, sama persis di `main` (run
+  [40194820079](https://github.com/RevDonz/ai-video-clipper/actions/runs/40194820079)); angka
+  20,7% di `SPEAKER_FRAMING.md` diukur 2026-10-21 di PC acuan, bukan di image CI. Hasil:
+  `docs/evaluation/speaker-framing/result-val-multi-auto-2026-10-25.json`.
+- *Penilaian pemilik.* Selama `AUTO_SPLIT = False`, pemilik menilai 10 klip Otomatis acak:
+  `POTONGIN_AUTO_REFRAME=on` di server uji, buat job dengan tata letak Otomatis dari video
+  sendiri, lalu nilai 10 klip pertama. Lolos kalau ≥ 8 diterima. Klip dinilai dari file
+  unduhannya: sampai RF-M5a editor belum mengenal `layout.ranges`, jadi klip Otomatis **jangan
+  dibuka lewat Edit klip** (editor menolak atau merusak dokumennya). Status: **menunggu pemilik**.
+
+**P-FRAME dokumen Otomatis (RF-M2, 04 §A10).** `scripts/parity/frame_identity.py p-frame-auto`
+merender dokumen Otomatis hasil kompiler (`cfr_30_auto`, `cfr_2997_auto`, `auto_zoom_content`, 2
+dan 3 range campuran; batas range di batas piece dan di tengah piece) lewat final dan plate cell.
+Run [40195655710](https://github.com/RevDonz/ai-video-clipper/actions/runs/40195655710) (image
+produksi, `taskset` CPU 1 dan CPU 4): 0 frame salah dari 2.481 frame final dan plate yang indeksnya
+terbaca dan 3.270 frame plate cell; setiap frame render `reference` lossless md5-identik dengan
+render dokumen yang sama di mode range-nya saja (2.900 frame, termasuk 419 frame Ikuti wajah dan
+Potong tengah `auto_zoom_content` yang indeks barcode-nya terpotong zoom); `auto_keyframes` ditolak
+`range_invalid`. Bukti: `docs/editor/evidence/RF/P-FRAME-AUTO-cpu{1,4}.json`. P-FRAME lewat app
+(`plate_gates.py`) menyusul di RF-M6, setelah editor mengenal Otomatis (RF-M5a).
+
+| # | Job / klip | Diterima? | Catatan |
+|---|---|---|---|
+| 1–10 | (diisi pemilik) | | |
+
 ## Menjalankan
 
 ```bash
@@ -201,7 +389,15 @@ uv run python scripts/eval/auto_reframe.py --label --split test --cache ~/.cache
 # baseline camera hari ini di dev split: ukur (tanpa label), lalu nilai
 uv run python scripts/eval/auto_reframe.py --predict --split dev --cache ~/.cache/potongin-reframe --out prediksi.json
 uv run python scripts/eval/auto_reframe.py --score prediksi.json --split dev --cache ~/.cache/potongin-reframe --out hasil.json
+# detektor shot RF-M1: profil (di CI, tanpa label), lalu sweep (tanpa footage)
+uv run python scripts/eval/auto_reframe.py --profile --split dev --cache ~/.cache/potongin-reframe --out profil-dev.json
+uv run python scripts/eval/auto_reframe.py --sweep --split dev --profiles profil-dev.json --out sweep-dev.json
+# test split, sekali (RF-M4): profil (tanpa label), lalu satu run dengan rules yang di-commit
+uv run python scripts/eval/auto_reframe.py --profile --split test --cache ~/.cache/potongin-reframe --out profil-test.json
+uv run python scripts/eval/auto_reframe.py --test-run --split test --profiles profil-test.json --confirm-once --out hasil-test.json
 ```
 
 Di GitHub Actions: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=command -f
-command='…'` dengan `--fetch` lalu perintah lain dan `--out /out/…`, cache di `/tmp`.
+command='…'` dengan `--fetch` lalu perintah lain dan `--out /out/…`, cache di `/tmp`. Di CI,
+`--test-run` diberi `--lock /out/test-run.json`; file itu lalu di-commit ke
+`docs/evaluation/auto-reframe/test-run.json` bersama hasilnya.

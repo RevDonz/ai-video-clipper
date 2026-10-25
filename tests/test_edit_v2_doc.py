@@ -690,11 +690,111 @@ ZOOM_RULES = [
 ]
 
 
+SHOTS_SHA = "5" * 64
+
+
+def _window_sf(doc: dict) -> tuple[int, int]:
+    fps = tm.Fps(*doc["output"]["fps"])
+    a, b = doc["base"]["window_ms"]
+    return tm.sf_floor(a, fps), tm.sf_ceil(b, fps)
+
+
+def _auto(doc: dict, *parts, mode: str = "auto", shots: bool = True) -> None:
+    """Otomatis (CONTRACTS §5.63): ``parts`` are ``(share_pm, mode, origin)`` of the window from
+    its start (the last one runs to the end)."""
+    first, end = _window_sf(doc)
+    edges = [first]
+    for share, *_rest in parts[:-1]:
+        edges.append(first + (end - first) * share // 1000)
+    edges.append(end)
+    doc["layout"]["default"]["mode"] = mode
+    doc["layout"]["ranges"] = [{"in_sf": edges[i], "out_sf": edges[i + 1], "mode": part[1],
+                                "origin": part[2]} for i, part in enumerate(parts)]
+    if shots:
+        doc["base"]["shots"] = {"sha256": SHOTS_SHA}
+
+
+def _two(doc: dict, **changes) -> None:
+    """Two automatic ranges; ``changes`` (callables get the range) go to range ``index``."""
+    _auto(doc, (400, "camera", "auto"), (0, "fit_blur", "auto"))
+    entry = doc["layout"]["ranges"][changes.pop("index", 0)]
+    entry.update({key: value(entry) if callable(value) else value
+                  for key, value in changes.items()})
+
+
+RANGE_RULES = [
+    # the automatic layout: ranges partition the window, one of three modes each
+    ("c30", lambda d: _auto(d, (400, "camera", "auto"), (0, "fit_blur", "auto")), None, None),
+    ("c25", lambda d: _auto(d, (300, "fill_center", "auto"), (700, "camera", "user"),
+                            (0, "camera", "auto")), None, None),
+    ("c30", lambda d: _auto(d, (0, "fit_blur", "auto")), None, None),
+    ("c30", lambda d: (_auto(d, (400, "camera", "auto"), (0, "fit_blur", "auto")),
+                       d["layout"].update(zoom_pm=1200)), None, None),
+    # a user range under another default (F4b) is allowed; V7 holds the automatic ones to it
+    ("c30", lambda d: _auto(d, (400, "camera", "auto"), (0, "fit_blur", "user"), mode="camera",
+                            shots=False), None, None),
+    ("c30", lambda d: _auto(d, (400, "fit_blur", "auto"), (0, "camera", "user"), mode="camera"),
+     "range_invalid", "/layout/ranges/0/mode"),  # V7
+    # V1: the partition
+    ("c30", lambda d: _two(d, in_sf=lambda r: r["in_sf"] + 1), "range_invalid",
+     "/layout/ranges/0"),
+    ("c30", lambda d: _two(d, index=1, out_sf=lambda r: r["out_sf"] - 1), "range_invalid",
+     "/layout/ranges/1"),
+    ("c30", lambda d: _two(d, index=1, in_sf=lambda r: r["in_sf"] + 1), "range_invalid",
+     "/layout/ranges/1"),
+    ("c30", lambda d: _two(d, out_sf=lambda r: r["in_sf"]), "range_invalid",
+     "/layout/ranges/0"),
+    ("c30", lambda d: _two(d, out_sf="10"), "range_invalid", "/layout/ranges/0/out_sf"),
+    ("c30", lambda d: (_two(d), d["layout"].update(ranges=[])), "range_invalid",
+     "/layout/ranges"),
+    ("c30", lambda d: (_two(d), d["layout"].update(ranges={})), "range_invalid",
+     "/layout/ranges"),
+    # V2: canonical
+    ("c30", lambda d: _two(d, index=1, mode="camera"), "range_invalid", "/layout/ranges/1"),
+    # V3: the modes; split only automatic, and disabled until the spike passes
+    *[("c30", lambda d, mode=mode: _two(d, mode=mode), "range_invalid",
+       "/layout/ranges/0/mode") for mode in ("auto", "fit", "", None, 3)],
+    ("c30", lambda d: _two(d, mode="split", split_xy={"top": {"x_e5": 0, "y_e5": 0},
+                                                      "bottom": {"x_e5": 0, "y_e5": 0}}),
+     "op_disabled", "/layout/ranges/0/mode"),
+    ("c30", lambda d: _two(d, mode="split", origin="user"), "range_invalid",
+     "/layout/ranges/0/mode"),
+    # V4: the origin
+    *[("c30", lambda d, origin=origin: _two(d, origin=origin), "range_invalid",
+       "/layout/ranges/0/origin") for origin in ("seed", "", None)],
+    # V5: no ranges under the split default
+    ("c30", lambda d: (_split(d), d["layout"].update(ranges=[
+        {"in_sf": _window_sf(d)[0], "out_sf": _window_sf(d)[1], "mode": "camera",
+         "origin": "user"}])), "range_invalid", "/layout/ranges"),
+    # V6: auto needs its ranges and its shot plan
+    ("c30", lambda d: (d["layout"]["default"].update(mode="auto"),
+                       d["base"].update(shots={"sha256": SHOTS_SHA})), "range_invalid",
+     "/layout/ranges"),
+    ("c30", lambda d: _auto(d, (0, "camera", "auto"), shots=False), "range_invalid",
+     "/base/shots"),
+    ("c30", lambda d: (_two(d), d["base"].update(shots={"sha256": "x"})), "range_invalid",
+     "/base/shots/sha256"),
+    # V8: no manual framing with ranges
+    ("c30", lambda d: (_two(d), d["layout"].update(keyframes=[
+        {"sf": _window_sf(d)[0], "pan_e5": 0, "move": "cut"}])), "range_invalid",
+     "/layout/keyframes"),
+    # V9: split crops only on split ranges
+    ("c30", lambda d: _two(d, split_xy={"top": {"x_e5": 0, "y_e5": 0},
+                                        "bottom": {"x_e5": 0, "y_e5": 0}}),
+     "range_invalid", "/layout/ranges/0/split_xy"),
+    # the automatic layout carries no split bands while no range is split
+    ("c30", lambda d: (_two(d), d["layout"].update(split={"top_pm": 300, "top": _crop(),
+                                                          "bottom": _crop()})),
+     "range_invalid", "/layout/split"),
+]
+
+
 # (context, mutate, code, path): one targeted violation (or a positive boundary with code None).
 RULES = [
     *KEYFRAME_RULES,
     *SPLIT_RULES,
     *ZOOM_RULES,
+    *RANGE_RULES,
     # root
     ("c30", lambda d: d.update(clip_id="clip_XYZ"), "range_invalid", "/clip_id"),
     ("c30", lambda d: d.update(revision=-1), "range_invalid", "/revision"),

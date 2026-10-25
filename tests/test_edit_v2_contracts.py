@@ -229,6 +229,7 @@ SIGNATURES = {
         ("out_w", KW, NO_DEFAULT),
         ("out_h", KW, NO_DEFAULT),
         ("detector", KW, "<detect_face_track>"),
+        ("scan", KW, None),  # a shared face_window scan (CONTRACTS §5.63, rombak 04 §A4)
     ],
     ("seed", "build_seed"): [
         ("clip", KW, NO_DEFAULT),
@@ -238,6 +239,8 @@ SIGNATURES = {
         ("words_count", KW, NO_DEFAULT),
         ("camera_sha", KW, NO_DEFAULT),
         ("selection_sha", KW, NO_DEFAULT),
+        # the automatic layout's shot plan (CONTRACTS §5.63, rombak 04 §A8.1)
+        ("shot_plan", KW, None),
     ],
     ("seed", "prepare_legacy_job"): [("job_dir", POS, NO_DEFAULT)],
     # The cold-open transition (spec 2026-10-02 §1.6, §3.4, §6.1; CONTRACTS §5.26).

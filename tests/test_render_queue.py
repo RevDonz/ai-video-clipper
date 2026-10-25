@@ -255,6 +255,33 @@ def test_v3_timeout_formula_is_the_scaled_prediction_with_a_floor():
                     == RENDER_COST_PERMILLE[(layout, (width, width * 16 // 9))])
 
 
+def test_an_automatic_document_takes_the_face_track_budget():
+    """Otomatis mixes the layouts per shot (CONTRACTS §5.63): until RF-M6 measures it, its
+    budget is face-track's, the largest, at every output size."""
+    for size in OUTPUT_SIZES:
+        assert RENDER_COST_PERMILLE[("auto", size)] == RENDER_COST_PERMILLE[("camera", size)]
+        assert render_timeout_ms(300_000, "auto", size) == render_timeout_ms(300_000, "camera",
+                                                                              size)
+
+
+def _auto_doc(ranges, camera_sha=None):
+    return {"layout": {"default": {"mode": "auto", "no_face": "fit_blur"},
+                       "ranges": [{"in_sf": a, "out_sf": b, "mode": mode, "origin": "auto"}
+                                  for a, b, mode in ranges]},
+            "base": {"camera": {"sha256": camera_sha}}}
+
+
+def test_an_automatic_document_loads_the_camera_plan_only_for_a_camera_range(tmp_path):
+    raw = json.dumps({"schema": "camera"}).encode()
+    sha = hashlib.sha256(raw).hexdigest()
+    (tmp_path / f"camera.{sha[:16]}.json").write_bytes(raw)
+    assert render_queue._camera_for(tmp_path, _auto_doc([(0, 10, "camera"), (10, 20, "fit_blur")],
+                                                        sha)) == {"schema": "camera"}
+    assert render_queue._camera_for(tmp_path, _auto_doc([(0, 20, "fit_blur")], sha)) is None
+    with pytest.raises(render_queue.QueueAnalysisMissing):
+        render_queue._camera_for(tmp_path, _auto_doc([(0, 20, "camera")], "f" * 64))
+
+
 def test_v3_create_is_idempotent_and_a_reused_key_with_other_content_conflicts(tmp_path):
     job = V3Job(tmp_path)
     _doc, etag = job.save(main__cut_fade_ms=20)
