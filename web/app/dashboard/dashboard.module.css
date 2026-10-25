@@ -175,7 +175,8 @@ textarea.input { min-height: 72px; padding: 10px 14px; resize: vertical; }
 }
 
 @media (max-width: 560px) {
-  .composer { padding: 16px; }
+  /* 12 px inside the 16 px page gutter: Buat klip keeps more than 300 px at 360 px. */
+  .composer { padding: 12px; }
   /* Link, file row, chips, then Buat klip full width under the chips. */
   .sourceRow { display: contents; }
   .submit { order: 10; width: 100%; }
