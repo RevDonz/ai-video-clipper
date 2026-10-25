@@ -78,3 +78,25 @@ test("the page hands POTONGIN_EDITOR_SHELL to the editor; the new shell shows no
   assert.match(app, /import EditorShell from "\.\/shell\/EditorShell\.jsx";/);
   assert.match(app, /url-state\.mjs/);
 });
+
+// The frame cap that keeps the overlay columns beside a narrow stage (06 §3.5 at ≥ 1440 px) is the
+// one layout's: the two-view editor, still the production default, keeps its stage rules as they were.
+test("the stage frame's width cap applies under the one layout only", () => {
+  const css = read("components", "editor", "shell.module.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? null;
+  };
+  const area = rule(".stageArea");
+  const frame = rule(".stageFrame");
+  assert.ok(area && frame, "the shared stage rules");
+  assert.doesNotMatch(area, /container-type|--stage-side/);
+  assert.match(frame, /(?:^|;)\s*max-height:\s*100%;/);
+  assert.doesNotMatch(frame, /cqw/);
+  const v2Area = rule('[data-editor-shell="v2"] .stageArea');
+  const v2Frame = rule('[data-editor-shell="v2"] .stageFrame');
+  assert.match(v2Area ?? "", /container-type:\s*inline-size/);
+  assert.match(v2Area ?? "", /--stage-side:\s*168px/);
+  assert.match(v2Frame ?? "",
+    /max-height:\s*min\(100%, max\(240px, calc\(\(100cqw - 2 \* var\(--stage-side\) - 2 \* var\(--ed-space-3\)\) \* var\(--stage-hw, 1\.7778\)\)\)\)/);
+});
