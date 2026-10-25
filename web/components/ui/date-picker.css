@@ -9,5 +9,9 @@
 
 @layer components {
   .calendar__cell, .calendar__nav-button, .date-picker__trigger { min-width: 44px; min-height: 44px; }
+  /* The field grows to the 44 px trigger instead of clipping it (HeroUI's group is 36 px). */
+  .date-input-group { min-height: 44px; }
+  .date-input-group__suffix { margin-inline-end: 0; }
+  .date-picker__trigger { justify-content: center; background: transparent; color: var(--text-muted); }
   .calendar__cell[data-selected] { background: var(--text); color: var(--bg); }
 }
