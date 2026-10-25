@@ -46,7 +46,10 @@ test.describe("Pengaturan tabs", () => {
   test("each old hash opens its tab, and picking a tab writes its hash", async ({ page }) => {
     await login(page, "/settings");
     await expect(settingsTab(page, "ai")).toHaveAttribute("aria-selected", "true");
-    const hashes = [["#youtube", "youtube"], ["#tampilan", "appearance"], ["#transkripsi", "transcription"], ["#sistem", "system"], ["#provider-openrouter", "ai"]];
+    // The AI card has loaded, so the page is hydrated and listens for hashchange: a hash set
+    // before that can be lost to the router's first history entry (CI run 40203821357).
+    await expect(region(page, "settings.tab.ai")).toHaveAttribute("aria-busy", "false");
+    const hashes =[["#youtube", "youtube"], ["#tampilan", "appearance"], ["#transkripsi", "transcription"], ["#sistem", "system"], ["#provider-openrouter", "ai"]];
     for (const [hash, id] of hashes) {
       await page.goto(`/settings${hash}`);
       await expect(settingsTab(page, id)).toHaveAttribute("aria-selected", "true");
