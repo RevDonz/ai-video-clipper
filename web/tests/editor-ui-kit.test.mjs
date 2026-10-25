@@ -220,6 +220,16 @@ test("the accordion animates its height over --dur-2 and hides a closed body aft
   assert.match(body, /transition:[^;]*grid-template-rows var\(--dur-2\) var\(--ease-out\)[^;]*opacity var\(--dur-2\) var\(--ease-out\)/);
   assert.match(ruleOf(source, '.cardBody[data-expanded="true"]') ?? "", /grid-template-rows:\s*1fr/);
   assert.equal(ruleOf(source, '.cardBody[data-open="true"]'), null, "no second open state beside React Aria's");
+  // The hiding itself: the closed panel is aria-hidden at once and gets hidden="until-found" once
+  // its transitions finish (the pinned React Aria's useDisclosure), and no card rule sets
+  // content-visibility, visibility or display on [hidden], which would show a closed body again.
+  const disclosure = readFileSync(path.join(editorDir, "..", "..", "node_modules", "react-aria", "dist", "private", "disclosure", "useDisclosure.mjs"), "utf8");
+  assert.match(disclosure, /'aria-hidden': !state\.isExpanded/);
+  assert.match(disclosure, /getAnimations\(\)\.map\(\(a\)=>a\.finished\)\)\.then\(\(\)=>panel\.setAttribute\('hidden', 'until-found'\)\)/);
+  for (const selector of [".cardBody", '.cardBody[data-expanded="true"]', ".cardInner"]) {
+    assert.doesNotMatch(ruleOf(source, selector) ?? "", /content-visibility|visibility:/, selector);
+  }
+  assert.doesNotMatch(source, /\.card\w*\[hidden/, "nothing styles a hidden card body");
 });
 
 // --- task B: the cards, the panels' lime and the card-sized controls (§8.1, §8.4, §9.2) -------------
