@@ -127,7 +127,9 @@ test.describe("Riwayat: Klip view (faked clip listing)", () => {
 
     await cards(page).nth(1).getByRole("link").click();
     await page.waitForURL((url) => url.pathname === `/projects/${JOB_A}` && url.searchParams.get("klip") === "2");
+    // ?klip=2 opens that clip in the project's clip viewer; closing it lands on its poster.
     await expect(page.locator("[data-clip-detail]").getByRole("heading", { level: 3 })).toHaveText("Ngopi di café");
+    await page.keyboard.press("Escape");
     await expect(page.locator("[data-poster='2']")).toBeFocused();
   });
 

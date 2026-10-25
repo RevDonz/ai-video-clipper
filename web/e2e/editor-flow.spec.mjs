@@ -46,6 +46,7 @@ import { openCard } from "./support/editor-cards.mjs";
 import { resetToAi } from "./support/editor-topbar.mjs";
 import { wordAction } from "./support/editor-words.mjs";
 import { login, settings } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const JOB_ID = process.env.E2E_EDITOR_JOB_ID || "";
@@ -300,21 +301,30 @@ test.beforeEach(async ({ page }, testInfo) => {
   if (!testInfo.title.startsWith("entry:")) await ensureClips(page);
 });
 
-test("entry: 'Edit klip' on every clip card and in the history; a clip opens with no manual prepare", async ({ page, browser }) => {
+test("entry: 'Edit klip' in every clip's viewer and in the history; a clip opens with no manual prepare", async ({ page, browser }) => {
   test.setTimeout(15 * 60_000);
   await page.goto(`/projects/${JOB_ID}`);
   const cards = page.getByRole("article");
   await expect(cards.first()).toBeVisible({ timeout: 30_000 });
   const count = await cards.count();
-  for (let index = 0; index < count; index += 1) await expect(cards.nth(index).getByRole("link", { name: "Edit klip" })).toBeVisible();
+  // A poster opens its clip in the project page's viewer (05-ui-dashboard.md §6.4), which offers Edit klip.
+  const viewer = page.locator("[data-clip-detail]");
+  for (let index = 0; index < count; index += 1) {
+    await cards.nth(index).getByRole("button").click();
+    await expect(viewer.getByRole("link", { name: L("project.viewer.editClip") })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(viewer).toHaveCount(0);
+  }
   await expect(page.getByRole("button", { name: /Siapkan/ })).toHaveCount(0);
   await page.goto("/projects");
   const row = page.getByRole("list", { name: "Proyek" }).getByRole("listitem").filter({ has: page.locator(`a[href="/projects/${JOB_ID}"]`) });
   await expect(row.getByRole("link", { name: /^Edit klip/ })).toHaveAttribute("href", `/projects/${JOB_ID}#klip`);
   await row.getByRole("link", { name: /^Edit klip/ }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${JOB_ID}#klip$`));
+  await page.getByRole("article").first().getByRole("button").click();
   const started = Date.now();
-  await page.getByRole("article").first().getByRole("link", { name: "Edit klip" }).click();
+  // A plain link: the editor loads as a whole document with its COOP/COEP headers (05 §2 P12).
+  await page.locator("[data-clip-detail]").getByRole("link", { name: L("project.viewer.editClip") }).click();
   if (unpreparedAtStart) {
     await expect(page.getByRole("heading", { name: "Menyiapkan klip untuk diedit" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("status").filter({ hasText: "Menyiapkan transkrip kata, waveform, dan wajah." })).toBeVisible();
@@ -322,6 +332,7 @@ test("entry: 'Edit klip' on every clip card and in the history; a clip opens wit
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 12 * 60_000 });
   const openMs = Date.now() - started;
   expect(new URL(page.url()).pathname).toMatch(new RegExp(`^/projects/${JOB_ID}/clips/clip_[0-9a-f]{24}/edit$`));
+  expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(true);
   // A fresh profile opens Mode Cepat with the Caption card open, and the address stays as it was.
   await expect(editorRoot(page)).toHaveAttribute("data-editor-view", "cepat");
   await expect(page.locator("#card-caption-button")).toHaveAttribute("aria-expanded", "true");

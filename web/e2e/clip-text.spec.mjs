@@ -4,9 +4,10 @@ import { createRequire } from "node:module";
 import { expect } from "@playwright/test";
 
 import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
-// A clip's title and description on the project page (plan 2026-10-20 P2): "Ubah" edits them in
-// the caption box and "Simpan" saves through PATCH /clip-text; "Tulis ulang" shows the AI's
+// A clip's title and description in the project page's clip viewer (plan 2026-10-20 P2, 05 §6.4):
+// "Ubah" edits them in the caption box and "Simpan" saves through PATCH /clip-text; "Tulis ulang" shows the AI's
 // suggestion to use ("Pakai", into the form) or throw away ("Buang"); a failure links to its
 // /bantuan entry and Pengaturan. The job API, PATCH /clip-text and POST /clip-text/rewrite are
 // faked inside the browser (page.route), so nothing on the server changes and no LLM is asked;
@@ -59,7 +60,8 @@ async function fakeProject(target, { rewrite = { status: 200, body: { suggestion
 }
 
 const detail = (target) => target.locator("[data-clip-detail]");
-const caption = (target) => detail(target).getByRole("region", { name: "Caption" });
+const caption = (target) => detail(target).getByRole("region", { name: L("project.viewer.caption") });
+const step = (target, key) => detail(target).getByRole("button", { name: L(key) }).click();
 const posters = (target) => target.getByRole("article");
 const overflow = (target) => target.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
@@ -76,16 +78,18 @@ const AXE = axeSource();
 
 async function axeSerious(target) {
   if (!(await target.evaluate(() => Boolean(window.axe)))) await target.addScriptTag({ content: AXE });
-  const result = await target.evaluate(() => window.axe.run("#klip", { resultTypes: ["violations"] }));
+  const result = await target.evaluate(() => window.axe.run("[role=dialog]", { resultTypes: ["violations"] }));
   return result.violations.filter((violation) => ["serious", "critical"].includes(violation.impact))
     .map((violation) => ({ id: violation.id, nodes: violation.nodes.length }));
 }
 
+// The project opened on clip 1 in the viewer (?klip=1).
 async function openProject(page, options) {
   const seen = await fakeProject(page, options);
   await login(page, "/projects");
-  await page.goto(`/projects/${JOB_ID}`);
+  await page.goto(`/projects/${JOB_ID}?klip=1`);
   await expect(posters(page)).toHaveCount(2);
+  await expect(detail(page).getByRole("heading", { level: 3 })).toHaveText(TITLES[0]);
   return seen;
 }
 
@@ -125,11 +129,11 @@ test.describe("clip title and description (faked routes)", () => {
     await expect(box.getByRole("status")).toContainText("Judul dan deskripsi tersimpan.");
     await expect(box.getByRole("button", { name: "Ubah judul dan deskripsi" })).toBeFocused();
     await expect(box.getByText("#podcast", { exact: true })).toBeVisible();
-    await expect(detail(page).getByRole("link", { name: "Unduh MP4" }))
+    await expect(detail(page).getByRole("link", { name: L("project.viewer.downloadMp4") }))
       .toHaveAttribute("href", `/api/jobs/${JOB_ID}/files/output/clip-01.mp4?download=1&name=01-satpam-nahan-sutradara`);
 
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-    await detail(page).getByRole("button", { name: "Salin caption" }).click();
+    await detail(page).getByRole("button", { name: L("project.viewer.copyCaption") }).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("Satpam nahan sutradara\n\nCerita lucu dari mall.\n\n#podcast #lucu");
   });
 
@@ -137,10 +141,10 @@ test.describe("clip title and description (faked routes)", () => {
     const seen = await openProject(page);
     await caption(page).getByRole("button", { name: "Ubah judul dan deskripsi" }).click();
     await caption(page).getByLabel("Judul", { exact: true }).fill("Draf yang belum disimpan");
-    await posters(page).nth(1).getByRole("button").click();
+    await step(page, "aria.next");
     await expect(detail(page).getByRole("heading", { level: 3 })).toHaveText(TITLES[1]);
     await expect(caption(page).getByLabel("Judul", { exact: true })).toHaveCount(0);
-    await posters(page).nth(0).getByRole("button").click();
+    await step(page, "aria.prev");
     await expect(caption(page).getByLabel("Judul", { exact: true })).toHaveValue("Draf yang belum disimpan");
     await caption(page).getByRole("button", { name: "Batal" }).click();
     await expect(caption(page).getByLabel("Judul", { exact: true })).toHaveCount(0);
