@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslations } from "use-intl";
 
 import {
   CLIP_TEXT_COPY as COPY,
@@ -9,8 +10,6 @@ import {
   rewriteClipText,
   saveClipText,
 } from "../lib/clip-text.mjs";
-import { useTranslations } from "use-intl";
-
 import styles from "./ClipText.module.css";
 
 // The caption box's words in the UI language (project.text.*), by the CLIP_TEXT_COPY entry; one
