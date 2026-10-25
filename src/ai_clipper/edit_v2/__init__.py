@@ -69,9 +69,9 @@ SPLIT_TOP_PM = (300, 500, 700)
 SPLIT_BANDS = ("top", "bottom")
 SPLIT_ZOOM_RANGE = (1000, 5000)
 # Otomatis (``layout.ranges``, CONTRACTS §5.63): whether an automatic range may be a split. The
-# split chain needs the graph spike of rombak 04 §A7.2 (``scripts/parity/auto_graph_spike.py``);
-# until it passes, a split range is ``op_disabled`` and two speakers in a wide shot are followed
-# by face-track.
+# graph spike of rombak 04 §A7.2 (``scripts/parity/auto_graph_spike.py``) measured K1, K2 and
+# K3 on CI and none met the 1.15× time budget (docs/editor/SPIKES.md §8), so a split range is
+# ``op_disabled`` and two speakers in a wide shot are followed by face-track.
 AUTO_SPLIT = False
 # Zoom (optional ``layout.zoom_pm``, CONTRACTS §5.52): the picture of every layout but the split
 # enlarged from 1000 (absent: today's picture) to 1.5×, per mille.

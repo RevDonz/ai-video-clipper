@@ -234,13 +234,41 @@ the render's `prlimit --as` of 3 GiB and the time against the fallback chain.
 - **Without split (A7.1):** one fallback chain with per-frame switches. This also settles open
   item #18 of the plan: a `fill_center` frame drawn as the camera crop at `centre_x` must be
   md5-identical to the centre-crop chain's frame.
-- **K1 overlay:** the fallback chain under an `overlay` of a split chain whose crops follow the
-  range per frame, enabled on split frames. K2 and K3 are only tried if K1 fails.
+- **With split (A7.2)**, in the order of the plan: **K1 overlay** (the split chain over the
+  fallback chain, `overlay` enabled on split frames), **K2 streamselect** (`streamselect` whose
+  `map` a `sendcmd` switches half a frame before each range edge) and **K3 maskedmerge** (a
+  mask from a `color` source of the clip's length, white on split frames through `lutyuv` with
+  K1's `enable`). The first that passes is used.
 
-Status 2026-10-25: **the gate run has not been made yet**; it runs on GitHub Actions
-(`editor-gates.yml suite=command`, the command in the script's docstring) with the final gates
-of the track. Until it passes, `AUTO_SPLIT = False`: a split range is `op_disabled` and two
-speakers in a wide shot are followed with face-track (rombak 04 §A5 rule 2). A local smoke
-(2 s, 720p, 1 and 3 runs; not a gate run) gave 0 mismatched frames without split, the 20
-`fill_center` frames included, constant contexts, and 0 mismatched frames for K1 at 1.10× and
-1.16× the fallback chain's time; at that size the time is noise, so the CI run decides.
+Contexts: with one run every frame is `camera`, so the fallback chain is the bare camera chain
+(4 contexts); with any `fit_blur` frame it is the fallback chain (10). That 4 → 10 step (and
+K1's 16 → 22) is the chain's two shapes, not growth with the number of ranges; "contexts
+constant" compares 8 and 48 runs.
+
+### CI run 2026-10-25
+
+[Run 40194008287](https://github.com/RevDonz/ai-video-clipper/actions/runs/40194008287)
+(`editor-gates.yml suite=command`, production image, FFmpeg 5.1, 20 s sources, 1/8/48 runs); the
+K1-only run of the review, [40192968904](https://github.com/RevDonz/ai-video-clipper/actions/runs/40192968904),
+gave the same picture.
+
+| | Mismatched frames | Contexts (1 / 8 / 48 runs) | Peak RSS | Time vs fallback chain (1080p; 720p) |
+|---|---|---|---|---|
+| Without split (A7.1) | 0 at 1/8/48, both sizes | 4 / 10 / 10 | 0.16 GiB | — |
+| K1 overlay | 0 | 16 / 22 / 22 | 0.18 GiB | 1.40 / 1.27 / 1.27; 1.45 / 1.24 / 1.26 |
+| K2 streamselect | 0 | 17 / 23 / 23 | 0.18 GiB | 1.25 / 1.19 / 1.20; 1.26 / 1.16 / 1.16 |
+| K3 maskedmerge | 0 | 20 / 26 / 26 | 0.19 GiB | 1.50 / 1.35 / 1.32; 1.53 / 1.26 / 1.29 |
+
+- **A7.1 passes:** every frame md5-identical to its mode's pure chain at 1, 8 and 48 runs on
+  1080p and 720p, contexts constant, peak RSS far under 3 GiB. The 225 and 200 `fill_center`
+  frames match the centre-crop chain: open item #18 of the plan is closed (no fourth switch for
+  y is needed).
+- **A7.2 fails on time for all three:** each candidate is md5-exact, constant and small, but
+  every one evaluates the split chain on every frame (the overlay, the switch and the mask only
+  choose which result is kept), so each costs 16–53 % more than the fallback chain against the
+  budget of 15 %. K2 comes closest (1.16× at 720p, 1.19–1.25× at 1080p).
+
+Decision: `AUTO_SPLIT` stays `False` (04 §A7.2: no candidate passes). A split range is
+`op_disabled`, rule #2 of 04 §A5 falls to `camera`, and RF-M4 tunes group framing only. The
+budget is not loosened; a split for Otomatis needs a graph that skips the split chain on the
+frames that do not show it, a new spike.
