@@ -19,6 +19,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from typing import Any
 
 import pytest
 from test_edit_v2_plates import camera_plan, synthetic_job, with_layout, write_camera
@@ -237,6 +238,61 @@ def test_the_plan_dto_lists_the_first_no_face_run(no_face_case):
     listed = [w for w in plan_of(case, doc)["dto"]["warnings"] if w["code"] == "no_face"]
     assert listed and listed[0]["f"] == expected[0]
     assert listed[0]["path"] == "/layout/default/mode"
+
+
+def _auto_of(doc: dict) -> dict:
+    """``doc`` under the automatic layout: a latar blur range up to 4 s into the body (past the
+    first run without a face), then a camera range to the window's end."""
+    fps = tm.Fps.from_json(doc["output"]["fps"])
+    window = doc["base"]["window_ms"]
+    first, end = tm.sf_floor(window[0], fps), tm.sf_ceil(window[1], fps)
+    edge = tm.sf_floor(_ms(doc["main"]["segments"][-1]["in_sf"], fps) + 4000, fps)
+    assert edge < doc["main"]["removals"][0]["in_sf"] - tm.sf_ceil(2000, fps)
+    auto = copy.deepcopy(doc)
+    auto["layout"]["default"].update(mode="auto", no_face="fit_blur")
+    auto["layout"]["ranges"] = [
+        {"in_sf": first, "out_sf": edge, "mode": "fit_blur", "origin": "auto"},
+        {"in_sf": edge, "out_sf": end, "mode": "camera", "origin": "auto"}]
+    auto["base"]["shots"] = {"sha256": "5" * 64}
+    return auto
+
+
+def test_the_lane_takes_the_automatic_layout_only_with_its_analysis_in_the_base(no_face_case):
+    """A revision of a clip seeded with another layout cannot become Otomatis by itself: the
+    shot analysis is part of the base (``base.shots``), so the lane refuses it as a changed base
+    until the editor's analysis writes it (RF-M5a)."""
+    case, doc, _expected = no_face_case
+    status, payload = call(case["root"], op="plan", jobId=case["jobId"], clipId=case["clipId"],
+                           requestRaw=b64(body(_auto_of(doc))))
+    assert status == 6
+    assert payload["error"]["code"] == "base_changed"
+    assert payload["error"]["path"] == "/base/shots"
+
+
+def test_the_automatic_layout_lists_no_face_runs_only_in_its_camera_ranges(no_face_case):
+    """Otomatis (CONTRACTS §5.63): the run inside the latar blur range is no note (the frame is
+    blurred anyway); the run across the cut, in the camera range, is a no_face_blur note at the
+    same frames as under face-track. The pieces stay; the plan is another one."""
+    from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
+    from ai_clipper.edit_v2.plan import Resources, build_plan
+
+    case, doc, _expected = no_face_case
+    blurred = copy.deepcopy(doc)
+    blurred["layout"]["default"]["no_face"] = "fit_blur"
+    camera_plan_ = plates.camera_for(case["clip"], blurred)[0]
+    resources = Resources(RESOURCES_DIR)
+
+    def notes(document: dict) -> tuple[list[int], Any]:
+        plan = build_plan(document, words=case["words"], camera=camera_plan_, assets={},
+                          resources=resources)
+        assert not [w for w in plan.warnings if w.code == "no_face"]
+        return sorted(w.f for w in plan.warnings if w.code == "no_face_blur"), plan
+
+    face_notes, face = notes(blurred)
+    auto_notes, auto = notes(_auto_of(doc))
+    assert len(face_notes) == 3 and auto_notes == face_notes[1:]
+    assert auto.pieces == face.pieces
+    assert auto.plan_sha256 != face.plan_sha256
 
 
 def test_a_switch_is_undone_by_switching_back_to_the_seed_layout(job):

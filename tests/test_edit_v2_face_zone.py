@@ -153,6 +153,37 @@ def test_manual_framing_maps_the_face_through_its_keyframes():
         pytest.approx((0.02 * 2276, 768, 0.1 * 2276, 1152))]
 
 
+def auto_doc(ranges):
+    """The automatic layout (CONTRACTS §5.63): ``(in_sf, out_sf, mode)`` ranges."""
+    doc = doc_with(mode="auto", no_face="fit_blur")
+    doc["layout"]["ranges"] = [{"in_sf": a, "out_sf": b, "mode": mode, "origin": "auto"}
+                               for a, b, mode in ranges]
+    return doc
+
+
+def test_the_automatic_layout_maps_the_face_with_the_mode_of_its_range():
+    plan = face_plan([LOW] * 4, centre_pm=300)  # 3 s: frames 0-74
+    doc = auto_doc([(0, 25, "fill_center"), (25, 50, "fit_blur"), (50, 75, "camera")])
+
+    def rects(document, sf):
+        return face_zone.face_rects(LOW, document, plan, sf=sf, output=OUTPUT)
+
+    assert rects(doc, 10) == rects(doc_with(), 10)
+    assert rects(doc, 30) == rects(doc_with(mode="fit_blur"), 30)
+    assert rects(doc, 60) == rects(doc_with(mode="camera", no_face="fit_blur"), 60)
+    assert rects(doc, 10) != rects(doc, 30) and rects(doc, 60) != rects(doc, 10)
+
+
+def test_a_caption_over_the_face_counts_only_where_its_range_puts_the_face_there():
+    # a centre crop shows LOW under the Bawah caption; latar blur shows it above it
+    plan = face_plan([LOW] * 8)
+    assert issues(doc_with(), plan) and not issues(doc_with(mode="fit_blur"), plan)
+    covered = auto_doc([(0, 150, "fill_center")])
+    assert issues(covered, plan)
+    clear = auto_doc([(0, 150, "fit_blur")])
+    assert not issues(clear, plan)
+
+
 def test_split_maps_the_face_into_each_band_that_shows_it():
     doc = doc_with(mode="split", split=layouts.default_split())
     rects = face_zone.face_rects(LOW, doc, face_plan([LOW]), sf=0, output=OUTPUT)
