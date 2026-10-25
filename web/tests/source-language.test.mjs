@@ -117,10 +117,14 @@ test("the worker stores the reported language on the job while it runs", async (
   }
 });
 
-test("the project page and the dashboard's job panel show the note", async () => {
+// Buat klip has no job panel any more (05 §2 P4): the note is on the project page, where every
+// job lands after Buat klip.
+test("the project page shows the note; Buat klip shows no job", async () => {
   const project = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  assert.match(project, /const languageNotice = videoLanguageNotice\(job\);/);
   assert.match(project, /const notices = \[\.\.\.\(languageNotice \? \[languageNotice\] : \[\]\), \.\.\.selectionNotices\(job\)\];/);
+  assert.match(project, /notices\.map\(\(notice\) => <Notice key=/);
   const dashboard = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
-  assert.match(dashboard, /const languageNotice = videoLanguageNotice\(activeJob\);/);
-  assert.match(dashboard, /\{languageNotice && <p className=\{`notice \$\{languageNotice\.tone\}/);
+  assert.doesNotMatch(dashboard, /videoLanguageNotice|activeJob/);
+  assert.match(dashboard, /window\.location\.assign\(next\)/);
 });

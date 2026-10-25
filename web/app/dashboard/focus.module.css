@@ -50,14 +50,17 @@
   cursor: pointer;
   transition: background-color var(--dur-1) var(--ease-out);
 }
+/* The visible 28 px circle keeps the chip compact; the target around it is 44 px. */
+.chips button { position: relative; }
+.chips button::before { content: ""; position: absolute; inset: -8px; }
 .chips button:hover { background: var(--surface-3); }
 .chips button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .chips li.unmatchable { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
 /* The box draws the focus ring for the whole field, so the bare input needs none of its own. */
 .input { flex: 1 1 150px; min-width: 0; min-height: 34px; padding: 6px; border: 0 !important; outline: none; background: transparent !important; color: var(--text); font: 500 15px var(--font); }
-.help { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
-.hint { margin: 0; color: var(--warning); font-size: 13px; line-height: 1.5; }
-.error { margin: 0; color: var(--danger); font-size: 13px; font-weight: 600; line-height: 1.5; }
+.help { display: block; margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.hint { display: block; margin: 0; color: var(--warning); font-size: 13px; line-height: 1.5; }
+.error { display: block; margin: 0; color: var(--danger); font-size: 13px; font-weight: 600; line-height: 1.5; }
 .noteLabel { margin-top: 6px; }
 .note { display: block; width: 100%; min-height: 72px; resize: vertical; padding: 11px 13px; font: 500 15px/1.45 var(--font); }
 .note:focus-visible { border-color: var(--focus); }

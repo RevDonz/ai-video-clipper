@@ -214,3 +214,57 @@ test("each closed fold says what is chosen inside it, so nothing hides a default
   assert.equal(sectionSummary("nope", DEFAULT_CHOICES), "");
   for (const section of OPTION_SECTIONS) assert.doesNotMatch(sectionSummary(section.id, DEFAULT_CHOICES), /—|undefined|null/);
 });
+
+// --- The valued chips (rombak 05 §6.3) ---------------------------------------------------------
+
+test("each checked field sits in the chip that opens it; the source fields are always on screen", async () => {
+  const { CHIPS, chipOfField } = await import("../lib/dashboard-choices.mjs");
+  assert.deepEqual(CHIPS, ["count", "duration", "format", "layout", "subtitle", "hook", "focus", "language"]);
+  for (const field of ["youtubeUrl", "video", "subtitle", "nope"]) assert.equal(chipOfField(field), null, field);
+  assert.equal(chipOfField("limit"), "count");
+  assert.equal(chipOfField("minDuration"), "duration");
+  assert.equal(chipOfField("maxDuration"), "duration");
+  assert.equal(chipOfField("timeRanges"), "focus");
+  assert.equal(chipOfField("focus"), "focus");
+  // Every field the form checks (jobFormProblems) is either on screen or in a chip.
+  const problems = jobFormProblems({ sourceType: "youtube", youtubeUrl: "", limit: "0", minDuration: "1", maxDuration: "1", timeRanges: "x" });
+  for (const field of Object.keys(problems)) assert.ok(field === "youtubeUrl" || chipOfField(field), field);
+});
+
+test("a stored record from the folded form still reads; its open folds are ignored", () => {
+  const stored = memoryStorage({ [CHOICES_KEY]: JSON.stringify({ ...DEFAULT_CHOICES, limit: "6", openSections: ["look"] }) });
+  assert.equal(readStoredChoices(stored).limit, "6");
+});
+
+test("Proses ulang fills every chip and the YouTube link from a job's options", async () => {
+  const { choicesFromJob } = await import("../lib/dashboard-choices.mjs");
+  const job = {
+    source: { type: "youtube", url: "https://youtu.be/rBg0ZcwjVKQ" },
+    options: {
+      renderMode: "face-track", limit: 6, minDuration: 30, maxDuration: 60, coldOpen: false, hookOverlay: true,
+      captionStyle: "sorot", captionPosition: "top", captionSize: "large", outputSize: "1080x1080", videoLanguage: "en",
+      focus: { terms: ["prank", "tips kerja"], note: "momen lucu" }, ranges: [{ start: 630, end: 725 }],
+    },
+  };
+  const filled = choicesFromJob(job);
+  assert.deepEqual(filled.choices, normalizeChoices({
+    ...DEFAULT_CHOICES, limit: "6", duration: "medium", renderMode: "face-track", coldOpen: false, hookOverlay: true,
+    captionStyle: "sorot", captionPosition: "top", captionSize: "large", ratio: "1:1", resolution: "1080p", videoLanguage: "en",
+  }));
+  assert.equal(filled.choices.duration, "medium", "30 to 60 seconds is the Sedang preset");
+  assert.equal(filled.youtubeUrl, "https://youtu.be/rBg0ZcwjVKQ");
+  assert.deepEqual(filled.focusTerms, ["prank", "tips kerja"]);
+  assert.equal(filled.focusNote, "momen lucu");
+  assert.equal(filled.timeRanges, "10:30-12:05");
+  assert.equal(filled.reupload, false);
+  // A range no preset has opens Atur sendiri with it.
+  const custom = choicesFromJob({ source: { type: "upload", name: "a.mp4" }, options: { ...job.options, minDuration: 25, maxDuration: 45 } });
+  assert.deepEqual([custom.choices.duration, custom.choices.minDuration, custom.choices.maxDuration], ["custom", "25", "45"]);
+  assert.equal(custom.youtubeUrl, "", "a file source cannot be filled in again");
+  assert.equal(custom.reupload, true);
+  // Old or unknown options fall back to the defaults, field by field.
+  const old = choicesFromJob({ source: { type: "youtube", url: "https://youtu.be/x" }, options: { renderMode: "vertical", captionStyle: "neon", limit: 99 } });
+  assert.deepEqual(old.choices, DEFAULT_CHOICES);
+  assert.deepEqual([old.focusTerms, old.focusNote, old.timeRanges], [[], "", ""]);
+  for (const nothing of [null, undefined, {}, { options: "x" }]) assert.equal(choicesFromJob(nothing), null);
+});

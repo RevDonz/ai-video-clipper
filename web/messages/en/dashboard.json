@@ -1,1 +1,133 @@
-{}
+{
+  "title": "Create clips",
+  "help": "How to fix",
+  "openProject": "Open project",
+  "retry": "Try again",
+  "recent": "Recent",
+  "allProjects": "All projects",
+  "recentFailed": "Couldn't load recent projects",
+  "storage": {
+    "blocked": "New jobs paused",
+    "unknown": "Storage status not available yet",
+    "check": "Check again"
+  },
+  "ai": {
+    "missing": "AI not set up",
+    "notReady": "AI not ready",
+    "setup": "Set up AI"
+  },
+  "source": {
+    "link": "YouTube link",
+    "remove": "Remove {name}",
+    "file": "Choose file",
+    "replace": "Replace file",
+    "srt": "+ .srt",
+    "replaceSrt": "Replace .srt",
+    "reupload": "Choose the same file again",
+    "drop": "Drop here"
+  },
+  "submit": {
+    "idle": "Create clips",
+    "uploading": "Uploading {percent}%",
+    "checking": "Checking video…",
+    "preparing": "Preparing…",
+    "offline": "Can't reach the server. Check your connection."
+  },
+  "chip": {
+    "group": "Clip options",
+    "countLabel": "Number of clips",
+    "count": "{count, plural, one {# clip} other {# clips}}",
+    "durationLabel": "Length",
+    "duration": "Length: {value}",
+    "seconds": "{min}–{max} s",
+    "formatLabel": "Format",
+    "layoutLabel": "Layout",
+    "layout": "Layout: {value}",
+    "subtitleLabel": "Captions",
+    "subtitle": "Captions: {value}",
+    "hookLabel": "Hook",
+    "hook": "Hook: {value}",
+    "focus": "Guide",
+    "focusCount": "{count, plural, one {# guide} other {# guides}}",
+    "focusAuto": "Auto",
+    "languageLabel": "Video language"
+  },
+  "duration": {
+    "auto": "Auto",
+    "short": "Short",
+    "medium": "Medium",
+    "long": "Long",
+    "custom": "Custom",
+    "min": "Minimum (s)",
+    "max": "Maximum (s)"
+  },
+  "format": {
+    "ratio": "Ratio",
+    "resolution": "Resolution"
+  },
+  "style": {
+    "classic": "Classic",
+    "karaoke": "Karaoke",
+    "bold": "Bold",
+    "box": "Box",
+    "sorot": "Highlight",
+    "sinar": "Glow"
+  },
+  "position": {
+    "top": "Top",
+    "middle": "Middle",
+    "bottom": "Bottom"
+  },
+  "size": {
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large"
+  },
+  "language": {
+    "id": "Indonesian",
+    "en": "English",
+    "auto": "Auto-detect"
+  },
+  "look": {
+    "label": "{ratio} preview: {layout}, {style}",
+    "zone": "TikTok button area",
+    "inZone": "Captions near the TikTok button area",
+    "advanced": "Advanced · {position} · {size}",
+    "position": "Position",
+    "size": "Size",
+    "editor": "Change it per clip in Edit clip",
+    "legacyEditor": "Move it per clip in Edit clip"
+  },
+  "hook": {
+    "both": "Cold open · Text",
+    "coldOpen": "Cold open",
+    "text": "Hook text",
+    "none": "Off"
+  },
+  "focus": {
+    "terms": "Find moments about",
+    "list": "Keywords",
+    "remove": "Remove {term}",
+    "full": "Up to {max} keywords",
+    "more": "Add a keyword",
+    "example": "prank, work tips",
+    "help": "Separate with a comma or Enter",
+    "note": "Note for the AI",
+    "noteExample": "prank moments that make people laugh",
+    "noteOff": "Without AI the note is not used",
+    "ranges": "Time ranges",
+    "rangesHint": "{min}–{max} s per range"
+  },
+  "problem": {
+    "linkEmpty": "Paste a YouTube link or choose a file",
+    "linkInvalid": "Use an https:// link from youtube.com or youtu.be",
+    "videoMissing": "Choose a video file",
+    "videoFormat": "Use MP4, MOV, MKV or WEBM",
+    "srtType": "Captions must be an .srt file",
+    "srtEmpty": "The .srt file is empty",
+    "srtTooLarge": "Max file 2 MB",
+    "count": "Enter {min} to {max} clips",
+    "seconds": "Enter {min} to {max} seconds",
+    "durationOrder": "Maximum can't be less than minimum"
+  }
+}
