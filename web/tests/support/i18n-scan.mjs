@@ -162,36 +162,56 @@ const isCopy = (text) => {
 // A sentence in a view module: several words, starting with a capital letter.
 const SENTENCE = /^\p{Lu}[\p{L}\p{N}'’,.:;!?(){}\-–… ]*\s[\p{L}{]/u;
 
+const templateText = (node) => node.quasis.map((quasi) => quasi.value.cooked).join(" ");
+
+/**
+ * The strings an expression can render, as `{ text, line }`: a literal, a template, or the value branches of
+ * `a ? "x" : "y"` and `a && "x"` / `a || "x"` / `a ?? "x"`, nested. Conditions are not copy.
+ */
+export function renderedStrings(expression, out = []) {
+  if (!expression) return out;
+  const line = expression.loc?.start.line;
+  if (expression.type === "StringLiteral") out.push({ text: expression.value, line });
+  else if (expression.type === "TemplateLiteral") out.push({ text: templateText(expression), line });
+  else if (expression.type === "ConditionalExpression") {
+    renderedStrings(expression.consequent, out);
+    renderedStrings(expression.alternate, out);
+  } else if (expression.type === "LogicalExpression") {
+    if (expression.operator !== "&&") renderedStrings(expression.left, out);
+    renderedStrings(expression.right, out);
+  } else if (expression.type === "ParenthesizedExpression") renderedStrings(expression.expression, out);
+  return out;
+}
+
 function attributeCopy(value) {
-  if (!value) return null;
-  if (value.type === "StringLiteral") return value.value;
-  if (value.type === "JSXExpressionContainer") {
-    const expression = value.expression;
-    if (expression.type === "StringLiteral") return expression.value;
-    if (expression.type === "TemplateLiteral") return expression.quasis.map((quasi) => quasi.value.cooked).join(" ");
-  }
-  return null;
+  if (!value) return [];
+  if (value.type === "StringLiteral") return [{ text: value.value, line: value.loc?.start.line }];
+  if (value.type === "JSXExpressionContainer") return renderedStrings(value.expression);
+  return [];
 }
 
 /**
  * Hard-coded UI copy in one file: JSX text, copy attributes with a literal value, toast("…")
- * and, in view modules (lib/*-view.mjs), sentence-like string literals.
+ * (including the value branches of ?: and &&/||/??) and, in view modules (07 §8.3), sentence-like
+ * string literals.
  */
 export function hardcodedCopy(ast, { viewModule = false } = {}) {
   const found = [];
   walk(ast.program, (node, parent) => {
     if (node.type === "JSXText" && isCopy(node.value)) {
       found.push({ kind: "jsx-text", text: node.value.trim(), line: node.loc.start.line });
-    } else if (node.type === "JSXExpressionContainer" && parent?.type === "JSXElement"
-      && (node.expression.type === "StringLiteral" || node.expression.type === "TemplateLiteral")) {
-      const text = node.expression.type === "StringLiteral" ? node.expression.value : node.expression.quasis.map((quasi) => quasi.value.cooked).join(" ");
-      if (isCopy(text)) found.push({ kind: "jsx-text", text, line: node.loc.start.line });
+    } else if (node.type === "JSXExpressionContainer" && (parent?.type === "JSXElement" || parent?.type === "JSXFragment")) {
+      for (const { text, line } of renderedStrings(node.expression)) {
+        if (isCopy(text)) found.push({ kind: "jsx-text", text, line });
+      }
     } else if (node.type === "JSXAttribute" && node.name.type === "JSXIdentifier" && COPY_ATTRIBUTES.has(node.name.name)) {
-      const text = attributeCopy(node.value);
-      if (text !== null && isCopy(text)) found.push({ kind: `attr:${node.name.name}`, text, line: node.loc.start.line });
-    } else if (node.type === "CallExpression" && node.callee.type === "Identifier" && node.callee.name === "toast"
-      && node.arguments[0]?.type === "StringLiteral" && isCopy(node.arguments[0].value)) {
-      found.push({ kind: "toast", text: node.arguments[0].value, line: node.loc.start.line });
+      for (const { text, line = node.loc.start.line } of attributeCopy(node.value)) {
+        if (isCopy(text)) found.push({ kind: `attr:${node.name.name}`, text, line });
+      }
+    } else if (node.type === "CallExpression" && node.callee.type === "Identifier" && node.callee.name === "toast") {
+      for (const { text, line } of renderedStrings(node.arguments[0])) {
+        if (isCopy(text)) found.push({ kind: "toast", text, line });
+      }
     } else if (viewModule && node.type === "StringLiteral" && parent?.type !== "ImportDeclaration"
       && parent?.type !== "ExportNamedDeclaration" && parent?.type !== "ExportAllDeclaration" && SENTENCE.test(node.value)) {
       found.push({ kind: "view-sentence", text: node.value, line: node.loc.start.line });
