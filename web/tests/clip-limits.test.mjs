@@ -4,9 +4,13 @@ import test from "node:test";
 
 import { CLIP_LIMITS } from "../lib/clip-limits.mjs";
 import { normalizeChoices } from "../lib/dashboard-choices.mjs";
-import { jobFormProblems } from "../lib/dashboard-view.mjs";
+import * as view from "../lib/dashboard-view.mjs";
 import { parseJobOptions, validatePersistedJobOptions } from "../lib/jobs.mjs";
 import { TIME_RANGE_LIMITS } from "../lib/time-ranges.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The form problems are catalog descriptors; compared by their Indonesian text.
+const jobFormProblems = (fields) => textsOf(view.jobFormProblems(fields));
 
 // Reviewed 2026-10-21 against the render cost under the production CPU quota (GATES "Output
 // sizes (PF-SIZE)", T4.3 cpu_quota_6, the per-clip timeout row) and the per-job storage reserve:
@@ -30,8 +34,8 @@ test("the job API, stored jobs, the form and the saved choices use the same limi
 
   const valid = { sourceType: "upload", video: { name: "a.mp4" }, limit: "10", minDuration: "5", maxDuration: "180" };
   assert.deepEqual(jobFormProblems(valid), {});
-  assert.deepEqual(jobFormProblems({ ...valid, limit: "11" }), { limit: "Isi 1 sampai 10 klip." });
-  assert.deepEqual(jobFormProblems({ ...valid, maxDuration: "181" }), { maxDuration: "Isi 5 sampai 180 detik." });
+  assert.deepEqual(jobFormProblems({ ...valid, limit: "11" }), { limit: "Isi 1 sampai 10 klip" });
+  assert.deepEqual(jobFormProblems({ ...valid, maxDuration: "181" }), { maxDuration: "Isi 5 sampai 180 detik" });
 
   assert.equal(normalizeChoices({ limit: "10" }).limit, "10");
   assert.notEqual(normalizeChoices({ limit: "11" }).limit, "11");

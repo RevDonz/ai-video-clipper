@@ -126,7 +126,7 @@ async function hintsOf(locale) {
   return JSON.parse(await readFile(path.join(MESSAGES_DIR, locale, "hints.json"), "utf8"));
 }
 
-test("every download, storage and AI code has its hint in every locale; Indonesian download hints are download-errors' own", async () => {
+test("every download, storage and AI code has its hint in every locale; download-errors names exactly those hints", async () => {
   const codes = { download: [...DOWNLOAD_ERROR_CODES], storage: [...STORAGE_ERROR_CODES], llm: await llmCodes() };
   for (const locale of await locales()) {
     const hints = await hintsOf(locale);
@@ -135,5 +135,8 @@ test("every download, storage and AI code has its hint in every locale; Indonesi
     }
   }
   const id = await hintsOf(SOURCE_LOCALE);
-  for (const code of DOWNLOAD_ERROR_CODES) assert.equal(id.download[code], downloadErrorMessage(code).hint, code);
+  for (const code of DOWNLOAD_ERROR_CODES) {
+    assert.deepEqual(downloadErrorMessage(code), { text: { key: `errors.download.${code}` }, hint: { key: `hints.download.${code}` } }, code);
+    assert.equal(typeof id.download[code], "string", code);
+  }
 });

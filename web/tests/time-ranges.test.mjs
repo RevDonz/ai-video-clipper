@@ -252,7 +252,9 @@ test("a clip from a typed range keeps its manual mark; any other value is droppe
 // --- On screen ------------------------------------------------------------------------------
 
 test("the dashboard checks the field before anything is sent, against the clip count it shows", async () => {
-  const { jobFormProblems } = await import("../lib/dashboard-view.mjs");
+  const view = await import("../lib/dashboard-view.mjs");
+  const { textsOf } = await import("./support/catalog-t.mjs");
+  const jobFormProblems = (fields) => textsOf(view.jobFormProblems(fields));
   const valid = { sourceType: "youtube", youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", video: null, limit: "3", minDuration: "20", maxDuration: "60" };
   assert.deepEqual(jobFormProblems({ ...valid, timeRanges: "" }), {});
   assert.deepEqual(jobFormProblems({ ...valid, timeRanges: "10.30-12.05, 1:02:10-1:03:00" }), {});
@@ -261,7 +263,7 @@ test("the dashboard checks the field before anything is sent, against the clip c
     timeRanges: "Ada 2 rentang waktu, tetapi jumlah klip 1. Naikkan jumlah klip atau kurangi rentang.",
   });
   // A clip count still being typed is its own problem; the ranges are checked on their own.
-  assert.deepEqual(jobFormProblems({ ...valid, limit: "", timeRanges: "1:00-1:30, 2:00-2:30" }), { limit: "Isi 1 sampai 10 klip." });
+  assert.deepEqual(jobFormProblems({ ...valid, limit: "", timeRanges: "1:00-1:30, 2:00-2:30" }), { limit: "Isi 1 sampai 10 klip" });
 });
 
 test("the folded options' summary counts the typed ranges", async () => {

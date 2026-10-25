@@ -6,9 +6,8 @@ import { createFormatter, createTranslator } from "use-intl/core";
 
 import { loadNamespaces } from "./catalog.mjs";
 import { LOCALE_COOKIE } from "./cookie.mjs";
-import { splitDetail } from "./errors.mjs";
 import { i18nHandlers, strictI18n } from "./handlers.mjs";
-import { DEFAULT_LOCALE, SOURCE_LOCALE, enabledLocales, localeEntry } from "./locales.mjs";
+import { DEFAULT_LOCALE, enabledLocales, localeEntry } from "./locales.mjs";
 import { resolveLocale } from "./resolve.mjs";
 
 // Until users.time_zone exists (i18n M7b) every server render uses this zone; dates that depend
@@ -62,11 +61,8 @@ export async function routeMetadata(route, extra = {}) {
   return { title: t(`${route}.title`), description: t(`${route}.description`), ...extra };
 }
 
-/** The Indonesian text of an error code, for the "error" field responses keep (07 §10.3). */
-export function legacyMessage(code, domain = "web") {
-  const errors = loadNamespaces(SOURCE_LOCALE, ["errors"]).errors;
-  return errors?.[domain]?.[splitDetail(code).code] ?? errors.web.unknown;
-}
+// The Indonesian text of an error code, for the "error" field responses keep (07 §10.3).
+export { legacyMessage } from "./legacy.mjs";
 
 /** The provider props of a server component: locale, messages, zone, clock, strictness. */
 export async function providerProps(namespaces) {

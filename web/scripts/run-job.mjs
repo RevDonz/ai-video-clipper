@@ -20,7 +20,8 @@ import {
   validatePersistedJobOptions,
 } from "../lib/jobs.mjs";
 import { clipCounts, clipErrorCode } from "../lib/clip-status.mjs";
-import { DownloadError, downloadErrorMessage } from "../lib/download-errors.mjs";
+import { DownloadError } from "../lib/download-errors.mjs";
+import { legacyMessage } from "../lib/i18n/legacy.mjs";
 import { sanitizeReasonCodes, sanitizeStageCode, sanitizeWarningCodes } from "../lib/i18n/stage.mjs";
 import { PROGRESS_TEMPLATE, createDownloadMonitor, downloadStallMs } from "../lib/download-monitor.mjs";
 import { engineProcessEnv, loadLlmEnv } from "../lib/llm-settings.mjs";
@@ -747,7 +748,7 @@ export async function main(argv = process.argv, env = process.env) {
     // so does a typed range the engine refused; `error` stays the technical line (already
     // sanitized for a download).
     const download = error instanceof DownloadError ? error : null;
-    const reason = download ? { code: download.code, text: downloadErrorMessage(download.code).text } : rangeFailure;
+    const reason = download ? { code: download.code, text: legacyMessage(download.code, "download") } : rangeFailure;
     await update({
       status: "failed",
       progress: 100,

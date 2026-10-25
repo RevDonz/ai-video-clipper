@@ -1,4 +1,5 @@
-// yt-dlp failures become fixed codes with one Indonesian line each (lib/download-errors.mjs).
+// yt-dlp failures become fixed codes with one line each in the catalogs (lib/download-errors.mjs
+// gives errors.download.<code> and hints.download.<code>; their Indonesian text is checked here).
 // Every stderr sample below is synthetic, shaped like the lines yt-dlp prints.
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -8,10 +9,13 @@ import {
   DOWNLOAD_ERROR_PATTERNS,
   DownloadError,
   classifyDownloadError,
-  downloadErrorMessage,
+  downloadErrorMessage as downloadErrorDescriptors,
   isDownloadErrorCode,
   sanitizeDownloadLine,
 } from "../lib/download-errors.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+const downloadErrorMessage = (code) => textsOf(downloadErrorDescriptors(code));
 
 const LOGIN_HINT = "Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies";
 const BUG_HINT = "please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U";

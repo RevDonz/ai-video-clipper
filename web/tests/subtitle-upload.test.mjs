@@ -7,12 +7,18 @@ import { fileURLToPath } from "node:url";
 
 import { POST, streamPrimaryMultipart } from "../app/api/jobs/route.js";
 import { createSessionToken } from "../lib/auth.mjs";
-import { jobFormProblems, jobStageText, subtitleFileProblem } from "../lib/dashboard-view.mjs";
+import * as dashboardView from "../lib/dashboard-view.mjs";
 import { claimNextJob } from "../lib/primary-job-queue.mjs";
 import { selectionNotices, selectionWarningLabel } from "../lib/selection-v3-view.mjs";
 import { MAX_SUBTITLE_BYTES, SubtitleUploadError, validateSrt } from "../lib/srt.mjs";
 import { stageSummaryRows } from "../lib/stage-summary.mjs";
 import { buildClipperInvocation, main } from "../scripts/run-job.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The dashboard view returns catalog descriptors; compared by their Indonesian text.
+const jobFormProblems = (fields) => textsOf(dashboardView.jobFormProblems(fields));
+const jobStageText = (job) => textsOf(dashboardView.jobStageText(job));
+const subtitleFileProblem = (file) => textsOf(dashboardView.subtitleFileProblem(file));
 
 const FIXTURES = fileURLToPath(new URL("../../tests/fixtures/srt/", import.meta.url));
 const V3 = { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60, selectionMode: "v3", llmMode: "auto", coldOpen: true, hookOverlay: true, captionStyle: "karaoke" };
@@ -69,7 +75,7 @@ test("the dashboard checks the picked file's name and size before sending it", (
 test("the form flags a wrong subtitle on the upload source only and sends it with the video", async () => {
   const valid = { sourceType: "upload", video: { name: "a.mp4" }, limit: "3", minDuration: "20", maxDuration: "60" };
   assert.deepEqual(jobFormProblems({ ...valid, subtitle: { name: "a.srt", size: 10 } }), {});
-  assert.deepEqual(jobFormProblems({ ...valid, subtitle: { name: "a.txt", size: 10 } }), { subtitle: "Subtitle harus file .srt." });
+  assert.deepEqual(jobFormProblems({ ...valid, subtitle: { name: "a.txt", size: 10 } }), { subtitle: "Subtitle harus file .srt" });
   assert.deepEqual(jobFormProblems({ ...valid, sourceType: "youtube", youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", subtitle: { name: "a.txt", size: 10 } }), {});
   const source = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
   const submit = /async function submit\(event\) \{([\s\S]*?)\n  \}\n/.exec(source)[1];

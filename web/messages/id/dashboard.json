@@ -31,7 +31,8 @@
     "uploading": "Mengunggah {percent}%",
     "checking": "Memeriksa video…",
     "preparing": "Menyiapkan…",
-    "offline": "Server tidak terjangkau. Periksa koneksi."
+    "offline": "Server tidak terjangkau. Periksa koneksi.",
+    "failed": "Job gagal dibuat. Periksa isian lalu coba lagi."
   },
   "chip": {
     "group": "Pilihan klip",
@@ -129,5 +130,60 @@
     "count": "Isi {min} sampai {max} klip",
     "seconds": "Isi {min} sampai {max} detik",
     "durationOrder": "Maksimum tidak boleh kurang dari minimum"
+  },
+  "jobStatus": {
+    "queued": "Dalam antrean",
+    "preparing": "Menyiapkan video",
+    "downloading": "Mengunduh dari YouTube",
+    "processing": "Memproses",
+    "completed": "Selesai",
+    "failed": "Gagal",
+    "cancelled": "Dibatalkan",
+    "deleting": "Sedang dihapus"
+  },
+  "jobStage": {
+    "captions": "Mengambil subtitle YouTube",
+    "analyzing": "Memeriksa video",
+    "transcribing": "Membuat transkrip",
+    "audio": "Menganalisis audio",
+    "llm": "AI memilih momen",
+    "selecting": "Memilih momen",
+    "packaging": "Menyiapkan judul dan hook",
+    "rendering": "Merender klip",
+    "finalizing": "Menyimpan hasil",
+    "completed": "Selesai",
+    "failed": "Gagal",
+    "cancelled": "Dibatalkan",
+    "srt": "Membaca subtitle .srt",
+    "fallback": "Memproses"
+  },
+  "job": {
+    "youtubeId": "YouTube · {id}",
+    "youtube": "Video YouTube",
+    "upload": "Video unggahan",
+    "video": "Video",
+    "step": "Tahap {n} dari {total}",
+    "waitingTurn": "Menunggu giliran diproses.",
+    "working": "Video sedang diproses.",
+    "cancelledEarly": "Proses dibatalkan sebelum klip selesai.",
+    "clipsSoon": "Klip muncul di sini setelah selesai dirender.",
+    "stopped": "Proses berhenti karena terjadi kesalahan."
+  },
+  "clipMeta": {
+    "full": "Klip {index} · {seconds} detik",
+    "number": "Klip {index}",
+    "seconds": "Klip · {seconds} detik",
+    "plain": "Klip"
+  },
+  "aiStatus": {
+    "checking": "Memeriksa AI…",
+    "active": "AI aktif",
+    "activeNames": "AI aktif: {names}",
+    "disabled": "AI dimatikan. Momen dipilih heuristik lokal.",
+    "unconfigured": "AI belum diatur. Momen dipilih heuristik lokal.",
+    "unusable": "AI belum siap. Momen dipilih heuristik lokal.",
+    "invalid": "Pengaturan AI tidak valid. Momen dipilih heuristik lokal.",
+    "unreadable": "Status AI tidak terbaca. Job tetap berjalan.",
+    "unknown": "Status AI tidak dikenal. Job tetap berjalan."
   }
 }

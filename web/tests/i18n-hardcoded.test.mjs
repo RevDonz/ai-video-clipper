@@ -54,6 +54,7 @@ const ZERO = Object.freeze([
   "app/dashboard/FocusField.jsx",
   "app/dashboard/RecentProjects.jsx",
   "app/dashboard/LookPreview.jsx",
+  "lib/dashboard-view.mjs",
   "app/projects/[id]/layout.jsx",
   "app/projects/[id]/page.jsx",
   "app/projects/[id]/ClipsSection.jsx",

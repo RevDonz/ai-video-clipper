@@ -17,7 +17,8 @@ import { entriesExporting, loadClipEntries } from "../../../lib/clip-entry-view.
 import { readyClips } from "../../../lib/clip-status.mjs";
 import { replaceClip } from "../../../lib/clip-text.mjs";
 import { jobHelpHref } from "../../../lib/help-catalog.mjs";
-import { warningText } from "../../../lib/i18n/stage.mjs";
+import { msg } from "../../../lib/i18n/descriptor.mjs";
+import { stageText, warningText } from "../../../lib/i18n/stage.mjs";
 import { failureDetail, failureHint, isActiveStatus, loadProjectDetail, projectName, projectStageText } from "../../../lib/project-view.mjs";
 import { checkZip, clipFromParam, withClipParam } from "../../../lib/project-workspace.mjs";
 import { clipCaptionText, focusSummaryLine, formatTimestamp, selectionNotices } from "../../../lib/selection-v3-view.mjs";
@@ -142,7 +143,10 @@ function ProjectView({ job, entries, viewing, onView, copyState, onCopy, cancelN
   const languageNotice = videoLanguageNotice(job);
   const notices = [...(languageNotice ? [languageNotice] : []), ...selectionNotices(job, { label: (code) => warningText(tAll, code) })];
   const serverError = failureDetail(job);
-  const hint = failureHint(job);
+  // A coded failure (download, typed range) reads from its code; any other from the stage code
+  // (stopped_error, storage_insufficient, …) in the UI language, else the worker's own line.
+  const failureText = (job.errorCode ? null : stageText(tAll, job)) || msg(tAll, projectStageText(job));
+  const hint = msg(tAll, failureHint(job)) || null;
   const help = jobHelpHref(job);
   const rerunHref = `/dashboard?ulang=${encodeURIComponent(job.id)}`;
   const clipCount = Array.isArray(job.clips) ? job.clips.length : 0;
@@ -189,7 +193,7 @@ function ProjectView({ job, entries, viewing, onView, copyState, onCopy, cancelN
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>{t("failed")}</Alert.Title>
-            <Alert.Description>{projectStageText(job)}</Alert.Description>
+            <Alert.Description>{failureText}</Alert.Description>
             {hint && <Alert.Description>{hint}</Alert.Description>}
             <span className={styles.noticeLinks}>
               {help && <a className={styles.noticeLink} href={help}>{t("help")}</a>}

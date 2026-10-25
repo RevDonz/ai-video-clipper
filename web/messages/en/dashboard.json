@@ -31,7 +31,8 @@
     "uploading": "Uploading {percent}%",
     "checking": "Checking video…",
     "preparing": "Preparing…",
-    "offline": "Can't reach the server. Check your connection."
+    "offline": "Can't reach the server. Check your connection.",
+    "failed": "Couldn't create the project. Check the fields and try again."
   },
   "chip": {
     "group": "Clip options",
@@ -129,5 +130,60 @@
     "count": "Enter {min} to {max} clips",
     "seconds": "Enter {min} to {max} seconds",
     "durationOrder": "Maximum can't be less than minimum"
+  },
+  "jobStatus": {
+    "queued": "Queued",
+    "preparing": "Preparing video",
+    "downloading": "Downloading from YouTube",
+    "processing": "Processing",
+    "completed": "Done",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "deleting": "Deleting"
+  },
+  "jobStage": {
+    "captions": "Getting YouTube captions",
+    "analyzing": "Checking video",
+    "transcribing": "Making transcript",
+    "audio": "Analyzing audio",
+    "llm": "AI picking moments",
+    "selecting": "Picking moments",
+    "packaging": "Preparing titles and hooks",
+    "rendering": "Rendering clips",
+    "finalizing": "Saving results",
+    "completed": "Done",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "srt": "Reading .srt captions",
+    "fallback": "Processing"
+  },
+  "job": {
+    "youtubeId": "YouTube · {id}",
+    "youtube": "YouTube video",
+    "upload": "Uploaded video",
+    "video": "Video",
+    "step": "Step {n} of {total}",
+    "waitingTurn": "Waiting for its turn.",
+    "working": "Processing the video.",
+    "cancelledEarly": "Cancelled before the clips were done.",
+    "clipsSoon": "Clips show up here once rendered.",
+    "stopped": "Stopped because of an error."
+  },
+  "clipMeta": {
+    "full": "Clip {index} · {seconds} s",
+    "number": "Clip {index}",
+    "seconds": "Clip · {seconds} s",
+    "plain": "Clip"
+  },
+  "aiStatus": {
+    "checking": "Checking AI…",
+    "active": "AI on",
+    "activeNames": "AI on: {names}",
+    "disabled": "AI off. Moments picked by local heuristics.",
+    "unconfigured": "AI not set up. Moments picked by local heuristics.",
+    "unusable": "AI not ready. Moments picked by local heuristics.",
+    "invalid": "AI settings invalid. Moments picked by local heuristics.",
+    "unreadable": "Couldn't read AI status. Jobs still run.",
+    "unknown": "Unknown AI status. Jobs still run."
   }
 }

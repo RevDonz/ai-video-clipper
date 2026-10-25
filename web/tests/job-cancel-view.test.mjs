@@ -6,20 +6,21 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { cancelJob, jobCancellable } from "../lib/job-cancel.mjs";
-import {
-  JOB_STAGE_LABELS,
-  JOB_STATUS_LABELS,
-  jobFinished,
-  jobPercentText,
-  jobStageText,
-  jobWaitingText,
-} from "../lib/dashboard-view.mjs";
+import * as dashboardView from "../lib/dashboard-view.mjs";
 import {
   isActiveStatus,
   matchesProjectFilter,
   projectRowDetail,
   statusLabel,
 } from "../lib/project-view.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// The dashboard view returns catalog descriptors; compared by their Indonesian text.
+const { jobFinished, jobPercentText } = dashboardView;
+const JOB_STAGE_LABELS = textsOf(dashboardView.JOB_STAGE_LABELS);
+const JOB_STATUS_LABELS = textsOf(dashboardView.JOB_STATUS_LABELS);
+const jobStageText = (job) => textsOf(dashboardView.jobStageText(job));
+const jobWaitingText = (job) => textsOf(dashboardView.jobWaitingText(job));
 
 // --- client call ---------------------------------------------------------------------------------
 

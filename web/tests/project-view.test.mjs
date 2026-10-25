@@ -32,7 +32,11 @@ import {
   projectStageText,
   statusLabel,
 } from "../lib/project-view.mjs";
-import { DOWNLOAD_ERROR_CODES, downloadErrorMessage } from "../lib/download-errors.mjs";
+import { DOWNLOAD_ERROR_CODES, downloadErrorMessage as downloadErrorDescriptors } from "../lib/download-errors.mjs";
+import { textsOf } from "./support/catalog-t.mjs";
+
+// A download failure's reason and hint are catalog descriptors; compared by their Indonesian text.
+const downloadErrorMessage = (code) => textsOf(downloadErrorDescriptors(code));
 import {
   clipReasons,
   clipScoreView,
@@ -355,12 +359,13 @@ test("the project page's progress title and failure notice drop a stage text tha
   }
   // The project page's files read the stage only through the helpers: stageText (the catalog's
   // stage.<code>, else the stored text through shownStageDetail) in the progress panel, and
-  // projectStageText in the failure notice.
+  // stageText, else projectStageText, in the failure notice.
   const source = await projectSource();
   assert.doesNotMatch(source, /job\.stageDetail/, "the page reads the stage only through the helpers");
   assert.match(source, /const stage = job\.status === "queued" \? null : stageText\(tAll, job\);/);
   assert.match(source, /<h2 id="progress-title" className=\{styles\.title\}>\s*<ProcessStatus job=\{job\} detail=\{detail\}/);
-  assert.match(source, /<Alert\.Description>\{projectStageText\(job\)\}<\/Alert\.Description>/);
+  assert.match(source, /const failureText = \(job\.errorCode \? null : stageText\(tAll, job\)\) \|\| msg\(tAll, projectStageText\(job\)\);/);
+  assert.match(source, /<Alert\.Description>\{failureText\}<\/Alert\.Description>/);
   assert.match(await read("lib/i18n/stage.mjs"), /return shownStageDetail\(job\);/);
 });
 
@@ -479,8 +484,8 @@ test("a failed project says why it stopped: the worker's message in the Detail d
   const source = await read("app/projects/[id]/page.jsx");
   assert.match(source, /job\.status === "failed"/);
   assert.match(source, /const serverError = failureDetail\(job\);/);
-  assert.match(source, /const hint = failureHint\(job\);/);
-  assert.match(source, /<Alert\.Description>\{projectStageText\(job\)\}<\/Alert\.Description>\s*\{hint && <Alert\.Description>\{hint\}<\/Alert\.Description>\}/);
+  assert.match(source, /const hint = msg\(tAll, failureHint\(job\)\) \|\| null;/);
+  assert.match(source, /<Alert\.Description>\{failureText\}<\/Alert\.Description>\s*\{hint && <Alert\.Description>\{hint\}<\/Alert\.Description>\}/);
   assert.match(source, /\{serverError && \(\s*<details className=\{styles\.errorDetail\}>\s*<summary>\{t\("detail"\)\}<\/summary>\s*<span>\{serverError\}<\/span>/);
 });
 
@@ -488,13 +493,13 @@ test("a failed download names its reason and one suggestion from the stored code
   for (const code of DOWNLOAD_ERROR_CODES) {
     const job = { status: "failed", stageDetail: "Proses berhenti karena terjadi kesalahan", errorCode: code, error: "[youtube] AbCdEfGhIjK: Video unavailable" };
     const { text, hint } = downloadErrorMessage(code);
-    assert.equal(projectStageText(job), text, code);
-    assert.equal(projectRowDetail(job), text, code);
-    assert.equal(failureHint(job), hint, code);
+    assert.equal(textsOf(projectStageText(job)), text, code);
+    assert.equal(textsOf(projectRowDetail(job)), text, code);
+    assert.equal(textsOf(failureHint(job)), hint, code);
     assert.equal(failureDetail(job), "[youtube] AbCdEfGhIjK: Video unavailable", code);
   }
   const stalled = { status: "failed", stageDetail: "Unduhan macet.", errorCode: "download_stalled", error: "yt-dlp tidak bergerak selama 120 detik" };
-  assert.equal(projectStageText(stalled), "Unduhan macet.");
+  assert.equal(textsOf(projectStageText(stalled)), "Unduhan macet.");
   assert.equal(failureDetail(stalled), "yt-dlp tidak bergerak selama 120 detik");
   // No code, an unknown code, or a job that is not failed: no suggestion and the old texts.
   for (const job of [

@@ -46,6 +46,7 @@ import {
   videoFileCode,
 } from "../../lib/dashboard-view.mjs";
 import { storageHelpHref } from "../../lib/help-catalog.mjs";
+import { msg } from "../../lib/i18n/descriptor.mjs";
 import { errorText } from "../../lib/i18n/errors.mjs";
 import { notifyJobsChanged } from "../../lib/job-badge.mjs";
 import { lookPreview } from "../../lib/look-preview.mjs";
@@ -154,6 +155,7 @@ function OnOff({ selected, onChange, children }) {
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const tErrors = useTranslations("errors");
+  const tAll = useTranslations();
   const names = useChoiceNames();
   const layoutName = useRenderModeName();
   const problemTextOf = useProblemText();
@@ -416,7 +418,7 @@ export default function DashboardPage() {
     if ([507, 503].includes(status)) await storageRecovery.current?.retry();
     const messageId = typeof payload.messageId === "string" ? payload.messageId : typeof payload.code === "string" ? `web.${payload.code}` : null;
     setMessage({
-      text: errorText(tErrors, { messageId, legacyText: submitErrorMessage(payload) }),
+      text: errorText(tErrors, { messageId, legacyText: msg(tAll, submitErrorMessage(payload)) }),
       help: storageHelpHref(payload.code),
       project: failedJobHref(result),
     });
@@ -573,7 +575,7 @@ export default function DashboardPage() {
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Title>{storageBlocked ? t("storage.blocked") : t("storage.unknown")}</Alert.Title>
-              <Alert.Description>{errorText(tErrors, { messageId: `storage.${storage.admission.code}`, legacyText: storageMessage(storage.admission.code) })}</Alert.Description>
+              <Alert.Description>{errorText(tErrors, { messageId: `storage.${storage.admission.code}`, legacyText: msg(tAll, storageMessage(storage.admission.code)) })}</Alert.Description>
             </Alert.Content>
             <div className={styles.alertActions}>
               <a className={styles.textLink} href={storageHelpHref(storage.admission.code) || storageHelpHref("storage_admission_unavailable")}>{t("help")}</a>
