@@ -136,6 +136,25 @@ def test_link_tracks_gives_each_previous_face_to_one_face_only():
     assert ids[1][0] == 0  # the face that overlaps it most continues the track
 
 
+# --- what the shot evidence of Otomatis reads (shot_context, rombak 04 §A4) --------------------
+
+
+def test_link_tracks_ignores_activity_and_a_sample_without_faces_ends_every_track():
+    """The evidence ranks tracks by activity, so linking itself must not depend on it; a sample
+    with no face leaves nothing to continue."""
+    rows = samples([face(LEFT, 0.9), face(RIGHT, None)], [face(LEFT, None), face(RIGHT, 0.1)],
+                   [], [face(LEFT, 0.5)])
+    assert link_tracks(rows) == [[0, 1], [0, 1], [], [2]]
+
+
+def test_link_tracks_needs_the_overlap_of_link_iou():
+    shifted = (290, 100, 120, 120)  # LEFT 90 px later: IoU 30·120 / (2·14400 − 3600) = 0.14
+    rows = samples([face(LEFT)], [face(shifted)])
+    assert link_tracks(rows) == [[0], [1]]
+    assert link_tracks(rows, link_iou=0.1) == [[0], [0]]
+    assert RULES.link_iou == 0.3 and RULES.min_relative == 0.5
+
+
 def test_choose_rejects_a_frame_without_width():
     with pytest.raises(ValueError):
         choose(samples([face(LEFT)]), width=0)
