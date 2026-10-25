@@ -75,7 +75,7 @@ export default defineConfig({
     },
     ...(enSmoke ? [{
       name: "en-smoke",
-      testMatch: /(?:smoke|read-only|app-shell|i18n-locale|aria-names)\.spec\.mjs/,
+      testMatch: /(?:smoke|read-only|app-shell|i18n-locale|aria-names|create-project-screens|app-screens)\.spec\.mjs/,
       use: { ...devices["Desktop Chrome"], locale: "en-US", uiLocale: "en" },
     }] : []),
   ],
