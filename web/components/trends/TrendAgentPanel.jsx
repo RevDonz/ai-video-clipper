@@ -1,47 +1,67 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+// The Agen tab of Tren (admin; 05-ui-dashboard.md §6.9): the ingest endpoint of this deployment
+// with Salin, a new token (its value shown once in TokenModal, never kept beyond it), the token
+// list and Cabut behind an AlertDialog. Potongin does not scrape social media itself; an agent the
+// owner runs posts trends to the endpoint with its token (docs/integrations/hermes-trends).
+import { Button, Chip, FieldError, Form, Input, Label, TextField } from "@heroui/react";
+import { useState } from "react";
+import { useTranslations } from "use-intl";
 
+import { msg } from "../../lib/i18n/descriptor.mjs";
 import {
   GUIDE_URL,
   INGEST_PATH,
-  TOKEN_ENV,
   TREND_LIMITS,
   activeTokenCount,
-  curlExample,
   ingestEndpoint,
+  relativeTime,
   tokenView,
   validateTokenLabel,
 } from "../../lib/trend-view.mjs";
+import AlertDialog from "../ui/AlertDialog.jsx";
+import Table from "../ui/Table.jsx";
+import { toast } from "../ui/Toast.jsx";
 import CopyButton from "./CopyButton.jsx";
-import { describedBy } from "./TrendFields.jsx";
+import TokenModal from "./TokenModal.jsx";
 
-/**
- * "Integrasi agen (Hermes)": the ingest endpoint for this deployment, token
- * creation (the value is shown once, then only kept in this component's
- * state until dismissed), the token list and revocation with an in-page
- * confirmation.
- */
-export default function TrendAgentPanel({ origin, tokensState, now, onCreateToken, onRevokeToken, onReloadTokens }) {
+function RevokeDialog({ token, busy, onConfirm, onClose }) {
+  const t = useTranslations("trends.agent");
+  return (
+    <AlertDialog isOpen={Boolean(token)} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
+      <AlertDialog.Backdrop>
+        <AlertDialog.Container size="sm">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>{token ? t("revokeConfirm", { label: token.label }) : ""}</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body><p>{t("revokeBody")}</p></AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button variant="tertiary" isDisabled={busy} onPress={onClose}>{t("cancel")}</Button>
+              <Button variant="danger" isPending={busy} onPress={onConfirm}>{busy ? t("revoking") : t("revoke")}</Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </AlertDialog>
+  );
+}
+
+export default function TrendAgentPanel({ origin, tokensState, now, locale, lastIngestAt, onCreateToken, onRevokeToken, onReloadTokens }) {
+  const t = useTranslations("trends.agent");
+  const tAll = useTranslations();
   const [label, setLabel] = useState("");
-  const [labelError, setLabelError] = useState("");
+  const [labelError, setLabelError] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [created, setCreated] = useState(null); // { token, record } — never persisted
-  const [confirmingId, setConfirmingId] = useState(null);
-  const [revokingId, setRevokingId] = useState(null);
-  const [notice, setNotice] = useState(null);
-  const createdBox = useRef(null);
-  const labelInput = useRef(null);
-  const listHeading = useRef(null);
+  const [created, setCreated] = useState(null); // { token, label }: only until the dialog closes
+  const [revoking, setRevoking] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   const endpoint = ingestEndpoint(origin) || INGEST_PATH;
   const tokens = tokensState.tokens || [];
   const active = activeTokenCount(tokens);
   const full = active >= TREND_LIMITS.maxActiveTokens;
-
-  useEffect(() => {
-    if (created) createdBox.current?.focus();
-  }, [created]);
+  const lastIngest = relativeTime(lastIngestAt, now, locale);
 
   async function create(event) {
     event.preventDefault();
@@ -51,158 +71,115 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
       return;
     }
     setCreating(true);
-    setNotice(null);
     const result = await onCreateToken(checked.label);
     setCreating(false);
     if (result.ok) {
       setCreated({ token: result.data.token, label: result.data.record?.label || checked.label });
       setLabel("");
-      setLabelError("");
+      setLabelError(null);
     } else if (result.field === "label") {
       setLabelError(result.error);
     } else {
-      setNotice({ tone: "error", text: result.error });
+      toast(msg(tAll, result.error), { variant: "danger" });
     }
   }
 
-  function dismissCreated() {
-    setCreated(null);
-    labelInput.current?.focus();
-  }
-
-  async function revoke(token) {
-    setRevokingId(token.id);
-    setNotice(null);
+  async function revoke() {
+    const token = revoking;
+    setBusy(true);
     const result = await onRevokeToken(token.id);
-    setRevokingId(null);
-    setConfirmingId(null);
-    listHeading.current?.focus();
-    setNotice(result.ok
-      ? { tone: "ok", text: `Token “${token.label}” dicabut. Agen yang memakainya tidak bisa mengirim lagi.` }
-      : { tone: "error", text: result.error });
+    setBusy(false);
+    setRevoking(null);
+    if (result.ok) toast(tAll("trends.toast.revoked", { label: token.label }), { variant: "success" });
+    else toast(msg(tAll, result.error), { variant: "danger" });
   }
 
   return (
     <div className="trAgent">
-      <div className="trAgentIntro">
-        <p>
-          Potongin <b>tidak men-scrape</b> TikTok, Instagram, atau YouTube sendiri. Agen milik Anda (mis. Hermes yang men-scroll
-          Shorts dan FYP) merangkum tren lalu mengirimnya ke endpoint di bawah dengan token. Item dari agen muncul di daftar
-          atas dengan sumber “Agen: &lt;label token&gt;”.
-        </p>
-        <a className="trGuideLink" href={GUIDE_URL} target="_blank" rel="noopener noreferrer">Panduan integrasi Hermes ↗</a>
-      </div>
-
       <div className="trEndpoint">
-        <label htmlFor="trend-endpoint">URL endpoint</label>
-        <div className="trInlineRow">
-          <input id="trend-endpoint" readOnly value={endpoint} onFocus={(event) => event.target.select()} spellCheck={false} aria-describedby="trend-endpoint-help" />
-          <CopyButton text={endpoint} label="Salin URL" announce="URL endpoint" />
+        <TextField className="trField" isReadOnly value={endpoint}>
+          <Label>{t("endpoint")}</Label>
+          <div className="trInlineRow">
+            <Input spellCheck={false} onFocus={(event) => event.target.select()} />
+            <CopyButton text={endpoint} label={t("copy")} />
+          </div>
+        </TextField>
+        <div className="trAgentLinks">
+          <span className="trMuted">{lastIngest ? t("lastIngest", { when: lastIngest }) : t("noIngest")}</span>
+          <a className="trGuideLink" href={GUIDE_URL} target="_blank" rel="noopener noreferrer">{t("guide")} ↗</a>
         </div>
-        <small id="trend-endpoint-help">
-          <code>POST</code> kirim item (maks 100 per permintaan) · <code>GET</code> daftar ringkas untuk dedupe · <code>DELETE ?externalId=…</code> hapus item sumber itu.
-          Header <code>Authorization: Bearer ptk_…</code>, isi <code>application/json</code>.
-        </small>
       </div>
 
-      <form className="trTokenForm" onSubmit={create} noValidate>
-        <div className="trField">
-          <label htmlFor="token-label">Label token baru</label>
+      <Form className="trTokenForm" onSubmit={create} validationBehavior="aria">
+        <TextField className="trField" isInvalid={Boolean(labelError)} value={label} onChange={(value) => { setLabel(value); setLabelError(null); }}>
+          <Label>{t("newLabel")}</Label>
           <div className="trInlineRow">
-            <input
-              id="token-label"
-              ref={labelInput}
-              value={label}
-              maxLength={TREND_LIMITS.tokenLabel + 10}
-              placeholder="mis. Hermes VPS"
-              autoComplete="off"
-              aria-invalid={labelError ? true : undefined}
-              aria-describedby={describedBy("token-label", true, labelError)}
-              onChange={(event) => { setLabel(event.target.value); setLabelError(""); }}
-            />
-            <button type="submit" className="btn" disabled={creating || full || tokensState.state !== "ready"}>
-              {creating ? "Membuat…" : "Buat token"}
-            </button>
+            <Input placeholder={t("newLabelHint")} maxLength={TREND_LIMITS.tokenLabel + 10} autoComplete="off" />
+            <Button variant="secondary" type="submit" isPending={creating} isDisabled={full || tokensState.state !== "ready"}>
+              {creating ? t("creating") : t("newToken")}
+            </Button>
           </div>
-          <small id="token-label-help">
-            {full
-              ? `Sudah ${TREND_LIMITS.maxActiveTokens} token aktif (batas). Cabut yang tidak dipakai untuk membuat yang baru.`
-              : "Satu token per agen. Label tampil sebagai sumber item. Nilai token hanya ditampilkan sekali."}
-          </small>
-          {labelError && <small className="trFieldError" id="token-label-error">{labelError}</small>}
-        </div>
-      </form>
+          <FieldError>{labelError ? msg(tAll, labelError) : ""}</FieldError>
+        </TextField>
+        {full && <span className="trMuted">{t("full", { max: TREND_LIMITS.maxActiveTokens })}</span>}
+      </Form>
 
-      {created && (
-        <section className="trNewToken" ref={createdBox} tabIndex={-1} aria-labelledby="new-token-title">
-          <strong id="new-token-title">Token “{created.label}” dibuat. Salin sekarang.</strong>
-          <p>Token ini <b>hanya ditampilkan sekali</b>. Server hanya menyimpan hash-nya; kalau hilang, cabut lalu buat token baru. Simpan di secret agen (variabel <code>{TOKEN_ENV}</code>), jangan di chat atau repo.</p>
-          <label htmlFor="new-token-value">Token</label>
-          <div className="trInlineRow">
-            <input id="new-token-value" readOnly value={created.token} onFocus={(event) => event.target.select()} spellCheck={false} autoComplete="off" />
-            <CopyButton text={created.token} label="Salin token" announce="Token" className="btn primary" />
-          </div>
-          <div className="trCurlHead">
-            <span id="curl-title">Contoh uji coba (curl): tempel token saat diminta, lalu Enter</span>
-            <CopyButton text={curlExample({ origin })} label="Salin contoh curl" announce="Contoh curl" />
-          </div>
-          <pre className="trCurl" aria-labelledby="curl-title" tabIndex={0}><code>{curlExample({ origin })}</code></pre>
-          <small>Contoh ini membuat item “Tren uji coba” dengan <code>externalId</code> contoh; hapus dari daftar setelah uji coba.</small>
-          <div className="trActions">
-            <button type="button" className="btn" onClick={dismissCreated}>Sudah saya simpan, sembunyikan token</button>
-          </div>
-        </section>
-      )}
-
-      {notice && <p className={`trAlert ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</p>}
-
-      <div className="trTokens">
+      <section className="trTokens" aria-labelledby="trend-tokens-title">
         <div className="trTokensHead">
-          <h3 id="token-list-title" ref={listHeading} tabIndex={-1}>Token</h3>
-          <span>{active} aktif dari maks {TREND_LIMITS.maxActiveTokens}</span>
+          <h2 id="trend-tokens-title">{t("tokens")}</h2>
+          <span className="trMuted">{t("activeCount", { count: active, max: TREND_LIMITS.maxActiveTokens })}</span>
         </div>
-        {tokensState.state === "loading" && <p className="trEmpty" role="status">Memuat token…</p>}
+        {tokensState.state === "loading" && <span className="trMuted" role="status">{tAll("trends.loading")}</span>}
         {tokensState.state === "error" && (
-          <div className="trAlert error" role="alert">
-            <span>{tokensState.error}</span>
-            <button type="button" className="btn" onClick={onReloadTokens}>Coba lagi</button>
+          <div className="trAlert" role="alert">
+            <span>{msg(tAll, tokensState.error)}</span>
+            <Button variant="secondary" onPress={onReloadTokens}>{tAll("common.retry")}</Button>
           </div>
         )}
-        {tokensState.state === "ready" && tokens.length === 0 && <p className="trEmpty">Belum ada token. Buat satu untuk agen Anda.</p>}
+        {tokensState.state === "ready" && tokens.length === 0 && <span className="trMuted">{t("noTokens")}</span>}
         {tokensState.state === "ready" && tokens.length > 0 && (
-          <ul className="trTokenList" aria-labelledby="token-list-title">
-            {tokens.map((token) => {
-              const view = tokenView(token, now);
-              return (
-                <li key={token.id} className={view.status}>
-                  <div className="trTokenIdentity">
-                    <strong>{token.label}</strong>
-                    {view.prefixText && <code>{view.prefixText}</code>}
-                    <span className={view.status === "active" ? "statusPill ok" : "statusPill"}>{view.statusLabel}</span>
-                  </div>
-                  <dl>
-                    <div><dt>Dibuat</dt><dd>{view.createdText}</dd></div>
-                    <div><dt>Terakhir dipakai</dt><dd title={view.lastUsedAbsolute || undefined}>{view.lastUsedText}</dd></div>
-                  </dl>
-                  {view.status === "active" && confirmingId !== token.id && (
-                    <button type="button" className="btn danger" onClick={() => { setNotice(null); setConfirmingId(token.id); }} aria-label={`Cabut token ${token.label}`}>Cabut</button>
-                  )}
-                  {confirmingId === token.id && (
-                    <div className="trConfirm" role="group" aria-label={`Konfirmasi cabut token ${token.label}`} onKeyDown={(event) => { if (event.key === "Escape" && !revokingId) setConfirmingId(null); }}>
-                      <strong>Cabut “{token.label}”?</strong>
-                      <p>Agen yang memakai token ini langsung ditolak (401). Item yang sudah masuk tetap ada.</p>
-                      <div>
-                        <button type="button" className="btn danger solid" onClick={() => revoke(token)} disabled={revokingId === token.id}>{revokingId === token.id ? "Mencabut…" : "Ya, cabut"}</button>
-                        <button type="button" className="btn" onClick={() => setConfirmingId(null)} disabled={revokingId === token.id} autoFocus>Batal</button>
-                      </div>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <Table className="trTable">
+            <Table.ScrollContainer>
+              <Table.Content aria-labelledby="trend-tokens-title">
+                <Table.Header>
+                  <Table.Column isRowHeader>{t("col.label")}</Table.Column>
+                  <Table.Column>{t("col.prefix")}</Table.Column>
+                  <Table.Column>{t("col.status")}</Table.Column>
+                  <Table.Column>{t("col.created")}</Table.Column>
+                  <Table.Column>{t("col.lastUsed")}</Table.Column>
+                  <Table.Column><span className="visuallyHidden">{t("col.actions")}</span></Table.Column>
+                </Table.Header>
+                <Table.Body items={tokens}>
+                  {(token) => {
+                    const view = tokenView(token, now, locale);
+                    return (
+                      <Table.Row id={token.id} textValue={token.label}>
+                        <Table.Cell><strong>{token.label}</strong></Table.Cell>
+                        <Table.Cell><code>{view.prefixText}</code></Table.Cell>
+                        <Table.Cell>
+                          <Chip size="sm" variant="soft" color={view.status === "active" ? "success" : "default"}>
+                            <Chip.Label>{msg(tAll, view.statusLabel)}</Chip.Label>
+                          </Chip>
+                        </Table.Cell>
+                        <Table.Cell>{msg(tAll, view.createdText)}</Table.Cell>
+                        <Table.Cell><span title={view.lastUsedAbsolute || undefined}>{msg(tAll, view.lastUsedText)}</span></Table.Cell>
+                        <Table.Cell>
+                          {view.status === "active" ? (
+                            <Button variant="danger" aria-label={t("revokeLabel", { label: token.label })} onPress={() => setRevoking(token)}>{t("revoke")}</Button>
+                          ) : null}
+                        </Table.Cell>
+                      </Table.Row>
+                    );
+                  }}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
         )}
-      </div>
+      </section>
+
+      <TokenModal created={created} origin={origin} onClose={() => setCreated(null)} />
+      <RevokeDialog token={revoking} busy={busy} onConfirm={revoke} onClose={() => setRevoking(null)} />
     </div>
   );
 }

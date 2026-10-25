@@ -26,6 +26,14 @@ test("msg translates a descriptor, its nested descriptors first, and passes plai
   assert.equal(msg(t, { nope: 1 }), "");
 });
 
+test("msg shows an API error through its messageId, else the server's own words", () => {
+  const known = new Set(["errors.web.unauthorized"]);
+  const t = Object.assign((key, values) => `${key}${values && Object.keys(values).length ? JSON.stringify(values) : ""}`, { has: (key) => known.has(key) });
+  assert.equal(msg(t, { error: { messageId: "web.unauthorized", code: "unauthorized", legacyText: "Sesi login diperlukan" } }), "errors.web.unauthorized");
+  assert.equal(msg(t, { error: { messageId: "web.nope", code: "nope", legacyText: "Teks server" } }), "Teks server");
+  assert.equal(msg(t, { error: { messageId: "web.nope" } }), "errors.web.unknown");
+});
+
 test("the key scanners see d(\"key\") calls of the descriptor module as full keys", () => {
   const { calls } = translatorCalls(parseSource(`
     import { d } from "./i18n/descriptor.mjs";

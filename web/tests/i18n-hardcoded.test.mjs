@@ -76,6 +76,14 @@ const ZERO = Object.freeze([
   "components/ClipLibrary.jsx",
   "lib/clip-library-view.mjs",
   "lib/projects-list-view.mjs",
+  // Dashboard F6 (08 Fase 3): Tren. lib/trend-view.mjs keeps the Indonesian kind names that the
+  // project page's trend chips still read (TREND_KIND_LABELS).
+  "app/trends/page.jsx",
+  "components/trends/CopyButton.jsx",
+  "components/trends/TokenModal.jsx",
+  "components/trends/TrendAgentPanel.jsx",
+  "components/trends/TrendFormModal.jsx",
+  "components/trends/TrendList.jsx",
 ]);
 
 async function counts() {

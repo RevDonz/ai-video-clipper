@@ -1,13 +1,14 @@
 "use client";
 
+// Copies `text` to the clipboard. The clipboard API needs a secure context (https or
+// localhost); when it is missing or refuses, the button says so and the text stays selectable
+// next to it. The result is announced politely.
+import { Button } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "use-intl";
 
-/**
- * Copies `text` to the clipboard. The clipboard API needs a secure context
- * (https or localhost); when it is missing or refuses, the button says so and
- * the text stays selectable next to it.
- */
-export default function CopyButton({ text, label, announce, className = "btn" }) {
+export default function CopyButton({ text, label, variant = "secondary" }) {
+  const t = useTranslations("trends.agent");
   const [state, setState] = useState("");
   const timer = useRef(null);
 
@@ -27,11 +28,11 @@ export default function CopyButton({ text, label, announce, className = "btn" })
 
   return (
     <>
-      <button type="button" className={className} onClick={copy} disabled={!text}>
-        {state === "copied" ? "Tersalin ✓" : state === "failed" ? "Gagal menyalin. Pilih teks manual." : label}
-      </button>
+      <Button variant={variant} onPress={copy} isDisabled={!text}>
+        {state === "copied" ? t("copied") : state === "failed" ? t("copyFailed") : label}
+      </Button>
       <span className="visuallyHidden" role="status" aria-live="polite">
-        {state === "copied" ? `${announce || label}: tersalin ke clipboard` : state === "failed" ? "Gagal menyalin ke clipboard" : ""}
+        {state === "copied" ? t("copied") : state === "failed" ? t("copyFailed") : ""}
       </span>
     </>
   );

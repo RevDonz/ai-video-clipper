@@ -16,6 +16,7 @@ import {
   SESSION_TEXT,
   TREND_KINDS,
   TREND_KIND_LABELS,
+  TREND_KIND_NAMES,
   TREND_LIMITS,
   TREND_PLATFORMS,
   TREND_PLATFORM_LABELS,
@@ -47,9 +48,11 @@ import {
   trendCounts,
   trendCreatePayload,
   trendItemStatus,
+  trendKindLabel,
   trendPatchPayload,
   validateTokenLabel,
 } from "../lib/trend-view.mjs";
+import { textOf } from "./support/catalog-t.mjs";
 
 const NOW = Date.parse("2026-09-25T05:00:00Z"); // 12:00 in Jakarta (UTC+7)
 const HOUR = 3_600_000;
@@ -83,13 +86,21 @@ function item(overrides = {}) {
 
 // --- Labels and constants -------------------------------------------------------
 
-test("every kind and platform of the spec has an Indonesian label", () => {
+test("every kind and platform of the spec has a label in every language", () => {
   assert.deepEqual(TREND_KINDS, ["topic", "person", "joke", "meme", "sound", "hashtag", "format", "event"]);
   assert.deepEqual(TREND_PLATFORMS, ["tiktok", "instagram", "youtube", "x", "facebook", "news", "other"]);
-  for (const kind of TREND_KINDS) assert.ok(TREND_KIND_LABELS[kind], kind);
-  for (const platform of TREND_PLATFORMS) assert.ok(TREND_PLATFORM_LABELS[platform], platform);
-  assert.equal(TREND_KIND_LABELS.person, "Orang");
-  assert.equal(TREND_PLATFORM_LABELS.news, "Berita");
+  for (const kind of TREND_KINDS) {
+    assert.ok(TREND_KIND_LABELS[kind], kind);
+    for (const locale of ["id", "en"]) assert.ok(textOf(TREND_KIND_NAMES[kind], locale), `${locale} ${kind}`);
+    assert.equal(textOf(TREND_KIND_NAMES[kind]), TREND_KIND_LABELS[kind], "the chips' Indonesian names match the catalog");
+  }
+  for (const platform of TREND_PLATFORMS) assert.ok(textOf(TREND_PLATFORM_LABELS[platform]), platform);
+  assert.equal(textOf(TREND_KIND_NAMES.person), "Orang");
+  assert.equal(textOf(TREND_KIND_NAMES.person, "en"), "Person");
+  assert.equal(textOf(trendKindLabel("nope")), "Lainnya");
+  assert.equal(textOf(TREND_PLATFORM_LABELS.news), "Berita");
+  assert.equal(textOf(TREND_PLATFORM_LABELS.news, "en"), "News");
+  assert.equal(TREND_PLATFORM_LABELS.tiktok, "TikTok", "brand names stay as they are");
   assert.equal(TREND_LIMITS.title, 80);
   assert.equal(TREND_LIMITS.maxActiveTokens, 10);
   assert.match(GUIDE_URL, /^https:\/\/github\.com\/.+\/docs\/integrations\/hermes-trends\/README\.md$/);
@@ -200,32 +211,35 @@ test("an item is expired, disabled or active; expired wins", () => {
   assert.equal(trendItemStatus(item({ expiresAt: null }), NOW), "active");
 });
 
-test("relative time reads naturally in Indonesian", () => {
-  assert.equal(relativeTime(iso(NOW + 20_000), NOW), "kurang dari 1 menit lagi");
-  assert.equal(relativeTime(iso(NOW - 20_000), NOW), "baru saja");
+test("relative time reads naturally in the UI language", () => {
+  assert.equal(relativeTime(iso(NOW + 20_000), NOW), "sekarang");
+  assert.equal(relativeTime(iso(NOW - 20_000), NOW), "sekarang");
   assert.equal(relativeTime(iso(NOW + 5 * 60_000), NOW), "dalam 5 menit");
-  assert.equal(relativeTime(iso(NOW - 59 * 60_000), NOW), "59 menit lalu");
+  assert.equal(relativeTime(iso(NOW - 59 * 60_000), NOW), "59 menit yang lalu");
   assert.equal(relativeTime(iso(NOW + 3 * HOUR), NOW), "dalam 3 jam");
-  assert.equal(relativeTime(iso(NOW - 23 * HOUR), NOW), "23 jam lalu");
+  assert.equal(relativeTime(iso(NOW - 23 * HOUR), NOW), "23 jam yang lalu");
   assert.equal(relativeTime(iso(NOW + 23.8 * HOUR), NOW), "dalam 1 hari");
   assert.equal(relativeTime(iso(NOW + 9.6 * DAY), NOW), "dalam 10 hari");
-  assert.equal(relativeTime(iso(NOW - 2 * DAY), NOW), "2 hari lalu");
+  assert.equal(relativeTime(iso(NOW - 2 * DAY), NOW), "2 hari yang lalu");
+  assert.equal(relativeTime(iso(NOW - 2 * DAY), NOW, "en"), "2 days ago");
+  assert.equal(relativeTime(iso(NOW + 3 * HOUR), NOW, "en"), "in 3 hours");
+  assert.equal(relativeTime(iso(NOW - 20_000), NOW, "en"), "now");
   assert.equal(relativeTime("nope", NOW), null);
 });
 
 test("expiry is shown relative with a tone", () => {
-  assert.deepEqual(
-    { text: expiryView(item({ expiresAt: iso(NOW + 3 * DAY) }), NOW).text, tone: expiryView(item({ expiresAt: iso(NOW + 3 * DAY) }), NOW).tone },
-    { text: "Berakhir dalam 3 hari", tone: "ok" },
-  );
+  const later = expiryView(item({ expiresAt: iso(NOW + 3 * DAY) }), NOW);
+  assert.deepEqual({ text: textOf(later.label), tone: later.tone }, { text: "Berakhir dalam 3 hari", tone: "ok" });
   const soon = expiryView(item({ expiresAt: iso(NOW + 5 * HOUR) }), NOW);
-  assert.equal(soon.text, "Berakhir dalam 5 jam");
+  assert.equal(textOf(soon.label), "Berakhir dalam 5 jam");
   assert.equal(soon.tone, "soon");
   const gone = expiryView(item({ expiresAt: iso(NOW - 2 * DAY) }), NOW);
-  assert.equal(gone.text, "Kedaluwarsa 2 hari lalu");
+  assert.equal(textOf(gone.label), "Kedaluwarsa 2 hari yang lalu");
   assert.equal(gone.tone, "expired");
   assert.ok(gone.absolute, "absolute date for the title attribute");
-  assert.deepEqual(expiryView(item({ expiresAt: null }), NOW), { text: "Tanpa tanggal kedaluwarsa", tone: "ok", absolute: null });
+  assert.equal(textOf(expiryView(item({ expiresAt: iso(NOW - 2 * DAY) }), NOW, "en").label, "en"), "Expired 2 days ago");
+  const none = expiryView(item({ expiresAt: null }), NOW);
+  assert.deepEqual({ ...none, label: textOf(none.label) }, { label: "Tanpa kedaluwarsa", tone: "ok", absolute: null });
 });
 
 test("items are grouped per kind in spec order; active, then score, then newest", () => {
@@ -240,7 +254,7 @@ test("items are grouped per kind in spec order; active, then score, then newest"
     normalizeTrendItem({ id: "u", kind: "mystery", title: "Aneh" }),
   ];
   const groups = groupTrendItems(items, NOW);
-  assert.deepEqual(groups.map((group) => [group.kind, group.label, group.items.length]), [
+  assert.deepEqual(groups.map((group) => [group.kind, textOf(group.label), group.items.length]), [
     ["topic", "Topik", 5], ["person", "Orang", 1], ["meme", "Meme", 1], ["other", "Lainnya", 1],
   ]);
   assert.deepEqual(groups[0].items.map((entry) => entry.id), ["t-new", "t-high", "t-low", "t-off", "t-expired"]);
@@ -277,9 +291,10 @@ test("search folds case and accents and looks at title, summary, keywords and ha
 });
 
 test("source labels tell manual items from agent items", () => {
-  assert.equal(sourceLabel("manual"), "Manual");
-  assert.equal(sourceLabel("hermes"), "Agen: hermes");
-  assert.equal(sourceLabel(""), "Tidak diketahui");
+  assert.equal(textOf(sourceLabel("manual")), "Manual");
+  assert.equal(textOf(sourceLabel("hermes")), "Agen: hermes");
+  assert.equal(textOf(sourceLabel("hermes"), "en"), "Agent: hermes");
+  assert.equal(textOf(sourceLabel("")), "Tidak diketahui");
 });
 
 // --- Draft parsing and validation ------------------------------------------------------
@@ -323,7 +338,7 @@ test("a manual item validates like the server and builds the create payload", ()
   assert.deepEqual(minimal.payload, { kind: "topic", title: "Judul", keywords: ["judul"], sensitivity: "normal" });
 });
 
-test("invalid manual drafts name the field with an Indonesian message", () => {
+test("invalid manual drafts name the field with a catalog message", () => {
   const { errors } = trendCreatePayload({
     ...emptyTrendDraft(),
     kind: "rumor",
@@ -335,18 +350,19 @@ test("invalid manual drafts name the field with an Indonesian message", () => {
     score: "101",
     expiresDate: "2026-09-24",
   }, NOW);
-  assert.match(errors.kind, /jenis/i);
-  assert.match(errors.title, /80 karakter/);
-  assert.match(errors.summary, /5 baris/);
-  assert.match(errors.keywords, /“a”.*2–40/);
-  assert.match(errors.hashtags, /#bad-tag/);
-  assert.match(errors.platforms, /platform/i);
-  assert.match(errors.score, /0–100/);
-  assert.match(errors.expiresAt, /hari ini/);
+  assert.match(textOf(errors.kind), /jenis/i);
+  assert.match(textOf(errors.title), /80 karakter/);
+  assert.match(textOf(errors.summary), /5 baris/);
+  assert.match(textOf(errors.keywords), /“a”.*2–40/);
+  assert.match(textOf(errors.hashtags), /#bad-tag/);
+  assert.match(textOf(errors.platforms), /platform/i);
+  assert.match(textOf(errors.score), /0–100/);
+  assert.match(textOf(errors.expiresAt), /hari ini/);
+  assert.match(textOf(errors.title, "en"), /80 characters/);
 
   const empty = trendCreatePayload(emptyTrendDraft(), NOW).errors;
-  assert.match(empty.title, /wajib/);
-  assert.match(empty.keywords, /minimal satu/);
+  assert.match(textOf(empty.title), /wajib/);
+  assert.match(textOf(empty.keywords), /minimal satu/);
   assert.deepEqual(Object.keys(empty).sort(), ["keywords", "title"]);
 
   const many = trendCreatePayload({
@@ -355,10 +371,10 @@ test("invalid manual drafts name the field with an Indonesian message", () => {
     hashtagsText: Array.from({ length: 11 }, (_, n) => `#t${n}`).join(" "),
     summary: "s".repeat(501), score: "1.5",
   }, NOW).errors;
-  assert.match(many.keywords, /12/);
-  assert.match(many.hashtags, /10/);
-  assert.match(many.summary, /500/);
-  assert.match(many.score, /bulat/);
+  assert.match(textOf(many.keywords), /12/);
+  assert.match(textOf(many.hashtags), /10/);
+  assert.match(textOf(many.summary), /500/);
+  assert.match(textOf(many.score), /bulat/);
 });
 
 test("expiry dates stay within today .. 60 days and become an end-of-day ISO time", () => {
@@ -370,10 +386,10 @@ test("expiry dates stay within today .. 60 days and become an end-of-day ISO tim
   const last = expiryFromDateInput("2026-11-24", NOW);
   assert.equal(last.error, undefined);
   assert.ok(Date.parse(last.iso) <= NOW + 60 * DAY, "clamped under the 60-day server limit");
-  assert.match(expiryFromDateInput("2026-11-25", NOW).error, /60 hari/);
-  assert.match(expiryFromDateInput("2026-09-24", NOW).error, /hari ini/);
-  assert.match(expiryFromDateInput("2026-02-31", NOW).error, /tidak valid/);
-  assert.match(expiryFromDateInput("25/09/2026", NOW).error, /tidak valid/);
+  assert.match(textOf(expiryFromDateInput("2026-11-25", NOW).error), /60 hari/);
+  assert.match(textOf(expiryFromDateInput("2026-09-24", NOW).error), /hari ini/);
+  assert.match(textOf(expiryFromDateInput("2026-02-31", NOW).error), /tidak valid/);
+  assert.match(textOf(expiryFromDateInput("25/09/2026", NOW).error), /tidak valid/);
 });
 
 test("inline edit sends only the fields that changed, and only editable ones", () => {
@@ -411,8 +427,8 @@ test("inline edit sends only the fields that changed, and only editable ones", (
   assert.deepEqual(cleared.payload, { summary: "", hashtags: [] });
 
   const bad = trendPatchPayload(original, { ...draft, title: " ", expiresDate: "" }, NOW);
-  assert.match(bad.errors.title, /wajib/);
-  assert.match(bad.errors.expiresAt, /wajib/);
+  assert.match(textOf(bad.errors.title), /wajib/);
+  assert.match(textOf(bad.errors.expiresAt), /wajib/);
 
   // An item that already expired keeps its past date unless the owner changes it.
   const expired = item({ expiresAt: iso(NOW - 3 * DAY) });
@@ -423,8 +439,8 @@ test("inline edit sends only the fields that changed, and only editable ones", (
 
 test("token labels are 1..40 visible characters", () => {
   assert.deepEqual(validateTokenLabel("  Hermes VPS \u200B"), { label: "Hermes VPS", error: null });
-  assert.match(validateTokenLabel("   ").error, /wajib/);
-  assert.match(validateTokenLabel("x".repeat(41)).error, /40/);
+  assert.match(textOf(validateTokenLabel("   ").error), /wajib/);
+  assert.match(textOf(validateTokenLabel("x".repeat(41)).error), /40/);
 });
 
 test("token lists never carry hashes or values; active tokens come first", () => {
@@ -443,18 +459,19 @@ test("token lists never carry hashes or values; active tokens come first", () =>
 
   const active = tokenView(tokens[0], NOW);
   assert.equal(active.status, "active");
-  assert.equal(active.statusLabel, "Aktif");
+  assert.equal(textOf(active.statusLabel), "Aktif");
   assert.equal(active.prefixText, "ptk_Cd34…");
-  assert.equal(active.lastUsedText, "1 jam lalu");
+  assert.equal(active.lastUsedText, "1 jam yang lalu");
+  assert.equal(tokenView(tokens[0], NOW, "en").lastUsedText, "1 hour ago");
   const revoked = tokenView(tokens[1], NOW);
   assert.equal(revoked.status, "revoked");
-  assert.equal(revoked.lastUsedText, "Belum pernah dipakai");
-  assert.match(revoked.statusLabel, /^Dicabut/);
+  assert.equal(textOf(revoked.lastUsedText), "Belum pernah dipakai");
+  assert.match(textOf(revoked.statusLabel), /^Dicabut \d/);
   // A record without a prefix or with unreadable dates shows words, not a dash.
   const bare = tokenView({ id: "x", label: "X", prefix: "", createdAt: "nope", lastUsedAt: "nope", revokedAt: null }, NOW);
   assert.equal(bare.prefixText, "");
-  assert.equal(bare.createdText, "tidak diketahui");
-  assert.equal(bare.lastUsedText, "tidak diketahui");
+  assert.equal(textOf(bare.createdText), "tidak diketahui");
+  assert.equal(textOf(bare.lastUsedText), "tidak diketahui");
 });
 
 test("a created token is accepted only in the documented ptk_ format", () => {
@@ -500,16 +517,26 @@ test("the endpoint and curl example use the page origin and never a fixed host",
   assert.equal(shellQuote("it's"), `'it'\\''s'`);
 });
 
-test("API errors become short Indonesian messages without server internals", () => {
+test("API errors become short messages in the UI language without server internals", () => {
+  const text = (input, fallback = "x", locale = "id") => textOf(apiErrorMessage(input, fallback), locale);
   assert.equal(apiErrorMessage({ status: 401, payload: null }, "x"), SESSION_TEXT);
-  assert.match(apiErrorMessage({ status: 0, payload: null }, "x"), /tidak bisa dihubungi/);
-  assert.match(apiErrorMessage({ status: 429, payload: { error: "" } }, "x"), /Terlalu banyak/);
-  assert.equal(apiErrorMessage({ status: 400, payload: { error: "Judul wajib diisi.", code: "invalid_body" } }, "x"), "Judul wajib diisi.");
-  assert.equal(apiErrorMessage({ status: 500, payload: { error: "Boom\u202E\nline" } }, "Gagal."), "Boom line");
-  assert.equal(apiErrorMessage({ status: 500, payload: "<html>" }, "Gagal."), "Gagal.");
-  assert.match(apiErrorMessage({ status: 404, payload: null }, "x"), /tidak ditemukan/);
-  assert.match(apiErrorMessage({ status: 503, payload: null }, "x"), /tidak tersedia/);
-  assert.match(apiErrorMessage({ status: 403, payload: null }, "x"), /ditolak/);
+  assert.match(text({ status: 401, payload: null }), /Sesi berakhir/);
+  assert.match(text({ status: 0, payload: null }), /tidak terjangkau/);
+  assert.match(text({ status: 0, payload: null }, "x", "en"), /can't be reached/);
+  assert.match(text({ status: 429, payload: { error: "" } }), /Terlalu banyak/);
+  assert.equal(text({ status: 400, payload: { error: "Judul wajib diisi.", code: "invalid_body" } }), "Judul wajib diisi.");
+  assert.equal(text({ status: 500, payload: { error: "Boom\u202E\nline" } }, "Gagal."), "Boom line");
+  assert.equal(text({ status: 500, payload: "<html>" }, "Gagal."), "Gagal.");
+  assert.match(textOf(apiErrorMessage({ status: 500, payload: null })), /Permintaan gagal/);
+  assert.match(text({ status: 404, payload: null }), /tidak ada/);
+  assert.match(text({ status: 503, payload: null }), /tidak tersedia/);
+  assert.match(text({ status: 403, payload: null }), /Ditolak/);
+  // A coded error (i18n M2: code + messageId) is shown from the catalog, its Indonesian text kept for fallback.
+  const coded = apiErrorMessage({ status: 401, payload: null });
+  assert.deepEqual(coded, SESSION_TEXT);
+  const withId = apiErrorMessage({ status: 403, payload: { error: "Origin permintaan tidak diizinkan", code: "csrf_rejected", messageId: "web.csrf_rejected" } });
+  assert.deepEqual(withId, { error: { messageId: "web.csrf_rejected", code: "csrf_rejected", params: undefined, legacyText: "Origin permintaan tidak diizinkan" } });
+  assert.ok(textOf(withId).length > 0);
 });
 
 // --- API client (mocked fetch) -----------------------------------------------------------------
@@ -621,16 +648,16 @@ test("the client reports failures as messages and tolerates odd bodies", async (
   assert.equal(unauthorized.error, SESSION_TEXT);
   const offline = await api.loadTokens();
   assert.equal(offline.status, 0);
-  assert.match(offline.error, /tidak bisa dihubungi/);
+  assert.match(textOf(offline.error), /tidak terjangkau/);
   const odd = await api.loadTrends();
   assert.equal(odd.ok, false);
-  assert.match(odd.error, /tidak dikenali/);
+  assert.match(textOf(odd.error), /tidak dikenali/);
   const invalid = await api.createTrend({});
   assert.equal(invalid.error, "Kata kunci wajib diisi.");
   assert.equal(invalid.field, "keywords");
   const badToken = await api.createToken("x");
   assert.equal(badToken.ok, false);
-  assert.match(badToken.error, /token/i);
+  assert.match(textOf(badToken.error), /token/i);
   const createdWithoutBody = await api.createTrend({ title: "x" });
   assert.equal(createdWithoutBody.ok, true);
   assert.equal(createdWithoutBody.data, null, "the page reloads the list when the body is missing");
