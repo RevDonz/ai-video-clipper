@@ -1,9 +1,12 @@
 "use client";
 
-// Pengaturan "Cookies YouTube": upload one cookies.txt, see how many cookies were kept, replace or
-// remove it. Loaded on its own, like "Logo bawaan": the AI form failing must not hide it. The file
-// goes to the server as is; the browser never reads it and the server never sends a cookie back.
+// Pengaturan → YouTube → cookies.txt: upload one file, see how many cookies were kept, replace or
+// remove it. The upload saves the moment a file is picked, so this card is not part of the save
+// bar. The file goes to the server as is; the browser never reads it and the server never sends a
+// cookie back.
+import { Button } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
+import { useFormatter, useTranslations } from "use-intl";
 
 import {
   COOKIES_ACCEPT,
@@ -12,13 +15,12 @@ import {
   cookiesErrorMessage,
   cookiesSavedMessage,
   cookiesUploadedText,
-  youtubeCookiesCopy,
   youtubeCookiesState,
 } from "../../lib/youtube-cookies-view.mjs";
+import { CardLoadError, CardLoading, CardNotice } from "./CardState.jsx";
+import { useViewText } from "./view-text.jsx";
 
 const ENDPOINT = "/api/settings/youtube-cookies";
-const COPY = youtubeCookiesCopy();
-const LOAD_FAILED = "Cookies YouTube tidak bisa dimuat.";
 
 async function send(method, file) {
   const response = await fetch(ENDPOINT, {
@@ -32,6 +34,9 @@ async function send(method, file) {
 }
 
 export default function YoutubeCookiesCard() {
+  const t = useTranslations("settings");
+  const format = useFormatter();
+  const text = useViewText();
   const [phase, setPhase] = useState("loading");
   const [state, setState] = useState(() => youtubeCookiesState(null));
   const [busy, setBusy] = useState(null);
@@ -39,6 +44,13 @@ export default function YoutubeCookiesCard() {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
   const alive = useRef(true);
+
+  // "42 cookie YouTube tersimpan. Dibuang: 120 dari situs lain, 1 kedaluwarsa."
+  const savedText = (answer) => {
+    const { saved, dropped } = cookiesSavedMessage(answer);
+    if (!dropped.length) return text(saved);
+    return `${text(saved)} ${t("youtube.droppedList", { list: format.list(dropped.map(text), { type: "unit" }) })}`;
+  };
 
   async function load() {
     setPhase("loading");
@@ -50,12 +62,12 @@ export default function YoutubeCookiesCard() {
         setState(youtubeCookiesState(answer.payload));
         setPhase("ready");
       } else {
-        setMessage({ tone: "error", text: answer.status === 401 ? cookiesErrorMessage({ status: 401 }) : LOAD_FAILED });
+        setMessage({ tone: "error", text: answer.status === 401 ? text(cookiesErrorMessage({ status: 401 })) : t("youtube.loadFailed") });
         setPhase("error");
       }
     } catch {
       if (!alive.current) return;
-      setMessage({ tone: "error", text: LOAD_FAILED });
+      setMessage({ tone: "error", text: t("youtube.loadFailed") });
       setPhase("error");
     }
   }
@@ -74,7 +86,7 @@ export default function YoutubeCookiesCard() {
   async function upload(file) {
     if (!file || !canUpload) return;
     if (file.size === 0 || file.size > MAX_COOKIES_UPLOAD_BYTES) {
-      setMessage({ tone: "error", text: cookiesErrorMessage({ code: file.size === 0 ? "cookies_empty" : "cookies_too_large" }) });
+      setMessage({ tone: "error", text: text(cookiesErrorMessage({ code: file.size === 0 ? "cookies_empty" : "cookies_too_large" })) });
       return;
     }
     setMessage(null);
@@ -85,12 +97,12 @@ export default function YoutubeCookiesCard() {
       const next = youtubeCookiesState(answer.payload);
       if (answer.ok && next.cookies) {
         setState(next);
-        setMessage({ tone: "ok", text: cookiesSavedMessage(answer.payload) });
+        setMessage({ tone: "ok", text: savedText(answer.payload) });
       } else {
-        setMessage({ tone: "error", text: cookiesErrorMessage({ status: answer.status, code: answer.payload?.code }) });
+        setMessage({ tone: "error", text: text(cookiesErrorMessage({ status: answer.status, code: answer.payload?.code })) });
       }
     } catch {
-      if (alive.current) setMessage({ tone: "error", text: cookiesErrorMessage({ status: 0 }) });
+      if (alive.current) setMessage({ tone: "error", text: text(cookiesErrorMessage({ status: 0 })) });
     } finally {
       if (alive.current) setBusy(null);
     }
@@ -105,12 +117,12 @@ export default function YoutubeCookiesCard() {
       if (!alive.current) return;
       if (answer.ok && answer.payload) {
         setState(youtubeCookiesState(answer.payload));
-        setMessage({ tone: "ok", text: "Cookies dihapus. Unduhan berikutnya berjalan tanpa cookies." });
+        setMessage({ tone: "ok", text: t("youtube.removed") });
       } else {
-        setMessage({ tone: "error", text: answer.status === 401 ? cookiesErrorMessage({ status: 401 }) : "Cookies gagal dihapus. Coba lagi." });
+        setMessage({ tone: "error", text: answer.status === 401 ? text(cookiesErrorMessage({ status: 401 })) : t("youtube.removeFailed") });
       }
     } catch {
-      if (alive.current) setMessage({ tone: "error", text: cookiesErrorMessage({ status: 0 }) });
+      if (alive.current) setMessage({ tone: "error", text: text(cookiesErrorMessage({ status: 0 })) });
     } finally {
       if (alive.current) setBusy(null);
     }
@@ -138,54 +150,48 @@ export default function YoutubeCookiesCard() {
   const uploaded = cookies ? cookiesUploadedText(cookies) : null;
 
   return (
-    <section className="panel settingsCard cookiesCard" aria-labelledby="youtube-cookies-title" aria-busy={busy !== null || phase === "loading"}
+    <section className="settingsCard" aria-labelledby="youtube-cookies-title" aria-busy={busy !== null || phase === "loading"}
       onDragOver={onDragOver} onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
-      <div className="settingsCardHead">
-        <h2 id="youtube-cookies-title">Cookies YouTube</h2>
-        <p>{COPY.where}</p>
-      </div>
+      <h2 id="youtube-cookies-title" className="settingsCardTitle">{t("youtube.cookies")}</h2>
 
-      {phase === "loading" && <p className="systemState" role="status">Memuat cookies YouTube…</p>}
-      {phase === "error" && (
-        <div className="systemState error" role="alert">
-          <p>{message?.text}</p>
-          <button type="button" className="btn" onClick={() => void load()}>Coba lagi</button>
-        </div>
-      )}
+      {phase === "loading" && <CardLoading label={t("common.loading")} />}
+      {phase === "error" && <CardLoadError message={message?.text} onRetry={() => void load()} />}
 
       {phase === "ready" && (
-        <>
-          <div className="cookiesBody" data-over={dragOver ? "true" : "false"}>
-            <div className="cookiesText">
-              <strong className="cookiesCount">{cookies ? cookiesCountText(cookies) : "Belum ada cookies"}</strong>
-              <span className="cookiesMeta">{cookies ? uploaded : COPY.hint}</span>
+        <div className="settingsStack">
+          <div className="settingsMedia" data-over={dragOver ? "true" : "false"}>
+            <div className="settingsMediaText">
+              <strong>{cookies ? text(cookiesCountText(cookies)) : t("youtube.empty")}</strong>
+              <span className="settingsMuted">{cookies ? text(uploaded) : t("youtube.hint")}</span>
             </div>
-            <div className="cookiesActions">
-              <button type="button" className="btn" onClick={choose} disabled={!canUpload}>
-                {busy === "upload" ? "Memeriksa…" : cookies ? "Ganti file" : "Pilih file"}
-              </button>
+            <div className="settingsRow">
+              <Button variant="secondary" onPress={choose} isDisabled={!canUpload}>
+                {busy === "upload" ? t("youtube.checking") : cookies ? t("youtube.replace") : t("youtube.choose")}
+              </Button>
               {(cookies || state.problem) && (
-                <button type="button" className="btn danger" onClick={remove} disabled={busy !== null}>
-                  {busy === "remove" ? "Menghapus…" : "Hapus"}
-                </button>
+                <Button variant="danger" onPress={remove} isDisabled={busy !== null}>
+                  {busy === "remove" ? t("common.removing") : t("common.remove")}
+                </Button>
               )}
               <input ref={inputRef} type="file" accept={COOKIES_ACCEPT} hidden tabIndex={-1} aria-hidden="true"
                 onChange={(event) => onFiles(event.target.files)} />
             </div>
           </div>
 
-          {!state.secretConfigured && <p className="notice error settingsNotice" role="alert">{COPY.secretMissing}</p>}
-          {unreadable && <p className="notice error settingsNotice" role="alert">{COPY.unreadable}</p>}
-          {cookies && !cookies.signedIn && !state.problem && <p className="notice warning settingsNotice">{COPY.notSignedIn}</p>}
+          {!state.secretConfigured && <CardNotice tone="error">{t("youtube.secretMissing")}</CardNotice>}
+          {unreadable && <CardNotice tone="error">{t("youtube.unreadable")}</CardNotice>}
+          {cookies && !cookies.signedIn && !state.problem && <CardNotice tone="warning">{t("youtube.notSignedIn")}</CardNotice>}
 
           {message && (message.tone === "error"
-            ? <p className="notice error settingsNotice" role="alert">{message.text}</p>
-            : <p className={`cookiesStatus ${message.tone}`} role="status">{message.text}</p>)}
+            ? <CardNotice tone="error">{message.text}</CardNotice>
+            : <p className="settingsStatus" data-tone={message.tone} role="status">{message.text}</p>)}
 
-          <ul className="cookiesFacts">
-            {COPY.facts.map((fact) => <li key={fact}>{fact}</li>)}
+          <ul className="settingsFacts">
+            <li>{t("youtube.facts.separate")}</li>
+            <li>{t("youtube.facts.encrypted")}</li>
+            <li>{t("youtube.facts.expire")}</li>
           </ul>
-        </>
+        </div>
       )}
     </section>
   );

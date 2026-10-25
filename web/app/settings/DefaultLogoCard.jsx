@@ -1,21 +1,20 @@
 "use client";
 
-// Pengaturan "Logo bawaan" (plan 2026-10-20 A6): upload one logo, see it, replace or remove it.
-// Loaded on its own, like "Tentang sistem": the AI form failing must not hide it.
+// Pengaturan → Tampilan → Logo (plan 2026-10-20 A6): upload one logo, see it, replace or remove it.
+// An upload saves the moment a file is picked (05-ui-dashboard.md §6.10), so this card is not part
+// of the save bar. Loaded on its own: another card failing must not hide it.
+import { Button, ProgressBar } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "use-intl";
 
-import {
-  DEFAULT_LOGO_ACCEPT,
-  defaultLogoCopy,
-  defaultLogoState,
-  defaultLogoUploadError,
-  logoSize,
-} from "../../lib/default-logo-view.mjs";
+import { DEFAULT_LOGO_ACCEPT, defaultLogoCopy, defaultLogoState, defaultLogoUploadError, logoSize } from "../../lib/default-logo-view.mjs";
 import { uploadDefaultLogo } from "../../lib/editor/upload-client.mjs";
-
-const SESSION_TEXT = "Sesi login berakhir. Muat ulang halaman untuk masuk lagi.";
+import { CardLoadError, CardLoading, CardNotice } from "./CardState.jsx";
+import { useViewText } from "./view-text.jsx";
 
 export default function DefaultLogoCard() {
+  const t = useTranslations("settings");
+  const text = useViewText();
   const [phase, setPhase] = useState("loading");
   const [state, setState] = useState(() => defaultLogoState(null));
   const [progress, setProgress] = useState(null);
@@ -37,12 +36,12 @@ export default function DefaultLogoCard() {
         setState(defaultLogoState(payload));
         setPhase("ready");
       } else {
-        setMessage({ tone: "error", text: response.status === 401 ? SESSION_TEXT : "Logo bawaan tidak bisa dimuat." });
+        setMessage({ tone: "error", text: response.status === 401 ? t("common.error.session") : t("appearance.logoLoadFailed") });
         setPhase("error");
       }
     } catch {
       if (!alive.current) return;
-      setMessage({ tone: "error", text: "Logo bawaan tidak bisa dimuat." });
+      setMessage({ tone: "error", text: t("appearance.logoLoadFailed") });
       setPhase("error");
     }
   }
@@ -76,11 +75,11 @@ export default function DefaultLogoCard() {
       });
       if (!alive.current) return;
       setState((current) => defaultLogoState({ ...current, logo: dto }));
-      setMessage({ tone: "ok", text: "Logo bawaan tersimpan." });
+      setMessage({ tone: "ok", text: t("appearance.logoSaved") });
     } catch (error) {
       if (!alive.current) return;
       const mapped = defaultLogoUploadError(error);
-      setMessage({ tone: mapped.cancelled ? "info" : "error", text: mapped.message });
+      setMessage({ tone: mapped.cancelled ? "info" : "error", text: mapped.key ? text(mapped) : mapped.message });
     } finally {
       if (running.current === controller) running.current = null;
       if (alive.current) setProgress(null);
@@ -97,12 +96,12 @@ export default function DefaultLogoCard() {
       if (!alive.current) return;
       if (response.ok && payload) {
         setState(defaultLogoState(payload));
-        setMessage({ tone: "ok", text: "Logo bawaan dihapus. Klip yang sudah dibuat tetap memakai logonya." });
+        setMessage({ tone: "ok", text: t("appearance.logoRemoved") });
       } else {
-        setMessage({ tone: "error", text: response.status === 401 ? SESSION_TEXT : "Logo bawaan gagal dihapus. Coba lagi." });
+        setMessage({ tone: "error", text: response.status === 401 ? t("common.error.session") : t("appearance.logoRemoveFailed") });
       }
     } catch {
-      if (alive.current) setMessage({ tone: "error", text: "Koneksi terputus. Coba lagi." });
+      if (alive.current) setMessage({ tone: "error", text: t("common.error.offline") });
     } finally {
       if (alive.current) setRemoving(false);
     }
@@ -130,47 +129,30 @@ export default function DefaultLogoCard() {
   const thumbOk = logo && thumbFailed !== logo.url;
 
   return (
-    <section className="panel settingsCard logoCard" aria-labelledby="default-logo-title" aria-busy={busy || phase === "loading"}
+    <section className="settingsCard" aria-labelledby="default-logo-title" aria-busy={busy || phase === "loading"}
       onDragOver={onDragOver} onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
-      <div className="settingsCardHead">
-        <h2 id="default-logo-title">Logo bawaan</h2>
-        <p>{copy.where}</p>
-      </div>
+      <h2 id="default-logo-title" className="settingsCardTitle">{t("appearance.logo")}</h2>
 
-      {phase === "loading" && <p className="systemState" role="status">Memuat logo bawaan…</p>}
-      {phase === "error" && (
-        <div className="systemState error" role="alert">
-          <p>{message?.text}</p>
-          <button type="button" className="btn" onClick={() => { setMessage(null); void load(); }}>Coba lagi</button>
-        </div>
-      )}
+      {phase === "loading" && <CardLoading label={t("common.loading")} />}
+      {phase === "error" && <CardLoadError message={message?.text} onRetry={() => { setMessage(null); void load(); }} />}
 
       {phase === "ready" && (
-        <>
-          <div className="logoBody" data-over={dragOver ? "true" : "false"}>
-            <div className={logo ? "logoThumb" : "logoThumb empty"}>
-              {thumbOk && <img key={logo.url} src={logo.url} alt="Pratinjau logo bawaan" draggable={false} onError={() => setThumbFailed(logo.url)} />}
+        <div className="settingsStack">
+          <div className="settingsMedia" data-over={dragOver ? "true" : "false"}>
+            <div className="settingsThumb" data-empty={logo ? undefined : "true"}>
+              {thumbOk && <img key={logo.url} src={logo.url} alt={t("appearance.logoPreview")} draggable={false} onError={() => setThumbFailed(logo.url)} />}
             </div>
-            <div className="logoText">
-              {logo ? (
-                <>
-                  <strong className="logoName">{logo.name ?? "Logo bawaan"}</strong>
-                  <span className="logoMeta">{logoSize(logo)}</span>
-                </>
-              ) : (
-                <>
-                  <strong className="logoName">Belum ada logo</strong>
-                  <span className="logoMeta">{copy.hint}</span>
-                </>
-              )}
-              <div className="logoActions">
-                <button type="button" className="btn" onClick={choose} disabled={!canUpload}>
-                  {logo ? "Ganti logo" : "Pilih logo"}
-                </button>
+            <div className="settingsMediaText">
+              <strong>{logo ? logo.name ?? t("appearance.logo") : t("appearance.logoEmpty")}</strong>
+              <span className="settingsMuted">{logo ? text(logoSize(logo)) : text(copy.hint)}</span>
+              <div className="settingsRow">
+                <Button variant="secondary" onPress={choose} isDisabled={!canUpload}>
+                  {logo ? t("appearance.logoReplace") : t("appearance.logoChoose")}
+                </Button>
                 {logo && (
-                  <button type="button" className="btn danger" onClick={remove} disabled={busy}>
-                    {removing ? "Menghapus…" : "Hapus"}
-                  </button>
+                  <Button variant="danger" onPress={remove} isDisabled={busy}>
+                    {removing ? t("common.removing") : t("common.remove")}
+                  </Button>
                 )}
                 <input ref={inputRef} type="file" accept={DEFAULT_LOGO_ACCEPT} hidden tabIndex={-1} aria-hidden="true"
                   onChange={(event) => onFiles(event.target.files)} />
@@ -179,30 +161,34 @@ export default function DefaultLogoCard() {
           </div>
 
           {progress && (
-            <div className="logoProgress">
-              <div className="logoProgressHead">
-                <span className="logoProgressName">{progress.processing ? "Memproses gambar…" : `Mengunggah ${progress.name}`}</span>
-                {!progress.processing && <span>{`${percent}%`}</span>}
-              </div>
-              <div className="logoTrack" role="progressbar" aria-label="Unggahan logo bawaan" aria-valuemin={0} aria-valuemax={100}
-                aria-valuenow={percent} aria-valuetext={progress.processing ? "Memproses gambar" : `${percent}%`}>
-                <div className="logoBar" style={{ width: `${percent}%` }} />
-              </div>
-              <button type="button" className="btn ghost" onClick={() => running.current?.abort()}>Batalkan unggahan</button>
+            <div className="settingsProgress">
+              <ProgressBar
+                aria-label={t("appearance.logoProgress")}
+                value={percent}
+                valueLabel={progress.processing ? t("appearance.logoProcessing") : `${percent}%`}
+                isIndeterminate={progress.processing}
+              >
+                <span className="settingsMuted settingsProgressName">{t("appearance.logoUploading", { name: progress.name })}</span>
+                <ProgressBar.Output />
+                <ProgressBar.Track>
+                  <ProgressBar.Fill />
+                </ProgressBar.Track>
+              </ProgressBar>
+              <Button variant="ghost" onPress={() => running.current?.abort()}>{t("appearance.logoCancelUpload")}</Button>
             </div>
           )}
 
           {message && (message.tone === "error"
-            ? <p className="notice error settingsNotice" role="alert">{message.text}</p>
-            : <p className={`logoStatus ${message.tone}`} role="status">{message.text}</p>)}
+            ? <CardNotice tone="error">{message.text}</CardNotice>
+            : <p className="settingsStatus" data-tone={message.tone} role="status">{message.text}</p>)}
 
-          {!state.enabled && <p className="notice settingsNotice">Unggah logo belum diaktifkan di server ini.</p>}
+          {!state.enabled && <CardNotice tone="warning">{t("appearance.logoDisabled")}</CardNotice>}
 
-          <ul className="logoFacts">
-            <li>{copy.reach}</li>
-            <li>{copy.perClip}</li>
+          <ul className="settingsFacts">
+            <li>{text(copy.reach)}</li>
+            <li>{text(copy.perClip)}</li>
           </ul>
-        </>
+        </div>
       )}
     </section>
   );

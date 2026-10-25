@@ -133,8 +133,12 @@ test("the pages' stand-alone links and chips are 44 px tap targets on a phone", 
   };
   const settings = (await read("app/settings/settings.css")).replace(/\/\*[\s\S]*?\*\//g, "");
   const trends = (await read("app/trends/trends.css")).replace(/\/\*[\s\S]*?\*\//g, "");
-  // "Dokumentasi ↗" / "Ambil API key ↗" on the provider cards and the Hermes guide link.
-  assert.match(rule(settings, ".presetActions a"), /min-height:\s*44px/);
+  // "Ambil API key ↗", "9Router: cek ketentuan layanan" and "Lisensi" on Pengaturan, and the
+  // Hermes guide link.
+  assert.match(rule(settings, ".settingsLink"), /min-height:\s*44px/);
+  // The provider's ⋯ menu button.
+  assert.match(rule(settings, ".settingsMore"), /min-height:\s*44px/);
+  assert.match(rule(settings, ".settingsMore"), /min-width:\s*44px/);
   assert.match(rule(trends, ".trGuideLink"), /min-height:\s*44px/);
   // A one-letter platform chip ("X") is still a full target.
   assert.match(rule(trends, ".trPlatforms label"), /min-width:\s*44px/);
@@ -165,32 +169,43 @@ test("no bare tone class in globals.css leaks onto .statusPill.error, .notice.er
   }
 });
 
-test("both pages hang their buttons on the shared .btn and lime only on the main action", async () => {
-  const settings = await read("app/settings/page.jsx");
+test("both pages hang their buttons on the shared kit and lime only on the main action", async () => {
+  // Pengaturan is on HeroUI's Button since Dashboard F5 (05 §6.10): lime is the save bar's Simpan
+  // alone, in every file of the page; retries and the .env import are secondary.
+  const settings = (await Promise.all((await filesUnder("app/settings", /\.jsx$/)).map(read))).join("\n");
   const trends = [
     await read("app/trends/page.jsx"),
     ...await Promise.all((await filesUnder("components/trends", /\.jsx$/)).map(read)),
   ].join("\n");
   for (const [name, source] of [["settings", settings], ["trends", trends]]) {
     assert.doesNotMatch(source, /className="(primaryAction|secondaryAction|trPrimary|trSecondary|iconButton|confirmDelete|saveEditor|discard)\b/, name);
-    assert.match(source, /className="btn primary"/, `${name} has a primary action`);
   }
-  assert.equal(settings.match(/btn primary/g).length, 3, "Simpan, the retry after a failed load, and the .env import");
+  assert.match(trends, /className="btn primary"/, "trends has a primary action");
+  assert.doesNotMatch(settings, /className="btn\b/, "settings uses the kit's Button, not .btn");
+  assert.equal(settings.match(/variant="primary"/g)?.length, 1, "one lime button: Simpan");
+  const bar = await read("app/settings/SettingsSave.jsx");
+  assert.match(bar, /<Button variant="primary" onPress=\{onSave\} isDisabled=\{saving\}>\{saving \? t\("bar\.saving"\) : t\("bar\.save"\)\}<\/Button>/);
 });
 
-test("Pengaturan is the whole page's name and every save button says what it saves", async () => {
+test("Pengaturan is the whole page's name and one save bar saves every tab", async () => {
   const page = withoutComments(await read("app/settings/page.jsx"));
   const layout = withoutComments(await read("app/settings/layout.jsx"));
-  assert.match(page, /<h1>Pengaturan<\/h1>/);
+  assert.match(page, /<PageHead title=\{t\("title"\)\} \/>/);
+  assert.equal(JSON.parse(await read("messages/id/settings.json")).title, "Pengaturan");
   assert.match(layout, /return routeMetadata\("settings"\);/);
   assert.equal(JSON.parse(await read("messages/id/meta.json")).settings.title, "Pengaturan");
-  const cards = await Promise.all((await filesUnder("app/settings", /\.jsx$/)).map(async (file) => withoutComments(await read(file))));
-  // A save button reads "Menyimpan…" while it works and its label otherwise.
-  const labels = [...cards.join("\n").matchAll(/"Menyimpan…" : ("[^"]*")/g)].map((match) => match[1]);
-  assert.ok(labels.length >= 3, labels.join(", "));
-  // No bare "Simpan" (or "Simpan key"): with several cards on one page, each names its form.
-  for (const label of labels) assert.match(label, /^"Simpan (pengaturan AI|watermark|key Groq)"$/, label);
-  assert.equal(new Set(labels).size, labels.length, labels.join(", "));
+  const cards = await Promise.all((await filesUnder("app/settings", /\.jsx$/)).map(async (file) => [file, withoutComments(await read(file))]));
+  // One save button for the whole page: no card brings its own "Simpan …" any more.
+  for (const [file, source] of cards) {
+    if (file.endsWith("SettingsSave.jsx")) continue;
+    assert.doesNotMatch(source, /t\("bar\.save"\)|type="submit"/, `${file} saves through the bar`);
+  }
+  const id = JSON.parse(await read("messages/id/settings.json"));
+  assert.deepEqual([id.bar.save, id.bar.saving, id.bar.unsaved, id.bar.discard], ["Simpan", "Menyimpan…", "Belum disimpan", "Batalkan"]);
+  // The draft cards register with the bar.
+  for (const file of ["AiSettings.jsx", "TranscriptionCard.jsx", "DefaultWatermarkCard.jsx"]) {
+    assert.match(cards.find(([name]) => name.endsWith(file))[1], /useSettingsCard\(CARD, "(ai|transkripsi|tampilan)", \{/, file);
+  }
 });
 
 // --- Small pages ----------------------------------------------------------------------------

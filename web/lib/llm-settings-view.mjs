@@ -1,11 +1,14 @@
-// Client-safe helpers for the settings page (/settings): turning the GET
+// Client-safe helpers for the AI tab of Pengaturan (/settings#ai): turning the GET
 // payload into an editable draft of strings and back into a PUT body, with the
 // same rules the server applies (lib/llm-presets.mjs). No Node built-ins.
+// Messages are descriptors `{ key, values? }` under the "settings" namespace
+// (rombak 07 §8.3); `problem` is the shared validator's own phrase.
 
 import { contentLower } from "./content-text.mjs";
 import {
   CUSTOM_PROVIDERS,
   LLM_PRESETS,
+  MAX_FALLBACK_MODELS,
   NUMBER_RULES,
   PROVIDER_NAMES,
   SERVER_TEMPLATES,
@@ -23,6 +26,8 @@ import {
 export const NUMBER_FIELDS = Object.freeze(Object.keys(NUMBER_RULES));
 const TEXT_FIELDS = Object.freeze(["baseUrl", "model", "httpReferer", "appTitle"]);
 const NONE_WORDS = new Set(["none", "off", "-"]);
+const FIELD_ERRORS = Object.freeze({ baseUrl: "ai.error.baseUrl", model: "ai.error.model", httpReferer: "ai.error.httpReferer", appTitle: "ai.error.appTitle" });
+const NUMBER_ERRORS = Object.freeze(Object.fromEntries(Object.keys(NUMBER_RULES).map((field) => [field, `ai.error.number.${field}`])));
 
 function text(value) {
   return value === undefined || value === null ? "" : String(value);
@@ -150,8 +155,8 @@ export function draftToPayload(draft, baseUpdatedAt = null) {
     if (name) {
       const problem = displayNameProblem(name);
       const folded = contentLower(name);
-      if (problem) errors[`${prefix}.name`] = `Nama ${problem}.`;
-      else if (names.has(folded)) errors[`${prefix}.name`] = "Nama ini sudah dipakai server lain.";
+      if (problem) errors[`${prefix}.name`] = { key: "ai.error.name", values: { problem } };
+      else if (names.has(folded)) errors[`${prefix}.name`] = { key: "ai.error.nameTaken" };
       else out.name = name;
       names.add(folded);
     }
@@ -162,15 +167,14 @@ export function draftToPayload(draft, baseUpdatedAt = null) {
       const problem = field === "baseUrl" ? baseUrlProblem(value)
         : field === "model" ? modelProblem(value)
           : field === "httpReferer" ? httpRefererProblem(value) : appTitleProblem(value);
-      const label = { baseUrl: "Base URL", model: "Model", httpReferer: "HTTP-Referer", appTitle: "Judul aplikasi" }[field];
-      if (problem) errors[`${prefix}.${field}`] = `${label} ${problem}.`;
+      if (problem) errors[`${prefix}.${field}`] = { key: FIELD_ERRORS[field], values: { problem } };
       else out[field] = value;
     }
     const fallbacks = parseModelList(item.fallbackText);
     if (fallbacks !== null) {
       const problem = fallbacks.map(fallbackModelProblem).find(Boolean);
-      if (problem) errors[`${prefix}.fallbackModels`] = `Model cadangan ${problem}.`;
-      else if (fallbacks.length > 20) errors[`${prefix}.fallbackModels`] = "Model cadangan maksimal 20.";
+      if (problem) errors[`${prefix}.fallbackModels`] = { key: "ai.error.fallback", values: { problem } };
+      else if (fallbacks.length > MAX_FALLBACK_MODELS) errors[`${prefix}.fallbackModels`] = { key: "ai.error.fallbackMax", values: { max: MAX_FALLBACK_MODELS } };
       else out.fallbackModels = fallbacks;
     }
     if (item.reasoningEffort) out.reasoningEffort = item.reasoningEffort;
@@ -179,18 +183,18 @@ export function draftToPayload(draft, baseUpdatedAt = null) {
       if (!raw) continue;
       const value = Number(raw);
       const problem = numberProblem(field, value);
-      if (problem) errors[`${prefix}.${field}`] = `${NUMBER_RULES[field].label} ${problem}.`;
+      if (problem) errors[`${prefix}.${field}`] = { key: NUMBER_ERRORS[field], values: { problem } };
       else out[field] = value;
     }
     if (item.jsonMode === "true" || item.jsonMode === "false") out.jsonMode = item.jsonMode === "true";
     if (item.enabled && preset.baseUrl === null) {
-      if (!out.baseUrl && !errors[`${prefix}.baseUrl`]) errors[`${prefix}.baseUrl`] = "Base URL wajib diisi untuk server custom.";
-      if (!out.model && !errors[`${prefix}.model`]) errors[`${prefix}.model`] = "Model wajib diisi untuk server custom.";
+      if (!out.baseUrl && !errors[`${prefix}.baseUrl`]) errors[`${prefix}.baseUrl`] = { key: "ai.error.baseUrlRequired" };
+      if (!out.model && !errors[`${prefix}.model`]) errors[`${prefix}.model`] = { key: "ai.error.modelRequired" };
     }
     if (item.keyAction === "replace") {
       const value = item.keyValue.trim();
-      if (!value) errors[`${prefix}.apiKey`] = "Isi API key baru, atau klik Batal.";
-      else if (apiKeyProblem(value)) errors[`${prefix}.apiKey`] = `${apiKeyProblem(value)}.`;
+      if (!value) errors[`${prefix}.apiKey`] = { key: "ai.error.keyEmpty" };
+      else if (apiKeyProblem(value)) errors[`${prefix}.apiKey`] = { key: "ai.error.key", values: { problem: apiKeyProblem(value) } };
       else out.apiKey = { action: "replace", value };
     } else {
       // "keep" only for a key the page shows as stored: a provider removed and
@@ -205,19 +209,38 @@ export function draftToPayload(draft, baseUpdatedAt = null) {
   };
 }
 
-/** Short Indonesian line for one provider of the effective status. */
+const STATUS_REASONS = Object.freeze({
+  missing_api_key: "ai.status.missingKey",
+  not_free: "ai.status.notFree",
+  config_invalid: "ai.status.invalid",
+  unknown_provider: "ai.status.unknown",
+  key_unreadable: "ai.status.keyUnreadable",
+});
+
+/** The status chip of one provider of the effective status: `{ tone, key }`, or null. */
 export function providerStatusLine(statusProvider) {
   if (!statusProvider) return null;
-  if (statusProvider.usable) return { tone: "ok", text: "Siap dipakai" };
-  const reasons = {
-    missing_api_key: "Dilewati: API key belum diisi",
-    not_free: "Dilewati: berbayar (mode hanya-gratis aktif)",
-    config_invalid: "Konfigurasi tidak valid",
-    unknown_provider: "Nama penyedia tidak dikenal",
-    key_unreadable: "Key tersimpan tidak bisa dibuka. Isi ulang.",
-  };
-  return { tone: statusProvider.reason === "config_invalid" || statusProvider.reason === "key_unreadable" ? "error" : "warning", text: reasons[statusProvider.reason] || "Belum siap" };
+  if (statusProvider.usable) return { tone: "ok", key: "ai.status.ready" };
+  const tone = statusProvider.reason === "config_invalid" || statusProvider.reason === "key_unreadable" ? "error" : "warning";
+  return { tone, key: Object.hasOwn(STATUS_REASONS, statusProvider.reason) ? STATUS_REASONS[statusProvider.reason] : "ai.status.notReady" };
 }
+
+/** Every key this module can name, for the catalog test and the tab's lookup. */
+export const LLM_SETTINGS_VIEW_KEYS = Object.freeze([
+  "ai.error.name",
+  "ai.error.nameTaken",
+  ...Object.values(FIELD_ERRORS),
+  "ai.error.fallback",
+  "ai.error.fallbackMax",
+  ...Object.values(NUMBER_ERRORS),
+  "ai.error.baseUrlRequired",
+  "ai.error.modelRequired",
+  "ai.error.keyEmpty",
+  "ai.error.key",
+  "ai.status.ready",
+  "ai.status.notReady",
+  ...Object.values(STATUS_REASONS),
+]);
 
 /** The host of a base URL for display, or null. */
 export function baseUrlHost(raw) {
