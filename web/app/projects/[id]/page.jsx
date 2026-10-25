@@ -193,7 +193,7 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
           onClick={() => onActivate(clip.index)}
         >
           <PosterThumb poster={clipPosterUrl(clip)} number={number} length={length}
-            badge={failed && <span className="chip error">{failed.label}</span>}>
+            badge={failed && <span className="statusPill error">{failed.label}</span>}>
             {pickable && <span className={styles.check} aria-hidden="true" />}
           </PosterThumb>
           <PosterText titleId={titleId} title={clip.title || clipLabel(clip)} pill={pill} edited={edited}
@@ -234,7 +234,7 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
     <section ref={panelRef} id={DETAIL_ID} className={styles.detail} aria-labelledby={titleId} data-clip-detail={clip.index}>
       {failed ? (
         <div key={clip.index} className={`${styles.video} ${styles.failedFrame}`}>
-          <span className="chip error">{failed.label}</span>
+          <span className="statusPill error">{failed.label}</span>
           <p><strong>{failed.text}</strong></p>
           <p>{failed.hint}</p>
         </div>
@@ -259,11 +259,11 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
         </div>
         {hasTags && (
           <div className={styles.tags}>
-            {rangeChip && <span className="chip">{rangeChip}</span>}
-            {archetype && <span className="chip">{archetype}</span>}
-            {coldOpen !== null && <span className="chip">Dibuka kalimat terkuat · {formatTenths(coldOpen)} dtk</span>}
+            {rangeChip && <span className="statusPill">{rangeChip}</span>}
+            {archetype && <span className="statusPill">{archetype}</span>}
+            {coldOpen !== null && <span className="statusPill">Dibuka kalimat terkuat · {formatTenths(coldOpen)} dtk</span>}
             {focusChip && <span className={`${focusStyles.chip} ${focusStyles[focusChip.tone]}`} data-focus={focusChip.tone}>{focusChip.label}</span>}
-            {entry?.editBadge?.tone === "edited" && <span className="chip info">{entry.editBadge.text}</span>}
+            {entry?.editBadge?.tone === "edited" && <span className="statusPill info">{entry.editBadge.text}</span>}
           </div>
         )}
         {notes.length > 0 && (

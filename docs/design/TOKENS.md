@@ -78,7 +78,7 @@ Halaman yang masih memakai nama palet terang langsung ikut gelap:
 |---|---|---|
 | `--font` | DM Sans lewat `next/font` (`--font-dm-sans`, disajikan dari app sendiri) | Semua teks; jangan tulis nama font langsung di CSS |
 | `--radius-s` / `-m` / `-l` / `-xl` | 8 / 10 / 14 / 20 px | Label kecil / kontrol / kartu dalam / panel |
-| `--radius-pill` | 999px | Hanya chip dan status |
+| `--radius-pill` | 999px | Hanya status pill dan status |
 | `--dur-1` | 120ms | Hover, tekan tombol |
 | `--dur-2` | 200ms | Pindah tab, chip muncul, pesan status |
 | `--dur-3` | 320ms | Hasil klip dan banner muncul |
@@ -93,6 +93,47 @@ setelah satu frame.
 - Lime hanya untuk satu aksi utama per layar, tanda merek "P", dan isi bar progres.
 - Pilihan aktif (kartu layout, tab, menu) memakai tepi terang dan `--surface-3`, bukan lime.
 - Status selalu punya teks; warna hanya penguat.
-- Kelas dasar di `globals.css`: `.btn` (`.primary`, `.ghost`, `.danger`, `.danger.solid`),
-  `.panel` / `.card`, `.chip` (`.ok`, `.info`, `.warning`, `.error`), `.notice` (nada yang sama),
-  `.segmented`, `.table` di dalam `.tableWrap`, `.eyebrow`, `.visuallyHidden`.
+- Kelas dasar di `globals.css` (`@layer base`): `.btn` (`.primary`, `.ghost`, `.danger`,
+  `.danger.solid`), `.panel`, `.statusPill` (`.ok`, `.info`, `.warning`, `.error`; dulu `.chip`),
+  `.notice` (nada yang sama), `.segmented`, `.eyebrow`, `.visuallyHidden`. `.card`, `.table` dan
+  `.tableWrap` dihapus (rombak Fase 1 F0).
+
+## HeroUI v3 (rombak Fase 1 F0)
+
+Halaman aplikasi memakai HeroUI v3 di atas token ini (`docs/plans/2026-10-24-rombak/05-ui-dashboard.md`
+§3). `globals.css` dibuka dengan `@layer theme, base, components, utilities;`; `:root` dan blok
+reduced-motion tetap di luar layer, aturan lain di `@layer base`. HeroUI dan Tailwind (tanpa
+preflight) hanya masuk lewat `web/app/ui.css`, yang diimpor `AppShell.jsx` dan
+`components/ui/PublicCard.jsx`; editor tidak memuatnya.
+
+- **Alias.** Ke-89 variabel tema HeroUI 3.2.6 dideklarasikan di `:root` sebagai `var()` ke token
+  di atas (`web/tests/heroui-variables.test.mjs` membaca `variables.css` HeroUI yang terpasang).
+  Karena tidak berada di layer, alias menang atas blok terang dan gelap HeroUI.
+- **Nama yang sama.** `--radius-xl` (20 px) dan `--ease-out` / `--ease-in-out` Potongin menimpa
+  nama Tailwind/HeroUI yang sama: `rounded-xl` = 20 px dan `ease-out` mengikuti kurva Potongin.
+  `--radius` = `--radius-m` (10 px), `--field-radius` = `--radius-s`.
+- **Palet Tailwind mati.** `app/ui-theme-reset.css` menghapus palet bawaan (`bg-red-500` tidak
+  ada). `--color-white` / `--color-black` tetap untuk jempol switch HeroUI dan menunjuk primitif
+  HeroUI, yang dialiaskan ke `--text` / `--accent-ink`. `ui-guards` menolak kelas palet dan `-[#`
+  di `className`.
+- **Pasangan kontras baru.**
+
+| Teks | Latar | Rasio | Dipakai |
+|---|---|---|---|
+| `--accent-ink` | `--accent` | 17.35:1 | `--accent-foreground` (Button `primary`) |
+| `--accent-ink` | `--success` | 11.48:1 | `--success-foreground` |
+| `--accent-ink` | `--warning` | 12.33:1 | `--warning-foreground` |
+| `--danger-ink` | `--danger` | 8.63:1 | `--danger-foreground` (Button `danger`) |
+
+- **`--overlay-shadow`** (celah G5): `0 0 0 1px var(--border-strong), 0 16px 48px var(--shadow)`.
+  Tepi overlay adalah cincin 1 px `--border-strong`: 3.79:1 di atas `--bg`, 3.57:1 di atas
+  `--surface`, 3.29:1 di atas `--surface-2` (latar overlay). Bayangan hanya pelembut; di latar
+  segelap ini bayangan saja tidak memisahkan overlay dari halaman.
+- **`--disabled-opacity`** (celah G5): `0.5`. Teks kontrol nonaktif tidak wajib AA (WCAG 1.4.3),
+  tetapi `--text` pada 50% tetap terbaca: 5.00:1 di atas `--surface`, 4.86:1 di atas
+  `--surface-2`, 4.64:1 di atas `--surface-3`.
+- **Terpilih tanpa lime.** Switch, checkbox dan radio terpilih memakai `--text` (jempol `--bg`);
+  tab, toggle, item menu dan list terpilih memakai `--surface-3` dengan tepi `--border-strong`.
+- **Target 44 px.** `.button`, `.tabs__tab`, `.menu-item`, `.list-box-item`, `.close-button`,
+  `.toggle-button`, `.pagination__link`, `.tag__remove-button` diberi `min-height` dan
+  `min-width` 44 px; `.button` memakai `--radius-m`, bukan bentuk pil HeroUI.

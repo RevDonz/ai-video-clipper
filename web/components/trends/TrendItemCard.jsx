@@ -126,8 +126,8 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
   return (
     <article className={classes} aria-labelledby={titleId}>
       <div className="trItemTags">
-        {item.sensitivity === "sensitive" && <span className="chip error">Sensitif</span>}
-        {status !== "active" && <span className="chip">{TREND_STATUS_LABELS[status]}</span>}
+        {item.sensitivity === "sensitive" && <span className="statusPill error">Sensitif</span>}
+        {status !== "active" && <span className="statusPill">{TREND_STATUS_LABELS[status]}</span>}
         {item.score !== null && <span className="trScore" title="Seberapa ramai menurut agen (0–100)">Skor {item.score}</span>}
       </div>
       <h4 id={titleId}>{item.title}</h4>

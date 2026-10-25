@@ -1,0 +1,100 @@
+/* HeroUI v3 on Tailwind v4 for the app pages (docs/plans/2026-10-24-rombak/05-ui-dashboard.md §3.3).
+   Imported only by components/AppShell.jsx and components/ui/PublicCard.jsx, never by the editor.
+   Tailwind comes without preflight: globals.css @layer base stays the reset. Every colour is a
+   Potongin token, aliased on :root in globals.css (§3.4). */
+@import "tailwindcss/theme.css" layer(theme);
+@import "./ui-theme-reset.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+@import "@heroui/styles/base" layer(base);
+@import "@heroui/styles/themes/default" layer(theme);
+/* One stylesheet per component in use; ui-foundation.test.mjs keeps the list. */
+/* Actions and navigation */
+@import "@heroui/styles/components/button.css" layer(components);
+@import "@heroui/styles/components/close-button.css" layer(components);
+@import "@heroui/styles/components/link.css" layer(components);
+@import "@heroui/styles/components/toggle-button.css" layer(components);
+@import "@heroui/styles/components/toggle-button-group.css" layer(components);
+@import "@heroui/styles/components/tabs.css" layer(components);
+@import "@heroui/styles/components/pagination.css" layer(components);
+/* Overlays; Dropdown is Popover + Menu, so the menu parts come along */
+@import "@heroui/styles/components/popover.css" layer(components);
+@import "@heroui/styles/components/dropdown.css" layer(components);
+@import "@heroui/styles/components/menu.css" layer(components);
+@import "@heroui/styles/components/menu-item.css" layer(components);
+@import "@heroui/styles/components/menu-section.css" layer(components);
+@import "@heroui/styles/components/drawer.css" layer(components);
+@import "@heroui/styles/components/modal.css" layer(components);
+@import "@heroui/styles/components/alert-dialog.css" layer(components);
+@import "@heroui/styles/components/toast.css" layer(components);
+/* Fields; TextField, Select and ComboBox put label, input, description and field-error together */
+@import "@heroui/styles/components/label.css" layer(components);
+@import "@heroui/styles/components/description.css" layer(components);
+@import "@heroui/styles/components/field-error.css" layer(components);
+@import "@heroui/styles/components/input.css" layer(components);
+@import "@heroui/styles/components/textfield.css" layer(components);
+@import "@heroui/styles/components/textarea.css" layer(components);
+@import "@heroui/styles/components/search-field.css" layer(components);
+@import "@heroui/styles/components/number-field.css" layer(components);
+@import "@heroui/styles/components/select.css" layer(components);
+@import "@heroui/styles/components/combo-box.css" layer(components);
+@import "@heroui/styles/components/list-box.css" layer(components);
+@import "@heroui/styles/components/list-box-item.css" layer(components);
+@import "@heroui/styles/components/list-box-section.css" layer(components);
+@import "@heroui/styles/components/switch.css" layer(components);
+@import "@heroui/styles/components/checkbox.css" layer(components);
+@import "@heroui/styles/components/checkbox-group.css" layer(components);
+@import "@heroui/styles/components/radio.css" layer(components);
+@import "@heroui/styles/components/radio-group.css" layer(components);
+/* Data display */
+@import "@heroui/styles/components/table.css" layer(components);
+@import "@heroui/styles/components/chip.css" layer(components);
+@import "@heroui/styles/components/tag.css" layer(components);
+@import "@heroui/styles/components/tag-group.css" layer(components);
+@import "@heroui/styles/components/avatar.css" layer(components);
+@import "@heroui/styles/components/card.css" layer(components);
+@import "@heroui/styles/components/progress-bar.css" layer(components);
+@import "@heroui/styles/components/meter.css" layer(components);
+@import "@heroui/styles/components/skeleton.css" layer(components);
+@import "@heroui/styles/components/empty-state.css" layer(components);
+@import "@heroui/styles/components/alert.css" layer(components);
+@import "@heroui/styles/components/disclosure.css" layer(components);
+@import "@heroui/styles/components/separator.css" layer(components);
+@import "@heroui/styles/components/kbd.css" layer(components);
+/* DatePicker's stylesheets are in components/ui/date-picker.css, loaded with DatePicker.jsx. */
+@import "@heroui/styles/utilities";
+@import "@heroui/styles/variants";
+
+@source not "../components/editor";
+@source not "./parity-harness";
+
+@theme {
+  --font-sans: var(--font);
+}
+
+/* §3.5: Potongin's 44 px targets and radius (HeroUI's medium size is 40/36 px and pill-shaped),
+   and selection without lime (P9): selected states use the text colour and the lighter surface. */
+@layer components {
+  .button, .tabs__tab, .menu-item, .list-box-item, .close-button,
+  .toggle-button, .pagination__link, .tag__remove-button { min-height: 44px; min-width: 44px; }
+  .button { border-radius: var(--radius-m); }
+  .button--outline { border-color: var(--border-strong); }
+  .switch[data-selected] .switch__control,
+  .checkbox[data-selected] .checkbox__control,
+  .radio[data-selected] .radio__control { background: var(--text); border-color: var(--text); }
+  .switch[data-selected] .switch__thumb { background: var(--bg); }
+  .toggle-button[data-selected], .tabs__tab[data-selected], .list-box-item[data-selected],
+  .menu-item[data-selected] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .chip--accent, .alert--accent { background: var(--surface-3); color: var(--text); }
+}
+
+@media (forced-colors: active) {
+  .button, .chip, .switch__control, .toggle-button, .tabs__tab { border: 1px solid ButtonText; }
+  .toggle-button[data-selected], .tabs__tab[data-selected], .switch[data-selected] .switch__control {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+  .progress-bar__fill, .meter__fill { background: Highlight; }
+  :focus-visible { outline: 2px solid Highlight; }
+}

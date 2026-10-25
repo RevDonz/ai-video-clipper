@@ -1,5 +1,5 @@
 /* Pengaturan (/settings). Colours, radii and motion come from the tokens in globals.css
-   (docs/design/TOKENS.md); buttons, chips, notices and panels are the shared .btn, .chip,
+   (docs/design/TOKENS.md); buttons, status pills, notices and panels are the shared .btn, .statusPill,
    .notice and .panel. Every class here belongs to this page only. */
 
 /* The floating save bar must never cover the field that has focus. */

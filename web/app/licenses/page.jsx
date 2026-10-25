@@ -1,5 +1,5 @@
 import AppShell from "../../components/AppShell.jsx";
-import { FONTS, FREETYPE_CREDIT, JASSUB, MEDIABUNNY, WEB } from "./notices.mjs";
+import { FONTS, FREETYPE_CREDIT, JASSUB, MEDIABUNNY, UI, WEB } from "./notices.mjs";
 import styles from "./licenses.module.css";
 
 export const metadata = {
@@ -121,6 +121,26 @@ export default function LicensesPage() {
               <li key={item.name}>
                 <span className={styles.name}>{item.name} {item.version}</span>
                 <span className={styles.licence}>{item.license}</span>
+                <span className={styles.links}>
+                  <a href={item.source}>Kode sumber</a>
+                  <Texts hrefs={item.texts} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className={styles.block} aria-labelledby="ui">
+          <h2 id="ui">Komponen antarmuka</h2>
+          <ul className={styles.items}>
+            {UI.map((item) => (
+              <li key={item.name}>
+                <span className={styles.name}>{item.name}</span>
+                <span className={styles.licence}>{[...new Set(item.packages.map((entry) => entry.license))].join(", ")}</span>
+                <span className={styles.detail}>
+                  {item.use} {item.packages.map((entry) => `${entry.name}@${entry.version}`).join(", ")}.
+                  {item.licenseNote ? ` ${item.licenseNote}` : ""}
+                </span>
                 <span className={styles.links}>
                   <a href={item.source}>Kode sumber</a>
                   <Texts hrefs={item.texts} />

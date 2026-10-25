@@ -1,6 +1,6 @@
 /* Konteks Tren (/trends). Colours, radii and motion come from the tokens in globals.css
-   (docs/design/TOKENS.md); buttons, chips, panels and the status filter are the shared .btn,
-   .chip, .panel and .segmented. Every class here is prefixed "tr" so nothing leaks. */
+   (docs/design/TOKENS.md); buttons, status pills, panels and the status filter are the shared .btn,
+   .statusPill, .panel and .segmented. Every class here is prefixed "tr" so nothing leaks. */
 
 .trendsPage { padding-bottom: 88px; }
 .trLayout { display: grid; gap: 16px; }

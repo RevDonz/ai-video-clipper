@@ -1,5 +1,5 @@
 /* One project's page (/projects/[id]). Tokens from app/globals.css; building blocks
-   (.btn, .chip, .notice, .progress, .pulse) stay global. */
+   (.btn, .statusPill, .notice, .progress, .pulse) stay global. */
 
 .page {
   padding: 20px 0 64px;

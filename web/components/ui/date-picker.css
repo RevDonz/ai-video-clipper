@@ -1,0 +1,11 @@
+/* DatePicker's HeroUI stylesheets, apart from ui.css: only components/ui/DatePicker.jsx imports
+   this file, and pages load that component lazily (05-ui-dashboard.md §3.3). */
+@import "@heroui/styles/components/date-picker.css" layer(components);
+@import "@heroui/styles/components/date-field.css" layer(components);
+@import "@heroui/styles/components/date-input-group.css" layer(components);
+@import "@heroui/styles/components/calendar.css" layer(components);
+
+@layer components {
+  .calendar__cell, .calendar__nav-button, .date-picker__trigger { min-width: 44px; min-height: 44px; }
+  .calendar__cell[data-selected] { background: var(--text); color: var(--bg); }
+}

@@ -254,7 +254,8 @@ test("DM Sans is self-hosted through next/font and every stylesheet reaches it t
   const layout = await read("app/layout.jsx");
   assert.match(layout, /import \{ DM_Sans \} from "next\/font\/google";/);
   assert.match(layout, /variable: "--font-dm-sans"/);
-  assert.match(layout, /<html lang="id" className=\{dmSans\.variable\}>/);
+  // data-theme="dark" picks HeroUI's dark block too (05-ui-dashboard.md §3.6); the aliases on :root decide its colours.
+  assert.match(layout, /<html lang="id" className=\{dmSans\.variable\} data-theme="dark">/);
   const css = await read("app/globals.css");
   assert.doesNotMatch(css, /@import\s+url\(/);
   assert.equal(rootTokens(css).font, "var(--font-dm-sans), system-ui, sans-serif");
