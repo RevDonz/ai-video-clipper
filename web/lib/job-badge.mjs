@@ -3,6 +3,7 @@
 
 import { readyClips } from "./clip-status.mjs";
 import { isActiveStatus, projectName, projectProgress } from "./project-view.mjs";
+import { d } from "./i18n/descriptor.mjs";
 import { numberFormat } from "./i18n/format.mjs";
 import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
@@ -40,10 +41,15 @@ function followedJob(active) {
   ))[0];
 }
 
+// `text`/`short` are the Indonesian source; `message`/`shortMessage` are the shell.badge.*
+// descriptors the badge shows in the UI language (msg(t, descriptor)).
 const LATEST = Object.freeze({
-  completed: (job) => ({ text: `Terakhir: ${COUNT.format(clipCount(job))} klip`, short: `${COUNT.format(clipCount(job))} klip`, tone: null }),
-  failed: () => ({ text: "Terakhir: gagal", short: "Gagal", tone: "danger" }),
-  cancelled: () => ({ text: "Terakhir: dibatalkan", short: "Batal", tone: null }),
+  completed: (job) => ({
+    text: `Terakhir: ${COUNT.format(clipCount(job))} klip`, short: `${COUNT.format(clipCount(job))} klip`, tone: null,
+    message: d("shell.badge.latestClips", { count: clipCount(job) }), shortMessage: d("shell.badge.clips", { count: clipCount(job) }),
+  }),
+  failed: () => ({ text: "Terakhir: gagal", short: "Gagal", tone: "danger", message: d("shell.badge.latestFailed"), shortMessage: d("shell.badge.failed") }),
+  cancelled: () => ({ text: "Terakhir: dibatalkan", short: "Batal", tone: null, message: d("shell.badge.latestCancelled"), shortMessage: d("shell.badge.cancelled") }),
 });
 
 /**
@@ -59,6 +65,8 @@ export function jobBadgeView(jobs) {
     return {
       kind: "running", jobId: job.id, href: projectHref(job.id), title: projectName(job), tone: null,
       text: `${COUNT.format(active.length)} berjalan · ${percent}`, short: percent,
+      message: d("shell.badge.running", { count: active.length, percent: projectProgress(job) }),
+      shortMessage: d("shell.badge.percent", { percent: projectProgress(job) }),
     };
   }
   // Newest by creation, the order Riwayat lists them in.
@@ -79,19 +87,31 @@ const OUTCOME = Object.freeze({
  * What the screen reader hears when the jobs change: only jobs that were running and have now
  * finished. Percentages, a job starting (the user's own action) and the first load stay silent.
  */
-export function badgeAnnouncement(previous, next) {
-  if (!Array.isArray(previous) || !Array.isArray(next)) return "";
+function finishedSince(previous, next) {
+  if (!Array.isArray(previous) || !Array.isArray(next)) return [];
   const wasActive = new Set(validJobs(previous).filter((job) => isActiveStatus(job.status)).map((job) => job.id));
-  return validJobs(next)
-    .filter((job) => wasActive.has(job.id) && SHOWN_FINISHED.has(job.status))
-    .map((job) => OUTCOME[job.status](job))
-    .join(". ");
+  return validJobs(next).filter((job) => wasActive.has(job.id) && SHOWN_FINISHED.has(job.status));
 }
 
-export const INITIAL_BADGE_STATE = Object.freeze({ jobs: null, listAt: null, failures: 0, signedOut: false, announcement: "" });
+export function badgeAnnouncement(previous, next) {
+  return finishedSince(previous, next).map((job) => OUTCOME[job.status](job)).join(". ");
+}
+
+const OUTCOME_MESSAGE = Object.freeze({
+  completed: (job) => d("shell.badge.outcomeDone", { count: clipCount(job) }),
+  failed: () => d("shell.badge.outcomeFailed"),
+  cancelled: () => d("shell.badge.outcomeCancelled"),
+});
+
+/** The same announcement as shell.badge.* messages, one per finished job. */
+export function badgeOutcomes(previous, next) {
+  return finishedSince(previous, next).map((job) => OUTCOME_MESSAGE[job.status](job));
+}
+
+export const INITIAL_BADGE_STATE = Object.freeze({ jobs: null, listAt: null, failures: 0, signedOut: false, announcement: "", outcomes: [] });
 
 function failed(state) {
-  return { ...state, failures: state.failures + 1, announcement: "" };
+  return { ...state, failures: state.failures + 1, announcement: "", outcomes: [] };
 }
 
 // A poll sent before "Batalkan" answered must not bring a finished job back to life.
@@ -109,15 +129,18 @@ export function badgeReducer(state, event) {
     case "list": {
       if (!Array.isArray(event.jobs)) return failed(state);
       const jobs = validJobs(event.jobs);
-      return { ...state, jobs, listAt: event.at, failures: 0, signedOut: false, announcement: badgeAnnouncement(state.jobs, jobs) };
+      return {
+        ...state, jobs, listAt: event.at, failures: 0, signedOut: false,
+        announcement: badgeAnnouncement(state.jobs, jobs), outcomes: badgeOutcomes(state.jobs, jobs),
+      };
     }
     case "job": {
       if (!event.job || typeof event.job.id !== "string" || !event.job.id) return failed(state);
       const jobs = withJob(state.jobs, event.job);
-      return { ...state, jobs, failures: 0, announcement: badgeAnnouncement(state.jobs, jobs) };
+      return { ...state, jobs, failures: 0, announcement: badgeAnnouncement(state.jobs, jobs), outcomes: badgeOutcomes(state.jobs, jobs) };
     }
     case "missing":
-      return { ...state, jobs: validJobs(state.jobs).filter((job) => job.id !== event.jobId), failures: 0, announcement: "" };
+      return { ...state, jobs: validJobs(state.jobs).filter((job) => job.id !== event.jobId), failures: 0, announcement: "", outcomes: [] };
     case "failed":
       return failed(state);
     case "signed-out":

@@ -18,5 +18,18 @@
     "shortcuts": "Single-key shortcuts",
     "search": "Search",
     "logout": "Sign out"
+  },
+  "badge": {
+    "running": "{count, number} running · {percent, number}%",
+    "percent": "{percent, number}%",
+    "latestClips": "Last: {count, plural, one {# clip} other {# clips}}",
+    "clips": "{count, plural, one {# clip} other {# clips}}",
+    "latestFailed": "Last: failed",
+    "failed": "Failed",
+    "latestCancelled": "Last: cancelled",
+    "cancelled": "Cancelled",
+    "outcomeDone": "Project done: {count, plural, one {# clip} other {# clips}}",
+    "outcomeFailed": "Project failed",
+    "outcomeCancelled": "Project cancelled"
   }
 }

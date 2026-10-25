@@ -18,5 +18,18 @@
     "shortcuts": "Pintasan satu tombol",
     "search": "Cari",
     "logout": "Keluar"
+  },
+  "badge": {
+    "running": "{count, number} berjalan · {percent, number}%",
+    "percent": "{percent, number}%",
+    "latestClips": "Terakhir: {count, number} klip",
+    "clips": "{count, number} klip",
+    "latestFailed": "Terakhir: gagal",
+    "failed": "Gagal",
+    "latestCancelled": "Terakhir: dibatalkan",
+    "cancelled": "Batal",
+    "outcomeDone": "Proyek selesai: {count, number} klip",
+    "outcomeFailed": "Proyek gagal",
+    "outcomeCancelled": "Proyek dibatalkan"
   }
 }
