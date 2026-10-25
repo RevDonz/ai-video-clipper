@@ -44,3 +44,25 @@ test("the old dashboard names are gone from the app", () => {
     assert.doesNotMatch(readFileSync(file, "utf8"), old, path.relative(WEB, file));
   }
 });
+
+// The catalog's layout.names (rombak 07 §7.1): one key per layout mode plus Otomatis, the same
+// Indonesian words as LAYOUT_NAMES, and the glossary's English (docs/glosarium.md).
+test("every layout has a layout.names key in every locale, and the Indonesian text is LAYOUT_NAMES", async () => {
+  const { loadNamespace } = await import("../lib/i18n/catalog.mjs");
+  const { LAYOUT_NAME_MODES, renderModeLayout } = await import("../lib/layout-names.mjs");
+  assert.deepEqual([...LAYOUT_NAME_MODES].sort(), [...LAYOUT_MODES, "auto"].sort());
+  const id = loadNamespace("id", "layout").names;
+  const en = loadNamespace("en", "layout").names;
+  for (const [mode, name] of Object.entries(LAYOUT_NAMES)) assert.equal(id[mode], name, mode);
+  assert.equal(id.auto, "Otomatis");
+  assert.deepEqual(en, { auto: "Auto", camera: "Follow face", fill_center: "Center crop", fit_blur: "Blurred background", split: "Split screen" });
+  assert.equal(renderModeLayout("face-track"), "camera");
+  assert.equal(renderModeLayout("fit-blur"), "fit_blur");
+  assert.equal(renderModeLayout("nope"), null);
+});
+
+test("the dashboard and the project page read layout names through one hook with literal keys", () => {
+  const source = readFileSync(path.join(WEB, "components", "layout-names.jsx"), "utf8");
+  assert.match(source, /^"use client";/);
+  for (const mode of ["auto", "camera", "fill_center", "fit_blur", "split"]) assert.match(source, new RegExp(`t\\("names\\.${mode}"\\)`), mode);
+});
