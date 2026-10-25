@@ -93,6 +93,8 @@ export async function requestJobDeletion(jobsRoot, id, { now = Date.now() } = {}
       status: DELETING_STATUS,
       stage: DELETING_STATUS,
       stageDetail: "Proyek sedang dihapus dari penyimpanan server",
+      stageCode: "deleting", // stage.deleting (i18n M5)
+      stageParams: null,
       deletion,
       updatedAt: new Date(now).toISOString(),
       ...(queue === undefined ? {} : { queue }),

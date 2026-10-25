@@ -121,6 +121,32 @@ test("reasonText formats every reason code in every locale; the LLM's words stay
   assert.equal(reasonText(en, { code: "laughs", params: { count: 2 } }), "2 laughs in the clip.");
 });
 
+test("the Indonesian catalog gives back the engine's own reason text", () => {
+  const pairs = engine(`
+import json
+from ai_clipper.hook_heuristics import _OPENER_REASONS
+from ai_clipper.reason_codes import _FIXED, reason_code
+from ai_clipper import selection_v3 as s
+reasons = [*(t.format(run=12.4) for t in _OPENER_REASONS.values()), *_FIXED.values(),
+  "Kalimat hook terkuat di detik ke-4: “Gue keluar”.",
+  "Kalimat hook terkuat di detik ke-0: “Jujur gue nyopet” (pengakuan, angka/uang).",
+  "Ada 3 tawa di dalam klip.", "Ritme bicara lega: rasio hening 35% di atas rata-rata episode.",
+  s.COLD_OPEN_REASON.format(length="4,5"), s.TREND_REASON.format(title="Piala Dunia"),
+  s.SENSITIVE_TREND_REASON.format(title="Banjir"), s.MANUAL_REASON.format(label="10:00–10:30"),
+  "Peringkat ulang LLM: 7,5/10", "Ditutup di akhir kalimat dengan jeda 1.5 detik."]
+print(json.dumps([[r, reason_code(r)] for r in reasons], ensure_ascii=False))`);
+  const id = translator("id");
+  const en = translator("en");
+  for (const [reason, entry] of pairs) {
+    assert.notEqual(entry.code, TEXT_REASON, reason);
+    // Indonesian decimals take a comma ("1,5 detik"); the engine's pause line has a point.
+    const expected = entry.code === "end_pause" ? reason.replace("1.5", "1,5") : reason;
+    assert.equal(reasonText(id, entry), expected);
+    assert.ok(reasonText(en, entry), entry.code);
+  }
+  assert.ok(pairs.length >= REASON_CODES.length - 1, "every template but the tagless hook variant is sampled");
+});
+
 test("a clip's reasons: the coded ones when every entry is valid, else its own text (old jobs)", () => {
   const t = translator("en");
   const reasons = ["Dimulai di batas kalimat yang bersih.", "Alasan dari AI."];
