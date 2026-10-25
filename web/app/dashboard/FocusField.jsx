@@ -55,6 +55,12 @@ export default function FocusField({ terms, draft, note, error, aiMode, onTermsC
     if (normalizeFocusText(draft)) apply(addFocusTerms(terms, draft));
   }
 
+  // Closing the popover removes the input while it has focus, and a removed input gets no blur:
+  // the text still typed becomes a chip when the field goes away.
+  const commitOnClose = useRef(commitDraft);
+  commitOnClose.current = commitDraft;
+  useEffect(() => () => commitOnClose.current(), []);
+
   // A single-line input turns pasted line breaks into spaces: read the paste itself.
   function pasteList(event) {
     const input = event.currentTarget;

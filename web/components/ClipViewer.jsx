@@ -6,7 +6,7 @@
 // [Unduh MP4] is the one primary action; [Edit klip] is a plain link (a full document load, so
 // the editor's COOP/COEP headers arrive, P12). A clip that failed to render shows why where the
 // video would be, with nothing to download or edit.
-import { Button, Meter, buttonVariants } from "@heroui/react";
+import { Button, buttonVariants } from "@heroui/react";
 import { useEffect, useRef } from "react";
 import { useTranslations } from "use-intl";
 
@@ -96,11 +96,14 @@ function Body({ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEnt
           )}
         </div>
         {score?.total !== null && score?.total !== undefined && (
-          <Meter value={score.total} minValue={0} maxValue={10} valueLabel={formatTenths(score.total)} className={styles.score}>
-            <span className={styles.scoreLabel}>{t("viewer.score")}</span>
-            <Meter.Output className={styles.scoreValue} />
-            <Meter.Track><Meter.Fill /></Meter.Track>
-          </Meter>
+          // A plain role=meter: HeroUI's Meter writes role="meter progressbar", which axe reads as
+          // one unknown role and then refuses its aria-value* attributes.
+          <div className={styles.score} role="meter" aria-valuenow={score.total} aria-valuemin={0} aria-valuemax={10}
+            aria-valuetext={formatTenths(score.total)} aria-labelledby={`${titleId}-score`}>
+            <span id={`${titleId}-score`} className={styles.scoreLabel}>{t("viewer.score")}</span>
+            <span className={styles.scoreValue} aria-hidden="true">{formatTenths(score.total)}</span>
+            <span className={styles.bar} aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, score.total * 10))}%` }} /></span>
+          </div>
         )}
         {notes.length > 0 && (
           <ul className={styles.clipNotes} aria-label={t("viewer.notes")}>
