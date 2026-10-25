@@ -1,1 +1,90 @@
-{}
+{
+  "title": "Projects",
+  "create": "Create clips",
+  "search": "Search projects",
+  "searchHint": "Name, ID, URL or clip text",
+  "tab": {
+    "label": "View",
+    "projects": "Projects",
+    "clips": "Clips"
+  },
+  "filter": {
+    "label": "Filter by status",
+    "all": "All {count}",
+    "running": "Processing {count}",
+    "done": "Done {count}",
+    "failed": "Failed {count}"
+  },
+  "col": {
+    "title": "Title",
+    "status": "Status",
+    "clips": "Clips",
+    "created": "Created",
+    "actions": "Actions"
+  },
+  "status": {
+    "progress": "{status} · {percent}%"
+  },
+  "action": {
+    "open": "Open",
+    "edit": "Edit clip",
+    "delete": "Delete",
+    "more": "More actions for {name}",
+    "select": "Select",
+    "stopSelecting": "Stop selecting",
+    "selectProject": "Select {name}"
+  },
+  "selection": {
+    "count": "{count} selected",
+    "delete": "Delete ({count})"
+  },
+  "delete": {
+    "confirm": "{count, plural, one {Delete # project?} other {Delete # projects?}}",
+    "body": "The source video and all its clips are deleted for good.",
+    "running": "Running work is stopped first.",
+    "submit": "Delete for good",
+    "busy": "Deleting…",
+    "cancel": "Cancel",
+    "done": "{count} deleted",
+    "partial": "{ok} deleted, {failed} failed",
+    "failed": "{count} could not be deleted"
+  },
+  "empty": "No projects yet",
+  "notFound": "No results",
+  "found": "{count, plural, one {# project} other {# projects}}",
+  "showAll": "Show all",
+  "loadMore": "Load more",
+  "loadFailed": "Couldn't load",
+  "loading": "Loading",
+  "list": "Project list",
+  "clips": {
+    "region": "Clips from every project",
+    "search": "Search clips",
+    "searchHint": "Title, project or source URL",
+    "filter": "Filter clips",
+    "score8": "Score 8+",
+    "thisWeek": "This week",
+    "list": "Clips",
+    "day": {
+      "today": "Today",
+      "week": "This week",
+      "earlier": "Earlier"
+    },
+    "summary": "{total, plural, one {# clip} other {# clips}} from {projects, plural, one {# project} other {# projects}}",
+    "shownOf": "{shown} of {matched} clips",
+    "shown": "{count, plural, one {# clip} other {# clips}}",
+    "empty": "No clips yet",
+    "notFound": "No results",
+    "showAll": "Show all clips",
+    "partial": "Some older projects could not be read yet",
+    "reload": "Reload",
+    "loadFailed": "Couldn't load clips",
+    "offline": "Check your connection, then try again.",
+    "later": "Try again in a moment.",
+    "loading": "Loading clips",
+    "loadingMore": "Loading…",
+    "loadMore": "Load more",
+    "number": "Clip {number}",
+    "score": "score {score}"
+  }
+}

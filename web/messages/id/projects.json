@@ -1,1 +1,90 @@
-{}
+{
+  "title": "Proyek",
+  "create": "Buat klip",
+  "search": "Cari proyek",
+  "searchHint": "Nama, ID, URL, atau isi klip",
+  "tab": {
+    "label": "Tampilan",
+    "projects": "Proyek",
+    "clips": "Klip"
+  },
+  "filter": {
+    "label": "Saring status",
+    "all": "Semua {count}",
+    "running": "Diproses {count}",
+    "done": "Selesai {count}",
+    "failed": "Gagal {count}"
+  },
+  "col": {
+    "title": "Judul",
+    "status": "Status",
+    "clips": "Klip",
+    "created": "Dibuat",
+    "actions": "Aksi"
+  },
+  "status": {
+    "progress": "{status} · {percent}%"
+  },
+  "action": {
+    "open": "Buka",
+    "edit": "Edit klip",
+    "delete": "Hapus",
+    "more": "Aksi lain untuk {name}",
+    "select": "Pilih",
+    "stopSelecting": "Batal pilih",
+    "selectProject": "Pilih {name}"
+  },
+  "selection": {
+    "count": "{count} dipilih",
+    "delete": "Hapus ({count})"
+  },
+  "delete": {
+    "confirm": "{count, plural, other {Hapus # proyek?}}",
+    "body": "Video sumber dan semua klipnya ikut terhapus permanen.",
+    "running": "Proses yang berjalan dihentikan dulu.",
+    "submit": "Hapus permanen",
+    "busy": "Menghapus…",
+    "cancel": "Batal",
+    "done": "{count} dihapus",
+    "partial": "{ok} dihapus, {failed} gagal",
+    "failed": "{count} gagal dihapus"
+  },
+  "empty": "Belum ada proyek",
+  "notFound": "Tidak ditemukan",
+  "found": "{count} proyek",
+  "showAll": "Tampilkan semua",
+  "loadMore": "Muat lagi",
+  "loadFailed": "Gagal memuat",
+  "loading": "Memuat",
+  "list": "Daftar proyek",
+  "clips": {
+    "region": "Klip dari semua proyek",
+    "search": "Cari klip",
+    "searchHint": "Judul, proyek, atau URL sumber",
+    "filter": "Saring klip",
+    "score8": "Skor 8+",
+    "thisWeek": "Minggu ini",
+    "list": "Klip",
+    "day": {
+      "today": "Hari ini",
+      "week": "Minggu ini",
+      "earlier": "Lebih lama"
+    },
+    "summary": "{total} klip dari {projects} proyek",
+    "shownOf": "{shown} dari {matched} klip",
+    "shown": "{count} klip",
+    "empty": "Belum ada klip",
+    "notFound": "Tidak ditemukan",
+    "showAll": "Tampilkan semua klip",
+    "partial": "Sebagian proyek lama belum terbaca",
+    "reload": "Muat ulang",
+    "loadFailed": "Klip tidak bisa dimuat",
+    "offline": "Periksa koneksi, lalu coba lagi.",
+    "later": "Coba lagi sebentar lagi.",
+    "loading": "Memuat klip",
+    "loadingMore": "Memuat…",
+    "loadMore": "Muat lagi",
+    "number": "Klip {number}",
+    "score": "skor {score}"
+  }
+}

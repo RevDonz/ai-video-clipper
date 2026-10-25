@@ -1,9 +1,10 @@
-// The "Klip" view of Riwayat (/projects) in the browser: the remembered view, the request behind
-// the search, the chips and "Muat lagi", and the poster card's text. Client-safe: no Node built-ins.
+// The "Klip" tab of Proyek (/projects) in the browser: the remembered view, the request behind
+// the search, the chips and "Muat lagi", and the poster card's text. Copy comes back as catalog
+// descriptors under projects.clips (lib/i18n/descriptor.mjs). Client-safe: no Node built-ins.
 
-import { clipLabel } from "./project-view.mjs";
 import { scorePillFor } from "./project-workspace.mjs";
 import { formatTimestamp } from "./selection-v3-view.mjs";
+import { d } from "./i18n/descriptor.mjs";
 import { dateTimeFormat } from "./i18n/format.mjs";
 import { SOURCE_LOCALE } from "./i18n/locales.mjs";
 
@@ -49,9 +50,9 @@ export function startOfWeek(now = new Date()) {
 }
 
 const DAY_GROUPS = Object.freeze([
-  Object.freeze({ key: "today", label: "Hari ini" }),
-  Object.freeze({ key: "week", label: "Minggu ini" }),
-  Object.freeze({ key: "earlier", label: "Lebih lama" }),
+  Object.freeze({ key: "today", label: d("projects.clips.day.today") }),
+  Object.freeze({ key: "week", label: d("projects.clips.day.week") }),
+  Object.freeze({ key: "earlier", label: d("projects.clips.day.earlier") }),
 ]);
 
 /**
@@ -92,9 +93,11 @@ export function clipLibraryHref({ query = "", high = false, week = false, cursor
 }
 
 export class ClipLibraryLoadError extends Error {
-  constructor(message) {
-    super(message);
+  // `reason` is the descriptor of what to do next (check the connection, try later).
+  constructor(reason) {
+    super(reason.key);
     this.name = "ClipLibraryLoadError";
+    this.reason = reason;
   }
 }
 
@@ -109,7 +112,7 @@ async function readJson(response) {
 /**
  * One page of the clip grid: `{type: "loaded", clips, matched, total, projects, nextCursor,
  * partial}` or `{type: "redirect", location}` when the session ended; a failure throws
- * ClipLibraryLoadError with the text to show (an abort is rethrown as is).
+ * ClipLibraryLoadError with the reason to show (an abort is rethrown as is).
  */
 export async function loadClipLibrary(options = {}, { fetchImpl = fetch, signal } = {}) {
   let response;
@@ -117,11 +120,11 @@ export async function loadClipLibrary(options = {}, { fetchImpl = fetch, signal 
     response = await fetchImpl(clipLibraryHref(options), { cache: "no-store", signal });
   } catch (error) {
     if (error?.name === "AbortError") throw error;
-    throw new ClipLibraryLoadError("Klip tidak bisa dimuat. Periksa koneksi, lalu coba lagi.");
+    throw new ClipLibraryLoadError(d("projects.clips.offline"));
   }
   if (response.status === 401) return { type: "redirect", location: `/login?next=${encodeURIComponent("/projects")}` };
   const body = await readJson(response);
-  if (!response.ok || !Array.isArray(body?.clips)) throw new ClipLibraryLoadError("Klip tidak bisa dimuat. Coba lagi sebentar lagi.");
+  if (!response.ok || !Array.isArray(body?.clips)) throw new ClipLibraryLoadError(d("projects.clips.later"));
   return {
     type: "loaded",
     clips: body.clips,
@@ -146,39 +149,44 @@ export function clipHref(item) {
   return `/projects/${encodeURIComponent(item.jobId)}?klip=${item.index}`;
 }
 
-const DAY_FORMAT = dateTimeFormat(SOURCE_LOCALE, { day: "numeric", month: "short" });
-const DAY_YEAR_FORMAT = dateTimeFormat(SOURCE_LOCALE, { day: "numeric", month: "short", year: "numeric" });
+const DAY = Object.freeze({ day: "numeric", month: "short" });
+const DAY_YEAR = Object.freeze({ day: "numeric", month: "short", year: "numeric" });
 
-function shortDay(value, now) {
+function shortDay(value, now, locale) {
   const date = typeof value === "string" ? new Date(value) : null;
   if (!date || Number.isNaN(date.valueOf())) return null;
-  return (date.getFullYear() === now.getFullYear() ? DAY_FORMAT : DAY_YEAR_FORMAT).format(date).replace(/\./g, "");
+  return dateTimeFormat(locale, date.getFullYear() === now.getFullYear() ? DAY : DAY_YEAR).format(date).replace(/\./g, "");
 }
 
-/** What a poster card shows, and its one-line description for screen readers. */
-export function clipCardView(item, now = new Date()) {
+/**
+ * What a poster card shows, and its one-line description for screen readers. `title` is the
+ * clip's own title or the descriptor of its number; `meta` is a list of parts (text or
+ * descriptors) the card joins with ", ". `locale` formats the day.
+ */
+export function clipCardView(item, now = new Date(), locale = SOURCE_LOCALE) {
   const number = String(item.index).padStart(2, "0");
   const length = formatTimestamp(item.duration);
   const pill = scorePillFor(item.score);
   const project = typeof item.projectName === "string" && item.projectName ? item.projectName : null;
-  const day = shortDay(item.createdAt, now);
+  const day = shortDay(item.createdAt, now, locale);
+  const label = d("projects.clips.number", { number });
   return {
     number,
-    title: item.title || clipLabel({ index: item.index }),
+    title: item.title || label,
     length,
     pill,
     project,
     day,
-    meta: [`Klip ${number}`, length, pill && `skor ${pill.text}`, project, day].filter(Boolean).join(", "),
+    meta: [label, length, pill && d("projects.clips.score", { score: pill.text }), project, day].filter(Boolean),
   };
 }
 
-/** The line under "Riwayat klip": every clip and the projects they come from. */
+/** Every clip and the projects they come from ("128 klip dari 40 proyek"). */
 export function librarySummary({ total, projects }) {
-  return total > 0 ? `${total} klip dari ${projects} proyek` : "Belum ada klip";
+  return total > 0 ? d("projects.clips.summary", { total, projects }) : d("projects.clips.empty");
 }
 
 /** How much of the result the grid shows ("24 dari 128 klip"). */
 export function shownSummary({ shown, matched }) {
-  return shown < matched ? `${shown} dari ${matched} klip` : `${matched} klip`;
+  return shown < matched ? d("projects.clips.shownOf", { shown, matched }) : d("projects.clips.shown", { count: matched });
 }

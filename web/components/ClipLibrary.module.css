@@ -1,5 +1,5 @@
-/* The Riwayat clip grid (components/ClipLibrary.jsx). The poster is ClipPoster.module.css; the
-   tokens and .btn, .notice, .pulse come from app/globals.css. */
+/* The clip grid of Proyek's "Klip" tab (components/ClipLibrary.jsx). The poster is
+   ClipPoster.module.css; the field, toggles and buttons are HeroUI's (app/ui.css). */
 
 .tools {
   display: grid;
@@ -8,14 +8,8 @@
   align-items: center;
   margin-bottom: 16px;
 }
-.search input {
+.search {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 14px;
-  font-size: 15px;
-}
-.search input:focus-visible {
-  border-color: var(--focus);
 }
 
 /* Two independent toggles: an "on" chip gets a check mark, not only a lighter fill. */
@@ -24,32 +18,11 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.chips button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.chips > button {
   gap: 8px;
-  min-height: 44px;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--bg);
-  color: var(--text-muted);
-  font: 600 14px/1.2 var(--font);
   white-space: nowrap;
-  cursor: pointer;
-  transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
 }
-.chips button:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-.chips button[aria-pressed="true"] {
-  border-color: var(--border-strong);
-  background: var(--surface-3);
-  color: var(--text);
-}
-.chips button[aria-pressed="true"]::before {
+.chips > button[aria-pressed="true"]::before {
   content: "";
   width: 5px;
   height: 10px;
@@ -60,18 +33,32 @@
   animation: pop var(--dur-2) var(--ease-out);
 }
 
-.notice {
+.notice,
+.alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
   margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--info-border);
+  border-radius: var(--radius-l);
+  background: var(--info-bg);
+  color: var(--text);
+  font-size: 14px;
 }
-.retry {
-  justify-self: start;
-  margin-top: 6px;
+.alert {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+.alert strong {
+  font-weight: 600;
 }
 
 .state {
   display: grid;
   justify-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: 56px 16px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-xl);
@@ -82,11 +69,6 @@
 .state strong {
   color: var(--text);
   font: 600 16px/1.3 var(--font);
-}
-.state p {
-  max-width: 420px;
-  margin: 0 0 4px;
-  font-size: 14px;
 }
 
 /* The day groups: "Hari ini", "Minggu ini", "Lebih lama". Older pages only ever append below. */
@@ -127,9 +109,6 @@
   justify-items: center;
   gap: 10px;
   margin-top: 20px;
-}
-.more p {
-  margin: 0;
   color: var(--text-muted);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
@@ -154,14 +133,14 @@
   }
 }
 @media (max-width: 600px) {
-  .chips button {
+  .chips > button {
     flex: 1 1 0;
   }
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 10px;
   }
-  .more :global(.btn) {
+  .more > button {
     width: 100%;
   }
 }

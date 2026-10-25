@@ -45,6 +45,11 @@ const ZERO = Object.freeze([
   "lib/not-found-view.mjs",
   "components/LanguageSwitcher.jsx",
   "components/ui/PublicCard.jsx",
+  // Dashboard F4 (08 Fase 3): Proyek and its Klip tab.
+  "app/projects/page.jsx",
+  "components/ClipLibrary.jsx",
+  "lib/clip-library-view.mjs",
+  "lib/projects-list-view.mjs",
 ]);
 
 async function counts() {
