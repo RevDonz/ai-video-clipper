@@ -1,5 +1,7 @@
 /* DatePicker's HeroUI stylesheets, apart from ui.css: only components/ui/DatePicker.jsx imports
-   this file, and pages load that component lazily (05-ui-dashboard.md §3.3). */
+   this file, and pages load that component lazily (05-ui-dashboard.md §3.3). @reference gives
+   their @apply rules the theme of ui.css without emitting it a second time. */
+@reference "../../app/ui.css";
 @import "@heroui/styles/components/date-picker.css" layer(components);
 @import "@heroui/styles/components/date-field.css" layer(components);
 @import "@heroui/styles/components/date-input-group.css" layer(components);
