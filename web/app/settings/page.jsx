@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useLocale, useTranslations } from "use-intl";
 
 import AppShell from "../../components/AppShell.jsx";
 import DefaultLogoCard from "./DefaultLogoCard.jsx";
 import DefaultWatermarkCard from "./DefaultWatermarkCard.jsx";
 import TranscriptionCard from "./TranscriptionCard.jsx";
 import YoutubeCookiesCard from "./YoutubeCookiesCard.jsx";
+import { apiErrorMessage } from "../../lib/api-error.mjs";
 import { helpHref } from "../../lib/help-catalog.mjs";
 import { CUSTOM_PROVIDERS, LLM_PRESETS, MAX_DISPLAY_NAME_LENGTH, REASONING_EFFORTS, SERVER_TEMPLATES, isFreeModel } from "../../lib/llm-presets.mjs";
 import {
@@ -539,6 +541,9 @@ export default function SettingsPage() {
   const [tests, setTests] = useState({});
   const [models, setModels] = useState({});
   const mounted = useRef(true);
+  const t = useTranslations();
+  const locale = useLocale();
+  const failure = (payload, status, fallback) => apiErrorMessage(t, payload, status, { locale, fallback, domain: "llm" });
 
   const dirty = loadState === "ready" && draftSignature(draft) !== baseline;
   const settings = loaded?.settings || null;
@@ -561,7 +566,7 @@ export default function SettingsPage() {
       if (!mounted.current) return;
       if (!ok || !payload) {
         setLoadState("error");
-        setNotice({ tone: "error", text: status === 401 ? SESSION_TEXT : payload?.error || "Pengaturan AI tidak bisa dimuat." });
+        setNotice({ tone: "error", text: status === 401 ? SESSION_TEXT : failure(payload, status, "Pengaturan AI tidak bisa dimuat.") });
         return;
       }
       applyLoaded(payload);
@@ -679,11 +684,11 @@ export default function SettingsPage() {
         setNotice({ tone: "ok", text: "Tersimpan. Job berikutnya memakai pengaturan ini." });
       } else if (status === 422 && Array.isArray(body?.issues)) {
         setErrors(keyedErrors(draft.providers, Object.fromEntries(body.issues.map((issue) => [issue.field, issue.message]))));
-        setNotice({ tone: "error", text: body.error || "Pengaturan belum valid." });
+        setNotice({ tone: "error", text: failure(body, status, "Pengaturan belum valid.") });
       } else if (status === 409) {
-        setNotice({ tone: "error", text: body?.error || "Pengaturan sudah diubah di tempat lain.", reload: true });
+        setNotice({ tone: "error", text: failure(body, status, "Pengaturan sudah diubah di tempat lain."), reload: true });
       } else {
-        setNotice({ tone: "error", text: status === 401 ? SESSION_TEXT : body?.error || "Gagal menyimpan pengaturan." });
+        setNotice({ tone: "error", text: status === 401 ? SESSION_TEXT : failure(body, status, "Gagal menyimpan pengaturan.") });
       }
     } catch {
       if (mounted.current) setNotice({ tone: "error", text: "Koneksi ke server terputus. Perubahan belum tersimpan." });
@@ -704,7 +709,7 @@ export default function SettingsPage() {
         setTests({});
         setNotice({ tone: "ok", text: `${payload.settings.providers.length} penyedia diimpor dari .env. Mulai sekarang AI diatur di halaman ini.` });
       } else {
-        setNotice({ tone: "error", text: status === 401 ? SESSION_TEXT : payload?.error || "Impor gagal." });
+        setNotice({ tone: "error", text: status === 401 ? SESSION_TEXT : failure(payload, status, "Impor gagal.") });
       }
     } catch {
       if (mounted.current) setNotice({ tone: "error", text: "Koneksi ke server terputus. Impor belum terjadi." });
@@ -722,7 +727,7 @@ export default function SettingsPage() {
         ...current,
         [name]: ok && payload?.result
           ? { state: "done", result: payload.result }
-          : { state: "error", message: status === 401 ? SESSION_TEXT : payload?.error || "Tes tidak bisa dijalankan." },
+          : { state: "error", message: status === 401 ? SESSION_TEXT : failure(payload, status, "Tes tidak bisa dijalankan.") },
       }));
     } catch {
       if (mounted.current) setTests((current) => ({ ...current, [name]: { state: "error", message: "Koneksi ke server terputus." } }));
@@ -738,7 +743,7 @@ export default function SettingsPage() {
         ...current,
         [name]: ok && Array.isArray(payload?.models)
           ? { state: "done", list: payload.models, truncated: payload.truncated === true }
-          : { state: "error", message: status === 401 ? SESSION_TEXT : payload?.error || "Daftar model tidak bisa diambil." },
+          : { state: "error", message: status === 401 ? SESSION_TEXT : failure(payload, status, "Daftar model tidak bisa diambil.") },
       }));
     } catch {
       if (mounted.current) setModels((current) => ({ ...current, [name]: { state: "error", message: "Koneksi ke server terputus." } }));

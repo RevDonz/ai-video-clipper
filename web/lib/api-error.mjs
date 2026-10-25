@@ -7,7 +7,7 @@
 // A code with a detail ("glyph_unsupported:U+1F602") passes the detail as params.detail. Pure:
 // client components and lib modules use it.
 import { HTTP_STATUSES, baseCode, httpMessageId, messageIdFor } from "./error-codes.mjs";
-import { errorText } from "./i18n/errors.mjs";
+import { errorKey, errorText } from "./i18n/errors.mjs";
 import { SOURCE_LOCALE, localeOfIntl } from "./i18n/locales.mjs";
 
 const MAX_PARAMS = 8;
@@ -75,6 +75,20 @@ export async function readApiError(response, options) {
 export function apiErrorText(t, err, { locale } = {}) {
   if (err?.legacyText && localeOfIntl(locale) === SOURCE_LOCALE) return err.legacyText;
   return errorText(t, err);
+}
+
+/**
+ * What a page shows for a failed answer whose body it already read: in the source language the
+ * server's sentence, else `fallback` (the page's own text for an answer it cannot read), exactly
+ * as `body?.error || fallback` did; in any other language the catalog text of the code when the
+ * catalog has it, else the same chain. `domain` names a coded body's messageId without one.
+ */
+export function apiErrorMessage(t, body, status, { locale, fallback = null, domain } = {}) {
+  const err = normalizeApiError(body, status, { domain });
+  if (localeOfIntl(locale) !== SOURCE_LOCALE && err.messageId && typeof t?.has === "function" && t.has(errorKey(err.messageId))) {
+    return errorText(t, err);
+  }
+  return err.legacyText ?? fallback ?? errorText(t, err);
 }
 
 /** The base code of an error, for help links and code switches. */

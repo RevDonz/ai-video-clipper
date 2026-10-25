@@ -3,6 +3,7 @@
 // Pengaturan "Teks watermark bawaan" (CONTRACTS §5.43): one line of text with its place, size and
 // opacity, written into the clips of every new job. Loaded on its own, like "Logo bawaan".
 import { useEffect, useId, useRef, useState } from "react";
+import { useLocale, useTranslations } from "use-intl";
 
 import { WATERMARK_MAX, WATERMARK_PLACES, percentLabel, watermarkPoints } from "../../components/editor/panels/watermark-model.mjs";
 import {
@@ -12,6 +13,7 @@ import {
   defaultWatermarkState,
   formMatches,
 } from "../../lib/default-watermark-view.mjs";
+import { apiErrorMessage } from "../../lib/api-error.mjs";
 import { WATERMARK_OPACITY_RANGE, WATERMARK_SIZE_RANGE } from "../../lib/editor/doc-model.mjs";
 
 const ENDPOINT = "/api/settings/watermark";
@@ -37,6 +39,8 @@ export default function DefaultWatermarkCard() {
   const [message, setMessage] = useState(null);
   const alive = useRef(true);
   const id = useId();
+  const t = useTranslations();
+  const locale = useLocale();
 
   async function load() {
     setPhase("loading");
@@ -94,7 +98,7 @@ export default function DefaultWatermarkCard() {
         setForm(defaultWatermarkForm(next.watermark));
         setMessage({ tone: "ok", text: "Teks watermark bawaan tersimpan." });
       } else {
-        const text = answer.status === 401 ? SESSION_TEXT : answer.payload?.error ?? "Teks watermark gagal disimpan. Coba lagi.";
+        const text = answer.status === 401 ? SESSION_TEXT : apiErrorMessage(t, answer.payload, answer.status, { locale, fallback: "Teks watermark gagal disimpan. Coba lagi." });
         setMessage({ tone: "error", text });
       }
     } catch {
