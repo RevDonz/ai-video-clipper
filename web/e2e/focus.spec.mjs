@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 import { L } from "./support/i18n.mjs";
 
 // Fokus klip UI (docs/plans/2026-09-25-fokus-klip.md §3), in the Arahkan chip of Buat klip and in
@@ -79,7 +79,8 @@ async function closeFocus(page) {
   await expect(focusPopover(page)).toHaveCount(0);
 }
 
-const termsInput = (page) => page.getByLabel(L("dashboard.focus.terms"), { exact: true });
+// The chip group carries the same name as its input, so the input is named by its role.
+const termsInput = (page) => page.getByRole("textbox", { name: L("dashboard.focus.terms"), exact: true });
 const noteInput = (page) => page.getByLabel(L("dashboard.focus.note"), { exact: true });
 const removeTerm = (page, term) => page.getByRole("button", { name: L("dashboard.focus.remove", { term }), exact: true });
 const chipTexts = (page) => page.getByRole("list", { name: L("dashboard.focus.list") }).locator("li > span");
@@ -270,6 +271,8 @@ const FOCUS_JOB = projectJob(FOCUS_JOB_ID, {
 const PLAIN_JOB = projectJob(PLAIN_JOB_ID, { clips: [projectClip(PLAIN_JOB_ID, 1), projectClip(PLAIN_JOB_ID, 2)] });
 
 async function fakeProjectApi(page, jobs) {
+  // The clips listing answers 404 while the editor is off; the page reads it for a finished job.
+  for (const id of Object.keys(jobs)) expectFailedRequest(page, 404, "GET", `/api/jobs/${id}/clips`);
   await page.route(/\/api\/jobs\/[0-9a-f-]{36}(?:\/.*)?$/, (route) => {
     const { pathname } = new URL(route.request().url());
     const [, , , id, ...rest] = pathname.split("/");

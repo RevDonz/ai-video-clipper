@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 
+import { choose } from "./support/choice.mjs";
 import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 import { L } from "./support/i18n.mjs";
 
@@ -26,6 +27,11 @@ async function fakeJobs(page, { refuse = [] } = {}) {
       return route.fulfill({ status: 200, headers: { "Cache-Control": "no-store" }, json: { jobs: state.jobs, editor: true } });
     }
     const match = /^\/api\/jobs\/([^/]+)$/.exec(url.pathname);
+    // The header badge reads the running project on its own.
+    if (match && request.method() === "GET") {
+      const job = state.jobs.find((item) => item.id === decodeURIComponent(match[1]));
+      return job ? route.fulfill({ status: 200, headers: { "Cache-Control": "no-store" }, json: { job } }) : route.continue();
+    }
     if (match && request.method() === "DELETE") {
       const id = decodeURIComponent(match[1]);
       state.deletes.push(url.pathname);
@@ -109,8 +115,8 @@ test.describe("Proyek (faked job list)", () => {
     expectFailedRequest(page, 500, "DELETE", `/api/jobs/${JOBS[2].id}`);
     const state = await fakeJobs(page, { refuse: [JOBS[2].id] });
     await login(page, "/projects");
-    await row(page, "Podcast 12.mp4").getByRole("checkbox").check();
-    await row(page, "Kajian subuh.mp4").getByRole("checkbox").check();
+    await choose(row(page, "Podcast 12.mp4").getByRole("checkbox"));
+    await choose(row(page, "Kajian subuh.mp4").getByRole("checkbox"));
     const bar = page.getByRole("region", { name: L("projects.selection.count", { count: 2 }) });
     await expect(bar).toBeVisible();
     await bar.getByRole("button", { name: L("projects.selection.delete", { count: 2 }) }).click();

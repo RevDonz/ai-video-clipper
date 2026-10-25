@@ -81,8 +81,9 @@ function outDir(testInfo) {
 
 const PAGES = [
   { name: "dashboard", path: "/dashboard", ready: (page) => page.getByRole("heading", { level: 1 }).first() },
-  { name: "projects", path: "/projects", ready: (page) => page.getByText("Podcast 12.mp4").first() },
-  { name: "project", path: `/projects/${JOB_ID}`, ready: (page) => page.getByText("Rahasia hook di 3 detik").first() },
+  // The table on a laptop, the card list on a phone: the one on screen.
+  { name: "projects", path: "/projects", ready: (page) => page.getByText("Podcast 12.mp4").filter({ visible: true }).first() },
+  { name: "project", path: `/projects/${JOB_ID}`, ready: (page) => page.getByText("Rahasia hook di 3 detik").filter({ visible: true }).first() },
   { name: "settings", path: "/settings", ready: (page) => page.getByRole("heading", { level: 1 }).first() },
   { name: "trends", path: "/trends", ready: (page) => page.getByRole("heading", { level: 1 }).first() },
   { name: "bantuan", path: "/bantuan", ready: (page) => page.getByRole("heading", { level: 1 }).first() },

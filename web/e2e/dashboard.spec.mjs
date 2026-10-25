@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 
+import { choose } from "./support/choice.mjs";
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
 import { L } from "./support/i18n.mjs";
 
@@ -120,7 +121,8 @@ test.describe("Buat klip composer (faked job API)", () => {
     // The head is the title alone: no sentence (P2), and no AI line while the AI is fine (P6).
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(L("dashboard.title"));
     await expect(page.locator("header.pageHead p")).toHaveCount(0);
-    await expect(page.getByRole("alert")).toHaveCount(0);
+    // Scoped to the page: Next.js keeps its own route announcer (role=alert) in a shadow root.
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
     const values = {
       count: L("dashboard.chip.count", { count: 3 }),
       duration: L("dashboard.chip.duration", { value: L("dashboard.duration.auto") }),
@@ -156,10 +158,10 @@ test.describe("Buat klip composer (faked job API)", () => {
     await count.getByLabel(L("dashboard.chip.countLabel"), { exact: true }).fill("5");
     await page.keyboard.press("Escape");
     const duration = await openChip(page, "duration");
-    await duration.getByRole("radio", { name: `${L("dashboard.duration.short")} · ${seconds(15, 30)}` }).check();
+    await choose(duration.getByRole("radio", { name: `${L("dashboard.duration.short")} · ${seconds(15, 30)}` }));
     await page.keyboard.press("Escape");
     const language = await openChip(page, "language");
-    await language.getByRole("radio", { name: L("dashboard.language.en") }).check();
+    await choose(language.getByRole("radio", { name: L("dashboard.language.en") }));
     await page.keyboard.press("Escape");
     await expect(chip(page, "count")).toHaveText(L("dashboard.chip.count", { count: 5 }));
     await link(page).fill(LINK);
@@ -178,7 +180,7 @@ test.describe("Buat klip composer (faked job API)", () => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
     let duration = await openChip(page, "duration");
-    await duration.getByRole("radio", { name: L("dashboard.duration.custom") }).check();
+    await choose(duration.getByRole("radio", { name: L("dashboard.duration.custom") }));
     await duration.getByLabel(L("dashboard.duration.min"), { exact: true }).fill("61");
     await duration.getByLabel(L("dashboard.duration.max"), { exact: true }).fill("60");
     await page.keyboard.press("Escape");
@@ -260,10 +262,10 @@ test.describe("Buat klip composer (faked job API)", () => {
     await openDashboard(page);
     await expect(chip(page, "count")).toHaveText(L("dashboard.chip.count", { count: 3 }));
     const duration = await openChip(page, "duration");
-    await duration.getByRole("radio", { name: `${L("dashboard.duration.long")} · ${seconds(60, 90)}` }).check();
+    await choose(duration.getByRole("radio", { name: `${L("dashboard.duration.long")} · ${seconds(60, 90)}` }));
     await page.keyboard.press("Escape");
     const language = await openChip(page, "language");
-    await language.getByRole("radio", { name: L("dashboard.language.auto") }).check();
+    await choose(language.getByRole("radio", { name: L("dashboard.language.auto") }));
     await page.keyboard.press("Escape");
     await link(page).fill(LINK);
     expect(await submitJob(page, posts)).toMatchObject({ limit: "3", minDuration: "60", maxDuration: "90", videoLanguage: "auto" });
@@ -345,13 +347,13 @@ test.describe("Buat klip composer (faked job API)", () => {
     await expect(subtitle.getByText(L("dashboard.look.inZone"), { exact: true })).toBeVisible();
     // Every pack's thumbnail is a real image.
     expect(await subtitle.evaluate((root) => [...root.querySelectorAll("label img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true, true, true, true, true]);
-    await subtitle.getByRole("radio", { name: L("dashboard.style.classic") }).check();
+    await choose(subtitle.getByRole("radio", { name: L("dashboard.style.classic") }));
     await expect(subtitle.locator("[data-look-preview]")).toHaveAttribute("data-pack", "classic");
     await page.keyboard.press("Escape");
     await expect(chip(page, "subtitle")).toHaveText(L("dashboard.chip.subtitle", { value: L("dashboard.style.classic") }));
 
     const layout = await openChip(page, "layout");
-    await layout.getByRole("radio", { name: L("layout.names.fill_center") }).check();
+    await choose(layout.getByRole("radio", { name: L("layout.names.fill_center") }));
     await page.keyboard.press("Escape");
     const hook = await openChip(page, "hook");
     await hook.getByRole("switch", { name: L("dashboard.hook.text") }).click();
@@ -408,7 +410,7 @@ test.describe("Buat klip composer (faked job API)", () => {
     const size = subtitle.getByRole("radiogroup", { name: L("dashboard.look.size") });
     await expect(spot.getByRole("radio", { name: L("dashboard.position.bottom") })).toBeChecked();
     await expect(size.getByRole("radio", { name: L("dashboard.size.medium") })).toBeChecked();
-    await subtitle.getByRole("radio", { name: L("dashboard.style.sorot") }).check();
+    await choose(subtitle.getByRole("radio", { name: L("dashboard.style.sorot") }));
     await spot.getByRole("radio", { name: L("dashboard.position.top") }).click();
     await size.getByRole("radio", { name: L("dashboard.size.large") }).click();
     const preview = subtitle.locator("[data-look-preview]");
@@ -436,7 +438,7 @@ test.describe("Buat klip composer (faked job API)", () => {
     await expect(subtitle.getByRole("radiogroup", { name: L("dashboard.chip.subtitleLabel") }).getByRole("radio")).toHaveCount(2);
     await expect(subtitle.locator("details")).toHaveCount(0);
     await expect(subtitle.locator("[data-look-preview]")).toHaveAttribute("data-position", "bottom");
-    await subtitle.getByRole("radio", { name: L("dashboard.style.classic") }).check();
+    await choose(subtitle.getByRole("radio", { name: L("dashboard.style.classic") }));
     await page.keyboard.press("Escape");
     await link(page).fill(LINK);
     const sent = await submitJob(page, posts);

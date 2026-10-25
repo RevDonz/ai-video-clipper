@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { expect } from "@playwright/test";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 import { LIn } from "./support/i18n.mjs";
 
 // Buat klip and the project page at 360 px in each UI language (08 Fase 2: "Screenshot en 360 px
@@ -32,6 +32,8 @@ const JOB = {
 };
 
 async function fakeApi(page) {
+  // The clips listing answers 404 while the editor is off; the project page reads it.
+  expectFailedRequest(page, 404, "GET", `/api/jobs/${JOB_ID}/clips`);
   await page.route(/\/api\/(?:jobs|llm\/status|storage\/status)(?:[/?]|$)/, (route) => {
     const { pathname } = new URL(route.request().url());
     const json = (status, body) => route.fulfill({ status, contentType: "application/json", headers: { "Cache-Control": "no-store" }, body: JSON.stringify(body) });

@@ -121,7 +121,8 @@ async function axeSerious(target, selector = "#klip") {
   if (!(await target.evaluate(() => Boolean(window.axe)))) await target.addScriptTag({ content: AXE });
   const result = await target.evaluate((scope) => window.axe.run(scope, { resultTypes: ["violations"] }), selector);
   return result.violations.filter((violation) => ["serious", "critical"].includes(violation.impact))
-    .map((violation) => ({ id: violation.id, nodes: violation.nodes.length }));
+    // The offending markup too, so a failure names the element.
+    .map((violation) => ({ id: violation.id, nodes: violation.nodes.length, html: violation.nodes.map((node) => `${node.html.slice(0, 160)} ${node.failureSummary || ""}`.trim()) }));
 }
 
 test.describe("project workspace (faked job API)", () => {
@@ -168,7 +169,7 @@ test.describe("project workspace (faked job API)", () => {
     await page.goto(`/projects/${JOB_ID}`);
     await expect(posters(page)).toHaveCount(4);
     // Terbaik: 9, 8,4, 8,0 (7,95), 6,1.
-    await expect(page.locator("[data-poster]")).toHaveAttribute("data-poster", /./);
+    await expect(page.locator("[data-poster]").first()).toHaveAttribute("data-poster", /./);
     expect(await page.locator("[data-poster]").evaluateAll((nodes) => nodes.map((node) => node.dataset.poster))).toEqual(["4", "1", "3", "2"]);
     await sortBy(page, "project.sort.timeline");
     expect(await page.locator("[data-poster]").evaluateAll((nodes) => nodes.map((node) => node.dataset.poster))).toEqual(["1", "2", "3", "4"]);
