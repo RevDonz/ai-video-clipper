@@ -77,12 +77,17 @@
 @layer components {
   .button, .tabs__tab, .menu-item, .list-box-item, .close-button,
   .toggle-button, .pagination__link, .tag__remove-button { min-height: 44px; min-width: 44px; }
+  /* The label of a switch, checkbox or radio is its target (the input is visually hidden). */
+  .switch, .checkbox, .radio { min-height: 44px; min-width: 44px; }
+  /* shouldForceMount keeps a hidden tab panel mounted; React Aria marks it inert, and HeroUI
+     3.2.6 does not hide it, so it is hidden here (spike F0, open issue #19). */
+  .tabs__panel[data-inert="true"] { display: none; }
   .button { border-radius: var(--radius-m); }
   .button--outline { border-color: var(--border-strong); }
   .switch[data-selected] .switch__control,
   .checkbox[data-selected] .checkbox__control,
   .radio[data-selected] .radio__control { background: var(--text); border-color: var(--text); }
-  .switch[data-selected] .switch__thumb { background: var(--bg); }
+  .switch[data-selected] .switch__thumb { background: var(--bg); color: var(--text); }
   .toggle-button[data-selected], .tabs__tab[data-selected], .list-box-item[data-selected],
   .menu-item[data-selected] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
   .chip--accent, .alert--accent { background: var(--surface-3); color: var(--text); }

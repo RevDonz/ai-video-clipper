@@ -47,8 +47,8 @@ async function smallTargets(page, root) {
       const box = element.getBoundingClientRect();
       const style = getComputedStyle(element);
       if (box.width === 0 || box.height === 0 || style.visibility === "hidden") return false;
-      // A switch's own <input> is visually hidden; its label (.switch) is the target.
-      if (element.getAttribute("role") === "switch" && box.width <= 1) return false;
+      // The <input> of a switch, checkbox or radio is visually hidden; its label is the target.
+      if (element.tagName === "INPUT" && element.closest(".switch, .checkbox, .radio")) return false;
       return box.height < 44 || box.width < 44;
     }).map((element) => `${element.tagName.toLowerCase()}.${[...element.classList].join(".")} "${(element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 30)}" ${Math.round(element.getBoundingClientRect().width)}x${Math.round(element.getBoundingClientRect().height)}`);
   }, root);
