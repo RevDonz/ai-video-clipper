@@ -216,7 +216,8 @@ test("any other missing page offers Riwayat first and a new clip second", () => 
 
 test("the 404 page is Indonesian, carries the shared sidebar and its own title", async () => {
   const page = await read("app/not-found.jsx");
-  assert.match(page, /<AppShell className="statusPage">/);
+  // The shell arrives through LazyAppShell: these boundaries load with every page, the editor too.
+  assert.match(page, /<LazyAppShell className="statusPage">/);
   assert.match(page, /title: "Halaman tidak ditemukan"/);
   assert.match(page, /<h1[^>]*>Halaman tidak ditemukan<\/h1>/);
   assert.match(page, /<NotFoundActions \/>/);
@@ -235,7 +236,7 @@ test("the error page is a client boundary that retries and keeps the sidebar", a
   assert.match(page, /^"use client";/);
   assert.match(page, /export default function \w+\(\{ reset \}\)/);
   assert.match(page, /onClick=\{\(\) => reset\(\)\}/);
-  assert.match(page, /<AppShell current=\{pathname\} className="statusPage">/);
+  assert.match(page, /<LazyAppShell current=\{pathname\} className="statusPage">/);
   assert.match(page, />Coba lagi</);
   assert.doesNotMatch(page, /error\.(message|stack|digest)/, "technical detail stays in the server log");
 });
