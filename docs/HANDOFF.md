@@ -422,8 +422,19 @@ satu PR gabungan per fase, tes berat sekali di akhir fase.
 
 **Fase 2 + 3** (dashboard baru: Buat klip, halaman proyek, Proyek, Pengaturan, Tren, Bantuan;
 kode error dan progres; status 2026-10-25). Satu PR gabungan: #47, branch `fase/2-3`, belum
-di-merge. Gerbang berat jalan sekali di akhir (agen gerbang mengisi hasil dan checklist di badan
-PR).
+di-merge, menunggu izin merge pemilik.
+- Gerbang akhir hijau di `e2441041` (run dan angka di badan PR #47 dan komentar
+  issuecomment-6399516092): CI/CD PR, `full`, e2e dashboard/proyek/pengaturan/tren/bantuan,
+  `settings-tabs` 8×, `landing-shots`; di `2fe693ee` (sesudahnya hanya file tes web): `image`,
+  `player`, semua `editor-*` + `parity-text`, en-smoke, mobile dan desktop dengan proyek semaian.
+  Gold seleksi (7 episode, K=5 dan K=10, selector heuristik) identik dengan `main`, dijalankan
+  lokal karena transkrip gold tidak ada di runner.
+- Kriteria 08 Fase 2 dan Fase 3 terpenuhi, kecuali: ratchet `i18n-hardcoded` = 0 untuk semua file
+  rute dashboard, tapi lima modul view (`project-view`, `clip-entry-view`, `clip-text`,
+  `llm-presets`, `source-language`) masih di baseline (lihat "Belum selesai" di bawah); satu tes
+  kontrak sengaja diubah (`CLIP_KEYS`, field tambahan).
+- Tanpa flag env baru dan tanpa migrasi. Rollback: image sebelumnya (semua aditif; job yang
+  ditulis image baru hanya punya field tambahan).
 - Diputuskan atas delegasi pemilik (alasan singkat di sini, rinci di commit masing-masing):
   - Satu `stageText(t, job)` (`web/lib/i18n/stage.mjs`) untuk baris tahap di semua halaman:
     `stage.<stageCode>` bila ada, kalau tidak `stageDetail` lama apa adanya.
@@ -483,6 +494,11 @@ PR).
     bisa diedit, label ekspor), `lib/clip-text.mjs` (masalah form judul),
     `lib/source-language.mjs` (notice bahasa video), `lib/stage-summary.mjs`; `app/licenses/notices.mjs`
     (keterangan pemakaian paket) sengaja tetap seperti diterbitkan.
+- Untuk pemilik: izin merge PR #47; review copy `en` baru (`web/messages/en/*.json` namespace
+  `dashboard`, `project`, `projects`, `settings`, `trends`, `help`, `errors`, `hints`, `stage`,
+  `reason`, `landing`, `layout`, `shell` `badge`);
+  apakah transkrip gold (`artifacts/eval`) perlu tersedia di CI supaya cek gold tidak hanya lokal
+  (08 §11 butir 5).
 
 Sampai fase yang bersangkutan selesai, UI tetap seperti di `main`; `DESIGN.md` menandai setiap
 pola sasaran dengan fase mulai berlakunya.
