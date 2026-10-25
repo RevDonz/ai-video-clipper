@@ -216,7 +216,7 @@ export default function ClipViewer({ job, clips, index, entryFor, copyState, onC
           {clip && (
             <>
               <Modal.Header className={styles.header}>
-                <Modal.Heading className={styles.position}>{t("viewer.position", { n: at + 1, total: clips.length })}</Modal.Heading>
+                <Modal.Heading level={2} className={styles.position}>{t("viewer.position", { n: at + 1, total: clips.length })}</Modal.Heading>
                 <div className={styles.stepper}>
                   <Button variant="ghost" isIconOnly aria-label={tAria("prev")} isDisabled={at <= 0} onPress={() => step(-1)}>
                     <span aria-hidden="true">‹</span>

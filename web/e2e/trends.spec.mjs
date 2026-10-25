@@ -274,6 +274,9 @@ test.describe("Konteks Tren page (faked API)", () => {
     await expect(chips.getByRole("listitem")).toHaveText(["Nyambung tren: Kabur Aja Dulu", `Nyambung tren: ${HOSTILE_TITLE}`]);
     await expect(detail.locator("img")).toHaveCount(0);
     expect(await page.evaluate(() => window.__trendXss)).toBeUndefined();
+    // The clip viewer is a dialog over the page (05-ui-dashboard.md §6.4): Escape, then the next poster.
+    await page.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
     await page.getByRole("article", { name: "Judul klip 2", exact: true }).getByRole("button").click();
     await expect(detail.getByRole("heading", { level: 3 })).toHaveText("Judul klip 2");
     await expect(detail.getByRole("list", { name: "Tren yang disebut di klip ini" })).toHaveCount(0);

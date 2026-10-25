@@ -4,13 +4,15 @@ import { createRequire } from "node:module";
 import { expect } from "@playwright/test";
 
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
-// The project page as a workspace (plan P1 #7 + A5): a poster grid and one detail panel, the
-// "Semua" / "Skor 8+" / "Diedit" filters, left/right between clips, "Pilih" mode with "Unduh (n)" and
-// "Unduh semua" through the ZIP route, "NN-judul" download names, and the notes of clips that
-// fell back (A2). The job API, the clips listing and the ZIP route are faked inside the browser
-// (page.route), so nothing on the server changes; only the login is real. Run against a
-// production build, like e2e/focus.spec.mjs.
+// The project page (05-ui-dashboard.md §6.4): the stepper while it runs, the poster grid in
+// Terbaik or Urutan video order with the Semua / Skor 8+ / Diedit filters, the clip viewer (a
+// Modal at ?klip=N) with ←/→ between clips, "Pilih" mode with "Unduh (n)" and "Unduh semua"
+// through the ZIP route, "NN-judul" download names, and the notes of clips that fell back. The
+// job API, the clips listing and the ZIP route are faked inside the browser (page.route), so
+// nothing on the server changes; only the login is real. Run against a production build, like
+// e2e/focus.spec.mjs.
 
 const JOB_ID = "8c2e4f60-7a1b-4c3d-9e5f-0a1b2c3d4e5f";
 const CLIP_ID = `clip_${"a".repeat(24)}`;
@@ -85,10 +87,24 @@ async function fakeProject(target, { zipCheck = null, job = JOB } = {}) {
 }
 
 const posters = (target) => target.getByRole("article");
-const detail = (target) => target.locator("[data-clip-detail]");
-const detailTitle = (target) => detail(target).getByRole("heading", { level: 3 });
-const detailNotes = (target) => detail(target).getByRole("list", { name: "Catatan klip" });
+// The poster of clip `n` (its number, whatever the order), and its button.
+const poster = (target, n) => target.getByRole("article").filter({ has: target.locator(`[data-poster="${n}"]`) });
+const posterButton = (target, n) => target.locator(`[data-poster="${n}"]`);
+const viewer = (target) => target.getByRole("dialog");
+const viewerTitle = (target) => viewer(target).getByRole("heading", { level: 3 });
+const viewerNotes = (target) => viewer(target).getByRole("list", { name: L("project.viewer.notes") });
 const overflow = (target) => target.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+const sortBy = (target, key) => target.getByRole("radiogroup", { name: L("project.sort.label") }).getByRole("radio", { name: L(key) }).click();
+const filters = (target) => target.getByRole("radiogroup", { name: L("project.filter.label") });
+
+async function openClip(target, n) {
+  if (await viewer(target).count()) {
+    await target.keyboard.press("Escape");
+    await expect(viewer(target)).toHaveCount(0);
+  }
+  await posterButton(target, n).click();
+  await expect(viewer(target)).toBeVisible();
+}
 
 function axeSource() {
   const explicit = process.env.AXE_CORE_PATH;
@@ -101,9 +117,9 @@ function axeSource() {
 }
 const AXE = axeSource();
 
-async function axeSerious(target) {
+async function axeSerious(target, selector = "#klip") {
   if (!(await target.evaluate(() => Boolean(window.axe)))) await target.addScriptTag({ content: AXE });
-  const result = await target.evaluate(() => window.axe.run("#klip", { resultTypes: ["violations"] }));
+  const result = await target.evaluate((scope) => window.axe.run(scope, { resultTypes: ["violations"] }), selector);
   return result.violations.filter((violation) => ["serious", "critical"].includes(violation.impact))
     .map((violation) => ({ id: violation.id, nodes: violation.nodes.length }));
 }
@@ -111,12 +127,12 @@ async function axeSerious(target) {
 test.describe("project workspace (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
-  test("a running project lists what its finished stages found in the progress panel", async ({ page }) => {
+  test("a running project shows the stepper, the clips ready so far and what its finished stages found", async ({ page }) => {
     const id = "9d3f5a71-8b2c-4d4e-8f60-1b2c3d4e5f60";
     const running = {
       id, status: "processing", progress: 63, stage: "packaging", stageDetail: "Menyiapkan judul, hook, dan caption klip",
       createdAt: iso(NOW), updatedAt: iso(NOW), source: { type: "upload", name: "Podcast 13.mp4" },
-      options: { selectionMode: "v3", llmMode: "auto" }, clips: [],
+      options: { selectionMode: "v3", llmMode: "auto" }, clips: [clip(1)],
       stageSummary: { transcript: { words: 2304, source: "whisper", language: "id" }, moments: { count: 4, source: "llm" } },
     };
     await page.route(new RegExp(`/api/jobs/${id}(?:[/?].*)?$`), (route) => route.fulfill({
@@ -124,79 +140,107 @@ test.describe("project workspace (faked job API)", () => {
     }));
     await login(page, "/projects");
     await page.goto(`/projects/${id}`);
-    const panel = page.getByRole("region", { name: "Menyiapkan judul, hook, dan caption klip" });
+    const panel = page.getByRole("region", { name: `${L("status.process.running")} · Menyiapkan judul, hook, dan caption klip` });
+    await expect(panel.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "63");
+    // An upload has no download step; packaging is in Pilih momen.
+    await expect(panel.getByRole("listitem")).toHaveText([
+      new RegExp(`^${L("project.step.transcript")}`), L("project.step.moments"), L("project.step.render"),
+    ]);
+    await expect(panel.locator('[aria-current="step"]')).toHaveText(L("project.step.moments"));
+    await expect(panel.getByText(L("project.progress.ready", { count: 1 }), { exact: true })).toBeVisible();
+    // The clip that is ready already shows in the grid.
+    await expect(posters(page)).toHaveCount(1);
     const summary = panel.getByLabel("Hasil per tahap");
     await expect(summary.locator("dt")).toHaveText(["Transkrip", "Momen"]);
     await expect(summary.locator("dd")).toHaveText(["2.304 kata · dari audio", "4 dipilih AI"]);
   });
 
-  test("posters open one detail panel; the arrows move between clips; 'Skor 8+' filters", async ({ page }) => {
+  test("a project whose video is not Indonesian shows the language note", async ({ page }) => {
+    await fakeProject(page, { job: { ...JOB, source: { type: "youtube", url: "https://youtu.be/rBg0ZcwjVKQ" }, sourceLanguage: "en", options: { ...JOB.options, videoLanguage: "auto" } } });
+    await login(page, "/projects");
+    await page.goto(`/projects/${JOB_ID}`);
+    await expect(page.getByText("Bahasa video terdeteksi: Inggris. Hasil caption mengikuti bahasa ini.")).toBeVisible();
+  });
+
+  test("Terbaik orders by score; a poster opens the viewer at ?klip=N; ←/→ move; Escape returns to the poster", async ({ page }) => {
     await fakeProject(page);
     await login(page, "/projects");
     await page.goto(`/projects/${JOB_ID}`);
     await expect(posters(page)).toHaveCount(4);
-    await expect(detailTitle(page)).toHaveText(TITLES[0]);
-    await expect(posters(page).nth(0).getByRole("button")).toHaveAttribute("aria-current", "true");
+    // Terbaik: 9, 8,4, 8,0 (7,95), 6,1.
+    await expect(page.locator("[data-poster]")).toHaveAttribute("data-poster", /./);
+    expect(await page.locator("[data-poster]").evaluateAll((nodes) => nodes.map((node) => node.dataset.poster))).toEqual(["4", "1", "3", "2"]);
+    await sortBy(page, "project.sort.timeline");
+    expect(await page.locator("[data-poster]").evaluateAll((nodes) => nodes.map((node) => node.dataset.poster))).toEqual(["1", "2", "3", "4"]);
 
     // The score is a neutral number; only 8 and up carry the mark. No score is called hot or viral.
-    for (const [position, high] of [[0, 1], [1, 0], [2, 1], [3, 1]]) {
-      await expect(posters(page).nth(position).locator("[data-high]")).toHaveCount(high);
-    }
+    for (const [n, high] of [[1, 1], [2, 0], [3, 1], [4, 1]]) await expect(poster(page, n).locator("[data-high]")).toHaveCount(high);
     await expect(page.getByText(/\bhot\b|viral/i)).toHaveCount(0);
-    // The editor listing marks clip 1 as edited on its poster, and its detail offers "Edit klip" first.
-    await expect(posters(page).nth(0)).toContainText("Diedit");
-    await expect(detail(page).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${JOB_ID}/clips/${CLIP_ID}/edit`);
+    // The editor listing marks clip 1 as edited on its poster.
+    await expect(poster(page, 1)).toContainText("Diedit");
+    // A clip that fell back says so on its poster.
+    await expect(poster(page, 1)).not.toContainText(L("layout.names.fill_center"));
+    await expect(poster(page, 2)).toContainText(L("layout.names.fill_center"));
+    await expect(poster(page, 4)).toContainText(L("layout.names.fill_center"));
+    await expect(poster(page, 4)).not.toContainText("cadangan");
 
-    // A clip that fell back says so: the framing on its poster, every note in the detail panel.
-    await expect(detailNotes(page)).toHaveCount(0);
-    await expect(posters(page).nth(0)).not.toContainText("Potong tengah");
-    await expect(posters(page).nth(1)).toContainText("Potong tengah");
-    await expect(posters(page).nth(3)).toContainText("Potong tengah");
-    await expect(posters(page).nth(3)).not.toContainText("cadangan");
-    await posters(page).nth(1).getByRole("button").click();
-    await expect(detailNotes(page).getByRole("listitem")).toHaveText(["Wajah tidak terdeteksi · potong tengah"]);
+    await openClip(page, 1);
+    await expect(page).toHaveURL(/\?klip=1$/);
+    await expect(viewerTitle(page)).toHaveText(TITLES[0]);
+    await expect(viewer(page).getByRole("heading", { level: 2 })).toHaveText(L("project.viewer.position", { n: 1, total: 4 }));
+    // "Edit klip" is a plain link: the editor loads as a full document (COOP/COEP).
+    await expect(viewer(page).getByRole("link", { name: L("project.viewer.editClip") })).toHaveAttribute("href", `/projects/${JOB_ID}/clips/${CLIP_ID}/edit`);
+    await expect(viewerNotes(page)).toHaveCount(0);
 
-    await expect(detail(page).getByText("Rentang waktu kamu", { exact: true })).toHaveCount(0);
-    await posters(page).nth(2).getByRole("button").click();
-    await expect(detailTitle(page)).toHaveText(TITLES[2]);
-    await expect(posters(page).nth(2).getByRole("button")).toHaveAttribute("aria-current", "true");
-    // A clip cut from the person's own range says so among its tags.
-    await expect(detail(page).getByText("Rentang waktu kamu", { exact: true })).toBeVisible();
-    await expect(detail(page).getByRole("link", { name: "Unduh MP4" }))
+    await page.keyboard.press("ArrowRight");
+    await expect(viewerTitle(page)).toHaveText(TITLES[1]);
+    await expect(page).toHaveURL(/\?klip=2$/);
+    await expect(viewerNotes(page).getByRole("listitem")).toHaveText(["Wajah tidak terdeteksi · potong tengah"]);
+    await page.keyboard.press("ArrowRight");
+    // A clip cut from the person's own range says so among its tags; downloads keep their names.
+    await expect(viewerTitle(page)).toHaveText(TITLES[2]);
+    await expect(viewer(page).getByText("Rentang waktu kamu", { exact: true })).toBeVisible();
+    await expect(viewer(page).getByRole("link", { name: L("project.viewer.downloadMp4") }))
       .toHaveAttribute("href", `/api/jobs/${JOB_ID}/files/output/clip-03.mp4?download=1&name=03-ngopi-di-cafe`);
-    await expect(detail(page).getByRole("link", { name: /Unduh subtitle SRT/ }))
+    await expect(viewer(page).getByRole("link", { name: L("project.viewer.srtFor", { clip: "Klip 03 · 0:33" }) }))
       .toHaveAttribute("href", `/api/jobs/${JOB_ID}/files/output/clip-03.srt?download=1&name=03-ngopi-di-cafe`);
-
     await page.keyboard.press("ArrowRight");
-    await expect(detailTitle(page)).toHaveText(TITLES[3]);
-    await expect(posters(page).nth(3).getByRole("button")).toBeFocused();
-    await expect(detailNotes(page).getByRole("listitem")).toHaveText(["Wajah tidak terdeteksi · potong tengah", "Dirender dengan cara cadangan"]);
+    await expect(viewerTitle(page)).toHaveText(TITLES[3]);
+    await expect(viewerNotes(page).getByRole("listitem")).toHaveText(["Wajah tidak terdeteksi · potong tengah", "Dirender dengan cara cadangan"]);
     await page.keyboard.press("ArrowRight");
-    await expect(detailTitle(page)).toHaveText(TITLES[3]);
-    await page.keyboard.press("ArrowLeft");
-    await page.keyboard.press("ArrowLeft");
-    await expect(detailTitle(page)).toHaveText(TITLES[1]);
-    // The stepper in the detail panel does the same.
-    await detail(page).getByRole("button", { name: "Klip berikutnya" }).click();
-    await expect(detailTitle(page)).toHaveText(TITLES[2]);
-    // Only the current poster is a tab stop.
-    await expect(page.locator("[data-poster][tabindex='0']")).toHaveCount(1);
+    await expect(viewerTitle(page)).toHaveText(TITLES[3], { timeout: 1000 });
+    // The arrows in the header do the same.
+    await viewer(page).getByRole("button", { name: L("aria.prev") }).click();
+    await expect(viewerTitle(page)).toHaveText(TITLES[2]);
+    await page.keyboard.press("Escape");
+    await expect(viewer(page)).toHaveCount(0);
+    await expect(page).not.toHaveURL(/klip=/);
+    await expect(posterButton(page, 3)).toBeFocused();
 
-    const filters = page.getByRole("group", { name: "Saring klip" });
-    await expect(filters.getByRole("button")).toHaveText([/^Semua\s+4$/, /^Skor 8\+\s+3$/, /^Diedit\s+1$/]);
-    await filters.getByRole("button", { name: /^Skor 8\+/ }).click();
+    await expect(filters(page).getByRole("radio")).toHaveText([/^Semua\s+4$/, /^Skor 8\+\s+3$/, /^Diedit\s+1$/]);
+    await filters(page).getByRole("radio", { name: /^Skor 8\+/ }).click();
     await expect(posters(page)).toHaveCount(3);
-    await expect(filters.getByRole("button", { name: /^Skor 8\+/ })).toHaveAttribute("aria-pressed", "true");
-    await filters.getByRole("button", { name: /^Semua/ }).click();
+    await expect(filters(page).getByRole("radio", { name: /^Skor 8\+/ })).toHaveAttribute("aria-checked", "true");
+    await filters(page).getByRole("radio", { name: /^Semua/ }).click();
     await expect(posters(page)).toHaveCount(4);
     // "Diedit": the clips whose poster says "Diedit" (the listing names clip 1 as edited).
-    await filters.getByRole("button", { name: /^Diedit/ }).click();
+    await filters(page).getByRole("radio", { name: /^Diedit/ }).click();
     await expect(posters(page)).toHaveCount(1);
     await expect(posters(page).nth(0)).toContainText("Diedit");
-    await filters.getByRole("button", { name: /^Semua/ }).click();
+    await filters(page).getByRole("radio", { name: /^Semua/ }).click();
     await expect(posters(page)).toHaveCount(4);
 
     if (AXE) expect(await axeSerious(page)).toEqual([]);
+  });
+
+  test("a link with ?klip=N opens that clip in the viewer", async ({ page }) => {
+    await fakeProject(page);
+    await login(page, "/projects");
+    await page.goto(`/projects/${JOB_ID}?klip=3`);
+    await expect(viewerTitle(page)).toHaveText(TITLES[2]);
+    if (AXE) expect(await axeSerious(page, "[role=dialog]")).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(viewer(page)).toHaveCount(0);
   });
 });
 
@@ -208,31 +252,31 @@ test.describe("project workspace with a clip that failed to render (faked job AP
     await login(page, "/projects");
     await page.goto(`/projects/${JOB_ID}`);
     await expect(posters(page)).toHaveCount(4);
-    await expect(page.getByRole("heading", { level: 2, name: "3 dari 4 klip siap diunggah" })).toBeVisible();
-    await expect(page.getByText("3 klip · 1 gagal", { exact: true })).toBeVisible();
-    await expect(posters(page).nth(1)).toHaveAttribute("data-failed", "true");
-    await expect(posters(page).nth(1)).toContainText("Gagal");
+    // The facts line counts the clips that rendered.
+    await expect(page.getByText(L("project.clipCount", { count: 3 }), { exact: true })).toBeVisible();
+    await expect(poster(page, 2)).toHaveAttribute("data-failed", "true");
+    await expect(poster(page, 2)).toContainText("Gagal");
     await expect(page.locator("[data-failed]")).toHaveCount(1);
 
-    await posters(page).nth(1).getByRole("button").click();
-    await expect(detailTitle(page)).toHaveText(TITLES[1]);
-    await expect(detail(page).locator("video")).toHaveCount(0);
-    await expect(detail(page)).toContainText("Render klip ini melewati batas waktu.");
-    await expect(detail(page)).toContainText("Klip lain tidak terpengaruh. Untuk mencoba lagi, proses ulang videonya.");
-    for (const name of ["Unduh MP4", /Unduh subtitle SRT/, "Edit klip"]) {
-      await expect(detail(page).getByRole("link", { name })).toHaveCount(0);
+    await sortBy(page, "project.sort.timeline");
+    await openClip(page, 2);
+    await expect(viewerTitle(page)).toHaveText(TITLES[1]);
+    await expect(viewer(page).locator("video")).toHaveCount(0);
+    await expect(viewer(page)).toContainText("Render klip ini melewati batas waktu.");
+    await expect(viewer(page)).toContainText("Klip lain tidak terpengaruh. Untuk mencoba lagi, proses ulang videonya.");
+    for (const name of [L("project.viewer.downloadMp4"), L("project.viewer.srt"), L("project.viewer.editClip")]) {
+      await expect(viewer(page).getByRole("link", { name })).toHaveCount(0);
     }
     // Its title and description cannot be changed either: there is no video to post.
     for (const name of ["Ubah judul dan deskripsi", "Tulis ulang"]) {
-      await expect(detail(page).getByRole("button", { name, exact: true })).toHaveCount(0);
+      await expect(viewer(page).getByRole("button", { name, exact: true })).toHaveCount(0);
     }
     // The next clip plays and can be changed as before.
     await page.keyboard.press("ArrowRight");
-    await expect(detailTitle(page)).toHaveText(TITLES[2]);
-    await expect(detail(page).locator("video")).toHaveCount(1);
-    await expect(detail(page).getByRole("button", { name: "Ubah judul dan deskripsi", exact: true })).toHaveCount(1);
-    await posters(page).nth(1).getByRole("button").click();
-    if (AXE) expect(await axeSerious(page)).toEqual([]);
+    await expect(viewerTitle(page)).toHaveText(TITLES[2]);
+    await expect(viewer(page).locator("video")).toHaveCount(1);
+    await expect(viewer(page).getByRole("button", { name: "Ubah judul dan deskripsi", exact: true })).toHaveCount(1);
+    if (AXE) expect(await axeSerious(page, "[role=dialog]")).toEqual([]);
   });
 });
 
@@ -249,39 +293,46 @@ test.describe("project workspace downloads (faked ZIP route)", () => {
     const downloads = await fakeProject(probe, options);
     await probe.goto(`/projects/${JOB_ID}`);
     await expect(posters(probe)).toHaveCount(4);
+    await sortBy(probe, "project.sort.timeline");
     return { probe, errors, downloads };
   }
 
+  const pickBar = (probe) => probe.getByRole("group", { name: L("project.bulk.label") });
+  const pickButton = (probe) => probe.getByRole("button", { name: L("project.select"), exact: true });
+
   test("'Pilih' picks clips by click or keyboard and 'Unduh (n)' zips them; 'Unduh semua' zips every clip", async ({ context, page }) => {
     const { probe, errors, downloads } = await openProbe(context, page);
-    await probe.getByRole("button", { name: "Pilih", exact: true }).click();
-    const bar = probe.getByRole("group", { name: "Pilih klip untuk diunduh" });
-    await expect(bar).toContainText("0 dipilih");
-    await expect(bar.getByRole("button", { name: "Unduh (0)" })).toBeDisabled();
-    await expect(posters(probe).nth(0).getByRole("button")).toBeFocused();
+    await pickButton(probe).click();
+    const bar = pickBar(probe);
+    await expect(bar).toContainText(L("project.bulk.count", { count: 0 }));
+    await expect(bar.getByRole("button", { name: L("project.bulk.download", { n: 0 }) })).toBeDisabled();
+    await expect(posterButton(probe, 1)).toBeFocused();
     await probe.keyboard.press("Space");
-    await probe.keyboard.press("ArrowRight");
-    await probe.keyboard.press("ArrowRight");
+    await probe.keyboard.press("Tab");
+    await probe.keyboard.press("Tab");
+    await expect(posterButton(probe, 3)).toBeFocused();
     await probe.keyboard.press("Space");
-    await expect(bar).toContainText("2 dipilih");
-    await expect(posters(probe).nth(0).getByRole("button")).toHaveAttribute("aria-pressed", "true");
-    await expect(posters(probe).nth(1).getByRole("button")).toHaveAttribute("aria-pressed", "false");
-    await posters(probe).nth(3).getByRole("button").click();
-    await expect(bar).toContainText("3 dipilih");
+    await expect(bar).toContainText(L("project.bulk.count", { count: 2 }));
+    await expect(posterButton(probe, 1)).toHaveAttribute("aria-pressed", "true");
+    await expect(posterButton(probe, 2)).toHaveAttribute("aria-pressed", "false");
+    await posterButton(probe, 4).click();
+    await expect(bar).toContainText(L("project.bulk.count", { count: 3 }));
+    // In Pilih a poster toggles; the viewer stays closed.
+    await expect(viewer(probe)).toHaveCount(0);
 
-    await bar.getByRole("button", { name: "Unduh (3)" }).click();
+    await bar.getByRole("button", { name: L("project.bulk.download", { n: 3 }) }).click();
     await expect.poll(() => downloads.length).toBe(1);
     expect(downloads[0].searchParams.get("clips")).toBe("1,3,4");
-    await expect(probe.getByRole("status").filter({ hasText: "ZIP 3 klip (9 MB) mulai diunduh." })).toBeVisible();
-    await expect(probe.getByRole("button", { name: "Pilih", exact: true })).toBeFocused();
+    await expect(probe.getByRole("status").filter({ hasText: L("project.zip.started", { count: 3, size: "9 MB" }) })).toBeVisible();
+    await expect(pickButton(probe)).toBeFocused();
 
-    await probe.getByRole("button", { name: "Pilih", exact: true }).click();
-    await probe.getByRole("button", { name: "Pilih semua" }).click();
-    await expect(bar).toContainText("4 dipilih");
+    await pickButton(probe).click();
+    await probe.getByRole("button", { name: L("project.bulk.all") }).click();
+    await expect(bar).toContainText(L("project.bulk.count", { count: 4 }));
     await probe.keyboard.press("Escape");
     await expect(bar).toHaveCount(0);
 
-    await probe.getByRole("button", { name: "Unduh semua" }).click();
+    await probe.getByRole("button", { name: L("project.downloadAll") }).click();
     await expect.poll(() => downloads.length).toBe(2);
     expect(downloads[1].searchParams.has("clips")).toBe(false);
     expect(errors).toEqual([]);
@@ -290,17 +341,17 @@ test.describe("project workspace downloads (faked ZIP route)", () => {
 
   test("in 'Pilih' a clip that failed to render cannot be picked; 'Pilih semua' leaves it out", async ({ context, page }) => {
     const { probe, errors, downloads } = await openProbe(context, page, { job: PARTLY_FAILED_JOB });
-    await probe.getByRole("button", { name: "Pilih", exact: true }).click();
-    const bar = probe.getByRole("group", { name: "Pilih klip untuk diunduh" });
-    const failed = posters(probe).nth(1).getByRole("button");
+    await pickButton(probe).click();
+    const bar = pickBar(probe);
+    const failed = posterButton(probe, 2);
     await expect(failed).toHaveAttribute("aria-disabled", "true");
     await expect(failed).not.toHaveAttribute("aria-pressed", /.*/);
     // aria-disabled: Playwright would wait for it to turn enabled; a person can still press it.
     await failed.click({ force: true });
-    await expect(bar).toContainText("0 dipilih");
-    await bar.getByRole("button", { name: "Pilih semua" }).click();
-    await expect(bar).toContainText("3 dipilih");
-    await bar.getByRole("button", { name: "Unduh (3)" }).click();
+    await expect(bar).toContainText(L("project.bulk.count", { count: 0 }));
+    await bar.getByRole("button", { name: L("project.bulk.all") }).click();
+    await expect(bar).toContainText(L("project.bulk.count", { count: 3 }));
+    await bar.getByRole("button", { name: L("project.bulk.download", { n: 3 }) }).click();
     await expect.poll(() => downloads.length).toBe(1);
     expect(downloads[0].searchParams.get("clips")).toBe("1,3,4");
     expect(errors).toEqual([]);
@@ -310,7 +361,7 @@ test.describe("project workspace downloads (faked ZIP route)", () => {
   test("a ZIP over the size limit is refused on the page with the route's message", async ({ context, page }) => {
     const message = "ZIP-nya 2,4 GB, batasnya 2 GB. Pilih lebih sedikit klip, atau unduh satu per satu.";
     const { probe, errors, downloads } = await openProbe(context, page, { zipCheck: { status: 413, body: { error: message, code: "zip_too_large" } } });
-    await probe.getByRole("button", { name: "Unduh semua" }).click();
+    await probe.getByRole("button", { name: L("project.downloadAll") }).click();
     await expect(probe.getByRole("alert").filter({ hasText: message })).toBeVisible();
     expect(downloads).toHaveLength(0);
     expect(errors).toEqual([]);
@@ -322,7 +373,7 @@ test.describe("project workspace at 390 px", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   test.beforeEach(() => skipWithoutCredentials(test));
 
-  test("one column, posters two across, the detail under them, 44 px targets, no horizontal scroll", async ({ page }) => {
+  test("posters two across, the viewer full screen, 44 px targets, no horizontal scroll", async ({ page }) => {
     await fakeProject(page);
     await login(page, "/projects");
     await page.goto(`/projects/${JOB_ID}`);
@@ -330,28 +381,32 @@ test.describe("project workspace at 390 px", () => {
     const first = await posters(page).nth(0).boundingBox();
     const second = await posters(page).nth(1).boundingBox();
     expect(Math.abs(first.y - second.y)).toBeLessThan(2);
-    const panel = await detail(page).boundingBox();
-    expect(panel.y).toBeGreaterThan(first.y + first.height);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
 
-    await posters(page).nth(3).getByRole("button").tap();
-    await expect(detailTitle(page)).toHaveText(TITLES[3]);
-    await expect(detail(page)).toBeInViewport();
-
     const targets = [
-      ...await page.getByRole("group", { name: "Saring klip" }).getByRole("button").all(),
-      page.getByRole("button", { name: "Pilih", exact: true }),
-      page.getByRole("button", { name: "Unduh semua" }),
-      detail(page).getByRole("button", { name: "Klip sebelumnya" }),
-      detail(page).getByRole("button", { name: "Klip berikutnya" }),
+      ...await filters(page).getByRole("radio").all(),
+      page.getByRole("button", { name: L("project.select"), exact: true }),
+      page.getByRole("button", { name: L("project.downloadAll") }),
     ];
     for (const target of targets) {
       const box = await target.boundingBox();
       expect(box.height, await target.textContent()).toBeGreaterThanOrEqual(44);
       expect(box.width, await target.textContent()).toBeGreaterThanOrEqual(44);
     }
-    await page.getByRole("button", { name: "Pilih", exact: true }).tap();
-    await expect(page.getByRole("group", { name: "Pilih klip untuk diunduh" })).toBeVisible();
+
+    await posterButton(page, 4).tap();
+    await expect(viewerTitle(page)).toHaveText(TITLES[3]);
+    const dialog = await viewer(page).boundingBox();
+    expect(dialog.width).toBeGreaterThan(380);
+    for (const name of [L("aria.prev"), L("aria.next"), L("aria.close")]) {
+      const box = await viewer(page).getByRole("button", { name }).boundingBox();
+      expect(box.height, name).toBeGreaterThanOrEqual(44);
+      expect(box.width, name).toBeGreaterThanOrEqual(44);
+    }
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: L("project.select"), exact: true }).tap();
+    await expect(page.getByRole("group", { name: L("project.bulk.label") })).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
   });
 });

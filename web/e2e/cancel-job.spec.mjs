@@ -1,9 +1,11 @@
 import { expect } from "@playwright/test";
 
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { L } from "./support/i18n.mjs";
 
-// "Batalkan" on a running job (plan 2026-10-20 A4), on the dashboard and on the project page:
-// a quiet button, a confirmation inside the page (no browser dialog), Escape and focus, then
+// "Batalkan" on a running job (plan 2026-10-20 A4, 05-ui-dashboard.md §6.4), in the project page's
+// progress panel (Buat klip shows no job any more): a quiet button, an AlertDialog inside the
+// page (no browser dialog) whose focus starts on Lanjutkan proses, Escape and focus, then
 // "Dibatalkan". The job API and its cancel route are faked inside the browser (page.route), so
 // nothing on the server changes; only the login is real. The real route and the runner are
 // covered by web/tests/job-cancel.test.mjs and web/tests/job-cancel-runner.test.mjs.
@@ -44,15 +46,15 @@ async function fakeJobApi(page) {
   return cancels;
 }
 
-const askButton = (page) => page.getByRole("button", { name: "Batalkan", exact: true });
-const confirmation = (page) => page.getByRole("group", { name: "Batalkan proses ini?" });
+const askButton = (page) => page.getByRole("button", { name: L("project.cancel.ask"), exact: true });
+const confirmation = (page) => page.getByRole("alertdialog", { name: L("project.cancel.confirm") });
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 async function confirmFlow(page, cancels) {
   await expect(askButton(page)).toBeVisible();
   await askButton(page).click();
   await expect(confirmation(page)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Lanjutkan proses" })).toBeFocused();
+  await expect(page.getByRole("button", { name: L("project.cancel.keep") })).toBeFocused();
 
   // Escape keeps the job running and returns the focus to "Batalkan".
   await page.keyboard.press("Escape");
@@ -62,7 +64,7 @@ async function confirmFlow(page, cancels) {
 
   await page.keyboard.press("Enter");
   await expect(confirmation(page)).toBeVisible();
-  await page.getByRole("button", { name: "Ya, batalkan" }).click();
+  await page.getByRole("button", { name: L("project.cancel.yes") }).click();
   await expect.poll(() => cancels.length).toBe(1);
   expect(cancels[0].origin).toBe(new URL(page.url()).origin);
   await expect(askButton(page)).toHaveCount(0);
@@ -71,46 +73,38 @@ async function confirmFlow(page, cancels) {
 test.describe("Batalkan a running job (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
-  test("dashboard: confirm inside the page, then the job reads Dibatalkan", async ({ page }) => {
-    const cancels = await fakeJobApi(page);
+  test("Buat klip shows no job and no Batalkan", async ({ page }) => {
+    await fakeJobApi(page);
     await login(page, "/dashboard");
-    await expect(page.getByText("Transkripsi audio 40%")).toBeVisible();
-    await expect(page.getByText("42%", { exact: true })).toBeVisible();
-
-    await confirmFlow(page, cancels);
-    const state = page.locator("#job-state");
-    await expect(state).toHaveText("Dibatalkan");
-    await expect(state).toBeFocused();
-    await expect(page.getByText("42%", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("Proses dibatalkan sebelum klip selesai.")).toBeVisible();
+    await expect(page.locator('[data-chip="count"]')).toBeVisible();
+    await expect(askButton(page)).toHaveCount(0);
   });
 
   test("project page: Batalkan in the progress panel, then the cancelled notice", async ({ page }) => {
     const cancels = await fakeJobApi(page);
     await login(page, `/projects/${JOB_ID}`);
-    await expect(page.getByRole("heading", { name: "Transkripsi audio 40%" })).toBeVisible();
+    const panel = page.getByRole("region", { name: `${L("status.process.running")} · Transkripsi audio 40%` });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "42");
 
     await confirmFlow(page, cancels);
-    await expect(page.getByRole("heading", { name: "Transkripsi audio 40%" })).toHaveCount(0);
-    await expect(page.getByText("Proses dibatalkan", { exact: true })).toBeFocused();
-    await expect(page.getByText("Dibatalkan", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Buat ulang di Buat klip" })).toHaveAttribute("href", "/dashboard");
+    await expect(panel).toHaveCount(0);
+    await expect(page.getByText(L("project.cancelled"), { exact: true })).toBeFocused();
+    await expect(page.getByText(L("status.process.cancelled"), { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: L("project.rerun") })).toHaveAttribute("href", `/dashboard?ulang=${JOB_ID}`);
   });
 
   test("at 360 px the confirmation fits, its buttons are 44 px targets and nothing scrolls sideways", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 760 });
     await fakeJobApi(page);
-    await login(page, "/dashboard");
-    for (const path of ["/dashboard", `/projects/${JOB_ID}`]) {
-      if (new URL(page.url()).pathname !== path) await page.goto(path);
-      await askButton(page).click();
-      await expect(confirmation(page)).toBeVisible();
-      expect(await overflow(page)).toBeLessThanOrEqual(0);
-      for (const name of ["Ya, batalkan", "Lanjutkan proses"]) {
-        const box = await page.getByRole("button", { name }).boundingBox();
-        expect(box.height, name).toBeGreaterThanOrEqual(44);
-      }
-      await page.keyboard.press("Escape");
+    await login(page, `/projects/${JOB_ID}`);
+    await askButton(page).click();
+    await expect(confirmation(page)).toBeVisible();
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    for (const name of [L("project.cancel.yes"), L("project.cancel.keep")]) {
+      const box = await page.getByRole("button", { name }).boundingBox();
+      expect(box.height, name).toBeGreaterThanOrEqual(44);
     }
+    await page.keyboard.press("Escape");
   });
 });
