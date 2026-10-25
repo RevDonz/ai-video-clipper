@@ -9,7 +9,8 @@ import { fileURLToPath } from "node:url";
 import { SOURCE_LOCALE, localeEntry } from "./locales.mjs";
 
 export const NAMESPACES = Object.freeze([
-  "common", "shell", "status", "aria", "meta", "errors", "auth", "dashboard", "projects", "settings", "trends", "editor",
+  "common", "shell", "status", "aria", "meta", "errors", "auth", "dashboard", "projects", "project", "landing", "layout",
+  "stage", "reason", "settings", "trends", "editor",
 ]);
 
 // What every page gets from the root provider (07 §8.2).
