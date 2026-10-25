@@ -199,5 +199,14 @@
     "setUpAi": "Atur AI",
     "openSettings": "Buka Pengaturan",
     "openTrends": "Buka Tren"
+  },
+  "failedClip": {
+    "render_failed": "Render klip ini gagal.",
+    "render_timeout": "Render klip ini melewati batas waktu.",
+    "hint": "Klip lain tidak terpengaruh. Untuk mencoba lagi, proses ulang videonya."
+  },
+  "fallback": {
+    "noFace": "Wajah tidak terdeteksi · potong tengah",
+    "engine": "Dirender dengan cara cadangan"
   }
 }

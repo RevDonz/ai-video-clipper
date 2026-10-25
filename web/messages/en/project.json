@@ -199,5 +199,14 @@
     "setUpAi": "Set up AI",
     "openSettings": "Open Settings",
     "openTrends": "Open Trends"
+  },
+  "failedClip": {
+    "render_failed": "This clip failed to render.",
+    "render_timeout": "This clip took too long to render.",
+    "hint": "Other clips aren't affected. To try again, run the video again."
+  },
+  "fallback": {
+    "noFace": "No face found · center crop",
+    "engine": "Rendered the backup way"
   }
 }

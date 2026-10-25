@@ -74,9 +74,9 @@ function Body({ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEnt
     <div className={styles.body}>
       {failed ? (
         <div key={clip.index} className={`${styles.video} ${styles.failedFrame}`}>
-          <span className="statusPill error">{failed.label}</span>
-          <p><strong>{failed.text}</strong></p>
-          <p>{failed.hint}</p>
+          <span className="statusPill error">{msg(tAll, failed.label)}</span>
+          <p><strong>{msg(tAll, failed.text)}</strong></p>
+          <p>{msg(tAll, failed.hint)}</p>
         </div>
       ) : (
         <video key={clip.index} className={styles.video} controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)}
@@ -108,7 +108,7 @@ function Body({ clip, job, entry, copied, onCopy, textDrafts, onClipSaved, onEnt
         )}
         {notes.length > 0 && (
           <ul className={styles.clipNotes} aria-label={t("viewer.notes")}>
-            {notes.map((note) => <li key={note.code}>{note.text}</li>)}
+            {notes.map((note) => <li key={note.code}>{msg(tAll, note.text)}</li>)}
           </ul>
         )}
         {clip.hookText && <p className={styles.hook}><span>{t("viewer.hookText")}</span>{clip.hookText}</p>}

@@ -12,6 +12,7 @@ import { useTranslations } from "use-intl";
 import { PosterText, PosterThumb, posterFrame } from "../../../components/ClipPoster.jsx";
 import ClipViewer from "../../../components/ClipViewer.jsx";
 import { clipEntryFor } from "../../../lib/clip-entry-view.mjs";
+import { msg } from "../../../lib/i18n/descriptor.mjs";
 import { failedClipView, isFailedClip, readyClips } from "../../../lib/clip-status.mjs";
 import { clipLabel } from "../../../lib/project-view.mjs";
 import {
@@ -44,6 +45,7 @@ function useEmptyFilterText() {
 // clip for the ZIP. A clip that failed to render says Gagal in its frame and cannot be picked.
 function PosterCard({ clip, entry, picking, picked, onActivate, buttonRef }) {
   const t = useTranslations("project");
+  const tAll = useTranslations();
   const titleId = `poster-${clip.index}-title`;
   const metaId = `poster-${clip.index}-meta`;
   const failed = failedClipView(clip);
@@ -52,7 +54,7 @@ function PosterCard({ clip, entry, picking, picked, onActivate, buttonRef }) {
   const length = formatTimestamp(clip.duration);
   const number = String(clip.index).padStart(2, "0");
   const edited = entry?.editBadge?.tone === "edited";
-  const cardNotes = clipFallbackNotes(clip).filter((note) => note.card);
+  const cardNotes = clipFallbackNotes(clip).filter((note) => note.card).map((note) => ({ ...note, card: msg(tAll, note.card) }));
   const meta = [
     t("poster.number", { n: number }), failed && t("poster.failed"), length, pill && t("poster.score", { score: pill.text }),
     edited && t("poster.edited"), ...cardNotes.map((note) => note.card.toLowerCase()),
@@ -73,7 +75,7 @@ function PosterCard({ clip, entry, picking, picked, onActivate, buttonRef }) {
           onClick={() => onActivate(clip.index)}
         >
           <PosterThumb poster={clipPosterUrl(clip)} number={number} length={length}
-            badge={failed && <span className="statusPill error">{failed.label}</span>}>
+            badge={failed && <span className="statusPill error">{msg(tAll, failed.label)}</span>}>
             {pickable && <span className={styles.check} aria-hidden="true" />}
           </PosterThumb>
           <PosterText titleId={titleId} title={clip.title || clipLabel(clip)} pill={pill} edited={edited}
