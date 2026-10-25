@@ -443,6 +443,33 @@ def mode_at(ranges: Sequence[tuple[int, int, str]], sf: int) -> str | None:
     return None
 
 
+def layout_ranges(doc: Mapping[str, Any]) -> tuple[tuple[int, int, str], ...]:
+    """A document's ``layout.ranges`` as ``(in_sf, out_sf, mode)``; ``()`` without them."""
+    return tuple((entry["in_sf"], entry["out_sf"], entry["mode"])
+                 for entry in doc["layout"].get("ranges", ()))
+
+
+def uses_camera(doc: Mapping[str, Any]) -> bool:
+    """Whether the document's picture follows the camera plan anywhere: the face-track layout,
+    or a ``camera`` range (CONTRACTS §5.63)."""
+    if doc["layout"]["default"]["mode"] == "camera":
+        return True
+    return any(mode == "camera" for _in, _out, mode in layout_ranges(doc))
+
+
+def mode_of(doc: Mapping[str, Any], sf: int) -> str:
+    """The layout mode source-grid frame ``sf`` is shown with: its range's mode when the
+    document has ranges, else the default mode. Raises ``DocSemanticInvalid`` for a frame
+    outside every range."""
+    ranges = layout_ranges(doc)
+    if not ranges:
+        return doc["layout"]["default"]["mode"]
+    mode = mode_at(ranges, sf)
+    if mode is None:
+        raise errors.DocSemanticInvalid("range_invalid", path="/layout/ranges")
+    return mode
+
+
 # --- the shot plan file ----------------------------------------------------------------------
 
 
@@ -722,10 +749,12 @@ __all__ = [
     "crop_width_pm",
     "decide_shot",
     "encode_shot_plan",
+    "layout_ranges",
     "load_rules",
     "load_shot_plan",
     "merge_user_ranges",
     "mode_at",
+    "mode_of",
     "parse_rules",
     "plan_shots",
     "prepare_auto",
@@ -734,5 +763,6 @@ __all__ = [
     "shot_bounds",
     "shot_file_name",
     "split_geometry",
+    "uses_camera",
     "write_shot_plan",
 ]

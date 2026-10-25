@@ -61,6 +61,7 @@ from typing import TYPE_CHECKING, Any
 
 from .. import render as _render
 from . import errors, layouts
+from . import shots as _shots
 from . import timemap as tm
 from . import transitions as _transitions
 from .plan import RenderPlan
@@ -455,6 +456,10 @@ class _Compiler:
                 self.plan.split, label_in=label_in, label_out=label_out, suffix=suffix,
                 output=self.plan.output, source=source, matrix=self.matrix,
                 in_range=self.in_range, content=content)
+        if self.plan.layout_ranges:
+            if self.plan.keyframes:
+                raise errors.DocSemanticInvalid("range_invalid", path="/layout/keyframes")
+            return self.ranges_layout(label_in, ranges, label_out, suffix)
         if self.plan.keyframes:
             if self.plan.layout not in layouts.CROP_MODES:
                 raise errors.DocSemanticInvalid("range_invalid", path="/layout/keyframes")
@@ -487,6 +492,52 @@ class _Compiler:
             self.plan.layout, label_in=label_in, label_out=label_out, suffix=suffix,
             output=self.plan.output, source=source, matrix=self.matrix,
             in_range=self.in_range, crop=crop, fallback=fallback, zoom_pm=zoom, content=content)
+
+    def ranges_layout(self, label_in: str, ranges: Sequence[tuple[int, int]], label_out: str,
+                      suffix: str) -> str:
+        """The automatic layout (CONTRACTS §5.63): one mode per source frame from
+        ``layout.ranges``, drawn by the face-track fallback chain (§5.40) whose switches are set
+        per frame. A ``camera`` frame is the camera crop (with its own no-face fallback), a
+        ``fill_center`` frame the crop at the centre, a ``fit_blur`` frame latar blur. The chain
+        has the same filter contexts however many ranges there are."""
+        source = (self.streams.width, self.streams.height)
+        content = self.plan.content_rect
+        zoom = self.plan.zoom_pm
+        output = self.plan.output
+        table = self.plan.layout_ranges
+        centre = layouts.centre_x(layouts.picture_size(source, content), output, zoom)
+        blur_no_face = self.plan.no_face == "fit_blur"
+        crop: list[int] = []
+        fallback: list[bool] = []
+        for in_sf, out_sf in ranges:
+            count = out_sf - in_sf
+            modes = []
+            for sf in range(in_sf, out_sf):
+                mode = _shots.mode_at(table, sf)
+                if mode is None:
+                    raise errors.DocSemanticInvalid("range_invalid", path="/layout/ranges")
+                if mode not in ("camera", "fill_center", "fit_blur"):
+                    raise errors.DocSemanticInvalid("op_disabled", path="/layout/ranges")
+                modes.append(mode)
+            follow: Sequence[int] = ()
+            no_face: Sequence[bool] = ()
+            if "camera" in modes:
+                if self.plan.camera is None:
+                    raise errors.AnalysisMissing("analysis_missing", ref="camera")
+                follow = layouts.crop_positions(
+                    self.plan.camera, self.fps, source=source, output=output, first_sf=in_sf,
+                    count=count, zoom_pm=zoom, content=content)
+                if blur_no_face:
+                    no_face = layouts.no_face_frames(self.plan.camera, self.fps,
+                                                     first_sf=in_sf, count=count)
+            for index, mode in enumerate(modes):
+                crop.append(follow[index] if mode == "camera" else centre)
+                fallback.append(mode == "fit_blur" or bool(
+                    mode == "camera" and blur_no_face and no_face[index]))
+        return layouts.layout_chain(
+            "camera", label_in=label_in, label_out=label_out, suffix=suffix, output=output,
+            source=source, matrix=self.matrix, in_range=self.in_range, crop=crop,
+            fallback=fallback, zoom_pm=zoom, content=content)
 
     def decoded(self, branches: Sequence[tuple[int, int, int]],
                 runs: Sequence[Sequence[int]], *, video: bool, audio: bool) -> None:

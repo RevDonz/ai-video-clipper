@@ -222,6 +222,61 @@ def test_plate_key_names_the_split_bands(contexts):
     assert plates.plate_key(blurred) == key
 
 
+def with_ranges(doc: dict, *modes: str, default: str = "auto") -> dict:
+    """``doc`` with ``layout.ranges`` of the given modes over its window (CONTRACTS §5.63)."""
+    changed = with_layout(doc, default)
+    fps = Fps(*doc["output"]["fps"])
+    first = tm.sf_floor(doc["base"]["window_ms"][0], fps)
+    end = tm.sf_ceil(doc["base"]["window_ms"][1], fps)
+    edges = [first + (end - first) * k // len(modes) for k in range(len(modes))] + [end]
+    changed["layout"]["ranges"] = [
+        {"in_sf": edges[k], "out_sf": edges[k + 1], "mode": mode,
+         "origin": "auto" if default == "auto" else "user"} for k, mode in enumerate(modes)]
+    if default == "auto":
+        changed["base"]["shots"] = {"sha256": "5" * 64}
+    return changed
+
+
+def test_plate_key_names_the_shot_plan_and_the_ranges(contexts):
+    """The automatic layout's plates depend on its ranges (and its shot plan); a document
+    without ranges keeps its pinned key."""
+    seed = contexts["c30"].seed
+    auto = with_ranges(seed, "fit_blur", "fill_center")
+    key = plates.plate_key(auto)
+    assert key != plates.plate_key(with_layout(seed, "fit_blur"))
+    assert key != plates.plate_key(with_layout(seed, "fill_center"))
+    swapped = with_ranges(seed, "fill_center", "fit_blur")
+    assert plates.plate_key(swapped) != key
+    other_plan = copy.deepcopy(auto)
+    other_plan["base"]["shots"]["sha256"] = "6" * 64
+    assert plates.plate_key(other_plan) != key
+    # a camera range needs the camera plan and names it, with its no-face fallback
+    camera = with_ranges(seed, "camera", "fit_blur")
+    with pytest.raises(ValueError):
+        plates.plate_key(camera)
+    named = plates.plate_key(camera, camera_sha256="1" * 64)
+    assert named != plates.plate_key(camera, camera_sha256="2" * 64)
+    blurred = copy.deepcopy(camera)
+    blurred["layout"]["default"]["no_face"] = "fit_blur"
+    assert plates.plate_key(blurred, camera_sha256="1" * 64) != named
+    # a user's range under another default changes that default's key too
+    user = with_ranges(seed, "fit_blur", "camera", default="fit_blur")
+    assert plates.plate_key(user, camera_sha256="1" * 64) != plates.plate_key(
+        with_layout(seed, "fit_blur"))
+
+
+def test_a_camera_range_reads_the_camera_plan_like_face_track(tmp_path, contexts):
+    doc = with_ranges(contexts["c30"].seed, "camera", "fit_blur")
+    clip = make_clip(tmp_path, contexts["c30"])
+    with pytest.raises(errors.AnalysisMissing):
+        plates.camera_for(clip, doc)
+    sha, _path = write_camera(clip, camera_plan(doc))
+    _found, found_sha = plates.camera_for(clip, doc)
+    assert found_sha == sha and plates.faces_for(clip, doc) is None
+    no_camera = with_ranges(contexts["c30"].seed, "fill_center", "fit_blur")
+    assert plates.camera_for(clip, no_camera) == (None, None)
+
+
 def test_cell_names_are_flat_content_keyed_names():
     assert plates.cell_name(KEY, 0) == "abababababababab-c0000000.mp4"
     assert plates.cell_name(KEY, 620) == "abababababababab-c0000620.mp4"

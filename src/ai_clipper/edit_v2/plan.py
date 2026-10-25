@@ -38,6 +38,7 @@ from . import captions as _captions
 from . import envelope as _envelope
 from . import face_zone as _face_zone
 from . import overlay_zone as _overlay_zone
+from . import shots as _shots
 from . import timemap as tm
 from . import transitions as _transitions
 from .captions import CaptionResult
@@ -177,6 +178,18 @@ class RenderPlan:
         return tuple(self.doc["layout"].get("keyframes", ()))
 
     @property
+    def layout_ranges(self) -> tuple[tuple[int, int, str], ...]:
+        """The automatic layout's ranges (CONTRACTS §5.63) as ``(in_sf, out_sf, mode)``; ``()``
+        for a document without ``layout.ranges`` (named so because the compiler's ``layout``
+        already takes the pieces' source ranges)."""
+        return _shots.layout_ranges(self.doc)
+
+    def shots_for(self, sf: int) -> str:
+        """The mode source-grid frame ``sf`` is shown with (its range's, or the default mode),
+        without building a graph: the preview lane's and the shot strip's answer."""
+        return _shots.mode_of(self.doc, sf)
+
+    @property
     def split(self) -> Mapping[str, Any] | None:
         """Layar terbagi's bands and crops (§5.45), ``None`` for the other layouts."""
         return self.doc["layout"].get("split") if self.layout == "split" else None
@@ -233,6 +246,8 @@ class RenderPlan:
         }
         if any(join.visible for join in self.joins):
             body["joins"] = [join.to_json() for join in self.joins]
+        if self.layout_ranges:  # only then, so every other plan keeps its sha (§5.63)
+            body["layout_ranges"] = [list(entry) for entry in self.layout_ranges]
         return body
 
 
@@ -341,6 +356,20 @@ def _no_face(camera: Mapping, pieces: Sequence[Piece], fps: Fps,
     return tuple(issues)
 
 
+def _camera_pieces(pieces: Sequence[Piece],
+                   ranges: Sequence[tuple[int, int, str]]) -> tuple[Piece, ...]:
+    """The parts of ``pieces`` that ``camera`` ranges show, at their own output frames."""
+    parts = []
+    for piece in pieces:
+        for in_sf, out_sf, mode in ranges:
+            lo, hi = max(piece.in_sf, in_sf), min(piece.out_sf, out_sf)
+            if mode == "camera" and lo < hi:
+                parts.append(dataclasses.replace(piece, in_sf=lo, out_sf=hi,
+                                                 out_f0=piece.out_f0 + lo - piece.in_sf,
+                                                 frames=hi - lo))
+    return tuple(parts)
+
+
 def _packs_sha(doc: Mapping, resources: Resources) -> str | None:
     pack = doc["captions"]["pack"]
     pack_sha = _file_sha(resources.pack_file(pack["id"], pack["v"]))
@@ -385,10 +414,14 @@ def build_plan(
     spans = tm.speech_spans([(word["s"], word["e"]) for word in words["words"]], pieces, fps)
     _check_assets(doc, assets)
     layout = doc["layout"]["default"]["mode"]
-    if layout not in LAYOUT_MODES:
+    if layout not in LAYOUT_MODES and layout != "auto":
         raise errors.DocSemanticInvalid("range_invalid", path="/layout/default/mode")
-    used_camera = camera if layout == "camera" else None
-    if layout == "camera" and camera is None:
+    ranges = _shots.layout_ranges(doc)
+    if layout == "auto" and not ranges:
+        raise errors.DocSemanticInvalid("range_invalid", path="/layout/ranges")
+    needs_camera = _shots.uses_camera(doc)
+    used_camera = camera if layout in ("camera", "auto") or needs_camera else None
+    if needs_camera and camera is None:
         raise errors.AnalysisMissing("analysis_missing", path="/layout/default/mode",
                                      ref="camera")
     caption = _captions.caption_track(doc, words, pieces)
@@ -404,9 +437,10 @@ def build_plan(
     warnings = [*caption.warnings]
     # manual framing (§5.44) sets every frame's crop, so no run is centred or blurred for lack
     # of a face
-    if used_camera is not None and not doc["layout"].get("keyframes"):
-        warnings.extend(_no_face(used_camera, pieces, fps,
-                                 doc["layout"]["default"]["no_face"]))
+    if used_camera is not None and needs_camera and not doc["layout"].get("keyframes"):
+        # with ranges, only the frames of camera ranges follow the camera plan (§5.63)
+        shown = _camera_pieces(pieces, ranges) if ranges else pieces
+        warnings.extend(_no_face(used_camera, shown, fps, doc["layout"]["default"]["no_face"]))
     warnings.extend(unsafe_zone_issues(doc, assets, output, parts=("logo",)))
     warnings.extend(_face_zone.caption_over_face_issues(
         doc, camera if faces is None else faces, pieces, caption.cues, output))
