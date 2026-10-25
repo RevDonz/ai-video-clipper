@@ -23,7 +23,7 @@
   "e2e/editor-quick.spec.mjs": 171,
   "e2e/editor-screens.spec.mjs": 15,
   "e2e/editor-scrubber.spec.mjs": 7,
-  "e2e/editor-shell.spec.mjs": 182,
+  "e2e/editor-shell.spec.mjs": 180,
   "e2e/editor-spelling.spec.mjs": 28,
   "e2e/editor-split.spec.mjs": 23,
   "e2e/editor-transcript.spec.mjs": 64,

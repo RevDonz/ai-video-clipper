@@ -183,7 +183,8 @@ test.describe("Fokus klip on the dashboard (faked job API)", () => {
     await expect(hint).toHaveText("“AI” terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; hanya AI yang bisa mengenalinya dari maknanya.");
     await expect(input).toHaveAttribute("aria-describedby", "focus-terms-help focus-terms-hint");
     await page.setViewportSize({ width: 390, height: 844 });
-    expect(await overflow(page)).toBe(0);
+    // The open popover is placed again after the resize (React Aria, on the next frames).
+    await expect.poll(() => overflow(page)).toBe(0);
     await removeTerm(page, "AI").click();
     await expect(hint).toHaveCount(0);
     expect(posts).toHaveLength(0);
