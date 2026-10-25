@@ -520,8 +520,12 @@ test("public landing and protected dashboard use separate routes", async () => {
   assert.match(landing, /href="\/dashboard"/);
   assert.match(dashboard, /DashboardPage/);
   assert.match(dashboard, /fetch\("\/api\/jobs"/);
-  assert.match(dashboard, /role="progressbar"/);
-  assert.match(dashboard, /aria-live="polite"/);
+  // The job's progress is on its project page (Buat klip goes there after the job is made): a
+  // progress bar (React Aria's role=progressbar) and a live line for the clips that are ready.
+  const progress = await readFile(new URL("../components/ProjectProgress.jsx", import.meta.url), "utf8");
+  assert.match(progress, /<ProgressBar value=\{progress\}/);
+  assert.match(progress, /aria-live="polite"/);
+  assert.match(dashboard, /window\.location\.assign\(next\)/);
   // One form for the current selection: the server picks it, the page never names a mode.
   assert.doesNotMatch(dashboard, /\bV[1-3]\b|Mode lama|Klasik V1|shadow|AI Hook|selectionMode|clipProfile|legacyModes|llmMode/);
   assert.match(dashboard, /createStorageStatusRecovery/);
@@ -532,12 +536,15 @@ test("public landing and protected dashboard use separate routes", async () => {
   assert.match(view, /storage_quota_exhausted/);
   assert.match(view, /storage_free_space_low/);
   assert.match(view, /storage_admission_unavailable/);
-  assert.match(dashboard, /disabled=\{submitting \|\| storageBlocked\}/);
+  // Buat klip is pending while the job is sent and off while storage refuses new jobs.
+  assert.match(dashboard, /isPending=\{sending !== null\} isDisabled=\{storageBlocked\}/);
   assert.match(dashboard, /payload\.jobId/);
   assert.match(dashboard, /const controller = new AbortController\(\)/);
   assert.match(dashboard, /controller\.abort\(\)/);
-  assert.match(dashboard, /clearInterval\(timer\)/);
-  assert.match(dashboard, /clearTimeout\(copiedTimer\.current\)/);
+  // The job is polled, and the copy note timed, on its project page, which stops both when left.
+  const project = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  assert.match(project, /clearTimeout\(pollTimer\)/);
+  assert.match(project, /clearTimeout\(copyTimer\.current\)/);
   assert.match(proxySource, /pathname === "\/"/);
 });
 

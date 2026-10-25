@@ -1,0 +1,14 @@
+/* The lime dot of Diproses: progress is the one place besides the main action where lime shows
+   (05 §2 P9). It breathes slowly while the job runs; with reduced motion it stays still. */
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 1px;
+  animation: breathe 1.6s var(--ease-in-out) infinite;
+}
+@keyframes breathe { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none; } }

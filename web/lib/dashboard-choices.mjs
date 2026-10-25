@@ -262,6 +262,82 @@ export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   return parts.join(" · ");
 }
 
+// --- The valued chips (rombak 05 §6.3) -----------------------------------------------------------
+// Buat klip shows every choice as a chip with its value; the chip opens a popover with the
+// control. The folds above (OPTION_SECTIONS, sectionSummary) stay for the help page's guide
+// (lib/help-guide.mjs) until it moves to the catalog; the form no longer opens them.
+
+/** The chips in display order. */
+export const CHIPS = Object.freeze(["count", "duration", "format", "layout", "subtitle", "hook", "focus", "language"]);
+
+const FIELD_CHIPS = Object.freeze({ limit: "count", minDuration: "duration", maxDuration: "duration", timeRanges: "focus", focus: "focus" });
+
+/** The chip whose popover holds a checked field, or null for the fields always on screen. */
+export function chipOfField(name) {
+  return Object.hasOwn(FIELD_CHIPS, name) ? FIELD_CHIPS[name] : null;
+}
+
+const OUTPUT_SIZE = /^(\d{3,4})x(\d{3,4})$/;
+
+function sizeChoices(outputSize) {
+  const match = typeof outputSize === "string" ? OUTPUT_SIZE.exec(outputSize) : null;
+  if (!match) return {};
+  const [width, height] = [Number(match[1]), Number(match[2])];
+  const resolution = RESOLUTION_CHOICES.find((entry) => entry.width === width);
+  const ratio = RATIO_CHOICES.find((entry) => entry.tall === height > width);
+  return { ...(resolution ? { resolution: resolution.id } : {}), ...(ratio ? { ratio: ratio.id } : {}) };
+}
+
+function durationChoices(minimum, maximum) {
+  const preset = DURATION_PRESETS.find((entry) => entry.id !== "custom" && entry.min === minimum && entry.max === maximum);
+  if (preset) return { duration: preset.id };
+  return { duration: "custom", minDuration: String(minimum), maxDuration: String(maximum) };
+}
+
+function clock(seconds) {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = String(total % 60).padStart(2, "0");
+  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
+}
+
+/**
+ * "Proses ulang" (`/dashboard?ulang=<id>`): the chips, the focus, the time ranges and, for a
+ * YouTube job, the link of an earlier job, so pressing Buat klip runs it again as a new job. A
+ * file cannot be picked for the person (`reupload`). Unknown or old options are the defaults;
+ * null for anything that is not a job.
+ */
+export function choicesFromJob(job) {
+  const options = job?.options;
+  if (!options || typeof options !== "object" || Array.isArray(options)) return null;
+  const raw = {
+    limit: options.limit,
+    renderMode: options.renderMode,
+    captionStyle: options.captionStyle,
+    captionPosition: options.captionPosition,
+    captionSize: options.captionSize,
+    coldOpen: options.coldOpen,
+    hookOverlay: options.hookOverlay,
+    videoLanguage: options.videoLanguage,
+    ...sizeChoices(options.outputSize),
+    ...(Number.isFinite(options.minDuration) && Number.isFinite(options.maxDuration) ? durationChoices(options.minDuration, options.maxDuration) : {}),
+  };
+  const youtube = job?.source?.type === "youtube" && typeof job.source.url === "string";
+  const focus = options.focus && typeof options.focus === "object" ? options.focus : {};
+  const ranges = Array.isArray(options.ranges)
+    ? options.ranges.filter((range) => Number.isSafeInteger(range?.start) && Number.isSafeInteger(range?.end))
+    : [];
+  return {
+    choices: normalizeChoices(raw),
+    youtubeUrl: youtube ? job.source.url : "",
+    reupload: !youtube,
+    focusTerms: Array.isArray(focus.terms) ? focus.terms.filter((term) => typeof term === "string" && term) : [],
+    focusNote: typeof focus.note === "string" ? focus.note : "",
+    timeRanges: ranges.map((range) => `${clock(range.start)}-${clock(range.end)}`).join(", "),
+  };
+}
+
 /** The stored choices, or the defaults when nothing usable is stored or reading throws. */
 export function readStoredChoices(storage) {
   try {

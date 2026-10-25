@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
+
+import { dashboardSource } from "./support/screen-sources.mjs";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -207,75 +209,100 @@ test("a failed download says why in Indonesian, with one suggestion, from its co
 
 // --- Page source --------------------------------------------------------------------------
 
-test("the dashboard's failure box shows the reason, its one suggestion, then the technical detail", async () => {
-  const source = await read("app/dashboard/page.jsx");
-  assert.match(source, /<strong>\{failure\.text\}<\/strong>\s*\{failure\.hint && <span>\{failure\.hint\}<\/span>\}\s*\{failure\.detail && \(/);
+// Buat klip after Dashboard F2 (05-ui-dashboard.md §6.3): the link and Buat klip, a file row and the
+// valued chips; the job's progress, clips and failure are on its project page (P4).
+test("a failed job's reason, its one suggestion and the technical detail are on its project page", async () => {
+  const dashboard = await read("app/dashboard/page.jsx");
+  assert.doesNotMatch(dashboard, /jobFailureView|activeJob/, "Buat klip shows no job");
+  const project = await read("app/projects/[id]/page.jsx");
+  assert.match(project, /<Alert\.Description>\{projectStageText\(job\)\}<\/Alert\.Description>\s*\{hint && <Alert\.Description>\{hint\}<\/Alert\.Description>\}/);
+  assert.match(project, /\{serverError && \(\s*<details className=\{styles\.errorDetail\}>/);
 });
 
 test("the dashboard is one form for the current method", async () => {
-  const source = await read("app/dashboard/page.jsx");
+  const source = await dashboardSource();
   assert.doesNotMatch(source, /\bV[1-3]\b|Mode lama|Klasik V1|AI Hook|shadow|selectionMode|clipProfile|llmMode|legacyModes|Disarankan/);
   assert.doesNotMatch(source, /selectionSource|selectionSourceLabel/, "no technical provenance on screen");
   assert.doesNotMatch(source, /—/);
   for (const field of ["renderMode", "limit", "minDuration", "maxDuration", "coldOpen", "hookOverlay", "captionStyle", "videoLanguage"]) {
     assert.match(source, new RegExp(`data\\.set\\("${field}"`), field);
   }
-  for (const text of ["Link video", "Pilih file", "Jumlah klip", "Durasi klip", "Durasi minimum", "Durasi maksimum", "Bahasa video", "Layout", "Gaya subtitle", "Buka dengan kalimat terkuat", "Teks hook di 4 detik pertama", "Cari momen tentang… (opsional)"]) {
-    assert.ok(source.includes(text), text);
+  // Every control has its label from the catalog (labels, not sentences: 05 §2 P2).
+  const id = JSON.parse(await read("messages/id/dashboard.json"));
+  const labels = [
+    ["source.link", "Link YouTube"], ["source.file", "Pilih file"], ["chip.countLabel", "Jumlah klip"], ["chip.durationLabel", "Durasi"],
+    ["duration.min", "Minimum (dtk)"], ["duration.max", "Maksimum (dtk)"], ["chip.languageLabel", "Bahasa video"], ["chip.layoutLabel", "Tata letak"],
+    ["chip.subtitleLabel", "Subtitle"], ["hook.coldOpen", "Cold open"], ["hook.text", "Teks hook"], ["focus.terms", "Cari momen tentang"],
+  ];
+  for (const [key, text] of labels) {
+    assert.ok(source.includes(`t("${key}")`), key);
+    assert.equal(key.split(".").reduce((node, part) => node?.[part], id), text, key);
   }
   // The focus fields are sent only through focusFormFields: an empty focus sends nothing.
   assert.match(source, /for \(const \[name, value\] of Object\.entries\(focus\.fields\)\) data\.set\(name, value\);/);
   assert.doesNotMatch(source, /data\.set\("focus/);
   assert.match(source, /<FocusField\b/);
   assert.match(source, /fetch\("\/api\/llm\/status", \{ cache: "no-store"/);
-  assert.match(source, /clipCaptionText\(clip\)/);
-  assert.match(source, /href=\{`\/projects\/\$\{activeJob\.id\}`\}/, "the result links to its project page");
-  assert.match(source, /jobPercentText\(activeJob\)/);
+  // After the job is made, the page goes to its project: a full document load (P4, P12).
+  assert.match(source, /const next = projectAfterSubmit\(result\);/);
+  assert.match(source, /window\.location\.assign\(next\);/);
+  assert.match(await read("lib/dashboard-submit.mjs"), /`\/projects\/\$\{encodeURIComponent\(id\)\}`/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
-test("the dashboard's radio groups and toggles are real form controls", async () => {
+test("the dashboard's one-of groups and switches are real form controls", async () => {
   const source = await read("app/dashboard/page.jsx");
-  assert.match(source, /<fieldset[^>]*>\s*<legend[^>]*>Layout<\/legend>/);
-  for (const group of ["Durasi klip", "Bahasa video"]) assert.match(source, new RegExp(`<fieldset[^>]*>\\s*<legend[^>]*>${group}</legend>`), group);
-  for (const name of ["renderMode", "captionStyle", "duration", "videoLanguage"]) assert.match(source, new RegExp(`type="radio" name="${name}"`), name);
-  assert.match(source, /type="checkbox"[^>]*checked=\{coldOpen\}/);
-  assert.match(source, /type="checkbox"[^>]*checked=\{hookOverlay\}/);
-  assert.match(source, /id="video-file"[^>]*type="file"/);
+  // HeroUI RadioGroup, ToggleButtonGroup and Switch: React Aria renders native radios and switches.
+  assert.match(source, /<RadioGroup value=\{value\} onChange=\{onChange\}/);
+  assert.match(source, /<Radio key=\{option\.id\} value=\{option\.id\}/);
+  for (const [label, value] of [["chip.layoutLabel", "renderMode"], ["chip.durationLabel", "duration"], ["chip.languageLabel", "videoLanguage"], ["chip.subtitleLabel", "captionStyle"]]) {
+    assert.match(source, new RegExp(`<Choices label=\\{t\\("${label.replace(".", "\\.")}"\\)\\} value=\\{${value}\\}`), value);
+  }
+  assert.match(source, /<Switch isSelected=\{selected\} onChange=\{onChange\}/);
+  assert.match(source, /<OnOff selected=\{coldOpen\}/);
+  assert.match(source, /<OnOff selected=\{hookOverlay\}/);
+  assert.match(source, /<ToggleButtonGroup\s+aria-labelledby=\{`segment-\$\{label\}`\}\s+disallowEmptySelection/);
+  assert.match(source, /id="video-file" type="file"/);
 });
 
-test("link, file and Buat klip come first; the essentials stay open; the rest fold under labelled headings", async () => {
+test("link and Buat klip come first, then the file, then every choice as a valued chip", async () => {
   const source = await read("app/dashboard/page.jsx");
   const form = /<form [^>]*onSubmit=\{submit\}[^>]*>([\s\S]*?)<\/form>/.exec(source)[1];
   const at = (pattern) => form.search(pattern);
   assert.ok(at(/id="youtube-url"/) >= 0 && at(/type="submit"/) > at(/id="youtube-url"/), "link field, then Buat klip");
-  // Jumlah, Rasio, Durasi and Layout are on screen before any fold.
-  const firstFold = at(/<Fold /);
-  for (const pattern of [/id="clip-limit"/, /name="ratio"/, /name="duration"/, /name="renderMode"/]) {
-    assert.ok(at(pattern) > at(/type="submit"/) && at(pattern) < firstFold, String(pattern));
+  assert.ok(at(/id="video-file"/) > at(/type="submit"/), "then the file row");
+  assert.ok(at(/\{CHIPS\.map\(/) > at(/id="video-file"/), "then the chips");
+  // The chips in 05 §6.3's order, each with its control inside its popover.
+  const { CHIPS } = await import("../lib/dashboard-choices.mjs");
+  assert.deepEqual(CHIPS, ["count", "duration", "format", "layout", "subtitle", "hook", "focus", "language"]);
+  const chip = (id) => new RegExp(`${id}: \\(\\s*<ChoiceChip \\{\\.\\.\\.chipProps\\("${id}"\\)\\}([\\s\\S]*?)</ChoiceChip>`).exec(source)?.[1] ?? "";
+  const holds = {
+    count: [/id="clip-limit"/],
+    duration: [/value=\{duration\}/, /id="min-duration"/, /id="max-duration"/],
+    format: [/value=\{ratio\}/, /value=\{resolution\}/],
+    layout: [/value=\{renderMode\}/],
+    subtitle: [/<LookPreview /, /value=\{captionStyle\}/, /\{offered\.positions && \(/, /\{offered\.sizes && \(/],
+    hook: [/selected=\{coldOpen\}/, /selected=\{hookOverlay\}/],
+    focus: [/<FocusField\b/, /id="time-ranges"/],
+    language: [/value=\{videoLanguage\}/],
+  };
+  for (const [id, patterns] of Object.entries(holds)) {
+    const body = chip(id);
+    assert.ok(body, id);
+    for (const pattern of patterns) assert.match(body, pattern, `${id}: ${pattern}`);
   }
-  // Then the three folds, in order, each holding its own options.
-  const folds = ["look", "moments", "format"].map((id) => at(new RegExp(`<Fold id="${id}"`)));
-  assert.deepEqual([...folds].sort((a, b) => a - b), folds);
-  assert.equal(folds[0], firstFold);
-  const inFold = (pattern, index) => at(pattern) > folds[index] && (index === 2 || at(pattern) < folds[index + 1]);
-  for (const pattern of [/name="captionStyle"/, /name="captionPosition"/, /checked=\{coldOpen\}/, /checked=\{hookOverlay\}/, /<LookPreview /]) assert.ok(inFold(pattern, 0), String(pattern));
-  for (const pattern of [/<FocusField\b/, /id="time-ranges"/]) assert.ok(inFold(pattern, 1), String(pattern));
-  for (const pattern of [/name="videoLanguage"/, /name="resolution"/]) assert.ok(inFold(pattern, 2), String(pattern));
-  // A fold is a heading button that says what is inside; its content is hidden, not unmounted,
-  // so typed focus terms survive a close.
-  const fold = source.slice(source.indexOf("function Fold("), source.indexOf("function FocusField"));
-  assert.match(fold, /<h2 [^>]*>\s*<button type="button"[^>]*aria-expanded=\{open\} aria-controls=\{`\$\{id\}-options`\}/);
-  assert.match(fold, /<div id=\{`\$\{id\}-options`\}[^>]*hidden=\{!open\}>/);
-  assert.match(fold, /\{summary\}/);
-  assert.match(source, /sectionSummary\(id, /);
-  // Every choice the job will use is read with Buat klip, which comes before the folds.
-  assert.match(source, /choicesSummary\(/);
-  assert.match(form, /type="submit"[^>]*aria-describedby="job-summary"/);
-  assert.match(form, /<p id="job-summary" className="visuallyHidden">Job berikutnya: \{summary\}<\/p>/);
-  // The first invalid field opens the fold it sits in, then takes the focus.
-  assert.match(source, /focusField\(FIELD_IDS\[firstInvalid\], sectionOfField\(firstInvalid\)\)/);
-  assert.match(source, /focusField\("focus-terms-input", sectionOfField\("focus"\)\)/);
+  // Each chip reads its value; the accessible name is "{label}: {value}" (ChoiceChip.jsx).
+  const component = await read("components/ChoiceChip.jsx");
+  assert.match(component, /aria-label=\{`\$\{label\}: \$\{value\}`\}/);
+  assert.match(component, /<Popover isOpen=\{isOpen\} onOpenChange=\{onOpenChange\}>/);
+  // One popover at a time: the page keeps which chip is open.
+  assert.match(source, /isOpen: openChip === id,/);
+  // The first invalid field opens the chip it sits in, then takes the focus.
+  assert.match(source, /focusField\(FIELD_IDS\[firstInvalid\], chipOfField\(firstInvalid\)\)/);
+  assert.match(source, /focusField\(FOCUS_INPUT, chipOfField\("focus"\)\)/);
+  assert.match(source, /if \(chip\) setOpenChip\(chip\);/);
+  // Enter in a popover field sends the form, as in the link field.
+  assert.match(source, /formRef\.current\?\.requestSubmit\(\);/);
   // Choices are read after hydration and written through the guarded helpers only.
   assert.match(source, /readStoredChoices\(browserStorage\(\)\)/);
   assert.match(source, /writeStoredChoices\(browserStorage\(\), /);
@@ -283,11 +310,12 @@ test("link, file and Buat klip come first; the essentials stay open; the rest fo
   // A file dropped anywhere in the window becomes the video (checked like a picked file).
   assert.match(source, /\["drop", drop\]/);
   assert.match(source, /window\.addEventListener\(name, listener\)/);
-  assert.match(source, /videoFileProblem\(file\)/);
+  assert.match(source, /videoFileCode\(file\)/);
   // Lime stays on Buat klip alone.
   const css = await read("app/dashboard/dashboard.module.css");
   const lime = css.replace(/\/\*[\s\S]*?\*\//g, "").match(/^[^{}]*\{[^}]*var\(--accent\)[^}]*\}/gm).map((rule) => rule.split("{")[0].trim());
   assert.deepEqual(lime.filter((selector) => !/progress/.test(selector)), [".submit"]);
+  assert.match(source, /<Button type="submit" variant="primary" className=\{styles\.submit\}/);
 });
 
 test("dashboard, login and landing styles use design tokens, not literal colours", async () => {
@@ -344,9 +372,47 @@ test("the counted steps follow the order the engine reports its stages", async (
   assert.deepEqual(starts, [...starts].sort((a, b) => a - b), "steps in the engine's order");
 });
 
-test("the dashboard and the project page show the counter beside the stage", async () => {
+test("the form's checks come as codes, and the Indonesian texts are those codes' texts", async () => {
+  const { jobFormProblemCodes, problemText } = await import("../lib/dashboard-view.mjs");
+  const valid = { sourceType: "youtube", youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", limit: "3", minDuration: "20", maxDuration: "60" };
+  assert.deepEqual(jobFormProblemCodes(valid), {});
+  assert.deepEqual(jobFormProblemCodes({ ...valid, youtubeUrl: " " }), { youtubeUrl: { code: "linkEmpty" } });
+  assert.deepEqual(jobFormProblemCodes({ ...valid, youtubeUrl: "http://youtu.be/x" }), { youtubeUrl: { code: "linkInvalid" } });
+  assert.deepEqual(jobFormProblemCodes({ ...valid, sourceType: "upload", video: null }), { video: { code: "videoMissing" } });
+  assert.deepEqual(jobFormProblemCodes({ ...valid, sourceType: "upload", video: { name: "a.avi" } }), { video: { code: "videoFormat" } });
+  for (const [subtitle, code] of [[{ name: "a.txt", size: 3 }, "srtType"], [{ name: "a.srt", size: 0 }, "srtEmpty"], [{ name: "a.srt", size: 3_000_000 }, "srtTooLarge"]]) {
+    assert.deepEqual(jobFormProblemCodes({ ...valid, sourceType: "upload", video: { name: "a.mp4" }, subtitle }), { subtitle: { code } }, code);
+  }
+  assert.deepEqual(jobFormProblemCodes({ ...valid, limit: "11" }), { limit: { code: "count", values: { min: 1, max: 10 } } });
+  assert.deepEqual(jobFormProblemCodes({ ...valid, minDuration: "4" }), { minDuration: { code: "seconds", values: { min: 5, max: 180 } } });
+  assert.deepEqual(jobFormProblemCodes({ ...valid, minDuration: "60", maxDuration: "30" }), { maxDuration: { code: "durationOrder" } });
+  const ranges = jobFormProblemCodes({ ...valid, timeRanges: "abc" }).timeRanges;
+  assert.equal(ranges.code, "ranges");
+  assert.equal(typeof ranges.text, "string");
+  // Each descriptor reads as the message jobFormProblems has always given.
+  for (const fields of [{ ...valid, youtubeUrl: "" }, { ...valid, limit: "0", maxDuration: "999" }, { ...valid, timeRanges: "abc" }]) {
+    const codes = jobFormProblemCodes(fields);
+    assert.deepEqual(jobFormProblems(fields), Object.fromEntries(Object.entries(codes).map(([field, problem]) => [field, problemText(problem)])));
+  }
+  assert.equal(durationProblem(60, 30), problemText({ code: "durationOrder" }));
+});
+
+test("the AI alert shows only when the AI needs setting up", async () => {
+  const { aiAlert } = await import("../lib/dashboard-view.mjs");
+  assert.equal(aiAlert({ state: "unconfigured" }), "missing");
+  assert.equal(aiAlert({ state: "unusable" }), "notReady");
+  assert.equal(aiAlert({ state: "invalid" }), "notReady");
+  for (const status of [{ state: "active" }, { state: "disabled" }, AI_STATUS_UNREADABLE, null, undefined, { state: "weird" }]) {
+    assert.equal(aiAlert(status), null, JSON.stringify(status));
+  }
+});
+
+// The project page's stepper (lib/project-progress.mjs, tests/project-progress.test.mjs) shows
+// where a running job is; Buat klip shows no job any more.
+test("the project page shows the step beside the stage; Buat klip shows no job", async () => {
   const page = await readFile(path.join(WEB, "app", "dashboard", "page.jsx"), "utf8");
-  assert.match(page, /jobStepText\(activeJob\)/);
-  const project = await readFile(path.join(WEB, "app", "projects", "[id]", "page.jsx"), "utf8");
-  assert.match(project, /jobStepText\(job\)/);
+  assert.doesNotMatch(page, /jobStepText|activeJob/);
+  const progress = await readFile(path.join(WEB, "components", "ProjectProgress.jsx"), "utf8");
+  assert.match(progress, /const steps = progressSteps\(job\) \?\? \[\];/);
+  assert.match(progress, /aria-current=\{step\.state === "current" \? "step" : undefined\}/);
 });

@@ -1,1 +1,133 @@
-{}
+{
+  "title": "Buat klip",
+  "help": "Cara memperbaiki",
+  "openProject": "Buka proyek",
+  "retry": "Coba lagi",
+  "recent": "Terbaru",
+  "allProjects": "Semua proyek",
+  "recentFailed": "Proyek terbaru gagal dimuat",
+  "storage": {
+    "blocked": "Job baru dihentikan sementara",
+    "unknown": "Status penyimpanan belum tersedia",
+    "check": "Periksa lagi"
+  },
+  "ai": {
+    "missing": "AI belum diatur",
+    "notReady": "AI belum siap",
+    "setup": "Atur AI"
+  },
+  "source": {
+    "link": "Link YouTube",
+    "remove": "Hapus {name}",
+    "file": "Pilih file",
+    "replace": "Ganti file",
+    "srt": "+ .srt",
+    "replaceSrt": "Ganti .srt",
+    "reupload": "Pilih file yang sama lagi",
+    "drop": "Lepas di sini"
+  },
+  "submit": {
+    "idle": "Buat klip",
+    "uploading": "Mengunggah {percent}%",
+    "checking": "Memeriksa video…",
+    "preparing": "Menyiapkan…",
+    "offline": "Server tidak terjangkau. Periksa koneksi."
+  },
+  "chip": {
+    "group": "Pilihan klip",
+    "countLabel": "Jumlah klip",
+    "count": "{count, plural, other {# klip}}",
+    "durationLabel": "Durasi",
+    "duration": "Durasi: {value}",
+    "seconds": "{min}–{max} dtk",
+    "formatLabel": "Format",
+    "layoutLabel": "Tata letak",
+    "layout": "Tata letak: {value}",
+    "subtitleLabel": "Subtitle",
+    "subtitle": "Subtitle: {value}",
+    "hookLabel": "Hook",
+    "hook": "Hook: {value}",
+    "focus": "Arahkan",
+    "focusCount": "{count, plural, other {# arahan}}",
+    "focusAuto": "Otomatis",
+    "languageLabel": "Bahasa video"
+  },
+  "duration": {
+    "auto": "Otomatis",
+    "short": "Pendek",
+    "medium": "Sedang",
+    "long": "Panjang",
+    "custom": "Atur sendiri",
+    "min": "Minimum (dtk)",
+    "max": "Maksimum (dtk)"
+  },
+  "format": {
+    "ratio": "Rasio",
+    "resolution": "Resolusi"
+  },
+  "style": {
+    "classic": "Klasik",
+    "karaoke": "Karaoke",
+    "bold": "Bold",
+    "box": "Box",
+    "sorot": "Sorot",
+    "sinar": "Sinar"
+  },
+  "position": {
+    "top": "Atas",
+    "middle": "Tengah",
+    "bottom": "Bawah"
+  },
+  "size": {
+    "small": "Kecil",
+    "medium": "Sedang",
+    "large": "Besar"
+  },
+  "language": {
+    "id": "Indonesia",
+    "en": "Inggris",
+    "auto": "Deteksi otomatis"
+  },
+  "look": {
+    "label": "Pratinjau {ratio}: {layout}, {style}",
+    "zone": "Area tombol TikTok",
+    "inZone": "Subtitle dekat area tombol TikTok",
+    "advanced": "Lanjutan · {position} · {size}",
+    "position": "Posisi",
+    "size": "Ukuran",
+    "editor": "Bisa diubah per klip di Edit klip",
+    "legacyEditor": "Geser per klip di Edit klip"
+  },
+  "hook": {
+    "both": "Cold open · Teks",
+    "coldOpen": "Cold open",
+    "text": "Teks hook",
+    "none": "Mati"
+  },
+  "focus": {
+    "terms": "Cari momen tentang",
+    "list": "Kata kunci",
+    "remove": "Hapus {term}",
+    "full": "Maksimal {max} kata kunci",
+    "more": "Tambah kata kunci",
+    "example": "prank, tips kerja",
+    "help": "Pisahkan dengan koma atau Enter",
+    "note": "Catatan untuk AI",
+    "noteExample": "momen prank yang bikin ketawa",
+    "noteOff": "Tanpa AI, catatan tidak dipakai",
+    "ranges": "Rentang waktu",
+    "rangesHint": "{min}–{max} dtk per rentang"
+  },
+  "problem": {
+    "linkEmpty": "Tempel link YouTube atau pilih file",
+    "linkInvalid": "Link harus https:// dari youtube.com atau youtu.be",
+    "videoMissing": "Pilih file video",
+    "videoFormat": "Pakai MP4, MOV, MKV atau WEBM",
+    "srtType": "Subtitle harus file .srt",
+    "srtEmpty": "File .srt kosong",
+    "srtTooLarge": "File maks 2 MB",
+    "count": "Isi {min} sampai {max} klip",
+    "seconds": "Isi {min} sampai {max} detik",
+    "durationOrder": "Maksimum tidak boleh kurang dari minimum"
+  }
+}

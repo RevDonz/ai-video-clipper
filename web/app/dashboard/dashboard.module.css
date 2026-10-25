@@ -1,396 +1,188 @@
-/* Buat klip: one form on the left, the job's progress and clips on the right (stacked below
-   1180 px, where the sidebar leaves too little room for two columns). Tokens and building
-   blocks (.panel, .btn) come from app/globals.css.
-   The form opens with the one decision made every time, the video and Buat klip in one row;
-   the essentials (jumlah, rasio, durasi, layout) stay open under it, and the options changed
-   less often sit in three labelled folds, each naming what is chosen inside it.
-   RHYTHM 1: every group has the same shape, title then controls.
-   Lime appears once, on the submit button; selected options use the light edge instead. */
+/* Buat klip (05-ui-dashboard.md §6.3): one composer card, the link and Buat klip in its first row,
+   a file row, then the valued chips; the four newest projects under it. Tokens come from
+   app/globals.css. Lime appears once, on Buat klip (P1); a chosen option uses the text colour and
+   the lighter surface (P9). The popovers are portalled, so their controls are styled here by class.
+   Below 560 px the row stacks: link, file, chips, and Buat klip full width at the end. */
 
+.page { padding-bottom: 48px; }
+.alert { margin-bottom: 12px; }
+.alertActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-left: auto; }
+.textLink { color: var(--text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.textLink:hover { color: var(--text-muted); }
 
-.banner {
+.composer {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 18px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  border: 1px solid;
-  border-radius: var(--radius-l);
-  color: var(--text);
-  font-size: 14px;
-  animation: rise-in var(--dur-3) var(--ease-out);
-}
-.banner > div { display: grid; gap: 2px; }
-.bannerDanger { border-color: var(--danger-border); background: var(--danger-bg); }
-.bannerDanger strong { color: var(--danger); }
-.bannerWarning { border-color: var(--warning-border); background: var(--warning-bg); }
-.bannerWarning strong { color: var(--warning); }
-.banner :global(.btn) { flex: none; }
-.banner > .bannerActions { display: flex; flex-wrap: wrap; gap: 8px; }
-
-.workspace { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 20px; align-items: start; padding-bottom: 48px; }
-
-/* Form */
-.form {
-  container-type: inline-size;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
-  padding: 20px 24px 24px;
-  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  transition: border-color var(--dur-2) var(--ease-out);
 }
-/* A file dragged over the page: the form is where it lands. */
-.form.dragging { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
-.section { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 20px 0; border: 0; border-top: 1px solid var(--border); }
-.section:first-child { border-top: 0; }
-/* A legend floats so the fieldset lays it out like the other sections' h2. */
-legend.sectionTitle, legend.groupTitle { float: left; width: 100%; padding: 0; }
-legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
-.sectionTitle { margin: 0; color: var(--text); font: 600 16px/1.3 var(--font); }
-.group { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
-.groupTitle { margin: 0 0 8px; color: var(--text); font: 600 13px/1.3 var(--font); }
+.composer[data-dragging] { border-color: var(--text); }
 
-/* Source row: link (or the chosen file), "Pilih file", then Buat klip. */
-.source { display: grid; gap: 8px; padding-bottom: 16px; }
-.sourceRow { display: flex; flex-wrap: wrap; gap: 8px; }
-.sourceRow > .url, .fileBox { flex: 1 1 220px; width: auto; min-width: 0; }
-.fileBox {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.sourceRow { display: flex; gap: 8px; min-width: 0; }
+.linkField { flex: 1 1 auto; min-width: 0; }
+.submit { flex: none; min-height: 48px; padding-inline: 22px; background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+.input {
+  width: 100%;
   min-height: 48px;
-  padding: 2px 2px 2px 14px;
+  padding: 0 14px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-m);
   background: var(--surface-2);
-  animation: fade-in var(--dur-2) var(--ease-out);
-}
-.fileBox span { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font: 500 15px/1.3 var(--font); text-overflow: ellipsis; white-space: nowrap; }
-.fileBox button {
-  flex: none;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--text-muted);
-  font: 400 22px/1 var(--font);
-  cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
-}
-.fileBox button:hover { background: var(--surface-3); color: var(--text); }
-.pick { position: relative; flex: none; min-height: 48px; }
-/* Visually hidden, not display:none: Tab still reaches the file input, and the label shows its focus. */
-.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.pick:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
-.pick.pickInvalid { border-color: var(--danger); }
-.help { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
-/* The optional .srt sits under the video it belongs to, in the same file-box shape. */
-.subtitleRow { display: flex; flex-wrap: wrap; gap: 8px; animation: fade-in var(--dur-2) var(--ease-out); }
-.subtitleRow .pick:not(.pickInvalid) { border-color: var(--border); }
-.languageNotice { margin: 12px 0 0; font-size: 13px; }
-
-/* The essentials: Jumlah klip beside Rasio, then Durasi and the three layouts. */
-.basics { gap: 18px; margin-top: 16px; padding-bottom: 8px; }
-.basicsRow { display: flex; flex-wrap: wrap; align-items: start; gap: 12px 20px; }
-.basicsRow > .limitField { flex: 0 1 140px; }
-.basicsRow > .ratioGroup { flex: 1 1 260px; gap: 0; }
-.ratioGroup > .groupTitle { margin-bottom: 6px; }
-.basicsRow .input, .ratioGroup .pill { min-height: 56px; }
-/* The layouts as three tiles: the drawing on top, its name and what it does below. */
-.layouts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.layouts .choice { position: relative; grid-template-columns: minmax(0, 1fr); align-items: start; align-content: start; gap: 10px; padding: 14px; }
-.layouts .choice input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.layouts .frame { margin: 0; }
-@container (max-width: 520px) {
-  .layouts { grid-template-columns: minmax(0, 1fr); }
-  .layouts .choice { grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 12px; }
-}
-.inlineLink { font-weight: 600; text-underline-offset: 3px; }
-
-/* The three folds: each heading button carries the fold's name and what is chosen inside it. */
-.fold { display: grid; margin-top: 8px; }
-.fold:first-of-type { margin-top: 12px; }
-.foldHeading { margin: 0; font: inherit; }
-.optionsToggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  min-height: 56px;
-  padding: 10px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-l);
-  background: var(--surface-2);
   color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+  font: 15px/1.4 var(--font);
 }
-.optionsToggle:hover { border-color: var(--border-strong); background: var(--surface-3); }
-.optionsToggle > span { display: grid; gap: 2px; min-width: 0; }
-.optionsToggle strong { font: 600 14px/1.3 var(--font); }
-.optionsToggle > span > span { color: var(--text-muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
-.chevron {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  margin: 0 4px 4px;
-  border-right: 2px solid var(--text-muted);
-  border-bottom: 2px solid var(--text-muted);
-  transform: rotate(45deg);
-  transition: transform var(--dur-2) var(--ease-out);
-}
-.optionsToggle[aria-expanded="true"] .chevron { margin: 4px 4px 0; transform: rotate(-135deg); }
-.options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 18px 2px 14px; animation: rise-in var(--dur-3) var(--ease-out); }
-/* The class sets display, so the hidden attribute needs its own rule. */
-.options[hidden] { display: none; }
-
-.field { display: grid; gap: 6px; min-width: 0; align-content: start; }
-.field > label { color: var(--text); font: 600 13px/1.3 var(--font); }
-.input { width: 100%; min-height: 48px; padding: 12px 14px; font: 500 15px var(--font); }
-.input:focus-visible { border-color: var(--focus); }
+.input::placeholder { color: var(--text-muted); }
+.input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .input[aria-invalid="true"] { border-color: var(--danger); }
-.fieldError { margin: 0; color: var(--danger); font: 600 13px/1.45 var(--font); animation: fade-in var(--dur-2) var(--ease-out); }
-/* Rentang waktu: room for two or three typed ranges, one per line if the person likes. */
-.ranges { display: block; min-height: 72px; resize: vertical; line-height: 1.45; }
+textarea.input { min-height: 72px; padding: 10px 14px; resize: vertical; }
+.ranges { font-variant-numeric: tabular-nums; }
 
-.limitField { max-width: 160px; }
-.limitField .input { max-width: 140px; }
-.numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 4px; animation: rise-in var(--dur-2) var(--ease-out); }
-.unit { position: relative; }
-.unit .input { padding-right: 58px; }
-.unit > span { position: absolute; top: 50%; right: 14px; transform: translateY(-50%); color: var(--text-muted); font-size: 13px; pointer-events: none; }
-
-/* Duration presets and video language: short radio pills, the radio itself hidden but focusable. */
-.pills { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; }
-.pill {
+.fileRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.pick {
   position: relative;
-  display: grid;
-  align-content: center;
-  gap: 2px;
-  min-height: 48px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-m);
-  background: var(--surface-2);
-  cursor: pointer;
-  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
-}
-.pill input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
-.pill strong { color: var(--text); font: 600 14px/1.3 var(--font); }
-.pill small { color: var(--text-muted); font-size: 12px; line-height: 1.35; }
-.pill:hover { border-color: var(--border-strong); background: var(--surface-3); }
-.pill.selected { border-color: var(--text); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--text); }
-.pill:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-.choices { display: grid; gap: 8px; }
-.choice {
-  display: grid;
-  grid-template-columns: 18px 34px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-l);
-  background: var(--surface-2);
-  cursor: pointer;
-  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
-}
-.choice.compact { grid-template-columns: 18px minmax(0, 1fr); align-items: start; }
-.choice:hover { border-color: var(--border-strong); background: var(--surface-3); }
-.choice.selected { border-color: var(--text); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--text); }
-.choice:has(input:focus-visible), .toggle:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-.choice input, .toggle input { width: 18px; height: 18px; margin: 0; }
-.choice.compact input { margin-top: 1px; }
-.choiceText { display: grid; gap: 3px; min-width: 0; }
-.choiceText strong { font: 600 14px/1.3 var(--font); }
-.choiceText small { color: var(--text-muted); font-size: 13px; line-height: 1.45; }
-
-
-/* A 9:16 frame showing how the landscape picture sits in it (1:1 when that ratio is chosen). */
-.frame { position: relative; display: block; width: 26px; height: 40px; margin: auto; overflow: hidden; border: 2px solid var(--text-muted); border-radius: 6px; background: var(--surface-3); }
-.frame i { position: absolute; background: var(--border-strong); }
-.fit-blur { background: repeating-linear-gradient(135deg, var(--surface-3) 0 3px, var(--border) 3px 6px); }
-.fit-blur i { left: 0; right: 0; top: 12px; height: 12px; }
-.face-track i { left: 6px; top: 8px; width: 10px; height: 14px; border-radius: 50%; box-shadow: 0 12px 0 4px var(--border-strong); }
-.center-crop i { inset: 0 5px; }
-.choice.selected .frame { border-color: var(--text); }
-.squareFrames .frame { height: 26px; }
-.squareFrames .fit-blur i { top: 5px; height: 12px; }
-.squareFrames .face-track i { top: 3px; }
-
-.toggles { display: grid; gap: 4px; padding: 4px 14px; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface-2); }
-.toggle { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 12px; min-height: 44px; padding: 10px 0; border-radius: var(--radius-s); cursor: pointer; }
-.toggle + .toggle { border-top: 1px solid var(--border); }
-.toggle input { margin-top: 1px; }
-
-.aiStatus { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.45; }
-.aiStatus > i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); transition: background-color var(--dur-2) var(--ease-out); }
-.aiStatus > span { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
-.aiStatus.ok > i { background: var(--success); }
-.aiStatus.ok > span { color: var(--text); }
-.aiStatus.muted > span { color: var(--text-muted); }
-.aiStatus.warning > i { background: var(--warning); }
-.aiStatus a, .resultsHead a, .projectLink {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  border-radius: var(--radius-s);
-  color: var(--info);
-  font: 600 14px var(--font);
-  text-decoration: none;
-}
-.aiStatus a:hover, .resultsHead a:hover, .projectLink:hover { text-decoration: underline; }
-
-.submit {
-  flex: none;
-  min-height: 48px;
-  padding: 12px 22px;
-  border: 0;
-  border-radius: var(--radius-l);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font: 700 16px/1.2 var(--font);
-  cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
-}
-.submit:hover { background: var(--accent-hover); }
-.submit:active { transform: translateY(1px); }
-.submit:disabled { background: var(--surface-3); color: var(--text-muted); cursor: not-allowed; transform: none; }
-.message { margin: 0; color: var(--success); font: 600 14px/1.45 var(--font); animation: fade-in var(--dur-2) var(--ease-out); }
-.messageError { color: var(--danger); }
-.messageLink { border-radius: var(--radius-s); white-space: nowrap; }
-
-/* Hasil */
-.results { position: sticky; top: 20px; min-width: 0; padding: 20px 24px 24px; }
-.resultsHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.resultsHead h2 { margin: 0; font: 600 16px/1.3 var(--font); }
-
-.state { display: grid; justify-items: start; gap: 6px; padding: 28px 0 20px; color: var(--text-muted); font-size: 14px; }
-.state strong { color: var(--text); font: 600 15px/1.35 var(--font); }
-.state p { margin: 0; max-width: 34ch; line-height: 1.5; }
-.state :global(.btn) { margin-top: 6px; }
-
-.job { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-top: 8px; animation: fade-in var(--dur-2) var(--ease-out); }
-.jobState {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-l);
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
   background: var(--surface-2);
-  transition: background-color var(--dur-3) var(--ease-out), border-color var(--dur-3) var(--ease-out);
+  color: var(--text);
+  font: 600 14px/1.2 var(--font);
+  cursor: pointer;
 }
-.jobState > div { display: grid; gap: 3px; min-width: 0; }
-.jobState small { overflow: hidden; color: var(--text-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.jobState strong { font: 700 15px/1.3 var(--font); }
-/* "Tahap 4 dari 8" beside the stage: quieter than it, numbers that do not jump. */
-.jobStep { margin-left: 8px; color: var(--text-muted); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.jobState > b { flex: none; font: 700 22px/1 var(--font); font-variant-numeric: tabular-nums; }
-.jobState.completed { border-color: var(--success-border); background: var(--success-bg); }
-.jobState.completed > b { color: var(--success); }
-.jobState.failed { border-color: var(--danger-border); background: var(--danger-bg); }
-.jobState.failed > b { color: var(--danger); }
+.pick:hover { background: var(--surface-3); }
+.pick:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+.pick[data-invalid] { border-color: var(--danger); }
+.pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.fileBox {
+  display: flex;
+  flex: 1 1 220px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 48px;
+  padding-left: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+.fileBox span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.remove { flex: none; width: 44px; height: 44px; border: 0; border-radius: var(--radius-m); background: transparent; color: var(--text-muted); font-size: 20px; cursor: pointer; }
+.remove:hover { color: var(--text); }
+.remove:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
-.progress { height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-3); }
-.progress i { position: relative; display: block; height: 100%; overflow: hidden; border-radius: inherit; background: var(--accent); transition: width calc(var(--dur-3) * 2) var(--ease-out); }
-/* While the worker runs, a soft sheen shows it is alive between progress updates. */
-.progress i::after {
-  content: "";
+.fieldError { display: block; color: var(--danger); font-size: 13px; line-height: 1.4; }
+.hint { display: block; color: var(--text-muted); font-size: 13px; line-height: 1.4; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.chipSlot { min-width: 0; max-width: 100%; }
+
+.submitError {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-m);
+  background: var(--danger-bg);
+  color: var(--text);
+  font-size: 14px;
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+
+/* A file dragged over the page: the composer is where it lands. */
+.dropOverlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, var(--sheen), transparent);
-  transform: translateX(-100%);
-  animation: progress-sheen 1.8s var(--ease-in-out) infinite;
-}
-.progressDone i::after { display: none; }
-.progressFailed i { background: var(--danger); }
-/* A cancelled bar stays where the job stopped, neutral: nobody failed. */
-.progressCancelled i { background: var(--text-muted); }
-
-/* The live line, with "Batalkan" at its end; the confirmation takes the full width below. */
-.activityRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
-.activityRow > .activity { flex: 1 1 12rem; min-width: 0; }
-.activity { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.45; }
-.activity > i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
-.activity.queued > i { background: var(--text-muted); }
-
-.failure { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--danger-border); border-radius: var(--radius-m); background: var(--danger-bg); font-size: 14px; line-height: 1.5; }
-.failure strong { color: var(--text); font-weight: 600; }
-.failure summary { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-muted); font: 600 13px var(--font); cursor: pointer; border-radius: var(--radius-s); }
-.failure details p { margin: 0; color: var(--text-muted); font-size: 13px; overflow-wrap: anywhere; }
-/* The failure's entry on /bantuan (only for failures with a code). */
-.failureLink { justify-self: start; display: inline-flex; align-items: center; min-height: 44px; border-radius: var(--radius-s); font-weight: 600; text-decoration: none; }
-.failureLink:hover { text-decoration: underline; }
-
-.clips { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.clip { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface-2); animation: rise-in var(--dur-3) var(--ease-out); }
-.clip video { display: block; width: 100%; height: 260px; background: var(--bg); object-fit: contain; }
-/* A clip that failed to render: a short frame saying so where the video would be (there is
-   nothing to play, so it takes less room than a player). */
-.clipFailed { display: grid; align-content: center; justify-items: center; gap: 8px; min-height: 140px; padding: 16px; background: var(--bg); text-align: center; }
-.clipFailed p { margin: 0; color: var(--text); font: 600 14px/1.5 var(--font); }
-.clipBody { display: grid; gap: 6px; padding: 14px; }
-.clipBody > small { color: var(--text-muted); font-size: 13px; }
-.clipBody h3 { margin: 0; font: 600 15px/1.35 var(--font); letter-spacing: -.01em; overflow-wrap: anywhere; }
-.hook { display: flex; align-items: baseline; gap: 8px; margin: 2px 0; padding: 8px 10px; border-radius: var(--radius-s); background: var(--surface-3); color: var(--text); font: 600 14px/1.4 var(--font); overflow-wrap: anywhere; }
-.hook span { flex: none; color: var(--text-muted); font: 600 13px/1.4 var(--font); }
-.description { display: -webkit-box; margin: 0; overflow: hidden; color: var(--text-muted); font-size: 14px; line-height: 1.5; white-space: pre-line; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
-.clipActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-.clipActions :global(.btn) { flex: 1 1 auto; }
-
-.waiting { margin: 0; color: var(--text-muted); font-size: 14px; }
-.projectLink { justify-self: start; }
-
-.history { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
-.history h3 { margin: 0 0 6px; color: var(--text-muted); font: 600 13px var(--font); }
-/* minmax(0, 1fr): a long file name is cut with an ellipsis instead of widening the page. */
-.history ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
-.history button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: var(--radius-s);
-  background: transparent;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--text);
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
   color: var(--text);
-  font: 500 14px var(--font);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out);
+  font: 700 18px/1.2 var(--font);
+  pointer-events: none;
 }
-.history button:hover { background: var(--surface-2); }
-.history button[aria-pressed="true"] { background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--border-strong); }
-.history button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.history button b { flex: none; color: var(--text-muted); font-weight: 500; font-size: 13px; }
-.history button b.status_completed { color: var(--success); }
-.history button b.status_failed { color: var(--danger); }
 
-/* With the sidebar beside it the page column is 232 px narrower: two columns from 1180 px only.
-   (app/dashboard/page.jsx scrolls to Hasil below the same width.) */
-@media (max-width: 1179px) {
-  .workspace { grid-template-columns: minmax(0, 1fr); }
-  .results { position: static; }
+/* --- Inside the popovers -------------------------------------------------------------------- */
+.field { display: grid; gap: 6px; min-width: 0; }
+.numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.groupLabel { color: var(--text); font: 600 13px/1.3 var(--font); }
+.choices { display: grid; gap: 2px; min-width: 0; }
+.choice { min-width: 0; }
+.choiceContent { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px; border-radius: var(--radius-s); cursor: pointer; }
+.choiceContent:hover { background: var(--surface-3); }
+.choiceName { min-width: 0; color: var(--text); font-size: 14px; }
+.segmentedField { display: grid; gap: 6px; }
+.segmented { display: flex; flex-wrap: wrap; }
+.switch { min-height: 44px; }
+
+.look { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: start; }
+.styles { gap: 4px; }
+.thumb { display: block; width: 96px; height: auto; aspect-ratio: 4 / 1; border-radius: var(--radius-s); }
+.advanced { border-top: 1px solid var(--border); padding-top: 8px; }
+.advanced summary { min-height: 44px; display: flex; align-items: center; color: var(--text); font: 600 13px/1.3 var(--font); cursor: pointer; }
+.advanced summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-s); }
+.advancedBody { display: grid; gap: 12px; padding-top: 4px; }
+
+/* A 9:16 frame showing how the landscape picture sits in it (1:1 when that ratio is chosen). */
+.frame { position: relative; display: block; flex: none; width: 22px; height: 36px; overflow: hidden; border: 2px solid var(--text-muted); border-radius: 5px; background: var(--surface-3); }
+.frame i { position: absolute; background: var(--border-strong); }
+.fit-blur { background: repeating-linear-gradient(135deg, var(--surface-3) 0 3px, var(--border) 3px 6px); }
+.fit-blur i { left: 0; right: 0; top: 11px; height: 10px; }
+.face-track i { left: 4px; top: 7px; width: 10px; height: 12px; border-radius: 50%; box-shadow: 0 11px 0 3px var(--border-strong); }
+.center-crop i { inset: 0 4px; }
+.squareFrame { height: 22px; }
+.squareFrame.fit-blur i { top: 4px; height: 10px; }
+.squareFrame.face-track i { top: 2px; }
+
+/* --- Terbaru -------------------------------------------------------------------------------- */
+.recent { display: grid; gap: 12px; margin-top: 28px; }
+.recentHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.recentHead h2 { margin: 0; font: 700 18px/1.2 var(--font); }
+.recentList { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.recentSkeleton { aspect-ratio: 9 / 16; border-radius: var(--radius-m); }
+.recentCard {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--dur-1) var(--ease-out);
 }
+.recentCard:hover { border-color: var(--border-strong); }
+.recentCard:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.recentPoster { display: block; overflow: hidden; aspect-ratio: 9 / 16; border-radius: var(--radius-m); background: var(--surface-3); }
+.recentPoster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.recentName { overflow: hidden; font: 600 14px/1.3 var(--font); text-overflow: ellipsis; white-space: nowrap; }
+.recentMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--text-muted); font-size: 13px; }
+.loadError { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: var(--text-muted); }
+
+@media (max-width: 900px) {
+  .recentList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 560px) {
-  .banner { flex-direction: column; align-items: stretch; }
-  .banner > .bannerActions > :global(.btn) { flex: 1 1 auto; }
-  .form { padding: 16px 16px 20px; }
-  /* The link takes the whole width; "Pilih file" and Buat klip share the line under it. */
-  .sourceRow > .url, .fileBox { flex-basis: 100%; }
-  .subtitleRow .pick { flex: 1 1 100%; }
-  .pick, .submit { flex: 1 1 0; padding-inline: 12px; }
-  .optionsToggle { padding: 10px 12px; }
-  .results { padding: 16px; }
-  .clip video { height: 300px; }
+  .composer { padding: 16px; }
+  /* Link, file row, chips, then Buat klip full width under the chips. */
+  .sourceRow { display: contents; }
+  .submit { order: 10; width: 100%; }
+  .look { grid-template-columns: 88px minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer, .recentCard { transition: none; }
+  .submitError { animation: none; }
 }

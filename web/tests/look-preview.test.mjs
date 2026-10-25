@@ -153,18 +153,24 @@ test("the dashboard offers every caption pack the automatic render draws, each w
   for (const style of offered) assert.ok(thumbs.packs[style], `${style} has a rendered thumbnail`);
 });
 
+// In the Subtitle chip's popover (05 §6.3); the page words the preview's name and notes in the UI
+// language (messages/*/dashboard.json look.*), from the same flags lookPreview gives.
 test("the page shows the preview beside the styles: a thumbnail on every style, the note under them", () => {
   const page = read("web", "app", "dashboard", "page.jsx");
   assert.match(page, /const look = lookPreview\(choices, \{ editor: editorOn, engine: renderEngine \}\);/);
-  assert.match(page, /<LookPreview look=\{look\} \/>/);
+  assert.match(page, /<LookPreview look=\{look\} label=\{lookLabel\} zoneText=\{t\("look\.zone"\)\} \/>/);
   assert.match(page, /setEditorOn\(payload\.editor === true\)/);
   assert.match(page, /src=\{imageSrc\(PACK_IMAGES\[style\.id\]\)\}/);
-  assert.match(page, /<fieldset className=\{styles\.group\} aria-describedby=\{look\.note \? "caption-style-help" : undefined\}>/);
-  assert.match(page, /\{look\.note && <p id="caption-style-help" className=\{styles\.help\}>\{look\.note\}<\/p>\}/);
+  // The note: where the subtitle sits, then (editor on only) that Edit klip changes it per clip.
+  assert.match(page, /const editorNote = !editorOn \? null : renderEngine === "legacy" \? t\("look\.legacyEditor"\) : t\("look\.editor"\);/);
+  assert.match(page, /const lookNote = \[look\.captionInZone \? t\("look\.inZone"\) : null, editorNote\]/);
+  assert.match(page, /describedBy=\{lookNote \? "caption-style-help" : undefined\}/);
+  assert.match(page, /\{lookNote && <span id="caption-style-help" className=\{styles\.hint\}>\{lookNote\}<\/span>\}/);
   const preview = read("web", "app", "dashboard", "LookPreview.jsx");
   assert.match(preview, /role="img"/);
-  assert.match(preview, /aria-label=\{look\.label\}/);
+  assert.match(preview, /aria-label=\{label\}/);
   assert.match(preview, /viewBox=\{`0 0 \$\{look\.frame\.w\} \$\{look\.frame\.h\}`\}/);
-  assert.match(preview, /Area tombol TikTok/);
+  assert.match(preview, /\{zoneText\}<\/figcaption>/);
+  assert.equal(json("web", "messages", "id", "dashboard.json").look.zone, "Area tombol TikTok");
   assert.doesNotMatch(preview, /—/);
 });
