@@ -1,6 +1,7 @@
 // The help page's catalogue (lib/help-catalog.mjs): one entry per error code, the search that
 // opens the best entry for a pasted error, and the links the pages put under their error
-// messages. The page itself and those links in the pages: help-page.test.mjs.
+// messages; the entries' words in every locale's catalog (help.entries, read by
+// lib/help-view.mjs). The page itself and those links in the pages: help-page.test.mjs.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -9,12 +10,15 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { createTranslator } from "use-intl/core";
+
 import { STORAGE_ERROR_CODES, storageMessage } from "../lib/dashboard-view.mjs";
 import { DOWNLOAD_ERROR_CODES, classifyDownloadError, downloadErrorMessage } from "../lib/download-errors.mjs";
 import {
   HELP_ENTRIES,
   HELP_GROUPS,
   MAX_HELP_QUERY,
+  buildHelpIndex,
   findHelpEntry,
   helpAnchors,
   helpEntry,
@@ -24,6 +28,10 @@ import {
   normalizeErrorText,
   storageHelpHref,
 } from "../lib/help-catalog.mjs";
+import { HELP_ENTRIES as ENTRY_LIST } from "../lib/help-catalog.mjs";
+import { helpEntryView, helpGroupsView, helpSearchIndex, helpSearchTexts, helpTitles, shownTexts } from "../lib/help-view.mjs";
+import { loadNamespace, loadNamespaces } from "../lib/i18n/catalog.mjs";
+import { LOCALES } from "../lib/i18n/locales.mjs";
 import { CHECK_CODES, checkMessage } from "../lib/llm-settings-actions.mjs";
 import { selectionNotices } from "../lib/selection-v3-view.mjs";
 
@@ -41,7 +49,14 @@ async function engineErrorCodes() {
   return JSON.parse(stdout);
 }
 
-const idOf = (text) => findHelpEntry(text)?.entry.id ?? null;
+// The translators the page gets from getT(locale, namespace), built from the same catalogs.
+const INTL = Object.fromEntries(LOCALES.map((entry) => [entry.code, entry.intl]));
+const translator = (code, namespace) => createTranslator({ locale: INTL[code], messages: loadNamespaces(code, [namespace]), namespace });
+const view = (code, entry) => helpEntryView(translator(code, "help"), translator(code, "errors"), entry);
+// The index the page builds: every locale's catalog text on top of the codes and fragments.
+const INDEX = await helpSearchIndex(translator);
+
+const idOf = (text) => findHelpEntry(text, INDEX)?.entry.id ?? null;
 
 // --- Every code has an entry ----------------------------------------------------------------
 
@@ -56,14 +71,21 @@ test("every download code has its own entry, anchored at the code itself", () =>
 });
 
 test("a bot check and an age gate point to the YouTube cookies in Pengaturan", () => {
-  const bot = helpEntry("download_bot_check");
+  const bot = view("id", helpEntry("download_bot_check"));
+  assert.equal(helpEntry("download_bot_check").action.href, "/settings");
   assert.equal(bot.action.href, "/settings");
   assert.match(bot.steps[0], /cookies YouTube di Pengaturan/);
   assert.ok(bot.steps.some((step) => /akun Google terpisah/.test(step)), "a separate Google account");
   assert.ok(bot.steps.some((step) => /[Uu]nggah file videonya/.test(step)), "uploading the file stays an option");
-  assert.ok(helpEntry("download_age_restricted").steps.some((step) => /cookies YouTube/.test(step)));
-  for (const entry of HELP_ENTRIES) {
-    for (const text of [entry.cause, ...entry.steps]) assert.doesNotMatch(text, /belum mendukung cookies/i, entry.id);
+  assert.ok(view("id", helpEntry("download_age_restricted")).steps.some((step) => /cookies YouTube/.test(step)));
+  const botEn = view("en", helpEntry("download_bot_check"));
+  assert.match(botEn.steps[0], /YouTube cookies in Settings/);
+  assert.ok(botEn.steps.some((step) => /separate Google account/.test(step)));
+  for (const { code } of LOCALES) {
+    for (const entry of HELP_ENTRIES) {
+      const { cause, steps } = view(code, entry);
+      for (const text of [cause, ...steps]) assert.doesNotMatch(text, /belum mendukung cookies|not support cookies/i, `${code}: ${entry.id}`);
+    }
   }
 });
 
@@ -131,30 +153,126 @@ test("entries are unique, grouped, and every anchor is a safe id", () => {
       assert.match(anchor, /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/, anchor);
       assert.equal(helpEntry(anchor), entry, anchor);
     }
-    assert.ok(Object.isFrozen(entry) && Object.isFrozen(entry.steps));
+    assert.ok(Object.isFrozen(entry) && Object.isFrozen(entry.codes) && Object.isFrozen(entry.shown));
   }
   // Grouped in page order: every group's entries sit together.
   const order = HELP_ENTRIES.map((entry) => groups.indexOf(entry.group));
   assert.deepEqual(order, [...order].sort((a, b) => a - b));
 });
 
-test("each entry says what happened and how to fix it, in short Indonesian without an em dash", () => {
-  for (const entry of HELP_ENTRIES) {
-    const texts = [entry.title, entry.cause, ...entry.steps, ...entry.shown, entry.action?.label ?? ""];
-    assert.ok(entry.title.length <= 48, `${entry.id} title: ${entry.title}`);
-    assert.ok(entry.cause.length >= 20 && entry.cause.length <= 260, `${entry.id} cause`);
-    assert.ok(entry.steps.length >= 1 && entry.steps.length <= 4, `${entry.id} steps`);
-    for (const step of entry.steps) assert.ok(step.length <= 180 && /[.)]$/.test(step), `${entry.id} step: ${step}`);
-    for (const text of texts) {
-      assert.doesNotMatch(text, /—|\bV[1-3]\b|\b(?:Hot|viral)\b/, `${entry.id}: ${text}`);
+test("each entry says what happened and how to fix it, short and without an em dash, in every locale", () => {
+  for (const { code } of LOCALES) {
+    for (const entry of HELP_ENTRIES) {
+      const shown = view(code, entry);
+      const label = `${code}: ${entry.id}`;
+      const texts = [shown.title, shown.cause, ...shown.steps, ...shown.shown, shown.action?.label ?? ""];
+      assert.ok(shown.title.length <= 48, `${label} title: ${shown.title}`);
+      assert.ok(shown.cause.length >= 20 && shown.cause.length <= 260, `${label} cause`);
+      assert.ok(shown.steps.length >= 1 && shown.steps.length <= 4, `${label} steps`);
+      for (const step of shown.steps) assert.ok(step.length <= 180 && /[.)]$/.test(step), `${label} step: ${step}`);
+      for (const text of texts) {
+        assert.doesNotMatch(text, /—|\bV[1-3]\b|\b(?:Hot|viral)\b/, `${label}: ${text}`);
+      }
+      if (entry.action) assert.ok(["/dashboard", "/projects", "/settings"].includes(entry.action.href), entry.id);
     }
-    if (entry.action) assert.ok(["/dashboard", "/projects", "/settings"].includes(entry.action.href), entry.id);
+  }
+});
+
+test("the catalog holds exactly the entries, groups and links of the code lists, in every locale", () => {
+  const ids = HELP_ENTRIES.map((entry) => entry.id).sort();
+  for (const { code } of LOCALES) {
+    const help = loadNamespace(code, "help");
+    assert.deepEqual(Object.keys(help.entries).sort(), ids, `${code}: help.entries`);
+    assert.deepEqual(Object.keys(help.groups), HELP_GROUPS.map((group) => group.id), `${code}: help.groups`);
+    for (const id of ids) {
+      const { title, cause, fix } = help.entries[id];
+      assert.ok(typeof title === "string" && typeof cause === "string", `${code}: ${id}`);
+      const steps = Object.keys(fix);
+      assert.deepEqual(steps, steps.map((_, index) => String(index + 1)), `${code}: ${id} fix steps are 1..n`);
+      assert.deepEqual(Object.keys(help.entries[id]).sort(), ["cause", "fix", "title"], `${code}: ${id} keys`);
+    }
+    for (const group of HELP_GROUPS) assert.deepEqual(Object.keys(help.groups[group.id]).sort(), ["intro", "title"], `${code}: ${group.id}`);
+    const used = new Set(HELP_ENTRIES.filter((entry) => entry.action).map((entry) => entry.action.key));
+    for (const key of used) assert.equal(typeof help.actions[key], "string", `${code}: help.actions.${key}`);
+  }
+  // Every entry reads in each language: the English page is not the Indonesian one.
+  for (const entry of HELP_ENTRIES) assert.notEqual(view("en", entry).title, view("id", entry).title, entry.id);
+});
+
+test("the page's groups hold every entry once, under its anchors, in every locale", () => {
+  for (const { code } of LOCALES) {
+    const groups = helpGroupsView(translator(code, "help"), translator(code, "errors"));
+    assert.deepEqual(groups.map((group) => group.anchor), HELP_GROUPS.map((group) => `grup-${group.id}`));
+    assert.deepEqual(groups.flatMap((group) => group.entries.map((entry) => entry.id)), HELP_ENTRIES.map((entry) => entry.id));
+    for (const group of groups) {
+      assert.ok(group.title && group.intro, `${code}: ${group.id}`);
+      for (const entry of group.entries) assert.deepEqual(entry.anchors, helpAnchors(helpEntry(entry.id)), `${code}: ${entry.id}`);
+    }
+    const titles = helpTitles(translator(code, "help"));
+    assert.deepEqual(Object.keys(titles), HELP_ENTRIES.map((entry) => entry.id));
   }
 });
 
 test("download and storage entries quote the message the pages show for that code", () => {
   for (const code of DOWNLOAD_ERROR_CODES) assert.deepEqual(helpEntry(code).shown, [downloadErrorMessage(code).text], code);
   for (const code of STORAGE_ERROR_CODES) assert.equal(helpEntry(code).shown[0], storageMessage(code), code);
+});
+
+// A stand-in for the errors namespace of a locale whose catalog has the given messages.
+function errorsWith(messages) {
+  const flat = new Map(Object.entries(messages));
+  return { has: (key) => flat.has(key), raw: (key) => flat.get(key) };
+}
+
+test("an entry shows the message of its code from the locale's errors catalog, else the Indonesian one", () => {
+  const entry = helpEntry("download_private");
+  assert.deepEqual(shownTexts(entry, errorsWith({})), [downloadErrorMessage("download_private").text]);
+  assert.deepEqual(shownTexts(entry, errorsWith({ "download.download_private": "This video is private." })), ["This video is private."]);
+  const timeout = helpEntry("llm_timeout");
+  assert.deepEqual(shownTexts(timeout, errorsWith({})), [], "AI codes carry no Indonesian text of their own");
+  assert.deepEqual(shownTexts(timeout, errorsWith({ "llm.timeout": "Too slow.", "llm.deadline": "Too slow." })), ["Too slow."]);
+  assert.deepEqual(shownTexts(helpEntry("storage_free_space_low"), errorsWith({ "storage.storage_free_space_low": "Disk almost full." })), ["Disk almost full."]);
+});
+
+test("the search knows every locale: a message pasted from either UI language opens its entry", () => {
+  // The index the page uses is built over every registered locale, enabled or not.
+  const id = loadNamespace("id", "help").entries;
+  const en = loadNamespace("en", "help").entries;
+  assert.equal(idOf(en.download_stalled.cause), "download_stalled");
+  assert.equal(idOf(id.download_stalled.cause), "download_stalled");
+  assert.equal(findHelpEntry("download progress stopped moving", INDEX)?.entry.id, "download_stalled");
+  assert.equal(findHelpEntry("download progress stopped moving", INDEX)?.by, "words");
+  assert.equal(idOf(en.download_bot_check.title), "download_bot_check");
+  assert.equal(idOf(en.storage_free_space_low.title), "storage_free_space_low");
+  // The messages each UI language shows on screen open their entry, whichever language the page is in.
+  for (const { code } of LOCALES) {
+    for (const entry of HELP_ENTRIES) {
+      for (const text of view(code, entry).shown) assert.equal(idOf(text), entry.id, `${code}: ${text}`);
+    }
+  }
+  // Once a locale's errors catalog has the on-screen messages (i18n M2), they are fragments too:
+  // the Indonesian one keeps working in the English UI, and the English one is found as text.
+  const english = { ...helpSearchTexts(translator("en", "help"), errorsWith({ "download.download_private": "This video is private and cannot be fetched." })) };
+  const indonesian = helpSearchTexts(translator("id", "help"), translator("id", "errors"));
+  const index = buildHelpIndex([indonesian, english]);
+  assert.deepEqual(findHelpEntry("This video is private and cannot be fetched.", index), { entry: helpEntry("download_private"), by: "text" });
+  assert.deepEqual(findHelpEntry(downloadErrorMessage("download_private").text, index), { entry: helpEntry("download_private"), by: "text" });
+});
+
+test("the index is plain data the server can hand to the search box", () => {
+  const copy = JSON.parse(JSON.stringify(INDEX));
+  assert.deepEqual(Object.keys(copy), ENTRY_LIST.map((entry) => entry.id));
+  for (const value of Object.values(copy)) {
+    assert.ok(Array.isArray(value.fragments) && typeof value.words === "string");
+    for (const fragment of value.fragments) assert.equal(fragment, normalizeErrorText(fragment).replace(/[.!?]+$/, ""));
+  }
+  assert.equal(findHelpEntry("unduhan berhenti tidak bergerak", copy)?.entry.id, "download_stalled", "a copy searches the same");
+  // Without the catalogs the codes, the Indonesian messages and the fragments still work.
+  assert.equal(findHelpEntry("download_bot_check")?.entry.id, "download_bot_check");
+  assert.equal(findHelpEntry(downloadErrorMessage("download_private").text)?.entry.id, "download_private");
+  assert.equal(findHelpEntry("Kena rate limit openrouter")?.entry.id, "llm_rate_limited");
+  assert.equal(findHelpEntry("unduhan berhenti tidak bergerak"), null, "the loose words live in the catalogs");
+  for (const bad of [null, undefined, 42, "nope"]) assert.equal(findHelpEntry("download_private", bad)?.entry.id, "download_private");
 });
 
 // --- Search: by code first, then by known message fragments ------------------------------------
@@ -257,16 +375,19 @@ test("the text is compared without case, quotes or extra spaces", () => {
 });
 
 test("loose words still find an entry when most of them fit it", () => {
-  const found = findHelpEntry("unduhan berhenti tidak bergerak");
+  const found = findHelpEntry("unduhan berhenti tidak bergerak", INDEX);
   assert.equal(found?.entry.id, "download_stalled");
   assert.equal(found.by, "words");
 });
 
 test("nothing that fits returns null, and a huge paste keeps only its end, where a log puts the error", () => {
-  for (const text of ["", "   ", "halo", "apa kabar semua", null, undefined, 42]) assert.equal(findHelpEntry(text), null, String(text));
+  for (const text of ["", "   ", "halo", "apa kabar semua", "hello how are you", null, undefined, 42]) {
+    assert.equal(findHelpEntry(text, INDEX), null, String(text));
+    assert.equal(findHelpEntry(text), null, String(text));
+  }
   assert.ok(MAX_HELP_QUERY >= 2000);
   assert.equal(idOf(`${"[download] 10.0% of 1.2GiB\n".repeat(400)}ERROR: [youtube] AbCdEfGhIjK: Private video`), "download_private");
-  assert.equal(findHelpEntry(`download_private ${"x".repeat(MAX_HELP_QUERY)}`), null, "text before the last MAX_HELP_QUERY characters is not read");
+  assert.equal(findHelpEntry(`download_private ${"x".repeat(MAX_HELP_QUERY)}`, INDEX), null, "text before the last MAX_HELP_QUERY characters is not read");
 });
 
 // --- Links from the pages ----------------------------------------------------------------------

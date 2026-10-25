@@ -1,6 +1,6 @@
 {
   "e2e/app-screens.spec.mjs": 2,
-  "e2e/bantuan.spec.mjs": 22,
+  "e2e/bantuan.spec.mjs": 1,
   "e2e/cancel-job.spec.mjs": 1,
   "e2e/clip-hook.spec.mjs": 2,
   "e2e/clip-text.spec.mjs": 40,

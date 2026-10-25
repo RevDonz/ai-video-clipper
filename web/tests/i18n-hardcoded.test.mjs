@@ -102,6 +102,11 @@ const ZERO = Object.freeze([
   "lib/default-watermark-view.mjs",
   "lib/youtube-cookies-view.mjs",
   "lib/system-info-view.mjs",
+  // Bantuan (Dashboard F10, i18n M4; 08 Fase 3).
+  "app/bantuan/page.jsx",
+  "app/bantuan/HelpSearch.jsx",
+  "app/bantuan/HelpGuide.jsx",
+  "lib/help-view.mjs",
 ]);
 
 async function counts() {
