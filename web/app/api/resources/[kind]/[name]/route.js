@@ -4,13 +4,14 @@
 import { requireAuth } from "../../../../../lib/auth.mjs";
 import { resourceResponse } from "../../../../../lib/clip-media.mjs";
 import { editorV3Enabled } from "../../../../../lib/preview-lane.mjs";
+import { withErrorCodes } from "../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 async function handle(request, { params }, head) {
   if (!editorV3Enabled()) {
-    return new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+    return Response.json({ error: "Not found", code: "not_found", messageId: "edit.not_found" }, { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
   }
   const denied = requireAuth(request);
   if (denied) return denied;
@@ -18,10 +19,13 @@ async function handle(request, { params }, head) {
   return resourceResponse(request, { kind, name, head });
 }
 
-export async function GET(request, context) {
+async function handleGET(request, context) {
   return handle(request, context, false);
 }
 
-export async function HEAD(request, context) {
+async function handleHEAD(request, context) {
   return handle(request, context, true);
 }
+
+export const GET = withErrorCodes(handleGET, { domains: ["edit"] });
+export const HEAD = withErrorCodes(handleHEAD, { domains: ["edit"] });

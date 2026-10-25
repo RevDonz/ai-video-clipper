@@ -10,6 +10,7 @@ import {
   readJsonBody,
 } from "../../../../../lib/llm-settings-http.mjs";
 import { AuthRateLimiter, sameOriginMutation } from "../../../../../lib/request-security.mjs";
+import { withErrorCodes } from "../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -45,6 +46,8 @@ export function createLlmModelsRoute({
 
 const route = createLlmModelsRoute();
 
-export async function POST(request) {
+async function handlePOST(request) {
   return route.POST(request);
 }
+
+export const POST = withErrorCodes(handlePOST, { domains: ["llm"] });

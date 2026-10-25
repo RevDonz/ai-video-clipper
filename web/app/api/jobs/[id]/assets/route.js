@@ -4,10 +4,11 @@
 // streams the raw body with a hard cap. Uploads have their own bucket (30/min per session).
 import { createAssetUploadRoute } from "../../../../../lib/asset-upload.mjs";
 import { secureRoute } from "../../../../../lib/security-headers.mjs";
+import { withErrorCodes } from "../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const route = createAssetUploadRoute();
 
-export const POST = secureRoute(route.POST, { params: ["id"] });
+export const POST = withErrorCodes(secureRoute(route.POST, { params: ["id"] }), { domains: ["edit"] });

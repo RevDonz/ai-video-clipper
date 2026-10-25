@@ -11,6 +11,7 @@ import { SOURCE_LOCALE, enabledLocales } from "../../../lib/i18n/locales.mjs";
 import { safeNextPath } from "../../../lib/login-view.mjs";
 import { TokenBucketLimiter, retryAfterSeconds } from "../../../lib/rate-limit.mjs";
 import { readBoundedUrlEncodedForm, sameOriginMutation, trustedClientIp } from "../../../lib/request-security.mjs";
+import { withErrorCodes } from "../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -109,11 +110,11 @@ async function readJsonBody(request) {
   return parsed;
 }
 
-function methodNotAllowed(request) {
+const methodNotAllowed = withErrorCodes((request) => {
   const headers = { ...NO_STORE, Allow: "POST" };
   if (request?.method === "HEAD") return new Response(null, { status: 405, headers });
   return Response.json(errorBody("method_not_allowed"), { status: 405, headers });
-}
+});
 
 export function createLocaleRoute({
   env = process.env,
@@ -169,7 +170,7 @@ export function createLocaleRoute({
 
 const route = createLocaleRoute();
 
-export async function POST(request) {
+async function handlePOST(request) {
   return route.POST(request);
 }
 
@@ -179,3 +180,5 @@ export const PUT = methodNotAllowed;
 export const PATCH = methodNotAllowed;
 export const DELETE = methodNotAllowed;
 export const OPTIONS = methodNotAllowed;
+
+export const POST = withErrorCodes(handlePOST);

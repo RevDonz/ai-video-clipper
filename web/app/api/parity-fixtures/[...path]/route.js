@@ -12,6 +12,7 @@ import { open, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { SESSION_COOKIE, verifySessionToken } from "../../../../lib/auth.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,7 +53,7 @@ function sessionToken(request) {
 }
 
 function notFound() {
-  return new Response("Not found", {
+  return Response.json({ error: "Not found", code: "not_found", messageId: "web.not_found" }, {
     status: 404,
     headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
   });
@@ -148,10 +149,13 @@ async function handle(request, { params }, head) {
   });
 }
 
-export async function GET(request, context) {
+async function handleGET(request, context) {
   return handle(request, context, false);
 }
 
-export async function HEAD(request, context) {
+async function handleHEAD(request, context) {
   return handle(request, context, true);
 }
+
+export const GET = withErrorCodes(handleGET);
+export const HEAD = withErrorCodes(handleHEAD);

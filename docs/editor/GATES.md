@@ -1316,7 +1316,7 @@ rebuild) and the rollback (revert the PR).
 | **G-SYNC** | A/V end ≤ 1 frame | A/V end 9.9 ms after 20 Rapikan items | `W3Z-QG-CLEAN-synthetic.json` | **pass** |
 | **G-CLICK** | < −40 dBFS | worst −59.94 dBFS over 52 joins with music | `W3Z-G-CLICK.json` | **pass** |
 | **G-DET** | identical digests; preview ASS = export ASS | 8 cases × 3 processes, 0 differences; PR smoke pass | `W3Z-G-DET.json`, CI | **pass** |
-| **G-FAIL** | fixed code + Indonesian message on every failure path | unit tests in the suites (`errors.py` codes and their drift-tested JS mirror) | suites | **pass** |
+| **G-FAIL** | fixed code + Indonesian message + an entry in every locale on every failure path (amended 2026-10-25, i18n M2) | unit tests in the suites; `web/tests/i18n-error-codes.test.mjs` checks every code of `errors.py`, `llm.py`, the download, storage, editor and editor-AI lists and `web/lib/error-codes.mjs` against `errors.<messageId>` in every locale, and `errors.edit.*` in Indonesian against `_MESSAGES` (it takes over from the JS mirror's drift test); `web/tests/api-error-codes.test.mjs` keeps every error answer of `web/app/api` coded (ratchet 0) | suites | **pass** |
 | **Duck** | ±0.5 dB; recovery ±1 dB | worst 0.361 dB | `W3Z-duck.json` | **pass** |
 | **QG-PERSIST** | 5,000 saves; receipts ≤ 200 | HTTP 5,000/5,000 (W2); retention soak 1,000 saves + 50 exports inside every cap (T4.3) | `T2.2-QG-PERSIST-http.json`, `T4.3-retention-soak.json` | **pass** |
 | **QG-UNDO** | 10,000 sequences | 0 mismatches; 23,258 documents accepted by Python | `T2.5-QG-UNDO.json` | **pass** |

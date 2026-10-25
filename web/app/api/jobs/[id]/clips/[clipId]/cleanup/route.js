@@ -2,10 +2,11 @@
 // ETag of its content (web/lib/editor-cleanup.mjs).
 import { createCleanupRoute } from "../../../../../../../lib/editor-cleanup.mjs";
 import { secureRoute } from "../../../../../../../lib/security-headers.mjs";
+import { withErrorCodes } from "../../../../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const route = createCleanupRoute();
 
-export const GET = secureRoute(route.GET, { params: ["id", "clipId"], limit: "api" });
+export const GET = withErrorCodes(secureRoute(route.GET, { params: ["id", "clipId"], limit: "api" }), { domains: ["edit"] });

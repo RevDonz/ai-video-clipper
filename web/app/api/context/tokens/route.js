@@ -8,6 +8,7 @@ import {
   readJsonRequestBody,
   trendErrorResponse,
 } from "../../../../lib/trend-context.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -46,10 +47,13 @@ export function createIngestTokensRoute({ authorize = requireAuth, env = process
 
 const route = createIngestTokensRoute();
 
-export async function GET(request) {
+async function handleGET(request) {
   return route.GET(request);
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   return route.POST(request);
 }
+
+export const GET = withErrorCodes(handleGET);
+export const POST = withErrorCodes(handlePOST);

@@ -30,6 +30,7 @@ import {
 } from "../../../lib/primary-job-queue.mjs";
 import { MAX_SUBTITLE_BYTES, SubtitleUploadError, validateSrt } from "../../../lib/srt.mjs";
 import { parseStorageAdmissionConfig, StorageAdmissionError } from "../../../lib/storage-admission.mjs";
+import { withErrorCodes } from "../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -257,7 +258,7 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
   return { form: { get: (name) => fields.get(name) ?? null }, upload, subtitle, consumedBytes: consumed };
 }
 
-export async function GET(request) {
+async function handleGET(request) {
   const denied = requireAuth(request);
   if (denied) return denied;
   await mkdir(jobsRoot(), { recursive: true });
@@ -272,7 +273,7 @@ export async function GET(request) {
   return Response.json({ jobs: sortJobsNewest(jobs), total: jobs.length, ...jobListFlags(process.env) });
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const denied = requireAuth(request);
   if (denied) return denied;
   if (!sameOriginMutation(request)) return postJson({ error: "Origin permintaan tidak diizinkan", code: "csrf_rejected" }, { status: 403 });
@@ -381,3 +382,6 @@ export async function POST(request) {
     return postJson(response, { status });
   }
 }
+
+export const GET = withErrorCodes(handleGET, { domains: ["storage"] });
+export const POST = withErrorCodes(handlePOST, { domains: ["storage"] });

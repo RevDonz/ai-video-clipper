@@ -3,12 +3,13 @@
 // (secureRoute, then again in the handler), mutations their origin.
 import { secureRoute } from "../../../../lib/security-headers.mjs";
 import { createYoutubeCookiesRoute } from "../../../../lib/youtube-cookies.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const route = createYoutubeCookiesRoute();
 
-export const GET = secureRoute(route.GET);
-export const POST = secureRoute(route.POST);
-export const DELETE = secureRoute(route.DELETE);
+export const GET = withErrorCodes(secureRoute(route.GET));
+export const POST = withErrorCodes(secureRoute(route.POST));
+export const DELETE = withErrorCodes(secureRoute(route.DELETE));

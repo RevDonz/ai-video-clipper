@@ -11,18 +11,19 @@ import {
   sameOriginMutation,
 } from "../../../../lib/request-security.mjs";
 import { safeNextPath } from "../../../../lib/login-view.mjs";
+import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const runtime = "nodejs";
 
 const authRateLimiter = new AuthRateLimiter(parseAuthRateLimitConfig());
 
-export async function POST(request) {
-  if (!sameOriginMutation(request)) return Response.json({ error: "Origin permintaan tidak diizinkan" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+async function handlePOST(request) {
+  if (!sameOriginMutation(request)) return Response.json({ error: "Origin permintaan tidak diizinkan", code: "csrf_rejected", messageId: "web.csrf_rejected" }, { status: 403, headers: { "Cache-Control": "no-store" } });
   let form;
   try {
     form = await readBoundedUrlEncodedForm(request);
   } catch {
-    return Response.json({ error: "Permintaan login tidak valid" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    return Response.json({ error: "Permintaan login tidak valid", code: "invalid_request", messageId: "web.invalid_request" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
   const username = String(form.get("username") || "");
   const password = String(form.get("password") || "");
@@ -54,3 +55,5 @@ export async function POST(request) {
     },
   });
 }
+
+export const POST = withErrorCodes(handlePOST);
