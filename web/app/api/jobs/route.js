@@ -8,6 +8,8 @@ import { requireAuth } from "../../../lib/auth.mjs";
 import { snapshotDefaultLogo } from "../../../lib/default-logo.mjs";
 import { snapshotDefaultWatermark } from "../../../lib/default-watermark.mjs";
 import { jobListFlags, readAutoReframeFlag } from "../../../lib/editor/flags.mjs";
+import { namespaceWithFallback } from "../../../lib/i18n/catalog.mjs";
+import { SOURCE_LOCALE } from "../../../lib/i18n/locales.mjs";
 import { sameOriginMutation } from "../../../lib/request-security.mjs";
 import {
   AutoReframeError,
@@ -73,11 +75,12 @@ export function parseJobFormOptions(form, env = process.env) {
   return parseJobOptions(jobOptionInputFromForm(form), { autoReframe: readAutoReframeFlag(env) });
 }
 
-// The messages of AutoReframeError's codes (the web.* entries of web/messages/id/errors.json).
-const AUTO_REFRAME_MESSAGES = Object.freeze({
-  auto_reframe_off: "Tata letak Otomatis belum aktif",
-  auto_reframe_needs_v3: "Otomatis butuh pemilihan momen terbaru",
-});
+/** The 400 body of an AutoReframeError: its text read from the "id" errors catalog by messageId. */
+export function autoReframeErrorBody(error) {
+  const errors = namespaceWithFallback(SOURCE_LOCALE, "errors");
+  const text = error.messageId.split(".").reduce((node, key) => node?.[key], errors);
+  return { error: typeof text === "string" ? text : errors.web.unknown, code: error.code, messageId: error.messageId };
+}
 
 export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBytes, maximumRequestBytes = maximumUploadBytes + MULTIPART_OVERHEAD_BYTES, renewal = {}) {
   if (!request.body) throw new Error("Multipart request body is required");
@@ -367,7 +370,7 @@ export async function POST(request) {
       return postJson({ error: RETIRED_SELECTION_MESSAGE, code: error.code }, { status: 400 });
     }
     if (error instanceof AutoReframeError) {
-      return postJson({ error: AUTO_REFRAME_MESSAGES[error.code], code: error.code, messageId: error.messageId }, { status: 400 });
+      return postJson(autoReframeErrorBody(error), { status: 400 });
     }
     // An attached .srt the engine could not read: the reason, in Indonesian.
     if (error instanceof SubtitleUploadError) {

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { parseJobFormOptions } from "../app/api/jobs/route.js";
+import { autoReframeErrorBody, parseJobFormOptions } from "../app/api/jobs/route.js";
 import {
   AUTO_LAYOUT_CHOICE,
   DEFAULT_CHOICES,
@@ -69,13 +69,23 @@ test("the job form reads the flag from the environment", () => {
 
 test("the job API refuses Otomatis with its own code and message id", async () => {
   const route = await readFile(new URL("../app/api/jobs/route.js", import.meta.url), "utf8");
-  assert.match(route, /error instanceof AutoReframeError[\s\S]{0,200}code: error\.code, messageId: error\.messageId \}, \{ status: 400 \}/);
+  assert.match(route, /error instanceof AutoReframeError[\s\S]{0,200}postJson\(autoReframeErrorBody\(error\), \{ status: 400 \}\)/);
   for (const locale of ["id", "en"]) {
     const catalog = JSON.parse(await readFile(new URL(`../messages/${locale}/errors.json`, import.meta.url), "utf8"));
     for (const code of ["auto_reframe_off", "auto_reframe_needs_v3"]) {
       assert.equal(typeof catalog.web[code], "string", `${locale} web.${code}`);
       assert.ok(catalog.web[code].trim(), `${locale} web.${code}`);
     }
+  }
+});
+
+test("the job API's Otomatis error text is the catalog's, not a copy in the route", async () => {
+  const route = await readFile(new URL("../app/api/jobs/route.js", import.meta.url), "utf8");
+  const catalog = JSON.parse(await readFile(new URL("../messages/id/errors.json", import.meta.url), "utf8"));
+  for (const code of ["auto_reframe_off", "auto_reframe_needs_v3"]) {
+    assert.ok(!route.includes(catalog.web[code]), `the route repeats web.${code}`);
+    assert.deepEqual(autoReframeErrorBody(new AutoReframeError(code)),
+      { error: catalog.web[code], code, messageId: `web.${code}` });
   }
 });
 
@@ -91,11 +101,16 @@ test("a stored automatic job is read whatever the flag says (the floor)", () => 
   assert.ok(llmMode && coldOpen && hookOverlay && captionStyle);
 });
 
-test("Buat klip offers Otomatis first, only while the flag is on, and never as the default", () => {
+test("Buat klip offers Otomatis first, only while the flag is on, and never as the default", async () => {
   assert.equal(layoutChoices(), LAYOUT_CHOICES);
   assert.equal(layoutChoices({ autoReframe: false }), LAYOUT_CHOICES);
   assert.deepEqual(layoutChoices({ autoReframe: true }), [AUTO_LAYOUT_CHOICE, ...LAYOUT_CHOICES]);
+  // a label, no description (rombak 04 §A8.3, 05 §6.3: the new Buat klip has none) ...
   assert.deepEqual(AUTO_LAYOUT_CHOICE, { id: "auto", name: "Otomatis" });
+  // ... so today's layout card draws its helper line only for a choice that has one
+  const page = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
+  assert.match(page, /\{layout\.description && <small>\{layout\.description\}<\/small>\}/);
+  assert.doesNotMatch(page, /<small>\{layout\.description\}<\/small>(?!\})/);
   assert.equal(DEFAULT_CHOICES.renderMode, "fit-blur");
   assert.equal(normalizeChoices({}, { autoReframe: true }).renderMode, "fit-blur");
   assert.equal(normalizeChoices({ renderMode: "auto" }, { autoReframe: true }).renderMode, "auto");
