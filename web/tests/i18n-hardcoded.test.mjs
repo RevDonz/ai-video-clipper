@@ -64,6 +64,9 @@ const ZERO = Object.freeze([
   // The landing (i18n M3 with Dashboard F3).
   "app/page.jsx",
   "components/LandingClip.jsx",
+  "components/ClipText.jsx",
+  "components/HookSwitch.jsx",
+  "components/StageSummary.jsx",
 ]);
 
 async function counts() {
