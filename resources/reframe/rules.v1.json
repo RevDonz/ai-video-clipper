@@ -1,0 +1,8 @@
+{
+  "schema": "potongin.reframe-rules/1",
+  "cut": {"coarse_scene_pm": 300, "refine_diff_pm": 100, "min_gap_ms": 500},
+  "scan": {"timeout_s": 120},
+  "face": {"present_pm": 400, "small_w_pm": 60, "centre_pm": 100},
+  "speakers": {"active_pm": 150, "split_share_pm": 250},
+  "motion": {"still_pm": 40}
+}

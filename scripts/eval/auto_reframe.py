@@ -22,13 +22,24 @@ root::
     uv run python scripts/eval/auto_reframe.py --score PRED.json --split dev --cache DIR --out RESULT.json
     uv run python scripts/eval/auto_reframe.py --split dev --cache DIR --out RESULT.json
     uv run python scripts/eval/auto_reframe.py --timing --split dev --cache DIR
-    uv run python scripts/eval/auto_reframe.py --sweep --split dev --cache DIR
 
 ``--predict`` measures without reading labels (on CI, where the footage is), ``--score`` scores
 those predictions against the labels later; plain ``--split dev`` does both. They measure today's
 camera mode (Ikuti wajah on every frame, with the camera plan's cut flags and the pipeline's
 FFmpeg scene cuts as today's cut sources).
-``--sweep`` and the test split need the shot detector of RF-M1 (``edit_v2.shot_cuts``).
+
+The shot detector of RF-M1 is measured the same way, in two steps::
+
+    uv run python scripts/eval/auto_reframe.py --profile --split dev --cache DIR --out PROFILES.json
+    uv run python scripts/eval/auto_reframe.py --sweep --split dev --profiles PROFILES.json --out SWEEP.json
+
+``--profile`` (on CI, no labels read) keeps per window what every rule configuration needs: the
+grid profile of ``edit_v2.shot_cuts.measure`` (scene scores and frame differences), the face scan
+of ``shot_context.scan_evidence`` and how long each took. ``--sweep`` then runs both stages of
+``docs/evaluation/AUTO_REFRAME.md`` on those profiles without footage: stage 1 the cut keys, stage
+2 the mode keys with the cuts of stage 1. ``--write-rules`` writes the chosen values to
+``resources/reframe/rules.v1.json``. The sweep runs on the dev split only; the test split stays
+locked until RF-M4.
 """
 
 from __future__ import annotations
@@ -61,6 +72,9 @@ TEST_LOCK = LABEL_DIR / "test-run.json"
 LABELS_SCHEMA = "potongin.reframe-labels/1"
 RESULT_SCHEMA = "potongin.reframe-result/1"
 PREDICTION_SCHEMA = "potongin.reframe-prediction/1"
+PROFILE_SCHEMA = "potongin.reframe-profile/1"
+SWEEP_SCHEMA = "potongin.reframe-sweep/1"
+RULES_PATH = ROOT / "resources" / "reframe" / "rules.v1.json"
 
 WINDOW_MS = 120_000
 OUTPUT = (720, 1280)
@@ -916,6 +930,274 @@ def score_split(registry: Mapping[str, Any], split: str, predictions: Mapping[st
             "summary": summarise(rows, categories), "windows": rows}
 
 
+# --- the shot detector of RF-M1: profiles and the sweep ------------------------------------------
+
+
+def _scan_json(scan: Any) -> dict[str, Any]:
+    return {"times": list(scan.times), "width": scan.width, "height": scan.height,
+            "frame_diff": list(scan.frame_diff),
+            "samples": [{"cut": bool(sample.cut),
+                         "faces": [[f.x, f.y, f.w, f.h, f.activity] for f in sample.faces]}
+                        for sample in scan.samples]}
+
+
+def scan_from_json(value: Mapping[str, Any]) -> Any:
+    from ai_clipper.face_window import Scan
+    from ai_clipper.speaker_track import Face, Sample
+
+    samples = [Sample(time=t, cut=bool(item["cut"]),
+                      faces=tuple(Face(*face[:4], activity=face[4]) for face in item["faces"]))
+               for t, item in zip(value["times"], value["samples"], strict=True)]
+    return Scan(times=list(value["times"]), samples=samples, width=value["width"],
+                height=value["height"], frame_diff=list(value["frame_diff"]))
+
+
+def coarse_cuts_ms(scan: Any) -> list[int]:
+    """The camera plan's cut flags (scene changes and far speaker switches) of a scan, in ms
+    from the window start: the detector's extra candidates."""
+    from ai_clipper.edit_v2.clip_id import ms_from_seconds
+    from ai_clipper.speaker_track import choose_faces
+
+    _faces, switches = choose_faces(scan.samples, width=scan.width)
+    return [ms_from_seconds(float(sample.time))
+            for sample, switch in zip(scan.samples, switches, strict=True)
+            if sample.cut or switch]
+
+
+def profile_window(path: Path, info: Mapping[str, Any], *, timeout_s: float = 600.0
+                   ) -> dict[str, Any]:
+    """What every rule configuration needs from one cached window, before any label is read."""
+    from ai_clipper import shot_context
+    from ai_clipper.edit_v2 import shot_cuts
+    from ai_clipper.edit_v2.timemap import Fps as GridFps
+
+    fps = tuple(info["fps"])
+    first, end = info["window_sf"]
+    window_ms = (0, (end - first) * 1000 * fps[1] // fps[0])
+    began = time.perf_counter()
+    profile = shot_cuts.measure(path, window_ms, GridFps(*fps), timeout_s=timeout_s)
+    measure_s = time.perf_counter() - began
+    began = time.perf_counter()
+    scan = shot_context.scan_evidence(path, window_ms)
+    scan_s = time.perf_counter() - began
+    return {"id": info["id"], "fps": list(fps), "window_sf": [first, end],
+            "window_ms": list(window_ms), "profile": profile.to_json(), "scan": _scan_json(scan),
+            "coarse_cuts_ms": coarse_cuts_ms(scan),
+            "seconds": {"shot_cuts_measure": round(measure_s, 2),
+                        "evidence_scan": round(scan_s, 2)}}
+
+
+def profile_split(registry: Mapping[str, Any], split: str, cache: Path,
+                  only: Sequence[str] | None = None) -> dict[str, Any]:
+    import cv2
+
+    rows = []
+    for window in split_windows(registry, split):
+        if only and window["id"] not in only:
+            continue
+        info = window_info(cache, window)
+        row = profile_window(window_path(cache, window), info)
+        rows.append(row)
+        print(f"{row['id']:<8} measure {row['seconds']['shot_cuts_measure']} s  scan "
+              f"{row['seconds']['evidence_scan']} s", flush=True)
+    return {"schema": PROFILE_SCHEMA, "split": split, "opencv": cv2.__version__,
+            "python": sys.version.split()[0], "windows": rows}
+
+
+def _detect_row(row: Mapping[str, Any], rules: Any, cache: dict) -> list[int]:
+    """The detector's cuts of one profiled window, as absolute grid frames."""
+    from ai_clipper.edit_v2 import shot_cuts
+    from ai_clipper.edit_v2.timemap import Fps as GridFps
+
+    profile = cache.get(("profile", row["id"]))
+    if profile is None:
+        profile = shot_cuts.Profile.from_json(row["profile"])
+        cache[("profile", row["id"])] = profile
+    local = shot_cuts.detect(profile, GridFps(*row["fps"]), rules=rules,
+                             coarse_cuts_ms=row["coarse_cuts_ms"])
+    return [row["window_sf"][0] + k for k in local]
+
+
+def _context(row: Mapping[str, Any], cache: dict) -> Any:
+    from ai_clipper import shot_context
+    from ai_clipper.edit_v2.timemap import Fps as GridFps
+
+    key = ("context", row["id"])
+    if key not in cache:
+        cache[key] = shot_context.Context.of(scan_from_json(row["scan"]),
+                                             window_ms=tuple(row["window_ms"]),
+                                             fps=GridFps(*row["fps"]))
+    return cache[key]
+
+
+def predict_modes(row: Mapping[str, Any], cuts: Sequence[int], rules: Any, cache: dict
+                  ) -> list[str]:
+    """The decided mode of every shot of a profiled window cut at ``cuts`` (absolute)."""
+    from ai_clipper.edit_v2 import AUTO_SPLIT
+    from ai_clipper.edit_v2.shots import crop_width_pm, plan_shots, shot_bounds
+
+    first, end = row["window_sf"]
+    local_cuts = [c - first for c in cuts]
+    window = (0, end - first)
+    context = _context(row, cache)
+    key = ("evidence", row["id"], tuple(local_cuts), rules.speakers_active_pm)
+    if key not in cache:
+        bounds = shot_bounds(local_cuts, window)
+        cache[key] = ([context.summarize(b, rules=rules) for b in bounds],
+                      context.summarize(window, rules=rules))
+    evidences, whole = cache[key]
+    crop = crop_width_pm((context.width, context.height), OUTPUT)
+    planned = plan_shots(local_cuts, window, evidences, crop_w_pm=crop, rules=rules,
+                         split_enabled=AUTO_SPLIT, whole=whole)
+    return [shot.mode for shot in planned]
+
+
+def _cut_row(config: Mapping[str, int], profiles: Sequence[Mapping[str, Any]],
+             labels: Mapping[str, Mapping[str, Any]], base: Any, cache: dict
+             ) -> dict[str, Any]:
+    rules = base.with_values(config)
+    tp = fp = fn = 0
+    found = {}
+    for row in profiles:
+        cuts = _detect_row(row, rules, cache)
+        found[row["id"]] = cuts
+        a, b, c = match_cuts(cuts, labels[row["id"]]["cuts_sf"], 1)
+        tp, fp, fn = tp + a, fp + b, fn + c
+    return {"config": dict(config), **cut_scores(tp, fp, fn), "tp": tp, "fp": fp, "fn": fn,
+            "cuts": found}
+
+
+def _mode_row(config: Mapping[str, int], profiles: Sequence[Mapping[str, Any]],
+              labels: Mapping[str, Mapping[str, Any]], cuts: Mapping[str, Sequence[int]],
+              base: Any, cache: dict) -> dict[str, Any]:
+    rules = base.with_values(config)
+    same = frames = non_camera = 0
+    for row in profiles:
+        label = labels[row["id"]]
+        window = tuple(row["window_sf"])
+        modes = predict_modes(row, cuts[row["id"]], rules, cache)
+        a, b = agreement(window, (cuts[row["id"]], modes), (label["cuts_sf"], label["modes"]))
+        same, frames = same + a, frames + b
+        non_camera += b - agreement(window, (cuts[row["id"]], modes), ([], ["camera"]))[0]
+    return {"config": dict(config), "agreement": same / frames if frames else 0.0,
+            "non_camera_frames": non_camera}
+
+
+def _mode_configs() -> Iterator[dict[str, int]]:
+    keys = [key for key in SWEEP_GRID if not key.startswith("cut.")]
+    for values in product(*(SWEEP_GRID[key] for key in keys)):
+        yield dict(zip(keys, values, strict=True))
+
+
+def _window_rows(rows: Sequence[Mapping[str, Any]], by_id: Mapping[str, Mapping[str, Any]],
+                 cuts: Mapping[str, Sequence[int]], rules: Any, categories: Mapping[str, str],
+                 cache: dict) -> list[dict[str, Any]]:
+    out = []
+    for row in rows:
+        label = by_id[row["id"]]
+        found = list(cuts[row["id"]])
+        window = tuple(row["window_sf"])
+        modes = predict_modes(row, found, rules, cache)
+        same, frames = agreement(window, (found, modes), (label["cuts_sf"], label["modes"]))
+        budget = scan_budget_s(len(found))
+        out.append({"id": row["id"], "category": categories.get(row["id"]), "frames": frames,
+                    "cuts": len(label["cuts_sf"]), "found": len(found),
+                    "match": list(match_cuts(found, label["cuts_sf"], 1)),
+                    "agreement_frames": same, "seconds": dict(row["seconds"]),
+                    "scan_budget_s": budget,
+                    "scan_within_budget": row["seconds"]["shot_cuts_measure"] <= budget})
+    return out
+
+
+def _block(subset: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    tp, fp, fn = (sum(w["match"][i] for w in subset) for i in range(3))
+    frames = sum(w["frames"] for w in subset)
+    return {"windows": len(subset), **{k: round(v, 4) for k, v in cut_scores(tp, fp, fn).items()},
+            "tp": tp, "fp": fp, "fn": fn,
+            "agreement": round(sum(w["agreement_frames"] for w in subset) / frames, 4)
+            if frames else None}
+
+
+def sweep(profiles: Mapping[str, Any], labels: Mapping[str, Any], registry: Mapping[str, Any]
+          ) -> dict[str, Any]:
+    """Both stages of the sweep on profiled windows (``docs/evaluation/AUTO_REFRAME.md``). When
+    no cut configuration meets both floors, stage 2 runs on the best F1 and ``cut.gate_met`` is
+    false: the result is reported, never a looser floor."""
+    from ai_clipper.edit_v2.shots import load_rules
+
+    split = profiles.get("split")
+    if profiles.get("schema") != PROFILE_SCHEMA or split != "dev":
+        raise LabelError(f"the sweep runs on dev profiles ({PROFILE_SCHEMA})")
+    check_labels(labels, registry, split)
+    by_id = {entry["id"]: entry for entry in labels["windows"]}
+    rows = profiles["windows"]
+    if sorted(row["id"] for row in rows) != sorted(by_id):
+        raise LabelError("the profiles must cover every labelled dev window once")
+    for row in rows:
+        if list(by_id[row["id"]]["window_sf"]) != list(row["window_sf"]):
+            raise LabelError(f"{row['id']}: the profiled window is not the labelled one")
+    base = load_rules(RULES_PATH)
+    cache: dict = {}
+    stage1 = [_cut_row(config, rows, by_id, base, cache) for config in configs("cut.")]
+    chosen_cut = pick_cut_config(stage1)
+    gate_met = chosen_cut is not None
+    if chosen_cut is None:
+        best = max(stage1, key=lambda r: (round(r["f1"], 9), r["config"]["cut.min_gap_ms"],
+                                          r["config"]["cut.coarse_scene_pm"]))
+        chosen_cut = dict(best["config"])
+    cut_choice = next(r for r in stage1 if r["config"] == chosen_cut)
+    cuts = cut_choice["cuts"]
+    stage2 = [_mode_row({**chosen_cut, **config}, rows, by_id, cuts, base, cache)
+              for config in _mode_configs()]
+    chosen = pick_mode_config(stage2)
+    assert chosen is not None
+    mode_choice = next(r for r in stage2 if r["config"] == chosen)
+    rules = base.with_values(chosen)
+    categories = {w["id"]: w["category"] for w in split_windows(registry, split)}
+    windows = _window_rows(rows, by_id, cuts, rules, categories, cache)
+    return {
+        "schema": SWEEP_SCHEMA, "split": split, "opencv": profiles.get("opencv"),
+        "python": profiles.get("python"), "gates": GATES, "chosen": chosen,
+        "rules_id": rules.rules_id,
+        "cut": {"gate_met": gate_met, **{key: cut_choice[key] for key in
+                                         ("precision", "recall", "f1", "tp", "fp", "fn")}},
+        "mode": {"agreement": mode_choice["agreement"],
+                 "non_camera_frames": mode_choice["non_camera_frames"]},
+        "scan": {"windows_within_budget": sum(w["scan_within_budget"] for w in windows),
+                 "windows": len(windows),
+                 "max_measure_s": max((w["seconds"]["shot_cuts_measure"] for w in windows),
+                                      default=None)},
+        "by_category": {category: _block([w for w in windows if w["category"] == category])
+                        for category in CATEGORIES
+                        if any(w["category"] == category for w in windows)},
+        "stage1": [{key: value for key, value in row.items() if key != "cuts"}
+                   for row in stage1],
+        "stage2_top": sorted(stage2, key=lambda r: (-round(r["agreement"], 9),
+                                                    r["non_camera_frames"]))[:25],
+        "windows": windows,
+    }
+
+
+def write_rules(chosen: Mapping[str, int], path: Path = RULES_PATH) -> str:
+    """Write the chosen sweep values into the rules file; returns the new ``rules_id``."""
+    from ai_clipper.edit_v2.shots import load_rules
+
+    expected = load_rules(path).with_values(chosen).rules_id
+    value = json.loads(path.read_text(encoding="utf-8"))
+    for key, number in chosen.items():
+        group, name = key.split(".")
+        value[group][name] = number
+    groups = [group for group in value if group != "schema"]
+    lines = ["{", f'  "schema": {json.dumps(value["schema"])},']
+    for index, group in enumerate(groups):
+        comma = "," if index < len(groups) - 1 else ""
+        lines.append(f'  "{group}": {json.dumps(value[group], separators=(", ", ": "))}{comma}')
+    path.write_text("\n".join([*lines, "}"]) + "\n", encoding="utf-8")
+    if load_rules(path).rules_id != expected:
+        raise RuntimeError("the written rules are not the chosen ones")
+    return expected
+
+
 # --- command line --------------------------------------------------------------------------------
 
 
@@ -929,14 +1211,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     action.add_argument("--fetch", action="store_true", help="cut the windows into the cache")
     action.add_argument("--sheets", action="store_true", help="contact sheets for labelling")
     action.add_argument("--label", action="store_true", help="write the static label page")
-    action.add_argument("--sweep", action="store_true", help="sweep the rules (RF-M1/RF-M4)")
+    action.add_argument("--sweep", action="store_true",
+                        help="sweep the rules on --profiles output (RF-M1/RF-M4)")
+    action.add_argument("--profile", action="store_true",
+                        help="measure what the sweep needs, without reading labels")
     action.add_argument("--timing", action="store_true", help="scan time per window")
     action.add_argument("--predict", action="store_true",
                         help="measure today's camera mode without reading labels")
     action.add_argument("--score", type=Path, metavar="PREDICTIONS",
                         help="score saved --predict output against the labels")
     parser.add_argument("--split", choices=("dev", "test", "all"), required=True)
-    parser.add_argument("--cache", type=Path, required=True)
+    parser.add_argument("--cache", type=Path)
+    parser.add_argument("--profiles", type=Path, help="--sweep: saved --profile output")
+    parser.add_argument("--write-rules", action="store_true",
+                        help="--sweep: write the chosen values to resources/reframe/rules.v1.json")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--registry", type=Path, default=REGISTRY)
     parser.add_argument("--only", action="append", help="window ids (repeatable)")
@@ -945,6 +1233,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--confirm-once", action="store_true",
                         help="the single test-split run of RF-M4")
     args = parser.parse_args(argv)
+    if args.cache is None and not (args.sweep or args.score is not None):
+        parser.error("--cache is needed")
     registry = json.loads(args.registry.read_text(encoding="utf-8"))
     check_registry(registry)
     windows = [w for w in split_windows(registry, args.split)
@@ -994,15 +1284,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         except TestSplitLocked as exc:
             print(exc, file=sys.stderr)
             return 2
-    if args.sweep or args.split == "test":
-        try:
-            import ai_clipper.edit_v2.shot_cuts  # noqa: F401
-        except ImportError:
-            print("needs the shot detector of RF-M1 (src/ai_clipper/edit_v2/shot_cuts.py); "
-                  "until then only --split dev measures today's camera mode", file=sys.stderr)
-            return 2
-        print("the sweep and the test split are wired up in RF-M1/RF-M4", file=sys.stderr)
+    if args.split == "test":
+        print("the test split's single run is wired up in RF-M4", file=sys.stderr)
         return 2
+    if args.sweep:
+        if args.split != "dev" or args.profiles is None:
+            parser.error("--sweep runs on the dev split and needs --profiles")
+        labels = json.loads((LABEL_DIR / "labels.dev.json").read_text(encoding="utf-8"))
+        result = sweep(json.loads(args.profiles.read_text(encoding="utf-8")), labels, registry)
+        print(json.dumps({key: result[key] for key in ("chosen", "cut", "mode", "scan")},
+                         indent=1))
+        if args.out:
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            args.out.write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
+        if args.write_rules:
+            print(f"rules_id {write_rules(result['chosen'])}")
+        return 0
+    if args.profile:
+        if args.split == "all" or args.out is None:
+            parser.error("--profile needs one split and --out")
+        profiles = profile_split(registry, args.split, args.cache, args.only)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(profiles) + "\n", encoding="utf-8")
+        return 0
     if args.split == "all":
         parser.error("measure one split")
     if args.timing:

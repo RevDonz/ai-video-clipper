@@ -229,6 +229,7 @@ SIGNATURES = {
         ("out_w", KW, NO_DEFAULT),
         ("out_h", KW, NO_DEFAULT),
         ("detector", KW, "<detect_face_track>"),
+        ("scan", KW, None),  # a shared face_window scan (CONTRACTS §5.63, rombak 04 §A4)
     ],
     ("seed", "build_seed"): [
         ("clip", KW, NO_DEFAULT),

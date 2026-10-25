@@ -59,7 +59,7 @@ from pathlib import Path
 from typing import Any
 
 from ..face_tracking import detect_face_track, smooth_face_track
-from ..face_window import detect_window, sample_times
+from ..face_window import Scan, detect_window, sample_times
 from . import CAMERA_SCHEMA
 from .clip_id import ms_from_seconds
 from .source_info import canonical_json, ensure_private_dir, file_sha256
@@ -283,9 +283,15 @@ def build_camera_plan(
     out_w: int,
     out_h: int,
     detector: Callable = detect_face_track,
+    scan: Scan | None = None,
 ) -> dict:
     """Run ``detector`` (today's detection + smoothing, one sample per 0.75 s) once over the
-    window and return the camera plan: samples, cut flags and ``no_face`` spans (> 1.5 s)."""
+    window and return the camera plan: samples, cut flags and ``no_face`` spans (> 1.5 s).
+
+    ``scan`` is a ``face_window`` scan of this window made already (the auto layout shares one
+    scan between this plan and its shot evidence, rombak 04 §A4); the window detector then uses
+    it instead of decoding the window again, and the plan's bytes are the same. It needs
+    today's detector."""
     a, b = window_ms
     if type(a) is not int or type(b) is not int or not 0 <= a < b:
         raise ValueError("window_ms must satisfy 0 <= a < b")
@@ -296,10 +302,17 @@ def build_camera_plan(
     content_sha = file_sha256(source)
     report = _reporter(_PROGRESS.get())
     start, end, interval = a / 1000, b / 1000, SAMPLE_MS / 1000
+    if scan is not None and detector is not _TODAYS_TRACKER:
+        raise ValueError("a shared scan needs today's detector")
     if detector is _TODAYS_TRACKER:
         boxes = {"boxes": True} if _accepts(detect_window, "boxes") else {}
+        shared = {} if scan is None else {"scan": scan}
+        if scan is not None:
+            report(0, len(scan.times))
         result = detect_window(source, start=start, end=end, sample_interval=interval,
-                               progress=report, **boxes)
+                               progress=report, **boxes, **shared)
+        if scan is not None:
+            report(len(scan.times), len(scan.times))
     else:
         options: dict[str, Any] = {"smooth": False} if _accepts(detector, "smooth") else {}
         if _accepts(detector, "sequential"):
