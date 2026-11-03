@@ -111,9 +111,9 @@ Langkah berikutnya:
    satu video baru. Rollback seluruh editor = revert commit `5064831` lewat PR (penjaga deploy
    dari #19 tetap, jadi deploy rollback tidak tertahan). Satu fitur saja bisa dimatikan lewat
    flag-nya (`docs/editor/OPERASIONAL.md` §2).
-4. **Sisa teknis (W5 atau sesudahnya):** P-AUD klip VFR sintetis 16 sampel lebih pendek (Open 12)
-   membuat nightly merah; PF-AUDIO dengan musik tipis di runner 4 vCPU; halaman `/licenses` masih
-   di balik login.
+4. **Sisa teknis (W5 atau sesudahnya):** PF-AUDIO dengan musik masih di atas 1.000 ms di runner
+   4 vCPU (hanya indikatif, tidak memerahkan nightly); halaman `/licenses` masih di balik login.
+   P-AUD klip VFR (Open 12) sudah diperbaiki 2026-11-03 (`docs/editor/GATES.md`).
 
 Gerbang berat jalan di GitHub Actions, bukan di PC pemilik: `editor-gates.yml` (`suite=full`,
 `suite=image`, `suite=command`) dan `ci-cd.yml` (PR: tes + penjaga toolchain + smoke paritas;
@@ -247,7 +247,7 @@ komentar PR, dan di `docs/editor/CONTRACTS.md` / `GATES.md`.
    - cahaya Sinar diperkecil: blur H·9/1280 → H·7/1280;
    - kotak hook Blok dan garis watermark diberi tepi lembut H/1280 (1 px di 1280);
    - ukuran watermark minimal tetap 500 ‰: ukuran lebih besar tidak menolong P-ENC.
-   PF-SEEK (pemutar) dan P-AUD (nightly) juga merah di `main`; smoke yt-dlp tidak meyakinkan
+   PF-SEEK (pemutar) dan P-AUD (nightly, diperbaiki 2026-11-03) juga merah di `main`; smoke yt-dlp tidak meyakinkan
    karena cek bot YouTube di IP runner.
 9. Perbaikan parity mengubah tampilan sedikit: 2–3 frame awal Fade lebih gelap (isi di atas
    garis), dan watermark tembus pandang lebih gelap di dalam (maks 32 level di 85 %).
