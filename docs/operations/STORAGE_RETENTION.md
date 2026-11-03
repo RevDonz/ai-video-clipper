@@ -59,6 +59,19 @@ The queue protocol may clean up only protocol metadata that is not a job or arti
 
 That narrow protocol cleanup is not a retention mechanism. Once bytes have been written to a UUID job root, the root and partial data must be preserved; protocol cleanup must never recurse into it. Only the two person-initiated actions above remove job bytes.
 
+## Control metadata (Q6, default, bisa diubah; rombak 01 §9)
+
+`web/lib/db/prune.mjs` runs in the app once a day (first run 60 s after a start), at most 5000 rows per transaction, and never touches `JOBS_ROOT`:
+
+| Table | Removed when |
+|---|---|
+| `sessions` | expired or revoked more than 30 days ago |
+| `invites`, `password_resets` | expired more than 7 days ago, used or revoked included |
+| `audit_events` | older than 180 days |
+| `process_heartbeats` | last beat more than 1 day ago |
+
+`web/scripts/db-backup.mjs` writes to `/control/backups` before every deploy and daily at 03:00 UTC, and keeps 14 copies per reason (5 for `manual` and `pre-restore`). Later phases add their tables to the same list.
+
 ## The editor's own retention (plan §4.1, §4.4, K11)
 
 The clip editor keeps editing state inside a job root, and the editor plan bounds it; this is the
