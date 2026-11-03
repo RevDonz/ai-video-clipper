@@ -80,7 +80,7 @@ audio-speech.f32 f96fc0667b4e3c8df34a57f67d329dc137391e0b3416ccf29197d0c26882cb9
   30000,
   1001
  ],
- "mix_sha256": "4fabdd17d710c3f42978fd0926c3828bf75f24ac80ac3c1be50620aec901b043",
+ "mix_sha256": "4302a0e17c21844d632575b79dab7377243b2e99541cd5c2a21aeabb2ac6b43a",
  "mode": "audio_measure",
  "output": "null",
  "paths": {
@@ -96,6 +96,6 @@ audio-speech.f32 f96fc0667b4e3c8df34a57f67d329dc137391e0b3416ccf29197d0c26882cb9
 ## filter_script
 [0:1]anull[sa0];
 [1:1]anull[sa1];
-[sa0]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p0];[sa1]aresample=48000,asettb=1/48000,apad,atrim=start_pts=59611552:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p1];[au_p0][au_p1]concat=n=2:v=0:a=1[au_sc];[2:a]pan=stereo|c0=c0|c1=c0[au_se];[au_sc][au_se]amultiply[au_s];[3:a]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,atrim=start_sample=0:end_sample=3457854,asetpts=PTS-STARTPTS[au_mr];[4:a]pan=stereo|c0=c0|c1=c0[au_me];[au_mr][au_me]amultiply[au_m];[au_s][au_m]amix=inputs=2:normalize=0:duration=first,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[apre];
+[sa0]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS,apad,atrim=end_sample=217817[au_p0];[sa1]aresample=48000,asettb=1/48000,apad,atrim=start_pts=59611552:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS,apad,atrim=end_sample=3240037[au_p1];[au_p0][au_p1]concat=n=2:v=0:a=1[au_sc];[2:a]pan=stereo|c0=c0|c1=c0[au_se];[au_sc][au_se]amultiply[au_s];[3:a]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,atrim=start_sample=0:end_sample=3457854,asetpts=PTS-STARTPTS[au_mr];[4:a]pan=stereo|c0=c0|c1=c0[au_me];[au_mr][au_me]amultiply[au_m];[au_s][au_m]amix=inputs=2:normalize=0:duration=first,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[apre];
 [apre]aformat=sample_fmts=dbl,ebur128=peak=true:framelog=verbose[ameas]
 
