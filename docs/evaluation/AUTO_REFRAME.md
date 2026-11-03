@@ -116,7 +116,7 @@ Angka di bawah tidak dilonggarkan.
 
 | Gerbang | Syarat | Split | Milestone |
 |---|---|---|---|
-| Cut | presisi ≥ 0,95 dan recall ≥ 0,90, toleransi ±1 frame grid, termasuk fixture VFR, 59,94→29,97 dan 60→30 | dev | RF-M1 |
+| Cut (**lolos sejak 2026-11-03**: P 0,967 · R 0,926, lihat "Sinyal tepi") | presisi ≥ 0,95 dan recall ≥ 0,90, toleransi ±1 frame grid, termasuk fixture VFR, 59,94→29,97 dan 60→30 | dev | RF-M1 |
 | Waktu pindai | ≤ 15 detik + 0,5 detik per cut untuk jendela 120 detik | CI | RF-M1 |
 | Agreement | ≥ 85% frame | test, sekali | RF-M4 |
 | Framing pembicara | galat set `multi` SPEAKER_FRAMING (`scripts/eval/speaker_framing.py`, metrik `SPEAKER_FRAMING.md`, hari ini 20,7%) ≤ 21,7% pada frame `camera` | AVA val | RF-M4 |
@@ -196,9 +196,10 @@ shot), `src/ai_clipper/edit_v2/shots.py` (keputusan, shot plan). Ambang: `resour
 
 **Cara detektor bekerja (satu proses FFmpeg per jendela):** jendela didekode di grid dokumen
 persis seperti kompiler (`-ss` dengan pre-roll 1 dtk, `-copyts`, `fps`, `trim` di indeks grid).
-Setiap frame grid diukur dua kali: skor `scene` FFmpeg di gambar lebar 160 px (filter
-`audio_timeline._SCENE_FILTER`, semua frame disimpan) dan gambar abu-abu 64×36, dari mana selisih
-rata-rata ke frame 1, 2, 3 dan 12 frame sebelumnya disimpan. Lalu:
+Setiap frame grid diukur tiga kali: skor `scene` FFmpeg di gambar lebar 160 px (filter
+`audio_timeline._SCENE_FILTER`, semua frame disimpan), gambar abu-abu 64×36, dari mana selisih
+rata-rata ke frame 1, 2, 3 dan 12 frame sebelumnya disimpan, dan perubahan tepi gambar 320×180
+terhadap frame sebelumnya (`edge_pm`, lihat "Sinyal tepi"). Lalu:
 
 1. kandidat = frame dengan skor `scene` > `cut.coarse_scene_pm`, ditambah flag cut camera plan;
 2. di ±500 ms tiap kandidat, frame dengan selisih terbesar ke frame sebelumnya adalah cut bila
@@ -206,22 +207,25 @@ rata-rata ke frame 1, 2, 3 dan 12 frame sebelumnya disimpan. Lalu:
    sebelumnya sampai frame sesudahnya (langkah dissolve atau gerak kamera tidak); gambar yang
    kembali dalam ≤ 2 frame adalah kilat, bukan cut;
 3. lompatan tunggal: selisih ≥ separuh `cut.refine_diff_pm` yang ≥ 4× selisih kedua tetangganya
-   (cut di antara dua gambar mirip, yang skor `scene`-nya rendah), dengan syarat yang sama;
-4. transisi bertahap (fade, dissolve, wipe): 12 frame yang ujung-ujungnya berbeda ≥
+   (cut di antara dua gambar mirip, yang skor `scene`-nya rendah), dengan syarat yang sama; di
+   bawah `cut.refine_diff_pm` tepinya harus berubah ≥ 800;
+4. lompatan tepi: perubahan tepi ≥ 1100 yang ≥ 1,5× kedua tetangganya, atau ≥ 1500 yang ≥ 2×
+   frame sesudahnya (transisi yang berakhir di gambar baru), berapa pun selisihnya, kecuali kilat;
+5. transisi bertahap (fade, dissolve, wipe): 12 frame yang ujung-ujungnya berbeda ≥
    `cut.refine_diff_pm`, tanpa satu frame pun yang membawa separuh perubahan itu, dengan gambar
    diam sebelum dan sesudahnya (selisih per 3 frame ≤ 1/8 perubahan; gerak kamera tidak lolos).
    Cut-nya frame pertama saat separuh perubahan frame-ke-frame sudah terjadi (gambar baru ≥ 50%).
    Dua transisi yang berjarak ≤ 24 frame adalah satu dip lewat hitam/putih: cut-nya yang kedua,
    saat gambar baru datang;
-5. dua cut yang lebih dekat dari `cut.min_gap_ms`: yang lebih kuat dipertahankan.
+6. dua cut yang lebih dekat dari `cut.min_gap_ms`: yang lebih kuat dipertahankan.
 
-Langkah 3, 4 dan aturan kilat ditambahkan di atas rancangan 04 §A3 karena baseline menunjukkan
+Langkah 3, 5 dan aturan kilat ditambahkan di atas rancangan 04 §A3 karena baseline menunjukkan
 wipe dan fade tidak tertangkap (recall satu pembicara 0,10) dan label menyebut kilat bukan cut;
 konstantanya (2 frame, 4×, separuh, 12 frame, 1/8, 24 frame) tetap, tidak ikut sweep. Pengukuran
 satu proses untuk seluruh jendela menggantikan dekode ±500 ms per kandidat dari 04 §A3: hasil per
 frame sama, dan profil yang sama bisa dinilai ulang untuk setiap konfigurasi sweep tanpa footage.
 
-### Hasil sweep dev (2026-10-25)
+### Hasil sweep dev (2026-10-25, sebelum sinyal tepi)
 
 Profil diukur di GitHub Actions tanpa membaca label (`--profile`, run
 [40185140026](https://github.com/RevDonz/ai-video-clipper/actions/runs/40185140026), image produksi):
@@ -289,8 +293,8 @@ Sweep dua tahap diulang di profil dev baru (`--sweep`): pilihan sama dengan sebe
 (`rules_id` `6b67494539ede149`, cut P 0,915 · R 0,789, `cut.gate_met: false`, agreement dev 82,5%),
 21/21 jendela dalam anggaran waktu.
 
-**Butuh keputusan pemilik** (gerbang ini tidak bisa diloloskan lagi tanpa melonggarkannya atau
-mengubah label setelah melihat detektor, dan keduanya dilarang):
+**Butuh keputusan pemilik** (kesimpulan saat itu; tidak berlaku lagi sejak sinyal tepi di bawah,
+yang meloloskan gerbang tanpa melonggarkannya dan tanpa mengubah label):
 
 1. lanjut dengan detektor ini (gerbang cut RF-M1 tetap tercatat gagal, Otomatis tetap di belakang
    flag `off`);
@@ -298,6 +302,70 @@ mengubah label setelah melihat detektor, dan keduanya dilarang):
    baru; atau
 3. menulis ulang aturan label untuk dialog di rekaman layar dan menu di game, lalu melabel ulang
    **seluruh** dev oleh pemilik (bukan implementer) sebelum sweep baru.
+
+### Sinyal tepi (2026-11-03)
+
+Sebaran blok di atas mengukur *berapa banyak* gambar berubah. Sinyal tepi mengukur *apa* yang
+berubah: gambar baru mengganti tepi-tepinya, sedangkan bentuk yang berganti warna atau orang yang
+bergerak membiarkan sebagian besar tepi di tempatnya. Catatan: `rf-10` ternyata bukan "satu
+pembicara dengan sudut hampir sama" seperti tertulis di atas, melainkan animasi datar (lihat catatan
+labelnya): selisihnya kecil karena latarnya putih polos, dan cut salahnya adalah bentuk yang terisi
+warna di dalam garis yang sama.
+
+**Ukuran.** Proses FFmpeg yang sama menambah gambar abu-abu 320×180 lewat `edgedetect`
+(`low=0,08`, `high=0,2`). Per frame, `edge_pm` = porsi tepi frame ini yang tidak punya tepi dalam
+jarak 1 piksel di frame sebelumnya + porsi tepi frame sebelumnya yang tidak punya tepi dalam jarak
+1 piksel di frame ini (0–2000). Porsi dihitung terhadap minimal 1% piksel gambar, supaya beberapa
+piksel di gambar yang hampir kosong tidak terbaca sebagai ganti komposisi. Tepi disimpan sebagai
+satu bilangan bulat besar, jadi tetap stdlib.
+
+**Aturan** (langkah 3 dan 4 di atas). Konstantanya tetap, tidak ikut sweep, dan dipilih di dev
+setelah melihat galat dev; grid sweep dan lantainya tidak berubah.
+
+Profil dev diukur di CI tanpa membaca label, lalu sweep dua tahap (run
+[41582884802](https://github.com/RevDonz/ai-video-clipper/actions/runs/41582884802), image
+produksi): `docs/evaluation/auto-reframe/profiles-dev-2026-11-03.json` dan
+`sweep-dev-2026-11-03.json`. File 2026-10-25 tetap catatan detektor lama; formatnya tidak punya
+`edge_pm` dan ditolak `Profile.from_json`. Label dan test split tidak disentuh.
+
+| Gerbang (dev) | Syarat | Sebelum | Sesudah |
+|---|---|---|---|
+| Cut, ±1 frame (21 jendela, 95 cut) | P ≥ 0,95 dan R ≥ 0,90 | P 0,915 · R 0,789 (75/7/20), gagal | **lolos**: P 0,967 · R 0,926 · F1 0,946 (88 benar, 3 salah, 7 terlewat), `cut.gate_met: true` |
+| Waktu pindai (CI) | ≤ 15 dtk + 0,5 dtk/cut | maks 9,99 dtk, rata-rata 6,8 | lolos 21/21: maks 10,91 dtk, rata-rata 8,3 |
+| Agreement mode (dev, informatif) | | 82,50% | 82,56% |
+| SPEAKER_FRAMING `multi`, frame `camera` (AVA val) | ≤ 21,7% | 17,78%, 24 jendela | 17,78%, 24 jendela; rencana semua jendela sama (run [41582889032](https://github.com/RevDonz/ai-video-clipper/actions/runs/41582889032)) |
+
+Sweep memilih nilai yang sama: `rules.v1.json` tidak berubah (`rules_id` `6b67494539ede149`). 30
+dari 75 konfigurasi cut memenuhi kedua lantai.
+
+| Jendela | Cut | Sebelum (benar/salah/terlewat) | Sesudah | Sisa galat |
+|---|---|---|---|---|
+| `rf-10` animasi datar | 8 | 1/2/7 | 7/0/1 | terlewat 937: tepinya sudah bergerak sebelum dan sesudah frame itu |
+| `rf-44` slide | 3 | 1/0/2 | 3/0/0 | |
+| `rf-49` game showcase | 40 | 31/3/9 | 36/1/4 | salah 942 (kamera menyapu, lolos sebagai transisi bertahap); terlewat 776, 781, 838, 916 (cut di tengah gerak cepat) |
+| `rf-27` pembicara + slide | 3 | 1/0/2 | 1/0/2 | terlewat 2493 (potongan lompat dengan bingkai sama, tepi hanya berubah 566) dan 3014 (slide bergeser keluar, tidak ada satu frame penentu) |
+| `rf-37` rekaman layar | 0 | 0/2/0 | 0/2/0 | salah 2160 dan 2812 |
+| 16 jendela lain | 41 | 41/0/0 | 41/0/0 | |
+
+Per kategori: satu pembicara P 1,00 · R 0,85; dua orang dan panel P = R = 1,00; layar P 0,60 ·
+R 1,00; gameplay/b-roll P 0,98 · R 0,93.
+
+**Batasan yang perlu dibaca bersama angka ini:**
+
+- Dialog dan pindah halaman `rf-37` (perubahan tepi 1214, 1098) tetap tidak terpisah dari ganti
+  slide `rf-44` (1125–1552). Kesimpulan bagian sebelumnya untuk pasangan ini tetap benar; gerbang
+  lolos karena galat lain tertutup, bukan karena pasangan ini terpecahkan. Di luar dev, rekaman
+  layar bisa menghasilkan cut salah yang sama.
+- Konstanta tepi (ukuran gambar, ambang `edgedetect`, batas 1%, dan empat ambang aturan) dipilih
+  di 21 jendela dev yang sama dengan yang menilainya, dan dua jendela (`rf-10`, `rf-49`) memberi 11
+  dari 13 cut tambahan. Rentang yang tetap lolos, satu ambang diubah pada satu waktu: `EDGE_JUMP_PM` 1050–1150 (1000: P 0,946; 1200: R 0,895),
+  `EDGE_CONFIRM_PM` 700–1000 (600: P 0,946), `EDGE_SETTLED_PM` 1300–1800, `EDGE_ALONE` 5/4–3/2
+  (2/1: R 0,895). Angka dev ini mungkin terlalu baik; belum ada ukuran di luar dev.
+- Batasan label dev di atas (kandidat dari keluarga sinyal yang sama) tetap berlaku.
+
+Eksplorasi aturan dilakukan pada profil lokal dari footage dev yang diunduh dari CI (run
+[41578442609](https://github.com/RevDonz/ai-video-clipper/actions/runs/41578442609)); semua angka
+di tabel berasal dari CI.
 
 **Sweep tanpa footage:** `--profile` (di CI, tanpa membaca label) menyimpan profil grid, scan wajah
 dan waktu tiap jendela; `--sweep --profiles …` menjalankan tahap 1 (75 konfigurasi `cut.*`) dan
