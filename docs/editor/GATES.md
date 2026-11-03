@@ -649,9 +649,14 @@ fakes show them.
     rounding to frames, so real gaps of 0.611–0.620 s become 0.600 s and a cue does not break
     where the legacy engine breaks (5 of 894 real cues, 2 of 20 P-LOOK clips). Fix before the K1
     flip (W5/T4): measure the gap in source ms inside a piece; re-run P-LOOK and P-RT.
-12. **VFR mix 8 samples short** (T2.4): on the VFR barcode source the final graph's PCM and the
-    lane's FLAC both hold 975,992 samples against `plan.samples` 976,000; G2 (±1,024) passes.
-    Likely W1 Open 4 (audio start > 0).
+12. **VFR mix 8 samples short** (closed 2026-11-03: fixed, nightly 41567887527 green) (T2.4): on
+    the VFR barcode source the final graph's PCM and the lane's FLAC both hold 975,992 samples
+    against `plan.samples` 976,000; G2 (±1,024) passes. The guess here (W1 Open 4) was wrong. The
+    source is Matroska, whose millisecond timestamps reach `atrim` through FFmpeg 5.1 with a ±8
+    sample wobble per frame (FFmpeg 6.1 has none), so `start_pts`/`end_pts` cut 8 samples short
+    on some pieces (run 41566611598: −8 on 2 of 4 pieces, the −16 of `02-vfr-bed`). Each piece now
+    ends in `apad,atrim=end_sample=<b-a>` (CONTRACTS §5.8). All MP4 pieces measured byte-identical
+    and the Matroska pieces only gain trailing zeros (run 41567426103).
 13. **PF-SEEK under load**: 38.6 ms p95 at the measured load, 71–91 ms at load 14–23 (T2.4). The
     10-frame plate GOP (T2.4: 20.2 / 54 ms) is T4.3's, with the server P-FRAME/P-PLATE re-run.
 14. **Server timings** (T4.3): PF-PLAN p95 226 ms at load ≥ 4 (one Python process per plan:
@@ -1486,8 +1491,9 @@ Numbering continues from W3.
 
 ### Open (W4 additions; the W1–W3 lists and T4.3's 29–32 stay)
 
-33. **The nightly is red on P-AUD only** (Open 12: the compiler's source-audio path for a VFR
-    synthetic clip, 16 samples short on preview and reference alike). W5 or later; re-run with
+33. **The nightly is red on P-AUD only** (closed 2026-11-03 with Open 12) (Open 12: the compiler's
+    source-audio path for a VFR synthetic clip, 16 samples short on preview and reference alike).
+    W5 or later; re-run with
     `gh workflow run ci-cd.yml --ref <branch> -f suite=nightly`.
 34. **Owner checkpoint 3**: U1–U7 with a stopwatch at both window sizes, the QG-AI 30-clip review
     (≥ 21/30; the LLM flag is already on by decision 3, so a fail means switching it off) and the
