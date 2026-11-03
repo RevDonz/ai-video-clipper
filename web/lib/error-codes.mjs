@@ -52,6 +52,8 @@ export const WEB_ERROR_CODES = Object.freeze([
   "editor_disabled", "uploads_disabled", "document_invalid", "revision_conflict", "idempotency_conflict",
   "precondition_required", "analysis_missing", "source_missing", "render_finished", "not_cancellable",
   "storage_admission_lost", "superseded",
+  // Otomatis refused at job creation (lib/jobs.mjs AutoReframeError)
+  "auto_reframe_off", "auto_reframe_needs_v3",
 ]);
 
 // Codes the web routes answer with messageId edit.<code> that edit_v2/errors.py does not list
