@@ -2,12 +2,18 @@
 
 One FFmpeg run decodes the window ``[sf_floor(a), sf_ceil(b))`` exactly as the compiler does
 (``-ss`` with a second of pre-roll, ``-copyts``, ``fps=num/den`` and ``trim`` on the grid
-index), and measures every grid frame twice (:func:`measure`):
+index), and measures every grid frame three times (:func:`measure`):
 
 * FFmpeg's ``scene`` score on a 160 px wide picture (the filter of
   ``audio_timeline._SCENE_FILTER``, keeping every frame so any threshold can be applied later);
 * the 64×36 grey picture, from which the mean absolute difference to the frame 1, 2, 3 and 12
-  frames before is kept (``Profile.lag``, as 1/100000 of 255).
+  frames before is kept (``Profile.lag``, as 1/100000 of 255);
+* the edges of the 320×180 grey picture (FFmpeg's ``edgedetect``), against those of the frame
+  before: the share of this frame's edges that have no edge within a pixel in the frame before,
+  plus the share of that frame's edges that have none here (``Profile.edge_pm``, 0 to 2000). A
+  new picture replaces the edges; a shape changing colour or a person moving leaves most of them
+  where they were, whatever the size of the difference. Pictures with few edges count against
+  ``EDGE_FLOOR``, so that a few pixels of a nearly empty picture are no change of composition.
 
 :func:`detect` then finds the cuts with the rules of ``resources/reframe/rules.v1.json``:
 
@@ -20,13 +26,19 @@ index), and measures every grid frame twice (:func:`measure`):
    not). A frame the picture returns from (or to) within ``FLASH_FRAMES`` is a flash, not a cut.
 3. **Lone jumps**: a difference of at least half ``cut.refine_diff_pm`` that is ``JUMP_RATIO``
    times both neighbours' is a cut between two similar pictures (the scene score misses those),
-   under the same two conditions.
-4. **Gradual transitions** (a fade, a dissolve, a wipe): ``2·GRADUAL_HALF`` frames whose ends
+   under the same two conditions. Under ``cut.refine_diff_pm`` itself the edges must confirm it
+   (``EDGE_CONFIRM_PM``).
+4. **Edge jumps**: an edge change of at least ``EDGE_JUMP_PM`` that stands out from both
+   neighbours (``EDGE_ALONE``), or of at least ``EDGE_SETTLED_PM`` after which the picture settles
+   (twice the next frame's: a transition ending in a new picture), is a cut however small the
+   difference is: flat pictures, slides. A picture that returns within ``FLASH_FRAMES``, measured
+   against the jump's own difference, is still a flash.
+5. **Gradual transitions** (a fade, a dissolve, a wipe): ``2·GRADUAL_HALF`` frames whose ends
    differ by at least ``cut.refine_diff_pm``, where no single frame carries half of it, and
    whose picture is still before and after (a pan never is). The cut is the first frame by which
    half of the frame-to-frame change has happened; two transitions within ``DIP_FRAMES`` are one
    dip through black or white, cut where the new picture arrives.
-5. **Minimum gap**: of two cuts closer than ``cut.min_gap_ms`` the stronger is kept.
+6. **Minimum gap**: of two cuts closer than ``cut.min_gap_ms`` the stronger is kept.
 
 A cut is the first frame of the new shot, never the window's first frame.
 
@@ -49,6 +61,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -65,6 +78,16 @@ from .timemap import Fps
 
 THUMBNAIL = (64, 36)
 THUMBNAIL_BYTES = THUMBNAIL[0] * THUMBNAIL[1]
+EDGE_SIZE = (320, 180)
+EDGE_BYTES = EDGE_SIZE[0] * EDGE_SIZE[1]
+EDGE_LOW, EDGE_HIGH = 0.08, 0.2  # edgedetect's thresholds
+EDGE_FLOOR = EDGE_BYTES // 100  # a share counts against at least 1% of the picture's pixels
+EDGE_CONFIRM_PM = 800  # a lone jump under the refine threshold changes at least this much
+EDGE_JUMP_PM = 1100  # an edge change this large that stands out is a cut by itself
+EDGE_ALONE = (3, 2)  # ... standing out: at least 3/2 of both neighbours'
+EDGE_SETTLED_PM = 1500  # ... or this large, and at least twice the next frame's
+# a stacked frame of the pipe: the thumbnail, padded to the edge picture's width, on the edges
+FRAME_BYTES = EDGE_SIZE[0] * THUMBNAIL[1] + EDGE_BYTES
 LAGS = (1, 2, 3, 12)
 FLASH_FRAMES = 2  # a picture back within this many frames was a flash
 GRADUAL_HALF = 6  # half the span a gradual transition is measured over
@@ -88,12 +111,13 @@ class ShotCutsError(RuntimeError):
 @dataclass(frozen=True)
 class Profile:
     """Per grid frame of the window (index 0 = ``first_sf``): FFmpeg's scene score and the
-    thumbnail differences to earlier frames, both as 1/100000 (0 where there is no earlier
-    frame)."""
+    thumbnail differences to earlier frames, both as 1/100000, and the edge change to the frame
+    before, 0 to 2000 (all 0 where there is no earlier frame)."""
 
     first_sf: int
     scene_e5: tuple[int, ...]
     lag: Mapping[int, tuple[int, ...]]
+    edge_pm: tuple[int, ...]
 
     @property
     def frames(self) -> int:
@@ -101,7 +125,8 @@ class Profile:
 
     def to_json(self) -> dict[str, Any]:
         return {"first_sf": self.first_sf, "scene_e5": list(self.scene_e5),
-                "lag": {str(key): list(values) for key, values in sorted(self.lag.items())}}
+                "lag": {str(key): list(values) for key, values in sorted(self.lag.items())},
+                "edge_pm": list(self.edge_pm)}
 
     @classmethod
     def from_json(cls, value: Mapping[str, Any]) -> Profile:
@@ -109,7 +134,10 @@ class Profile:
         lag = {int(key): tuple(int(v) for v in values) for key, values in value["lag"].items()}
         if set(lag) != set(LAGS) or any(len(v) != len(scene) for v in lag.values()):
             raise ValueError("a profile holds every lag for every frame")
-        return cls(int(value["first_sf"]), scene, lag)
+        edge_pm = tuple(int(v) for v in value["edge_pm"])
+        if len(edge_pm) != len(scene):
+            raise ValueError("a profile holds the edge change of every frame")
+        return cls(int(value["first_sf"]), scene, lag, edge_pm)
 
 
 @dataclass(frozen=True)
@@ -129,24 +157,55 @@ def _difference(a: bytes, b: bytes) -> int:
     return (2 * total * SCALE + denominator) // (2 * denominator)
 
 
+_EDGE_DIGITS = bytes.maketrans(bytes(range(256)), b"0" + b"1" * 255)
+_EDGE_ALL = (1 << EDGE_BYTES) - 1
+_EDGE_NOT_FIRST = int(("0" + "1" * (EDGE_SIZE[0] - 1)) * EDGE_SIZE[1], 2)
+_EDGE_NOT_LAST = int(("1" * (EDGE_SIZE[0] - 1) + "0") * EDGE_SIZE[1], 2)
+
+
+class _Edges:
+    """A frame's edge pixels as one big integer, the top left pixel its highest bit, and the
+    pixels within one pixel of them."""
+
+    __slots__ = ("bits", "count", "near")
+
+    def __init__(self, picture: bytes) -> None:
+        bits = int(picture.translate(_EDGE_DIGITS), 2)
+        self.bits = bits
+        self.count = bits.bit_count()
+        wide = bits | ((bits >> 1) & _EDGE_NOT_FIRST) | ((bits << 1) & _EDGE_NOT_LAST)
+        self.near = (wide | (wide >> EDGE_SIZE[0]) | (wide << EDGE_SIZE[0])) & _EDGE_ALL
+
+    def change_from(self, before: _Edges) -> int:
+        """The share of these edges new since ``before`` plus the share of its edges gone."""
+        entering = (self.bits & ~before.near).bit_count()
+        leaving = (before.bits & ~self.near).bit_count()
+        return (entering * 1000 // max(self.count, EDGE_FLOOR)
+                + leaving * 1000 // max(before.count, EDGE_FLOOR))
+
+
 def profile_from_frames(first_sf: int, frames: Sequence[bytes],
-                        scene_e5: Sequence[int]) -> Profile:
-    """The profile of decoded 64×36 grey frames and their scene scores."""
-    if len(scene_e5) != len(frames):
-        raise ValueError("one scene score per frame")
+                        scene_e5: Sequence[int], edge_pm: Sequence[int]) -> Profile:
+    """The profile of decoded 64×36 grey frames, their scene scores and edge changes."""
+    if len(scene_e5) != len(frames) or len(edge_pm) != len(frames):
+        raise ValueError("one scene score and one edge change per frame")
     lag = {}
     for distance in LAGS:
         lag[distance] = tuple(0 if k < distance else _difference(frames[k], frames[k - distance])
                               for k in range(len(frames)))
-    return Profile(first_sf, tuple(scene_e5), lag)
+    return Profile(first_sf, tuple(scene_e5), lag, tuple(edge_pm))
 
 
 def _filter(fps: Fps, first: int, end: int) -> str:
     return (f"[0:v]fps={fps.num}/{fps.den},trim=start_pts={first}:end_pts={end},"
-            f"split=2[score][small];"
+            f"split=3[score][small][fine];"
             f"[score]scale=160:-2,select='gte(scene,0)',"
             f"metadata=mode=print:key=lavfi.scene_score:file=scene.txt,nullsink;"
-            f"[small]scale={THUMBNAIL[0]}:{THUMBNAIL[1]},format=gray[thumbs]")
+            f"[small]scale={THUMBNAIL[0]}:{THUMBNAIL[1]},format=gray,"
+            f"pad={EDGE_SIZE[0]}:{THUMBNAIL[1]}[thumbs];"
+            f"[fine]scale={EDGE_SIZE[0]}:{EDGE_SIZE[1]},format=gray,"
+            f"edgedetect=low={EDGE_LOW}:high={EDGE_HIGH}[edges];"
+            f"[thumbs][edges]vstack[stacked]")
 
 
 def _kill(process: subprocess.Popen) -> None:
@@ -174,6 +233,27 @@ def _scores(text: str, first: int, frames: int) -> list[int]:
     return scores
 
 
+def _read_frames(process: subprocess.Popen, limit: int) -> tuple[list[bytes], list[int]]:
+    """The thumbnails and edge changes of the stacked frames on the process's stdout. The frames
+    are not kept: a window of edge pictures would be 200 MB."""
+    width, height = EDGE_SIZE[0], THUMBNAIL[1]
+    thumbs: list[bytes] = []
+    changes: list[int] = []
+    before = None
+    while True:
+        frame = process.stdout.read(FRAME_BYTES)
+        if not frame:
+            return thumbs, changes
+        if len(frame) != FRAME_BYTES:
+            raise ShotCutsError("ffmpeg returned no whole frames")
+        if len(thumbs) == limit:
+            raise ShotCutsError("ffmpeg returned frames outside the window")
+        thumbs.append(b"".join(frame[y * width:y * width + THUMBNAIL[0]] for y in range(height)))
+        edges = _Edges(frame[width * height:])
+        changes.append(0 if before is None else edges.change_from(before))
+        before = edges
+
+
 def measure(source: Path, window_ms: tuple[int, int], fps: Fps, *, timeout_s: float) -> Profile:
     """The window's profile (module notes), from one FFmpeg run. Raises :class:`ShotCutsError`
     when FFmpeg fails, is refused or runs past ``timeout_s``."""
@@ -196,35 +276,54 @@ def measure(source: Path, window_ms: tuple[int, int], fps: Fps, *, timeout_s: fl
                 ffmpeg, "-nostdin", "-hide_banner", "-nostats", "-loglevel", "error",
                 *PROTOCOL_WHITELIST, "-threads", str(FFMPEG_THREADS),
                 "-ss", seek_arg(first, fps), "-copyts", "-i", str(Path(source).resolve()),
-                "-filter_complex", _filter(fps, first, end), "-map", "[thumbs]",
+                "-filter_complex", _filter(fps, first, end), "-map", "[stacked]",
                 "-f", "rawvideo", "pipe:1"]
+        errors = Path(work) / "stderr.txt"
         try:
-            process = subprocess.Popen(argv, cwd=work, env=env, stdin=subprocess.DEVNULL,
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                       start_new_session=True, close_fds=True)
+            with errors.open("wb") as sink:
+                process = subprocess.Popen(argv, cwd=work, env=env, stdin=subprocess.DEVNULL,
+                                           stdout=subprocess.PIPE, stderr=sink,
+                                           start_new_session=True, close_fds=True)
         except OSError as exc:
             raise ShotCutsError("ffmpeg could not start") from exc
+        expired = threading.Event()
+
+        def expire() -> None:
+            expired.set()
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(process.pid, signal.SIGKILL)
+
+        watchdog = threading.Timer(timeout_s, expire)
+        watchdog.daemon = True
+        watchdog.start()
         try:
-            out, err = process.communicate(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            _kill(process)
-            raise ShotCutsError("the scan ran out of time") from None
-        except BaseException:
-            _kill(process)
-            raise
+            try:
+                frames, changes = _read_frames(process, end - first)
+                process.wait()
+            except ShotCutsError:
+                if expired.is_set():
+                    raise ShotCutsError("the scan ran out of time") from None
+                _kill(process)
+                raise
+            except BaseException:
+                _kill(process)
+                raise
+        finally:
+            watchdog.cancel()
+            process.stdout.close()
+        if expired.is_set():
+            raise ShotCutsError("the scan ran out of time")
         if process.returncode != 0:
-            tail = err.decode("utf-8", "replace").strip().splitlines()[-1:] or ["?"]
+            err = errors.read_text(encoding="utf-8", errors="replace")
+            tail = err.strip().splitlines()[-1:] or ["?"]
             raise ShotCutsError(f"ffmpeg failed: {tail[0][:200]}")
-        if not out or len(out) % THUMBNAIL_BYTES:
+        if not frames:
             raise ShotCutsError("ffmpeg returned no whole frames")
-        frames = [out[i:i + THUMBNAIL_BYTES] for i in range(0, len(out), THUMBNAIL_BYTES)]
-        if len(frames) > end - first:
-            raise ShotCutsError("ffmpeg returned frames outside the window")
         try:
             text = (Path(work) / "scene.txt").read_text(encoding="utf-8", errors="replace")
         except FileNotFoundError as exc:
             raise ShotCutsError("ffmpeg wrote no scene scores") from exc
-    return profile_from_frames(first, frames, _scores(text, first, len(frames)))
+    return profile_from_frames(first, frames, _scores(text, first, len(frames)), changes)
 
 
 # --- detecting ---------------------------------------------------------------------------------
@@ -254,19 +353,39 @@ def _abrupt(profile: Profile, k: int) -> bool:
     return ABRUPT_SHARE * profile.lag[1][k] >= across
 
 
-def _isolated(profile: Profile, threshold: int) -> dict[int, int]:
+def _isolated(profile: Profile, threshold: int, confirmed_under: int) -> dict[int, int]:
     """Cuts between two similar pictures, which the scene score passes over: a difference of
     at least ``threshold`` that stands alone (``JUMP_RATIO`` times both neighbours'), carries
-    the change across it and is no flash."""
+    the change across it and is no flash. Under ``confirmed_under`` the edges must confirm it."""
     diff = profile.lag[1]
+    edges = profile.edge_pm
     n = profile.frames
     found = {}
     for k in range(1, n):
-        if diff[k] < threshold:
+        if diff[k] < threshold or (diff[k] < confirmed_under and edges[k] < EDGE_CONFIRM_PM):
             continue
         neighbours = max(diff[k - 1] if k > 1 else 0, diff[k + 1] if k + 1 < n else 0)
         if (diff[k] >= JUMP_RATIO * neighbours and _abrupt(profile, k)
                 and not _flash(profile, k, threshold)):
+            found[k] = diff[k]
+    return found
+
+
+def _edge_jumps(profile: Profile, threshold: int) -> dict[int, int]:
+    """Cuts the edges show, whatever the difference: a large edge change that stands out from
+    both neighbours, or a larger one after which the picture settles, and no flash. A flash is
+    measured against the frame's own difference, which can be far under ``threshold``."""
+    edges, diff = profile.edge_pm, profile.lag[1]
+    n = profile.frames
+    found = {}
+    for k in range(1, n):
+        change = edges[k]
+        if change < EDGE_JUMP_PM:
+            continue
+        after = edges[k + 1] if k + 1 < n else 0
+        alone = EDGE_ALONE[1] * change >= EDGE_ALONE[0] * max(edges[k - 1], after)
+        settled = change >= EDGE_SETTLED_PM and change >= 2 * after
+        if (alone or settled) and not _flash(profile, k, min(threshold, diff[k] // JUMP_SHARE)):
             found[k] = diff[k]
     return found
 
@@ -335,7 +454,7 @@ def _half_way(step: Sequence[int], centre: int) -> int:
 
 def detect(profile: Profile, fps: Fps, *, rules: Rules,
            coarse_cuts_ms: Sequence[int] = ()) -> list[int]:
-    """The cuts of the profiled window as source-grid frames (module notes, steps 1–5)."""
+    """The cuts of the profiled window as source-grid frames (module notes, steps 1–6)."""
     fps = Fps.from_json(fps)
     threshold = rules.cut_refine_diff_pm * (SCALE // 1000)
     coarse = rules.cut_coarse_scene_pm * (SCALE // 1000)
@@ -345,7 +464,8 @@ def detect(profile: Profile, fps: Fps, *, rules: Rules,
         if 0 < k < profile.frames:
             candidates.append(k)
     strength = _gradual(profile, threshold)
-    strength.update(_isolated(profile, threshold // JUMP_SHARE))
+    strength.update(_isolated(profile, threshold // JUMP_SHARE, threshold))
+    strength.update(_edge_jumps(profile, threshold // JUMP_SHARE))
     strength.update(_hard(profile, candidates, fps, threshold))
     gap = _frames_of_ms(rules.cut_min_gap_ms, fps) if rules.cut_min_gap_ms else 0
     kept: list[int] = []
@@ -381,6 +501,7 @@ def find_cuts(source: Path, window_ms: tuple[int, int], fps: Fps, *, rules: Rule
 
 
 __all__ = [
+    "EDGE_SIZE",
     "FLASH_FRAMES",
     "GRADUAL_HALF",
     "LAGS",
