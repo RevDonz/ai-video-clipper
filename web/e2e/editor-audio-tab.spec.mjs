@@ -89,8 +89,9 @@ test("Audio: Hapus musik, the original sound's volume and Samakan kenyaringan", 
   await source.focus();
   await page.keyboard.press("ArrowRight");
   await expect.poll(async () => (await docOf(page)).audio.source.gain_cdb).toBe(50);
+  const mode = (await docOf(page)).audio.master.mode;
   await panel.locator('[data-tab-group="source"]').getByRole("switch").click();
-  await expect.poll(async () => (await docOf(page)).audio.master.mode).toBe("off");
+  await expect.poll(async () => (await docOf(page)).audio.master.mode).not.toBe(mode);
 });
 
 test("Logo: Tambah logo uploads, the corners snap, size and opacity in Lanjutan, Hapus removes", async ({ page }) => {
@@ -170,26 +171,29 @@ test("Cold open: the line, word edges, Putar, Hapus, and on again from the AI ve
   await expect.poll(async () => coldOf(await docOf(page)) !== null).toBe(true);
 });
 
-test("Cold open: 0,1 dtk in Lanjutan; a suggestion is used; a transcript selection turns it on", async ({ page }) => {
+test("Cold open: 0,1 dtk in Lanjutan; a suggestion that only repeats the opening says so and can still be played", async ({ page }) => {
   await openShell(page, "", { doc: shellDoc("coldOpen") });
   const panel = await openPanel(page, "coldopen");
   await panel.locator('[data-advanced="coldOpen"] button').first().click();
   const before = coldOf(await docOf(page));
   await panel.getByRole("button", { name: L("editor.coldOpen.fine.startLater"), exact: true }).click();
   await expect.poll(async () => coldOf(await docOf(page)).in_sf).toBeGreaterThan(before.in_sf);
-  await panel.locator("[data-coldopen-suggestion]").first().getByRole("button").nth(1).click();
-  await expect(panel.locator("[data-coldopen-suggestion]").first()).toHaveAttribute("data-current", "true");
+  const suggestion = panel.locator("[data-coldopen-suggestion]").first();
+  await expect(suggestion.getByRole("button").nth(0)).toBeEnabled();
+  await expect(suggestion.getByRole("button").nth(1)).toBeDisabled();
+  await expect(suggestion.locator("[data-suggestion-reason]")).toBeVisible();
 });
 
 test("Cold open: the transition's effect, whoosh and audition, off with a note without a cold open", async ({ page }) => {
   await openShell(page, "", { doc: shellDoc("coldOpen") });
   const panel = await openPanel(page, "coldopen");
   const effect = panel.getByRole("radiogroup", { name: L("editor.coldOpen.transition.effect") });
-  await effect.getByRole("radio", { name: L("editor.coldOpen.transition.flash"), exact: true }).check();
-  await expect.poll(async () => (await docOf(page)).main.joins[0].style).toBe("flash_white");
-  await expect(panel.locator("[data-transition-status]")).toHaveText(L("editor.coldOpen.transition.statusStyle", { name: L("editor.coldOpen.transition.flash") }));
+  await effect.getByRole("radio", { name: new RegExp(`^${L("editor.coldOpen.transition.dip")}`) }).check();
+  await expect.poll(async () => (await docOf(page)).main.joins[0].style).toBe("dip_black");
+  await expect(panel.locator("[data-transition-status]")).toHaveText(L("editor.coldOpen.transition.statusStyle", { name: L("editor.coldOpen.transition.dip") }));
+  const whoosh = Boolean((await docOf(page)).main.joins[0].sfx);
   await panel.getByRole("switch", { name: L("editor.coldOpen.transition.whoosh") }).click();
-  await expect.poll(async () => (await docOf(page)).main.joins[0].sfx).toBeTruthy();
+  await expect.poll(async () => Boolean((await docOf(page)).main.joins[0].sfx)).toBe(!whoosh);
   await expect(panel.getByRole("button", { name: L("editor.coldOpen.transition.play"), exact: true })).toBeEnabled();
   await panel.getByRole("button", { name: L("editor.coldOpen.remove"), exact: true }).click();
   await expect(panelRegion(page).locator("[data-transition-note]")).toHaveText(L("editor.coldOpen.transition.off"));

@@ -226,8 +226,7 @@
     "thumbs": {
       "needsAnalysis": "Perlu analisis wajah",
       "unavailable": "Contoh belum tersedia",
-      "loading": "Memuat contoh…",
-      "alt": "Contoh {name} di {time}"
+      "loading": "Memuat contoh…"
     },
     "analysis": {
       "label": "Analisis wajah",
@@ -254,7 +253,8 @@
       "manual": "{count, plural, other {Diatur manual: # titik.}}",
       "manualCamera": "{count, plural, other {Diatur manual: # titik, juga di bagian tanpa wajah.}}",
       "portrait": "Video sumber sudah tegak, tidak ada yang bisa digeser.",
-      "clear": "Kembali ke otomatis"
+      "clear": "Kembali ke otomatis",
+      "pick": "Pilih Ikuti wajah atau Potong tengah untuk mengatur bingkai sendiri."
     },
     "split": {
       "title": "Layar terbagi",
@@ -441,7 +441,10 @@
       "stop": "Hentikan",
       "statusStyle": "Transisi: {name}.",
       "statusSfxOn": "Whoosh aktif.",
-      "statusSfxOff": "Whoosh mati."
+      "statusSfxOff": "Whoosh mati.",
+      "cutDetail": "Tanpa efek",
+      "flashDetail": "0,2 dtk",
+      "dipDetail": "0,3 dtk"
     },
     "summary": {
       "in": "Awal {sign}{seconds, number} dtk",

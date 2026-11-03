@@ -74,16 +74,13 @@ function Watermark({ state, dispatch, locked, reveal }) {
   };
   return (
     <TabGroup title={t("watermark.title")} data-tab-group="watermark" data-watermark="">
-      <label className={styles.field}>
-        <span>{t("watermark.text")}</span>
-        <input type="text" className={styles.input} value={draft} maxLength={WATERMARK_MAX} placeholder={t("watermark.placeholder")} autoComplete="off"
-          spellCheck={false} disabled={locked} aria-describedby={`${uid}-note`} data-watermark-text=""
-          onChange={(event) => {
-            setDraft(event.target.value);
-            send(watermarkTextCommand(state.doc, event.target.value));
-          }}
-          onBlur={() => setDraft((current) => watermarkDraftOnBlur(state.doc, current))} />
-      </label>
+      <input type="text" className={styles.input} value={draft} maxLength={WATERMARK_MAX} placeholder={t("watermark.placeholder")} autoComplete="off"
+        spellCheck={false} disabled={locked} aria-label={t("watermark.text")} aria-describedby={`${uid}-note`} data-watermark-text=""
+        onChange={(event) => {
+          setDraft(event.target.value);
+          send(watermarkTextCommand(state.doc, event.target.value));
+        }}
+        onBlur={() => setDraft((current) => watermarkDraftOnBlur(state.doc, current))} />
       <div className={styles.meta} id={`${uid}-note`}>
         <span>{t("watermark.note")}</span>
         <span data-watermark-counter="">{`${points}/${WATERMARK_MAX}`}</span>
