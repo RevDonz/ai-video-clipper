@@ -252,6 +252,15 @@ test("logout with a v1 cookie that never upgraded ends that token on the server"
   assert.equal(requireAuth(request("/api/jobs", { cookie })).status, 401);
 });
 
+test("logout with a live s2 cookie and a leftover v1 cookie ends both", async (t) => {
+  await identityFixture(t);
+  const v1 = createSessionToken();
+  const { token } = createSession(bootstrapOwnerId(), { via: "password" });
+  await logout(request("/api/auth/logout", { cookie: `${S2_COOKIE}=${token}; ${SESSION_COOKIE}=${v1}`, method: "POST" }));
+  assert.equal(requireAuth(request("/api/jobs", { cookie: `${S2_COOKIE}=${token}` })).status, 401);
+  assert.equal(requireAuth(request("/api/jobs", { cookie: `${SESSION_COOKIE}=${v1}` })).status, 401);
+});
+
 test("logout refuses a foreign origin and revokes nothing", async (t) => {
   await identityFixture(t);
   const { token } = createSession(bootstrapOwnerId(), { via: "password" });

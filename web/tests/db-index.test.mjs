@@ -10,6 +10,7 @@ import {
   requireSchema, schemaVersion, startHeartbeat, stopHeartbeat, tx,
 } from "../lib/db/index.mjs";
 import { DatabaseSync } from "node:sqlite";
+import { SCHEMA_WAIT_EXIT, SchemaWaitError, waitForSchema } from "../lib/db/wait-schema.mjs";
 import { migratedDb, tempControl } from "./support/session.mjs";
 
 function open(t, control, extra = {}) {
@@ -175,4 +176,54 @@ test("the heartbeat writes a row for app, primary and social, and removes it on 
   assert.deepEqual(app.prepare("SELECT role, pid, beat_at FROM process_heartbeats").all().map((row) => ({ ...row })), [{ role: "app", pid: process.pid, beat_at: 1000 }]);
   stopHeartbeat();
   assert.equal(app.prepare("SELECT COUNT(*) AS n FROM process_heartbeats").get().n, 0);
+});
+
+test("a worker without POTONGIN_DB_PATH does not wait and opens nothing", async () => {
+  closeDb();
+  assert.equal(await waitForSchema({}, "primary"), false);
+});
+
+test("a worker waits for the app's migration, tries every 2 s, then starts its heartbeat", async (t) => {
+  const { dbFile, connection } = migratedDb(t);
+  const version = connection.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get().value;
+  connection.prepare("UPDATE meta SET value = '0' WHERE key = 'schema_version'").run();
+  closeDb();
+  const sleeps = [];
+  const fix = new DatabaseSync(dbFile);
+  t.after(() => fix.close());
+  const sleep = async (ms) => {
+    sleeps.push(ms);
+    if (sleeps.length === 2) fix.prepare("UPDATE meta SET value = ? WHERE key = 'schema_version'").run(version);
+  };
+  let clock = 0;
+  const ready = await waitForSchema({ POTONGIN_DB_PATH: dbFile }, "primary", { sleep, now: () => (clock += 1) });
+  assert.equal(ready, true);
+  assert.deepEqual(sleeps, [2000, 2000]);
+  assert.equal(dbRole(), "primary");
+  assert.deepEqual(fix.prepare("SELECT role FROM process_heartbeats").all().map((row) => row.role), ["primary"]);
+  stopHeartbeat();
+});
+
+test("a worker gives up after 60 s with exit 78", async (t) => {
+  const control = tempControl(t);
+  closeDb();
+  t.after(closeDb);
+  let clock = 0;
+  await assert.rejects(
+    () => waitForSchema({ POTONGIN_DB_PATH: control.dbFile }, "primary", { sleep: async () => { clock += 2000; }, now: () => clock }),
+    SchemaWaitError,
+  );
+  assert.equal(clock, 60_000);
+  assert.equal(SCHEMA_WAIT_EXIT, 78);
+});
+
+test("a worker never migrates: an empty DB stays empty while it waits", async (t) => {
+  const control = tempControl(t);
+  closeDb();
+  t.after(closeDb);
+  let clock = 0;
+  await assert.rejects(() => waitForSchema({ POTONGIN_DB_PATH: control.dbFile }, "primary", { sleep: async () => { clock += 30_000; }, now: () => clock }), SchemaWaitError);
+  const check = new DatabaseSync(control.dbFile);
+  t.after(() => check.close());
+  assert.equal(check.prepare("SELECT COUNT(*) AS n FROM sqlite_master").get().n, 0);
 });
