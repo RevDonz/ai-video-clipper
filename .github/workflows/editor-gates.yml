@@ -24,11 +24,18 @@ name: Editor gates (manual)
 # run as they do after a deploy; the editor listing then runs on the runner's Python (stdlib
 # only, src on the path). With command='e2e/landing-shots.spec.mjs' the landing screenshots are
 # retaken into gate-output/e2e/landing (hasil.webp, editor.webp).
+# The e2e app boots as the image does (scripts/start-app.mjs --prepare-only, a temp control folder),
+# so the specs run on real s2 sessions; -f smoke=true signs the specs in as the deploy's smoke user
+# (a member) instead of the admin, as deploy/production.sh does.
 # suite=player: browser specs of the editor player. The image makes the player fixtures
 # (scripts/parity/player_fixtures.py, cases in `cases`) and serves its own app with the parity
 # harness; Chrome for Testing (`chrome`: a version or a milestone, default the parity pin) runs
 # `npx playwright test <command> --project=desktop-chromium` against it, for example
 # -f command=e2e/editor-first-frame.spec.mjs. Results land in the run's artifact.
+# suite=drill: scripts/ci/identity_boot_drill.sh on real containers, throwaway volumes and
+# credentials: this branch's image and the image of `command` (a branch or tag, default main), old ->
+# new -> old (new compose, then old compose) -> new -> restore; the render worker is checked to have
+# no /control. Needs --ref <branch> so the script and this input come from the branch.
 
 on:
   workflow_dispatch:
@@ -42,7 +49,7 @@ on:
         required: true
         default: full
         type: choice
-        options: [full, image, command, e2e, player]
+        options: [full, image, command, e2e, player, drill]
       command:
         description: For suite=command, a shell command run from the repo root inside the image; for suite=e2e, the spec file(s) under web/; for suite=player, the Playwright arguments
         required: false
@@ -76,6 +83,11 @@ on:
         type: boolean
       seed:
         description: For suite=e2e, seed one completed project (web/scripts/seed-e2e-project.mjs) for the read-only specs and the landing screenshots
+        required: false
+        default: false
+        type: boolean
+      smoke:
+        description: For suite=e2e, sign the specs in as the deploy's smoke user (a member), not the admin
         required: false
         default: false
         type: boolean
@@ -177,15 +189,26 @@ jobs:
         working-directory: web
         env:
           GATE_SEED: ${{ inputs.seed && '1' || '' }}
+          GATE_SMOKE: ${{ inputs.smoke && '1' || '' }}
         run: |
           user=e2e-fakes
           password=$(openssl rand -hex 24)
           secret=$(openssl rand -hex 32)
+          smoke_user=e2e-smoke
+          smoke_password=$(openssl rand -hex 24)
           echo "::add-mask::$password"
           echo "::add-mask::$secret"
-          echo "E2E_USERNAME=$user" >> "$GITHUB_ENV"
-          echo "E2E_PASSWORD=$password" >> "$GITHUB_ENV"
-          mkdir -p "$GITHUB_WORKSPACE/gate-output" "$RUNNER_TEMP/jobs" "$RUNNER_TEMP/settings"
+          echo "::add-mask::$smoke_password"
+          if [ "$GATE_SMOKE" = "1" ]; then
+            echo "E2E_USERNAME=$smoke_user" >> "$GITHUB_ENV"
+            echo "E2E_PASSWORD=$smoke_password" >> "$GITHUB_ENV"
+          else
+            echo "E2E_USERNAME=$user" >> "$GITHUB_ENV"
+            echo "E2E_PASSWORD=$password" >> "$GITHUB_ENV"
+          fi
+          control="$RUNNER_TEMP/control"
+          mkdir -p "$GITHUB_WORKSPACE/gate-output" "$RUNNER_TEMP/jobs"
+          mkdir -m 700 "$control" "$control/settings"
           # An empty jobs root and settings directory: the project list after login reads them.
           if [ "$GATE_SEED" = "1" ]; then
             node scripts/seed-e2e-project.mjs "$RUNNER_TEMP/jobs"
@@ -195,9 +218,11 @@ jobs:
             echo "$GITHUB_WORKSPACE/src" > "$site/potongin-src.pth"
             export PYTHON_BIN="$RUNNER_TEMP/editor-python/bin/python"
           fi
-          APP_USERNAME="$user" APP_PASSWORD="$password" APP_SESSION_SECRET="$secret" \
-            JOBS_ROOT="$RUNNER_TEMP/jobs" POTONGIN_SETTINGS_DIR="$RUNNER_TEMP/settings" \
-            POTONGIN_EDITOR_V3=on POTONGIN_EDITOR_FAKES=1 POTONGIN_LOCALES="$GATE_LOCALES" POTONGIN_I18N_STRICT=1 \
+          export APP_USERNAME="$user" APP_PASSWORD="$password" APP_SESSION_SECRET="$secret" POTONGIN_SETTINGS_SECRET="$secret" \
+            E2E_SMOKE_USERNAME="$smoke_user" E2E_SMOKE_PASSWORD="$smoke_password" \
+            JOBS_ROOT="$RUNNER_TEMP/jobs" POTONGIN_SETTINGS_DIR="$control/settings" POTONGIN_DB_PATH="$control/potongin.sqlite"
+          node scripts/start-app.mjs --prepare-only
+          POTONGIN_EDITOR_V3=on POTONGIN_EDITOR_FAKES=1 POTONGIN_LOCALES="$GATE_LOCALES" POTONGIN_I18N_STRICT=1 \
             nohup npx next start --hostname 127.0.0.1 --port 3217 > "$GITHUB_WORKSPACE/gate-output/next.log" 2>&1 &
           for attempt in $(seq 1 60); do
             curl -fsS http://127.0.0.1:3217/api/health > /dev/null && exit 0
@@ -340,8 +365,20 @@ jobs:
         if: always() && inputs.suite == 'player'
         run: docker logs gates-app > gate-output/app.log 2>&1 || true
 
+      - name: Boot and rollback drill on real containers
+        if: inputs.suite == 'drill'
+        run: |
+          old_ref="${GATE_COMMAND:-main}"
+          git fetch --no-tags --depth=1 origin "$old_ref"
+          old_dir="$RUNNER_TEMP/old-tree"
+          git worktree add --detach "$old_dir" FETCH_HEAD
+          docker build --tag ai-video-clipper:drill-new .
+          docker build --tag ai-video-clipper:drill-old "$old_dir"
+          mkdir -p gate-output
+          bash scripts/ci/identity_boot_drill.sh drill-new drill-old "$old_dir/compose.yaml" 2>&1 | tee gate-output/drill.log
+
       - name: Upload outputs
-        if: always() && (inputs.suite == 'image' || inputs.suite == 'command' || inputs.suite == 'e2e')
+        if: always() && (inputs.suite == 'image' || inputs.suite == 'command' || inputs.suite == 'e2e' || inputs.suite == 'drill')
         uses: actions/upload-artifact@v4
         with:
           name: gate-output

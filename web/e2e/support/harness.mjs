@@ -54,20 +54,29 @@ async function apiJson(page, path) {
 }
 
 /**
- * The project the read-only specs open: E2E_JOB_ID, or the newest completed project with clips.
- * Authentication, transport and server failures are never turned into "no project".
+ * The project the read-only specs open: E2E_JOB_ID, or the newest completed project with clips, or
+ * null when this user has none: the deploy's smoke user is a member with an empty list once
+ * ownership is on (rombak 02 §13.2). Authentication, transport and server failures still throw.
  */
-export async function resolveTarget(page) {
+export async function findTarget(page) {
   const { jobs = [] } = await apiJson(page, "/api/jobs");
   const job = settings.jobId
     ? jobs.find((item) => item.id === settings.jobId)
     : jobs.find((item) => item.status === "completed" && Array.isArray(item.clips) && item.clips.length > 0);
   if (!job) {
-    throw new Error(settings.jobId ? `E2E_JOB_ID ${settings.jobId} is not in the project list` : "No completed project with clips was found");
+    if (settings.jobId) throw new Error(`E2E_JOB_ID ${settings.jobId} is not in the project list`);
+    return null;
   }
   const clipCount = Array.isArray(job.clips) ? job.clips.length : 0;
   if (!clipCount) throw new Error(`Project ${job.id} has no clips`);
   return { jobId: job.id, clipCount };
+}
+
+/** findTarget, for the specs that cannot run without a project. */
+export async function resolveTarget(page) {
+  const target = await findTarget(page);
+  if (!target) throw new Error("No completed project with clips was found");
+  return target;
 }
 
 export function captureFailures(page) {
