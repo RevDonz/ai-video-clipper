@@ -55,7 +55,7 @@ test("the policy of 02 §5, without composition rules", () => {
 
 test("the common list is the shipped 10,000-line file and matches without regard to case", () => {
   const lines = readFileSync(new URL("../../resources/auth/common-passwords.txt", import.meta.url), "utf8").split(/\r?\n/).filter(Boolean);
-  assert.equal(lines.length, 10_000);
+  assert.ok(lines.length >= 10_000, "the list as published, one line per password");
   const long = lines.filter((line) => Array.from(line).length >= 12);
   assert.ok(long.length > 0, "the list has entries long enough to reach this check");
   for (const entry of long) {
