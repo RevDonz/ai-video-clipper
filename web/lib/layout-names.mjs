@@ -19,10 +19,9 @@ export const RENDER_MODE_LAYOUTS = Object.freeze({
   auto: "auto",
 });
 
-// The catalog keys (messages/*/layout.json names.<mode>): every layout plus Otomatis, which the
-// job form offers from Fase 7 (rombak 04 §A8.3). Components read them through
-// components/layout-names.jsx.
-export const LAYOUT_NAME_MODES = Object.freeze([...Object.keys(LAYOUT_NAMES), "auto"]);
+// The catalog keys (messages/*/layout.json names.<mode>): every layout, Otomatis included.
+// Components read them through components/layout-names.jsx.
+export const LAYOUT_NAME_MODES = Object.freeze(Object.keys(LAYOUT_NAMES));
 
 /** The layout mode of a job's render mode ("face-track" -> "camera"), or null. */
 export function renderModeLayout(renderMode) {
