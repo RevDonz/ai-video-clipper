@@ -514,8 +514,8 @@ PR-nya). Di balik `POTONGIN_EDITOR_SHELL=v2`, default tetap `legacy`.
   Pakai di semua klip, pesan penolakan command, dan angka berformat musik, logo, watermark.
 
 **Fase 4** (fondasi identitas: MU-M1, MU-M2, pemindahan settings, i18n M6a; status 2026-11-03). Satu
-PR, branch `feat/fase-4-v2`, berbasis `build/node-24-v2` karena butuh `node:sqlite`; merge sesudah
-PR #48 lalu target PR diganti ke `main`. Status, run CI, dan keputusan delegasi ada di badan PR itu.
+PR, branch `feat/fase-4-v3`, pengganti #53, berbasis `main`. Status, run CI, dan keputusan delegasi
+ada di badan PR itu.
 - Baru: DB kontrol di `/control/potongin.sqlite` (`web/lib/db/`), akun dan sesi di server, cookie v1
   ter-upgrade sekali, logout mencabut di server, `start-app`, backup harian, user smoke, settings
   disalin ke `/control/settings`. Runbook: `docs/operations/PENGGUNA.md`.
