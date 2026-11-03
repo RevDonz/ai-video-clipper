@@ -67,7 +67,8 @@ test("the analysis's failure says so and Coba lagi runs it again (row 56)", asyn
     };
   });
   const panel = panelRegion(page).getByRole("tabpanel");
-  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("editor.layout.names.camera")}`) }).check();
+  // A click, not check(): the failed analysis keeps the layout it had.
+  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("editor.layout.names.camera")}`) }).click();
   const error = panel.locator("[data-layout-analysis-error]");
   await expect(error).toBeVisible();
   await error.getByRole("button", { name: L("editor.layout.analysis.retry"), exact: true }).click();

@@ -54,10 +54,8 @@ function useTextCopy() {
       "legacy-bar": [t("designs.bar"), t("designs.barNote")], kicker: [t("designs.kicker"), t("designs.kickerNote")],
       blok: [t("designs.blok"), t("designs.blokNote")], kotak: [t("designs.kotak"), t("designs.kotakNote")],
     },
-    colours: {
-      "#FFE14D": t("colours.yellow"), "#FFFFFF": t("colours.white"), "#3DF5A6": t("colours.green"),
-      "#52C7FF": t("colours.blue"), "#FF5C8A": t("colours.pink"), "#FF9F1C": t("colours.orange"),
-    },
+    // In the order of CAPTION_SWATCHES (lib/editor/content-colours.mjs).
+    colours: [t("colours.yellow"), t("colours.white"), t("colours.green"), t("colours.blue"), t("colours.pink"), t("colours.orange")],
     fit: { checking: t("hook.fitChecking"), overflow: t("hook.fitOverflow"), fits: t("hook.fits") },
     designHints: { kicker: t("designs.kickerHint"), kotak: t("designs.kotakHint") },
   };
@@ -114,7 +112,7 @@ function TextTabBody({ state, dispatch, api, applyAll, onEditLines, reveal }) {
     && (warning.path ? warning.path.startsWith("/tracks") : warning.ref === hook.id));
   const maxHookFrames = Math.floor((HOOK_MAX_MS * fps[0]) / (1000 * fps[1]));
   const count = hookPoints(draftText);
-  const swatches = CAPTION_SWATCHES.map(({ value }) => ({ value, name: copy.colours[value] }));
+  const swatches = CAPTION_SWATCHES.map(({ value }, index) => ({ value, name: copy.colours[index] }));
   const pills = (options, names) => options.map((option) => ({ id: option.id, label: names[option.id] }));
 
   const captionLabel = ({ key, values }) => {
