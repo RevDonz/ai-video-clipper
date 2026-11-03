@@ -1,16 +1,18 @@
-// POST /api/locale (rombak 07 §9.2): the language picker's route. Public: it only writes the
-// potongin_locale cookie, so the proxy lets it through (proxy.js) and it checks the origin
-// itself. Checks run in the order method -> same origin -> rate limit -> body. A native form
+// POST /api/locale (rombak 07 §9.2, §9.4): the language picker's route. Public: it writes the
+// potongin_locale cookie and, for a valid session, users.locale of that session's user, so the
+// proxy lets it through (proxy.js) and it checks the origin and the session itself. Checks run in the order method -> same origin -> rate limit -> body. A native form
 // (the main path: account menu, /login) always gets a 303 to a same-site page, with
 // ?bahasa=gagal when the change was refused, so a visitor without JS never sees raw JSON.
 import { createHash } from "node:crypto";
 
+import { currentUser } from "../../../lib/auth.mjs";
 import { loadNamespaces } from "../../../lib/i18n/catalog.mjs";
 import { localeCookie } from "../../../lib/i18n/cookie.mjs";
 import { SOURCE_LOCALE, enabledLocales } from "../../../lib/i18n/locales.mjs";
 import { safeNextPath } from "../../../lib/login-view.mjs";
 import { TokenBucketLimiter, retryAfterSeconds } from "../../../lib/rate-limit.mjs";
 import { readBoundedUrlEncodedForm, sameOriginMutation, trustedClientIp } from "../../../lib/request-security.mjs";
+import { setUserLocale } from "../../../lib/users.mjs";
 import { withErrorCodes } from "../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
@@ -160,6 +162,16 @@ export function createLocaleRoute({
     }
 
     if (typeof locale !== "string" || !enabledLocales(env).includes(locale)) return refuse(400, "locale_unsupported");
+    // With a valid session the account takes the choice too (07 §9.2-§9.4), only its own row. A
+    // DB failure costs the other devices the language, not this request.
+    const principal = currentUser(request, env);
+    if (principal?.id) {
+      try {
+        setUserLocale(principal.id, locale);
+      } catch (error) {
+        console.warn(`[locale] bahasa tidak tersimpan: ${error?.code ?? "error"}`);
+      }
+    }
     const cookie = { "Set-Cookie": localeCookie(locale) };
     if (isForm) return redirect(destination(request, next), cookie);
     return Response.json({ locale }, { status: 200, headers: { ...NO_STORE, ...cookie } });

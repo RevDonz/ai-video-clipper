@@ -9,7 +9,7 @@
 //   merged → saved at once with the notice "Digabung dengan perubahan dari tab lain"; otherwise
 //   `state.conflict.groups` feeds the per-part dialog and `resolveConflict(choices)` finishes it.
 //   The editor never locks and the draft is kept until everything is saved.
-// - Drafts are per tab (`<clipId>#<tabId>`; the tab id lives in sessionStorage, so it survives a
+// - Drafts are per user and tab (`u:<namespace>:<clipId>#<tabId>`; the tab id lives in sessionStorage, so it survives a
 //   reload, and a duplicated tab takes a new one). On open, this tab's draft is restored (same
 //   etag: silently; older etag: rebased; a PUT that was in flight is re-sent with its
 //   Idempotency-Key, so a save whose response was lost is recognised, not applied twice); drafts
@@ -31,7 +31,7 @@ import { randomUuid } from "./api-client.mjs";
 import { createAutosave } from "./autosave.mjs";
 import { CommandRejected } from "./commands.mjs";
 import { createContext } from "./doc-model.mjs";
-import { createDraftStore, createDraftWriter, draftKey } from "./draft-store.mjs";
+import { LOCAL_DRAFT_NAMESPACE, createDraftStore, createDraftWriter, draftKey } from "./draft-store.mjs";
 import { createEditSession } from "./history.mjs";
 import { rebase, replaySteps } from "./rebase.mjs";
 
@@ -111,7 +111,8 @@ export function createEditorStore({
   clipId,
   api,
   previewClient = null,
-  draftStore = createDraftStore(),
+  draftNamespace = LOCAL_DRAFT_NAMESPACE,
+  draftStore = createDraftStore({ namespace: draftNamespace }),
   now = () => Date.now(),
   newKey = () => randomUuid(),
   timers = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) },
@@ -144,7 +145,7 @@ export function createEditorStore({
   const instance = randomUuid();
   const others = new Map(); // live instances of this clip in other tabs → their tab ids
   const draftWriter = createDraftWriter({ store: draftStore, now });
-  const ownKey = () => draftKey(clipId, tabId);
+  const ownKey = () => draftKey(draftNamespace, clipId, tabId);
 
   const set = (patch) => {
     if (destroyed) return;
@@ -538,7 +539,7 @@ export function createEditorStore({
     get context() {
       return ctx;
     },
-    /** This tab's draft key (`<clipId>#<tabId>`). */
+    /** This tab's draft key (`u:<namespace>:<clipId>#<tabId>`). */
     get draftKey() {
       return ownKey();
     },

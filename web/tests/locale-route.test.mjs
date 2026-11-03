@@ -248,3 +248,67 @@ test("the bucket is per client IP hash behind a trusted proxy header", async () 
   // Keys are hashes, never the address itself.
   assert.ok([...limiter.buckets.keys()].every((key) => /^locale:[0-9a-f]{64}$/.test(key)));
 });
+
+// i18n M6a (rombak 07 §9.2, §9.4): a valid session's account takes the choice too.
+async function withAccount(t) {
+  const { identityFixture } = await import("./support/session.mjs");
+  await identityFixture(t, { POTONGIN_LOCALES: "id,en" });
+  const { createUser, findUserById, findUserByUsername } = await import("../lib/users.mjs");
+  const { createSession } = await import("../lib/sessions.mjs");
+  const { S2_COOKIE } = await import("../lib/auth.mjs");
+  const owner = findUserByUsername("owner");
+  const member = createUser({ username: "member1", passwordHash: `scrypt$15$8$1$${"s".repeat(22)}$${"h".repeat(86)}` });
+  const cookieOf = (user) => `${S2_COOKIE}=${createSession(user.id, { via: "password" }).token}`;
+  const route = createLocaleRoute({ env: process.env });
+  return { owner, member, cookieOf, route, localeOf: (user) => findUserById(user.id).locale };
+}
+
+test("a valid session writes users.locale of that user, and only that user", async (t) => {
+  const { owner, member, cookieOf, route, localeOf } = await withAccount(t);
+  const answer = await read(await route.POST(request({ body: form({ locale: "en", next: "/projects" }), headers: { Cookie: cookieOf(member) } })));
+  assert.equal(answer.status, 303);
+  assert.match(answer.cookie, /^potongin_locale=en;/);
+  assert.equal(localeOf(member), "en");
+  assert.equal(localeOf(owner), null, "another account is not touched");
+});
+
+test("JSON takes the same path; a refused language writes nothing", async (t) => {
+  const { member, cookieOf, route, localeOf } = await withAccount(t);
+  const cookie = cookieOf(member);
+  const good = await route.POST(request({ body: JSON.stringify({ locale: "en" }), contentType: "application/json", headers: { Cookie: cookie } }));
+  assert.equal(good.status, 200);
+  assert.equal(localeOf(member), "en");
+  const bad = await route.POST(request({ body: JSON.stringify({ locale: "zz" }), contentType: "application/json", headers: { Cookie: cookie } }));
+  assert.equal(bad.status, 400);
+  assert.equal(localeOf(member), "en");
+});
+
+test("no session or a bad one: the cookie only, without an error", async (t) => {
+  const { owner, route, localeOf } = await withAccount(t);
+  for (const headers of [{}, { Cookie: "__Host-potongin_session=s2.bad.bad" }]) {
+    const answer = await read(await route.POST(request({ body: form({ locale: "en", next: "/login" }), headers })));
+    assert.equal(answer.status, 303);
+    assert.match(answer.cookie, /^potongin_locale=en;/);
+  }
+  assert.equal(localeOf(owner), null);
+});
+
+test("a user who must change their password may still pick a language", async (t) => {
+  const { member, cookieOf, route, localeOf } = await withAccount(t);
+  const { db } = await import("../lib/db/index.mjs");
+  db().prepare("UPDATE users SET must_change_password = 1 WHERE id = ?").run(member.id);
+  const answer = await read(await route.POST(request({ body: form({ locale: "en" }), headers: { Cookie: cookieOf(member) } })));
+  assert.equal(answer.status, 303);
+  assert.equal(localeOf(member), "en");
+});
+
+test("a DB failure costs the other devices the language, not this request", async (t) => {
+  const { member, cookieOf, route } = await withAccount(t);
+  const cookie = cookieOf(member);
+  const { db } = await import("../lib/db/index.mjs");
+  db().exec("CREATE TRIGGER no_locale BEFORE UPDATE OF locale ON users BEGIN SELECT RAISE(ABORT, 'no'); END");
+  t.mock.method(console, "warn", () => {});
+  const answer = await read(await route.POST(request({ body: form({ locale: "en" }), headers: { Cookie: cookie } })));
+  assert.equal(answer.status, 303);
+  assert.match(answer.cookie, /^potongin_locale=en;/);
+});

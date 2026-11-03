@@ -1,6 +1,7 @@
 import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
 
 import Brand from "../../components/Brand.jsx";
+import ClearDraftsAfterLogout from "../../components/ClearDraftsAfterLogout.jsx";
 import LanguageSwitcher from "../../components/LanguageSwitcher.jsx";
 import PublicCard from "../../components/ui/PublicCard.jsx";
 import { localeOptions } from "../../lib/i18n/locales.mjs";
@@ -27,6 +28,7 @@ export default async function LoginPage({ searchParams }) {
   const locales = localeOptions();
   return (
     <PublicCard>
+      {params?.keluar === "1" && <ClearDraftsAfterLogout />}
       <main className={styles.page}>
         <section className={styles.card} aria-labelledby="login-title">
           <Brand />
