@@ -274,7 +274,7 @@ def _profiled_window(harness, *, cuts, faces_until):
                 "faces": [[880, 300, 160, 200, 0.4]] if t * 25 < faces_until else []}
                for t in times]
     return {"id": "rf-90", "fps": [25, 1], "window_sf": [0, n], "window_ms": [0, 120_000],
-            "profile": {"first_sf": 0, "scene_e5": scene, "lag": lag},
+            "profile": {"first_sf": 0, "scene_e5": scene, "lag": lag, "edge_pm": [0] * n},
             "scan": {"times": times, "width": 1920, "height": 1080,
                      "frame_diff": [0.01] * len(times), "samples": samples},
             "coarse_cuts_ms": [], "seconds": {"shot_cuts_measure": 4.0, "evidence_scan": 3.0}}
