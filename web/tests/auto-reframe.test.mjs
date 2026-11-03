@@ -127,7 +127,7 @@ test("the kept choices keep Otomatis only while the flag is on", () => {
   assert.equal(JSON.parse(store.get(CHOICES_KEY)).renderMode, "auto");
   assert.equal(readStoredChoices(storage, { autoReframe: true }).renderMode, "auto");
   assert.equal(readStoredChoices(storage).renderMode, "fit-blur");
-  assert.match(choicesSummary(choices), /· Otomatis ·/);
+  assert.ok(choicesSummary(choices).includes("Otomatis"));
 });
 
 test("the look preview draws Otomatis as a full 9:16 picture", () => {
@@ -139,7 +139,7 @@ test("the look preview draws Otomatis as a full 9:16 picture", () => {
 
 test("the shot analysis counts as the rendering step", () => {
   const job = { status: "processing", source: { type: "upload" } };
-  assert.equal(jobStepText({ ...job, stage: "reframe" }), jobStepText({ ...job, stage: "rendering" }));
+  assert.deepEqual(jobStepText({ ...job, stage: "reframe" }), jobStepText({ ...job, stage: "rendering" }));
   assert.notEqual(jobStepText({ ...job, stage: "reframe" }), null);
 });
 

@@ -1622,7 +1622,7 @@ def _render_v3_clips(
     wanted = None if ranks is None else set(ranks)
     if render_mode == AUTO_RENDER_MODE and renderer is not None:
         # each clip's shot analysis runs with its render (AutoRenderer)
-        report("reframe", 64, "Menganalisis shot tiap klip")
+        report("reframe", 64, "Menganalisis shot tiap klip", code="reframe")
     _schedule_edit_v2(renderer, [
         (clip.rank, output_dir / f"clip-{index:02d}.mp4")
         for index, (clip, _teaser) in enumerate(plans, start=1)

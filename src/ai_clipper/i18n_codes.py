@@ -35,6 +35,7 @@ STAGE_CODES = (
     "select_ranges",
     "select_moments",
     "packaging",
+    "reframe",
     "render_clip",  # {index, total}
     "finalizing",
     "candidates_generating",

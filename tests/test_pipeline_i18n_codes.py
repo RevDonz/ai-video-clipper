@@ -11,8 +11,10 @@ from __future__ import annotations
 import pytest
 from test_pipeline_v3 import (  # the V3 pipeline fixture: fakes for every external stage
     GROQ,
+    TWO_CLIPS,
     ForbiddenWhisper,
     env,  # noqa: F401 - pytest fixture
+    fake_engine,  # noqa: F401 - pytest fixture
     manifest_of,
     result,
     run,
@@ -72,6 +74,20 @@ def test_three_argument_progress_callbacks_are_called_as_before(env):  # noqa: F
     plain: list[tuple] = []
     run(env, progress=lambda stage, percent, detail: plain.append((stage, percent, detail)))
     assert plain and all(len(item) == 3 for item in plain)
+
+
+def test_the_shot_analysis_of_the_automatic_layout_reports_its_stage_code(
+    env,  # noqa: F811
+    monkeypatch,
+    fake_engine,  # noqa: F811
+):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    events: list = []
+    run(env, max_duration=60.0, render_engine="edit-v2", render_mode="auto",
+        progress=coded_progress(events))
+
+    assert "reframe" in STAGE_CODES
+    assert ("reframe", 64, "Menganalisis shot tiap klip", "reframe", None) in events
 
 
 def test_groq_and_its_progress_have_their_own_codes(env, monkeypatch):  # noqa: F811
