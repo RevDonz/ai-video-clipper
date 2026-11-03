@@ -16,6 +16,8 @@ import { replaySteps } from "../lib/editor/rebase.mjs";
 import {
   DRAFT_DB,
   DRAFT_STORE,
+  LOCAL_DRAFT_NAMESPACE,
+  clearAllDrafts,
   createDraftStore,
   createDraftWriter,
   createMemoryDraftStore,
@@ -180,30 +182,33 @@ async function opened(tab) {
   return tab;
 }
 
+const NS = "0123456789abcdef";
+
 test("the IndexedDB wrapper stores drafts per tab and lists a clip's drafts", async () => {
   const idb = fakeIndexedDB();
-  const store = createDraftStore({ indexedDB: idb, keyRange });
+  const store = createDraftStore({ indexedDB: idb, keyRange, namespace: NS });
   const clip = "clip_000000000000000000000001";
   const other = "clip_000000000000000000000002";
-  assert.equal(draftKey(clip, "tab-a"), `${clip}#tab-a`);
-  assert.equal(await store.get(draftKey(clip, "tab-a")), null);
-  const draft = { key: draftKey(clip, "tab-a"), clipId: clip, tabId: "tab-a", baseEtag: "a".repeat(64), commands: [{ type: "SetLayout" }], doc: { v: 1 } };
+  assert.equal(draftKey(NS, clip, "tab-a"), `u:${NS}:${clip}#tab-a`);
+  assert.equal(await store.get(draftKey(NS, clip, "tab-a")), null);
+  const draft = { key: draftKey(NS, clip, "tab-a"), clipId: clip, tabId: "tab-a", baseEtag: "a".repeat(64), commands: [{ type: "SetLayout" }], doc: { v: 1 } };
   await store.put(draft);
-  await store.put({ ...draft, key: draftKey(clip, "tab-b"), tabId: "tab-b" });
-  await store.put({ ...draft, key: draftKey(other, "tab-a"), clipId: other });
+  await store.put({ ...draft, key: draftKey(NS, clip, "tab-b"), tabId: "tab-b" });
+  await store.put({ ...draft, key: draftKey(NS, other, "tab-a"), clipId: other });
   draft.doc.v = 2;
-  assert.deepEqual((await store.get(draftKey(clip, "tab-a"))).doc, { v: 1 }, "stored by structured clone");
+  assert.deepEqual((await store.get(draftKey(NS, clip, "tab-a"))).doc, { v: 1 }, "stored by structured clone");
   assert.deepEqual((await store.list(clip)).map((entry) => entry.tabId), ["tab-a", "tab-b"]);
   assert.ok(idb.databases.get(DRAFT_DB).stores.has(DRAFT_STORE));
-  await store.delete(draftKey(clip, "tab-a"));
+  await store.delete(draftKey(NS, clip, "tab-a"));
   assert.deepEqual((await store.list(clip)).map((entry) => entry.tabId), ["tab-b"]);
   assert.equal(idb.stats.opens, 1, "one connection");
 });
 
 test("without IndexedDB the drafts live in memory", async () => {
   const store = createDraftStore({ indexedDB: null });
-  await store.put({ key: "c#t", clipId: "c", tabId: "t", commands: [] });
-  assert.deepEqual(await store.get("c#t"), { key: "c#t", clipId: "c", tabId: "t", commands: [] });
+  const key = draftKey(LOCAL_DRAFT_NAMESPACE, "c", "t");
+  await store.put({ key, clipId: "c", tabId: "t", commands: [] });
+  assert.deepEqual(await store.get(key), { key, clipId: "c", tabId: "t", commands: [] });
   assert.equal((await store.list("c")).length, 1);
   assert.equal((await store.list("x")).length, 0);
   const memory = createMemoryDraftStore();
@@ -502,4 +507,35 @@ test("QG-CONFLICT (store): two live tabs, random edits, saves, conflicts and rel
   assert.ok(total.merges > 5, `only ${total.merges} merges`);
   assert.ok(total.reloads > 20, `only ${total.reloads} reloads`);
   assert.ok(total.draftChecks > 500, `only ${total.draftChecks} draft checks`);
+});
+
+test("another user on this device never lists or reads this user's draft (rombak 02 §6.2)", async () => {
+  const idb = fakeIndexedDB();
+  const clip = "clip_000000000000000000000001";
+  const mine = createDraftStore({ indexedDB: idb, keyRange, namespace: "aaaaaaaaaaaaaaaa" });
+  const theirs = createDraftStore({ indexedDB: idb, keyRange, namespace: "bbbbbbbbbbbbbbbb" });
+  const key = draftKey("aaaaaaaaaaaaaaaa", clip, "tab-a");
+  assert.match(key, /^u:aaaaaaaaaaaaaaaa:/);
+  await mine.put({ key, clipId: clip, tabId: "tab-a", baseEtag: "a".repeat(64), commands: [], doc: { v: 1 } });
+  assert.equal((await mine.list(clip)).length, 1);
+  assert.deepEqual(await theirs.list(clip), []);
+  const memory = createMemoryDraftStore({ namespace: "cccccccccccccccc" });
+  await memory.put({ key: draftKey("dddddddddddddddd", clip, "t"), clipId: clip });
+  assert.deepEqual(await memory.list(clip), []);
+});
+
+test("clearAllDrafts deletes the draft database of this device, and never throws", async () => {
+  const deleted = [];
+  const indexedDB = {
+    deleteDatabase(name) {
+      deleted.push(name);
+      const request = {};
+      queueMicrotask(() => request.onsuccess?.());
+      return request;
+    },
+  };
+  assert.equal(await clearAllDrafts({ indexedDB }), true);
+  assert.deepEqual(deleted, ["potongin-editor"]);
+  assert.equal(await clearAllDrafts({ indexedDB: null }), false, "no IndexedDB here");
+  assert.equal(await clearAllDrafts({ indexedDB: { deleteDatabase() { throw new Error("private window"); } } }), false);
 });
