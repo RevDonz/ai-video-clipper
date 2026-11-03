@@ -368,6 +368,7 @@ jobs:
       - name: Boot and rollback drill on real containers
         if: inputs.suite == 'drill'
         run: |
+          set -o pipefail
           old_ref="${GATE_COMMAND:-main}"
           git fetch --no-tags --depth=1 origin "$old_ref"
           old_dir="$RUNNER_TEMP/old-tree"
