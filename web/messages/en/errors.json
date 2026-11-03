@@ -331,5 +331,13 @@
     "body": "Try again. If it still fails, reload the page.",
     "retry": "Try again",
     "openCreate": "Go to Create clips"
+  },
+  "account": {
+    "password_wrong": "Current password is wrong",
+    "password_too_short": "Use at least 12 characters",
+    "password_too_long": "That password is too long",
+    "password_common": "That password is too common",
+    "password_same_as_username": "The password can't be your username",
+    "password_mismatch": "The new passwords don't match"
   }
 }

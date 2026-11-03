@@ -10,12 +10,12 @@
 // analysis/assets/.incoming/<uuid> (O_EXCL | O_NOFOLLOW, 0600), its first 64 bytes sniffed, then
 // `edit_v2.assets ingest` runs through python-cli.mjs (allowlisted env, E11; two at a time).
 // Answers carry fixed codes and never echo a path, a name or the backend's output.
+import { rateKeyOf } from "./security-headers.mjs";
 import { randomUUID as nodeRandomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, realpath, unlink } from "node:fs/promises";
 import path from "node:path";
 
-import { SESSION_COOKIE } from "./auth.mjs";
 import { callCli, editorDeps, isEditorEnabled, isIdempotencyKey, isJobId } from "./clip-edit.mjs";
 import { IMMUTABLE, openedFileResponse } from "./clip-media.mjs";
 import { createEditorRateLimits } from "./rate-limit.mjs";
@@ -363,14 +363,6 @@ export function ingestGate() {
   return globalThis[GATE];
 }
 
-function sessionToken(request) {
-  for (const item of (request.headers.get("cookie") || "").split(";")) {
-    const at = item.indexOf("=");
-    if (at > 0 && item.slice(0, at).trim() === SESSION_COOKIE) return item.slice(at + 1).trim();
-  }
-  return "";
-}
-
 // Routes.
 
 export function createAssetUploadRoute(options = {}) {
@@ -390,7 +382,7 @@ export function createAssetUploadRoute(options = {}) {
       if (!sameOriginMutation(request)) return uploadError("csrf_rejected", 403);
       const jobId = (await params)?.id;
       if (!isJobId(jobId)) return uploadError("invalid_request", 400);
-      const verdict = limits.check("upload", { sessionToken: sessionToken(request) || "anonymous" });
+      const verdict = limits.check("upload", { sessionToken: rateKeyOf(request) });
       if (!verdict.allowed) {
         return uploadError("rate_limited", 429, {}, { "Retry-After": String(Math.max(1, Math.ceil(verdict.retryAfterMs / 1000))) });
       }

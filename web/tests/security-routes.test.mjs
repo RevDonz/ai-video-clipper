@@ -336,6 +336,34 @@ test("session buckets never hold the token itself", () => {
   assert.match(sessionRateKey(token), /^[0-9a-f]{64}$/);
 });
 
+test("a rate-limit bucket is per user: two sessions of one user share it, two users do not (rombak 02 §4.6)", async (t) => {
+  const { rateKeyOf, secureRoute } = await import("../lib/security-headers.mjs");
+  const { identityFixture, sessionCookieFor } = await import("./support/session.mjs");
+  const { createUser, findUserByUsername } = await import("../lib/users.mjs");
+  await identityFixture(t);
+  const owner = findUserByUsername("owner");
+  const member = createUser({ username: "member1", passwordHash: `scrypt$15$8$1$${"s".repeat(22)}$${"h".repeat(86)}` });
+  const asUser = (user) => new Request("http://local/api/x", { headers: { cookie: sessionCookieFor(user).cookie } });
+  assert.equal(rateKeyOf(asUser(owner)), `user:${owner.id}`);
+  assert.equal(rateKeyOf(asUser(owner)), rateKeyOf(asUser(owner)), "another session, the same bucket");
+  assert.notEqual(rateKeyOf(asUser(owner)), rateKeyOf(asUser(member)));
+  assert.equal(rateKeyOf(new Request("http://local/api/x")), "anonymous");
+  const limits = createEditorRateLimits();
+  const seen = [];
+  const original = limits.check.bind(limits);
+  limits.check = (kind, args) => { seen.push(args.sessionToken); return original(kind, args); };
+  const route = secureRoute(async () => Response.json({ ok: true }), { limit: "plan", limits: () => limits });
+  await route(asUser(owner), { params: Promise.resolve({}) });
+  await route(asUser(owner), { params: Promise.resolve({}) });
+  await route(asUser(member), { params: Promise.resolve({}) });
+  assert.deepEqual(seen, [`user:${owner.id}`, `user:${owner.id}`, `user:${member.id}`]);
+});
+
+test("the control directory is a server root: an answer never names it", async () => {
+  const { serverRoots } = await import("../lib/security-headers.mjs");
+  assert.ok(serverRoots({ POTONGIN_DB_PATH: "/control/potongin.sqlite", JOBS_ROOT: "/data/jobs" }, "/app").includes("/control"));
+});
+
 test("the route files hold no logic of their own beyond the shared guard", async () => {
   const { readFile } = await import("node:fs/promises");
   for (const file of await routeFiles()) {

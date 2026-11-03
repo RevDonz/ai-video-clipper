@@ -3,7 +3,11 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { config } from "../proxy.js";
+import { S2_COOKIE, SESSION_COOKIE, createSessionToken } from "../lib/auth.mjs";
+import { createSession, revokeSession } from "../lib/sessions.mjs";
+import { bootstrapOwnerId, createUser, findUserByUsername } from "../lib/users.mjs";
+import { config, proxy } from "../proxy.js";
+import { TEST_ENV, identityFixture } from "./support/session.mjs";
 
 // Compile the matcher with Next's own code, in a child process: Next's server internals refuse
 // to load next to the ESM `next/server` import that proxy.js pulls in.
@@ -106,4 +110,96 @@ test("the matcher excludes exactly the listed routes", () => {
     "api/settings/youtube-cookies/?$", "api/ingest/trends/?$", "api/locale/?$", "login",
     "_next/static", "_next/image", "favicon.ico",
   ]);
+});
+
+// The proxy itself (rombak 02 §4.5): the answers of a real call, on a temp DB.
+function proxied(pathname, cookie = null, method = "GET") {
+  const url = new URL(`http://local${pathname}`);
+  return proxy({
+    method,
+    url: url.href,
+    nextUrl: Object.assign(url, { clone: () => new URL(url.href) }),
+    headers: new Headers(cookie ? { cookie, "user-agent": "Test/1" } : {}),
+  });
+}
+const passed = (response) => response.headers.get("x-middleware-next") === "1";
+
+test("no session: /api/* gets the 401 with its code, a page goes to /login with next", async (t) => {
+  await identityFixture(t);
+  const api = proxied("/api/jobs/x");
+  assert.equal(api.status, 401);
+  assert.deepEqual(await api.json(), { error: "Sesi login diperlukan", code: "unauthorized", messageId: "web.unauthorized" });
+  const page = proxied("/projects/x?tab=1");
+  assert.equal(page.status, 307);
+  assert.equal(new URL(page.headers.get("location")).pathname, "/login");
+  assert.equal(new URL(page.headers.get("location")).searchParams.get("next"), "/projects/x?tab=1");
+  assert.ok(passed(proxied("/")));
+});
+
+test("a revoked s2 cookie is out at the proxy on the very next request", async (t) => {
+  await identityFixture(t);
+  const { token, session } = createSession(bootstrapOwnerId(), { via: "password" });
+  const cookie = `${S2_COOKIE}=${token}`;
+  assert.ok(passed(proxied("/dashboard", cookie)));
+  revokeSession(session.id, "logout");
+  assert.equal(proxied("/dashboard", cookie).status, 307);
+  assert.equal(proxied("/api/jobs/x", cookie).status, 401);
+});
+
+test("a v1 cookie is upgraded in the response and still passes; beside a valid s2 it is only cleared", async (t) => {
+  await identityFixture(t);
+  const v1 = createSessionToken();
+  const first = proxied("/dashboard", `${SESSION_COOKIE}=${v1}`);
+  assert.ok(passed(first));
+  const cookies = first.headers.getSetCookie();
+  assert.equal(cookies.length, 2);
+  assert.match(cookies[0], /^__Host-potongin_session=s2\..*HttpOnly; Secure; SameSite=Lax; Max-Age=\d+$/);
+  assert.match(cookies[1], /^potongin_session=; /);
+  const s2 = /^[^=]+=([^;]+)/.exec(cookies[0])[1];
+  const both = proxied("/dashboard", `${S2_COOKIE}=${s2}; ${SESSION_COOKIE}=${v1}`);
+  assert.ok(passed(both));
+  assert.deepEqual(both.headers.getSetCookie().map((line) => line.split("=")[0]), [SESSION_COOKIE], "only the v1 cookie is cleared");
+  assert.deepEqual(proxied("/dashboard", `${S2_COOKIE}=${s2}`).headers.getSetCookie(), [], "and then nothing happens");
+});
+
+test("a failed upgrade leaves the owner in, on the v1 cookie", async (t) => {
+  const { dbFile } = await identityFixture(t);
+  assert.ok(dbFile);
+  const v1 = createSessionToken();
+  const owner = findUserByUsername("owner");
+  assert.ok(owner);
+  t.mock.method(console, "warn", () => {});
+  const { db } = await import("../lib/db/index.mjs");
+  db().exec("CREATE TRIGGER no_sessions BEFORE INSERT ON sessions BEGIN SELECT RAISE(ABORT, 'no'); END");
+  const response = proxied("/dashboard", `${SESSION_COOKIE}=${v1}`);
+  assert.ok(passed(response), "the request passes");
+  assert.deepEqual(response.headers.getSetCookie(), [], "the v1 cookie is not cleared");
+});
+
+test("must_change_password: pages go to the change page, the API gets 403, the allowlist passes", async (t) => {
+  await identityFixture(t);
+  const member = createUser({ username: "mustchange", passwordHash: `scrypt$15$8$1$${"s".repeat(22)}$${"h".repeat(86)}`, mustChangePassword: true });
+  const cookie = `${S2_COOKIE}=${createSession(member.id, { via: "password" }).token}`;
+  const page = proxied("/dashboard", cookie);
+  assert.equal(page.status, 307);
+  assert.equal(new URL(page.headers.get("location")).pathname, "/akun/kata-sandi");
+  const api = proxied("/api/jobs/x", cookie);
+  assert.equal(api.status, 403);
+  assert.equal((await api.json()).code, "password_change_required");
+  assert.ok(passed(proxied("/akun/kata-sandi", cookie)));
+  assert.ok(passed(proxied("/api/account/password", cookie, "POST")));
+  assert.ok(passed(proxied("/api/auth/logout", cookie, "POST")));
+  assert.equal(proxied("/api/account/password", cookie, "GET").status, 403);
+});
+
+test("without POTONGIN_DB_PATH the proxy works as before on a v1 cookie, and never clears it", async (t) => {
+  await identityFixture(t);
+  const v1 = createSessionToken({ ...TEST_ENV });
+  const saved = process.env.POTONGIN_DB_PATH;
+  delete process.env.POTONGIN_DB_PATH;
+  t.after(() => { process.env.POTONGIN_DB_PATH = saved; });
+  const response = proxied("/dashboard", `${SESSION_COOKIE}=${v1}`);
+  assert.ok(passed(response));
+  assert.deepEqual(response.headers.getSetCookie(), []);
+  assert.equal(proxied("/dashboard", `${SESSION_COOKIE}=garbage`).status, 307);
 });

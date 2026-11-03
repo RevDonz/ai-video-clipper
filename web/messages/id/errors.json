@@ -331,5 +331,13 @@
     "body": "Coba lagi. Kalau tetap gagal, muat ulang halaman.",
     "retry": "Coba lagi",
     "openCreate": "Buka Buat klip"
+  },
+  "account": {
+    "password_wrong": "Kata sandi sekarang salah",
+    "password_too_short": "Kata sandi minimal 12 karakter",
+    "password_too_long": "Kata sandi terlalu panjang",
+    "password_common": "Kata sandi ini terlalu umum",
+    "password_same_as_username": "Kata sandi tidak boleh sama dengan nama pengguna",
+    "password_mismatch": "Kata sandi baru tidak sama"
   }
 }

@@ -9,7 +9,7 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
 
-import { SESSION_COOKIE, requireAuth } from "./auth.mjs";
+import { SESSION_COOKIE, cookieValue, currentUser, requireAuth } from "./auth.mjs";
 import { retryAfterSeconds, sharedEditorRateLimits } from "./rate-limit.mjs";
 import { sameOriginMutation } from "./request-security.mjs";
 
@@ -71,22 +71,24 @@ export function withSecurityHeaders(response) {
   return addHeaders(response, { ...API_HEADERS, "Cache-Control": "no-store" });
 }
 
-/** The session cookie's value, or "" (rate-limit buckets are keyed by its hash). */
-export function sessionTokenOf(request) {
-  for (const item of (request.headers.get("cookie") || "").split(";")) {
-    const at = item.indexOf("=");
-    if (at > 0 && item.slice(0, at).trim() === SESSION_COOKIE) return item.slice(at + 1).trim();
-  }
-  return "";
+/**
+ * The rate-limit bucket of a request (rombak 02 §4.6): one per user, however many sessions that
+ * user has. Without the user database, the v1 cookie as before.
+ */
+export function rateKeyOf(request) {
+  const principal = currentUser(request);
+  if (!principal) return "anonymous";
+  return principal.id ? `user:${principal.id}` : (cookieValue(request, SESSION_COOKIE) ?? "anonymous");
 }
 
 const realRoots = new Map();
 
 /** The server directories an answer must never name: the jobs root (as set and resolved) and the
- * settings, resources and app directories. */
+ * settings, control, resources and app directories. */
 export function serverRoots(env = process.env, cwd = process.cwd()) {
   const roots = new Set();
-  for (const value of [env.JOBS_ROOT || "/data/jobs", env.POTONGIN_SETTINGS_DIR, env.POTONGIN_RESOURCES_DIR, cwd]) {
+  const control = env.POTONGIN_DB_PATH ? path.dirname(env.POTONGIN_DB_PATH) : null;
+  for (const value of [env.JOBS_ROOT || "/data/jobs", env.POTONGIN_SETTINGS_DIR, control, env.POTONGIN_RESOURCES_DIR, cwd]) {
     if (typeof value !== "string" || !path.isAbsolute(value)) continue;
     const resolved = path.resolve(value);
     roots.add(resolved);
@@ -153,7 +155,7 @@ export function secureRoute(handler, options = {}) {
       if (typeof value !== "string" || !ROUTE_PARAMS[name].test(value)) return refusal("invalid_request", 400);
     }
     if (limit) {
-      const verdict = limits().check(limit, { sessionToken: sessionTokenOf(request) || "anonymous", jobId: resolved?.id });
+      const verdict = limits().check(limit, { sessionToken: rateKeyOf(request), jobId: resolved?.id });
       if (!verdict.allowed) return refusal("rate_limited", 429, { "Retry-After": retryAfterSeconds(verdict.retryAfterMs) });
     }
     const response = await handler(request, { ...context, params: Promise.resolve(resolved) });

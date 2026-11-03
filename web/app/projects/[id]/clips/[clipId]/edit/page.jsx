@@ -12,7 +12,7 @@ import { notFound, redirect } from "next/navigation";
 
 import EditorApp from "../../../../../../components/editor/EditorApp.jsx";
 import { editorPageMode } from "../../../../../../components/editor/shell-model.mjs";
-import { SESSION_COOKIE, verifySessionToken } from "../../../../../../lib/auth.mjs";
+import { draftNamespaceFor, sessionFromCookieStore } from "../../../../../../lib/auth.mjs";
 import { readEditorFlags } from "../../../../../../lib/editor/flags.mjs";
 import { routeMetadata } from "../../../../../../lib/i18n/server.mjs";
 import { clipRefFromSegment, editorHref } from "../../../../../../lib/editor/open-clip.mjs";
@@ -31,12 +31,13 @@ export default async function EditorPage({ params }) {
   const here = ref ? editorHref(id, ref) : null;
   if (mode === "off" || !here) notFound();
   const store = await cookies();
-  if (!verifySessionToken(store.get(SESSION_COOKIE)?.value ?? null)) {
+  const principal = sessionFromCookieStore(store);
+  if (!principal) {
     redirect(`/login?next=${encodeURIComponent(here)}`);
   }
   const flags = readEditorFlags(process.env);
   // "Pintasan satu tombol", the same per-device preference as the app pages' (05 §3.9).
   const singleKeyShortcuts = shortcutPrefFromValue(store.get(SHORTCUTS_COOKIE)?.value);
   // `shell`: POTONGIN_EDITOR_SHELL, the one-layout editor (v2) or the two-view one (legacy, the default).
-  return <EditorApp jobId={id} clipId={ref.clipId} clipIndex={ref.index} runtimeKind={mode} features={{ uploads: flags.uploads, llm: flags.llm }} singleKeyShortcuts={singleKeyShortcuts} shell={flags.shell} />;
+  return <EditorApp jobId={id} clipId={ref.clipId} clipIndex={ref.index} runtimeKind={mode} features={{ uploads: flags.uploads, llm: flags.llm }} singleKeyShortcuts={singleKeyShortcuts} shell={flags.shell} draftNamespace={draftNamespaceFor(principal)} />;
 }

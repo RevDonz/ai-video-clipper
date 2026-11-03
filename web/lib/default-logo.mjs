@@ -38,7 +38,7 @@ import { readEditorFlags } from "./editor/flags.mjs";
 import { resolveSettingsPaths } from "./llm-settings.mjs";
 import { sharedEditorRateLimits } from "./rate-limit.mjs";
 import { sameOriginMutation } from "./request-security.mjs";
-import { sessionTokenOf } from "./security-headers.mjs";
+import { rateKeyOf } from "./security-headers.mjs";
 
 export const DEFAULT_LOGO_DIR = "default-logo";
 export const DEFAULT_LOGO_SCHEMA = "potongin.default-logo/1";
@@ -309,7 +309,7 @@ export function createDefaultLogoRoute(options = {}) {
       if (denied) return denied;
       if (!defaultLogoEnabled(deps.env)) return uploadError("uploads_disabled", 404);
       if (!sameOriginMutation(request)) return uploadError("csrf_rejected", 403);
-      const verdict = limits.check("upload", { sessionToken: sessionTokenOf(request) || "anonymous" });
+      const verdict = limits.check("upload", { sessionToken: rateKeyOf(request) });
       if (!verdict.allowed) {
         return uploadError("rate_limited", 429, {}, { "Retry-After": String(Math.max(1, Math.ceil(verdict.retryAfterMs / 1000))) });
       }

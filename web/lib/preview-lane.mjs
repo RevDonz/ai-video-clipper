@@ -30,7 +30,8 @@ import { lstat, readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { TextDecoder } from "node:util";
 
-import { SESSION_COOKIE, requireAuth } from "./auth.mjs";
+import { requireAuth } from "./auth.mjs";
+import { rateKeyOf } from "./security-headers.mjs";
 import { CLIP_ID, FRAME_FILE, JOB_ID, openClipFile, openedFileResponse } from "./clip-media.mjs";
 import { PythonCliError, createPythonServer, httpStatusForExit, runPythonCli } from "./python-cli.mjs";
 import { createEditorRateLimits } from "./rate-limit.mjs";
@@ -903,14 +904,6 @@ function json(status, body, headers = {}) {
 
 const failure = (status, code, headers) => json(status, { error: { code, messageId: `edit.${code}` } }, headers);
 
-function sessionToken(request) {
-  for (const item of (request.headers.get("cookie") || "").split(";")) {
-    const at = item.indexOf("=");
-    if (at > 0 && item.slice(0, at).trim() === SESSION_COOKIE) return item.slice(at + 1).trim();
-  }
-  return "";
-}
-
 async function readBody(request, limit) {
   const declared = request.headers.get("content-length");
   if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > limit)) throw new LaneRequestError(413, "invalid_request");
@@ -951,7 +944,7 @@ function gate(request, params, env) {
 }
 
 function limited(limits, kind, request) {
-  const verdict = limits.check(kind, { sessionToken: sessionToken(request) || "anonymous" });
+  const verdict = limits.check(kind, { sessionToken: rateKeyOf(request) });
   if (verdict.allowed) return null;
   return failure(429, "rate_limited", { "Retry-After": String(Math.max(1, Math.ceil(verdict.retryAfterMs / 1000))) });
 }

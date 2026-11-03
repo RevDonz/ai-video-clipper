@@ -6,7 +6,7 @@ import { localeOptions } from "./i18n/locales.mjs";
 import { shellUser } from "./shell-user.mjs";
 import { uiFeatures } from "./ui-features.mjs";
 
-export function shellData(env = process.env) {
-  const user = shellUser(env);
+export function shellData(env = process.env, principal = null) {
+  const user = shellUser(env, principal);
   return { user, features: uiFeatures(user, env), locales: localeOptions(env) };
 }
