@@ -5,6 +5,11 @@
 import { Suspense, lazy, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 
+import I18n from "../../../../lib/i18n/client.jsx";
+import aria from "../../../../messages/id/aria.json";
+import common from "../../../../messages/id/common.json";
+import editor from "../../../../messages/id/editor.json";
+
 import editorStyles from "../../editor.module.css";
 import { PANELS } from "../../panels/index.mjs";
 import { dataset } from "./harness-data.mjs";
@@ -49,6 +54,9 @@ store.subscribe((state) => { if (state.plan) player.load(state.plan); });
 
 window.__harness = { store, player, words: data.words, config, ready: false };
 createRoot(document.getElementById("root")).render(
-  <Harness store={store} player={player} initialPanel={config.panel ?? PANELS[0].id} />,
+  // The panels' shared parts read their words from the catalog, as the editor's layout gives it in the app.
+  <I18n locale="id" messages={{ aria, common, editor }} timeZone="Asia/Jakarta">
+    <Harness store={store} player={player} initialPanel={config.panel ?? PANELS[0].id} />
+  </I18n>,
 );
 window.__harness.ready = true;
