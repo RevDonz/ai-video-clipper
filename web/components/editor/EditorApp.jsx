@@ -922,7 +922,7 @@ function PreparePage({ jobId, startedAt }) {
 
 export default function EditorApp({
   jobId, clipId: initialClipId = null, clipIndex = null, runtimeKind = "real", runtime: injected = null, initialPanel,
-  features = {}, singleKeyShortcuts = true, shell: shellFlag = "legacy",
+  features = {}, singleKeyShortcuts = true, shell: shellFlag = "legacy", draftNamespace = undefined,
 }) {
   const narrow = useNarrow();
   // On the fakes (dev and CI only) the e2e scenario may pick the shell, so one server runs the
@@ -944,7 +944,7 @@ export default function EditorApp({
     let alive = true;
     let created = null;
     const scenario = runtimeKind === "fake" ? (globalThis.__potonginEditorScenario ?? null) : null;
-    createEditorRuntime({ kind: runtimeKind, jobId, clipId, scenario })
+    createEditorRuntime({ kind: runtimeKind, jobId, clipId, scenario, deps: draftNamespace ? { draftNamespace } : {} })
       .then((next) => {
         if (!alive) { next.destroy(); return; }
         created = next;
@@ -956,7 +956,7 @@ export default function EditorApp({
       created?.destroy();
       setRuntime(null);
     };
-  }, [injected, runtimeKind, jobId, clipId, prepare]);
+  }, [injected, runtimeKind, jobId, clipId, prepare, draftNamespace]);
 
   useEffect(() => {
     if (!prepare) return undefined;
