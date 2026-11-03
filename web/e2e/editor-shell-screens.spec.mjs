@@ -10,7 +10,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { TAB_IDS, openPanel } from "./support/editor-panels.mjs";
+import { TAB_IDS, openPanel, panelRegion } from "./support/editor-panels.mjs";
+import { shellDoc } from "./support/shell-docs.mjs";
 import { expect, openShell, test, useShellDefaults } from "./support/editor-shell.mjs";
 
 useShellDefaults();
@@ -59,7 +60,7 @@ for (const viewport of VIEWPORTS) {
     test.use({ viewport });
 
     test(`screens at ${size}: each tab, Baris and the word toolbar`, async ({ page }) => {
-      test.setTimeout(120_000);
+      test.setTimeout(240_000);
       const dir = outDir();
       const manifest = [];
       await openShell(page);
@@ -77,6 +78,26 @@ for (const viewport of VIEWPORTS) {
       await openShell(page, "?card=lines");
       await expect(page.locator('[data-slot="transcript"] [data-transcript-mode="lines"]')).toBeVisible();
       await shot(page, dir, manifest, `${size}-transcript-baris`);
+
+      // The folds open, and Lihat sumber in place of the two dialogs (06 §5.2, §8).
+      const panel = await openPanel(page, "text");
+      for (const group of ["caption", "hook"]) await panel.locator(`[data-advanced="${group}"] button`).first().click();
+      await shot(page, dir, manifest, `${size}-teks-lanjutan`);
+      await openShell(page, "?panel=layout", { doc: shellDoc("fillCenter") });
+      await page.locator("[data-source-toggle]").click();
+      await expect(page.locator('[data-gizmo="frame"]')).toBeVisible();
+      await shot(page, dir, manifest, `${size}-lihat-sumber-bingkai`);
+      await openShell(page, "?panel=layout", { doc: shellDoc("split") });
+      await page.locator("[data-source-toggle]").click();
+      await expect(page.locator('[data-gizmo="split"]')).toBeVisible();
+      await shot(page, dir, manifest, `${size}-lihat-sumber-terbagi`);
+      await openShell(page, "?panel=audio", { doc: shellDoc("music") });
+      await panelRegion(page).locator('[data-advanced="music"] button').first().click();
+      await shot(page, dir, manifest, `${size}-audio-lanjutan`);
+      await openShell(page, "?panel=logo", { doc: shellDoc("logo") });
+      await shot(page, dir, manifest, `${size}-logo`);
+      await openShell(page, "?panel=coldopen", { doc: shellDoc("coldOpen") });
+      await shot(page, dir, manifest, `${size}-coldopen`);
 
       if (dir) writeFileSync(path.join(dir, `manifest-${size}.json`), `${JSON.stringify(manifest, null, 2)}\n`);
     });

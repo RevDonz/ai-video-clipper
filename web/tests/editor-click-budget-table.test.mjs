@@ -9,16 +9,17 @@ import test from "node:test";
 
 import { CLICK_BUDGET, clickCount } from "../e2e/support/click-budget.mjs";
 import { SHELL_DOCS, shellDoc, shellDocContext } from "../e2e/support/shell-docs.mjs";
+import { ADVANCED_GROUPS } from "../lib/editor/disclosure.mjs";
 import { checkDoc } from "../lib/editor/doc-model.mjs";
 
 const DOC = new URL("../../docs/plans/2026-10-24-rombak/06-editor.md", import.meta.url);
 // F2 (the transcript) has landed: its rows are walked, so it is no longer a phase to wait for.
 const PHASES = new Set(["F3", "F4a", "F4b", "F5", "F6", "F7", "F8", "F9"]);
-const WITHIN = new Set(["topBar", "clips", "stage", "transcript", "panel", "timeline", "menu", "dialog"]);
+const WITHIN = new Set(["topBar", "clips", "stage", "transcript", "panel", "timeline", "menu", "dialog", "alertdialog"]);
 const SCENARIO_KEYS = new Set(["clips", "planWarnings", "readOnly", "conflict", "removal", "context", "doc"]);
-// Rows whose control waits for a later sub-phase but is in the one layout already (06 §2.3, §10):
-// walked at their place today, so the F2 shell keeps every existing capability within budget.
-const WALKED_TODAY = [17, 19, 20, 43, 44, 46, 47, 49, 50, 51, 59, 60, 61, 62, 63, 64, 65, 66, 67, 72, 75, 76, 77, 89, 91];
+// The tabs' rows (F3, F4a, F5): walked at their §10 place, none waiting for those phases any more,
+// except the two that show only while a run is on (their specs stage it: 56, 90).
+const TAB_ROWS = [17, 18, 19, 20, ...Array.from({ length: 11 }, (_, at) => 41 + at), 52, ...Array.from({ length: 21 }, (_, at) => 57 + at), 89, 91];
 
 /** `{row: clicksCell}` of the §10 table. */
 function docRows() {
@@ -40,6 +41,11 @@ function checkLocator(locator, where) {
   assert.ok(locator && typeof locator === "object", where);
   assert.ok(WITHIN.has(locator.within), `${where}: within`);
   if (locator.testId) return;
+  if (locator.advanced) {
+    assert.ok(ADVANCED_GROUPS.includes(locator.advanced), `${where}: fold ${locator.advanced}`);
+    assert.equal(locator.within, "panel", `${where}: a fold is in the panel`);
+    return;
+  }
   // A word of the transcript, by its index in the words artifact (it has no role of its own).
   if (Object.hasOwn(locator, "word")) {
     assert.ok(Number.isInteger(locator.word) && locator.word >= 0, `${where}: word`);
@@ -101,11 +107,14 @@ test("a walkable entry fits its budget with locators the spec understands; the r
     assert.ok(item.target, `row ${row}: a target`);
   }
   assert.ok(walkable >= 33, "the shell's and the transcript's controls are walked");
-  for (const row of WALKED_TODAY) {
+  for (const row of TAB_ROWS) {
     const item = CLICK_BUDGET.find((entry) => entry.row === row);
-    assert.ok(item.target, `row ${row}: walked at its place today`);
+    assert.ok(item.target, `row ${row}: walked`);
+    assert.equal(item.pending, undefined, `row ${row}: F3, F4a and F5 have landed`);
   }
-  assert.ok(walkable >= 58, "the panels' controls that the one layout mounts today are walked too");
+  assert.deepEqual(CLICK_BUDGET.filter((item) => ["F3", "F4a", "F5"].includes(item.pending)).map((item) => item.row), [56, 90],
+    "only the rows that show during a run still wait; their specs stage it");
+  assert.ok(walkable >= 64, "the tabs' controls are walked");
 });
 
 test("every document a row opens is valid for the fakes' clip", () => {

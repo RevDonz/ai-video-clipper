@@ -31,6 +31,15 @@ const ZERO = Object.freeze([
   "components/editor/transcript/LinesView.jsx",
   "components/editor/transcript/ReviewDrawer.jsx",
   "components/editor/transcript/TranscriptHead.jsx",
+  // The one-layout editor's tabs and its source view (06 §8, §5.2, Editor F3–F5).
+  "components/editor/panels/TextTab.jsx",
+  "components/editor/panels/LayoutTab.jsx",
+  "components/editor/panels/AudioPanel.jsx",
+  "components/editor/panels/LogoTab.jsx",
+  "components/editor/panels/ColdOpenTab.jsx",
+  "components/editor/panels/tab-ui.jsx",
+  "components/editor/shell/ConfirmDialog.jsx",
+  "components/editor/shell/SourceStage.jsx",
   "lib/i18n/client.jsx",
   // The shell (Dashboard F1, 08 Fase 1: ratchet 0 for AppShell).
   "components/AppShell.jsx",
