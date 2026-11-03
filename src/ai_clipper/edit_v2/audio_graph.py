@@ -19,8 +19,12 @@ The graph (every number is an integer computed from the document; no user string
 asset name ever appears in it):
 
 * per piece ``i``: ``[sa<i>]aresample=48000,asettb=1/48000,apad,atrim=start_pts=<a>:end_pts=<b>,
-  pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS`` with ``a = smp(in_sf)`` and
-  ``b = a + smp(out_f0 + frames) − smp(out_f0)`` (§5.3). The explicit ``pan`` maps a mono
+  pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS,apad,atrim=end_sample=<b − a>`` with
+  ``a = smp(in_sf)`` and ``b = a + smp(out_f0 + frames) − smp(out_f0)`` (§5.3). The second
+  ``apad`` and ``atrim`` hold the piece to its planned count: ``start_pts`` and ``end_pts`` cut on
+  the source's timestamps, which do not match its samples when they are rounded (Matroska's
+  milliseconds through FFmpeg 5.1: ±8 samples a frame) or when the audio has a hole, and every
+  later piece would otherwise slide. The explicit ``pan`` maps a mono
   source (``FC``) to both channels at full gain and keeps stereo unchanged (the implicit upmix
   is −3 dB); ``apad`` makes a source whose audio ends early still yield the exact count. The
   ``pan`` comes **after** the trim (W1 integration, requested by T1.3): every ``[sa<i>]``
@@ -126,7 +130,7 @@ def _build(plan: RenderPlan) -> tuple[str, tuple[InputSpec, ...], dict[str, byte
             texts.append(
                 f"[{SOURCE_AUDIO_LABEL.format(i=piece.i)}]{_RESAMPLE},"
                 f"asettb=1/{SAMPLE_RATE},apad,atrim=start_pts={start}:end_pts={end},"
-                f"{_PAN_ANY},asetpts=PTS-STARTPTS"
+                f"{_PAN_ANY},asetpts=PTS-STARTPTS,apad,atrim=end_sample={end - start}"
             )
         if len(texts) == 1:
             speech = texts[0]

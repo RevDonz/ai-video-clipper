@@ -105,7 +105,7 @@ audio-speech.f32 f96fc0667b4e3c8df34a57f67d329dc137391e0b3416ccf29197d0c26882cb9
   1001
  ],
  "gain_cdb": -60,
- "mix_sha256": "526aa251d2c149bb03c785144b18c347b96e1ba66a071352b4d328d1624370b8",
+ "mix_sha256": "10054631f3de757772f26b2e1255071785660add93d52c01f72f8b6f35a594db",
  "mode": "audio_preview",
  "output": "fd",
  "paths": {
@@ -122,6 +122,6 @@ audio-speech.f32 f96fc0667b4e3c8df34a57f67d329dc137391e0b3416ccf29197d0c26882cb9
 ## filter_script
 [0:1]anull[sa0];
 [1:1]anull[sa1];
-[sa0]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p0];[sa1]aresample=48000,asettb=1/48000,apad,atrim=start_pts=59611552:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p1];[au_p0][au_p1]concat=n=2:v=0:a=1[au_sc];[2:a]pan=stereo|c0=c0|c1=c0[au_se];[au_sc][au_se]amultiply[au_s];[3:a]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,atrim=start_sample=0:end_sample=3457854,asetpts=PTS-STARTPTS[au_mr];[4:a]pan=stereo|c0=c0|c1=c0[au_me];[au_mr][au_me]amultiply[au_m];[5:a]asetpts=PTS-STARTPTS,adelay=delays=206297S:all=1,apad,atrim=end_sample=3457854[au_w];[au_s][au_m][au_w]amix=inputs=3:normalize=0:duration=first,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[apre];
+[sa0]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS,apad,atrim=end_sample=217817[au_p0];[sa1]aresample=48000,asettb=1/48000,apad,atrim=start_pts=59611552:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS,apad,atrim=end_sample=3240037[au_p1];[au_p0][au_p1]concat=n=2:v=0:a=1[au_sc];[2:a]pan=stereo|c0=c0|c1=c0[au_se];[au_sc][au_se]amultiply[au_s];[3:a]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,atrim=start_sample=0:end_sample=3457854,asetpts=PTS-STARTPTS[au_mr];[4:a]pan=stereo|c0=c0|c1=c0[au_me];[au_mr][au_me]amultiply[au_m];[5:a]asetpts=PTS-STARTPTS,adelay=delays=206297S:all=1,apad,atrim=end_sample=3457854[au_w];[au_s][au_m][au_w]amix=inputs=3:normalize=0:duration=first,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[apre];
 [apre]volume=-0.60dB,aresample=48000,aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo[aout]
 

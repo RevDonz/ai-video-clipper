@@ -1002,10 +1002,13 @@ frame. Optional `faces` (§5.50): the framed face per sample, `[x_pm, y_pm, w_pm
     reached, path `/audio/master`) and `peak_reduced:-3.80 dB` (the reduction, path
     `/audio`); `errors.message()` renders them as `<message> (-3.80 dB)`.
 - **Piece chain (W1 integration).** Each piece is
-  `[sa<i>]aresample=48000,asettb=1/48000,apad,atrim=start_pts=<a>:end_pts=<b>,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS`:
+  `[sa<i>]aresample=48000,asettb=1/48000,apad,atrim=start_pts=<a>:end_pts=<b>,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS,apad,atrim=end_sample=<b-a>`:
   the `pan` follows the trim (plan §5.3 lists it first). Every `[sa<i>]` carries its whole
   decoder run, and a `pan` before the trim kept that audio queued in every finished piece
-  (FFmpeg 6.1, 150 pieces over 108 s: 2.47 GiB and a stalled render against 100 MiB).
+  (FFmpeg 6.1, 150 pieces over 108 s: 2.47 GiB and a stalled render against 100 MiB). The last
+  `apad,atrim` holds the piece to its planned count: Open 12, Matroska's rounded timestamps
+  through FFmpeg 5.1 moved the cuts by 8 samples, and a hole in the audio would slide every
+  later piece.
 - Observation for T1.4 (FFmpeg 6.1.1): `pan=stereo|FL=FL+FC|FR=FR+FC` maps a mono source to
   both channels at full gain and keeps a stereo source unchanged, with no channel count needed.
   Whether it is used is T1.4's decision.
