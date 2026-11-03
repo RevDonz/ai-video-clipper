@@ -11,8 +11,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { isLlmVariable } from "../lib/llm-settings.mjs";
+import { engineProcessEnv, isLlmVariable } from "../lib/llm-settings.mjs";
 import { CHILD_ENV_ALLOWLIST, createPythonServer, childEnv } from "../lib/python-cli.mjs";
+import { runnerEnv } from "../scripts/primary-worker.mjs";
 import { downloaderEnv, engineEnvironment } from "../scripts/run-job.mjs";
 import {
   AUTH,
@@ -44,6 +45,11 @@ const SPAWN_SITES = Object.freeze({
   "scripts/run-job.mjs": /processEnv: downloaderEnv\(env\)[\s\S]*await engineEnvironment\(env\)/,
   // the render-worker container: the Python render worker
   "scripts/run-render.mjs": /spawn\(command, args, \{ stdio: "inherit", shell: false, env \}\)/,
+  // the app's daily backup: the paths it needs, no login or sealing secret (rombak 01 §1.3)
+  "scripts/start-app.mjs": /const childEnv = \{ PATH: env\.PATH \?\? "\/usr\/bin:\/bin" \};[\s\S]*\{ env: childEnv, timeout: BACKUP_TIMEOUT_MS \}/,
+  // tar with PATH only, on the control volume
+  "scripts/db-backup.mjs": /execFileSync\("tar", \[[^\]]*\], \{[^}]*env: \{ PATH: process\.env\.PATH \?\? "\/usr\/bin:\/bin" \} \}\)/,
+  "scripts/db-restore.mjs": /const TAR_ENV = \(\) => \(\{ PATH: process\.env\.PATH \?\? "\/usr\/bin:\/bin" \}\)/,
 });
 
 async function sources() {
@@ -96,6 +102,29 @@ test("the worker containers hand their children no dashboard secret", async () =
   } finally {
     await rm(settings, { recursive: true, force: true });
   }
+});
+
+test("no child of the app or the worker gets the DB path or NODE_OPTIONS (rombak 01 §1.3)", async () => {
+  const planted = { ...AUTH, ...DASHBOARD_SECRETS, POTONGIN_DB_PATH: "/control/potongin.sqlite", NODE_OPTIONS: "--inspect", PATH: "/usr/bin", JOBS_ROOT: "/data/jobs" };
+  assert.equal(CHILD_ENV_ALLOWLIST.includes("POTONGIN_DB_PATH"), false);
+  assert.equal(CHILD_ENV_ALLOWLIST.includes("NODE_OPTIONS"), false);
+  const python = childEnv(planted);
+  for (const name of ["POTONGIN_DB_PATH", "POTONGIN_SETTINGS_SECRET", "APP_SESSION_SECRET", "APP_PASSWORD", "NODE_OPTIONS"]) assert.equal(python[name], undefined, name);
+  const settings = await mkdtemp(path.join(os.tmpdir(), "potongin-sec-db-"));
+  try {
+    const engine = await engineEnvironment({ ...planted, POTONGIN_SETTINGS_DIR: settings }, () => {});
+    const downloader = downloaderEnv({ ...planted, POTONGIN_SETTINGS_DIR: settings });
+    for (const env of [engine, downloader, engineProcessEnv(planted)]) {
+      for (const name of ["POTONGIN_DB_PATH", "POTONGIN_SETTINGS_SECRET", "APP_SESSION_SECRET", "APP_PASSWORD", "NODE_OPTIONS"]) assert.equal(env[name], undefined, name);
+    }
+  } finally {
+    await rm(settings, { recursive: true, force: true });
+  }
+  // run-job needs the sealing secret for the keys, and never the DB path (02 §3.1).
+  const runner = runnerEnv(planted, { PRIMARY_LEASE_MS: "1000" });
+  assert.equal(runner.POTONGIN_DB_PATH, undefined);
+  assert.equal(runner.POTONGIN_SETTINGS_SECRET, planted.POTONGIN_SETTINGS_SECRET);
+  assert.equal(runner.PRIMARY_LEASE_MS, "1000");
 });
 
 test("the persistent preview worker starts with the allowlisted environment", async () => {

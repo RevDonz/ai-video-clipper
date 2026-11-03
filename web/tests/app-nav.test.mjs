@@ -131,15 +131,23 @@ test("shellUser: the env login's name and initials, as the single-user admin", (
   assert.equal(shellUser({ APP_USERNAME: "x".repeat(200) }).displayName.length, 64, "a long name is cut for the sidebar");
 });
 
+test("shellUser: with a session, the account's name, role and the break-glass mark", () => {
+  const member = { displayName: "Andi Saputra", role: "member", via: "password" };
+  assert.deepEqual(shellUser({ APP_USERNAME: "owner" }, member), { displayName: "Andi Saputra", initials: "AS", role: "member" });
+  const glass = { displayName: "owner", role: "admin", via: "break_glass" };
+  assert.deepEqual(shellUser({ APP_USERNAME: "owner" }, glass), { displayName: "owner", initials: "OW", role: "admin", breakGlass: true });
+});
+
 test("the shell data is computed on the server and handed to client pages by their layouts", async () => {
   for (const file of ["app/dashboard/layout.jsx", "app/projects/layout.jsx", "app/settings/layout.jsx", "app/trends/layout.jsx"]) {
     const source = await readFile(path.join(WEB, file), "utf8");
-    assert.match(source, /<ShellData \{\.\.\.shellData\(\)\}>/, file);
+    assert.match(source, /const shell = await sessionShellData\(\);/, file);
+    assert.match(source, /<ShellData \{\.\.\.shell\}>/, file);
     assert.doesNotMatch(source, /^"use client"/, file);
   }
   for (const file of ["app/bantuan/page.jsx", "app/licenses/page.jsx"]) {
     const source = await readFile(path.join(WEB, file), "utf8");
-    assert.match(source, /<AppShell (?:current="[^"]+" )?\{\.\.\.shellData\(\)\}>/, file);
+    assert.match(source, /<AppShell (?:current="[^"]+" )?\{\.\.\.await sessionShellData\(\)\}>/, file);
   }
   const data = await readFile(path.join(WEB, "lib", "shell-data.mjs"), "utf8");
   assert.match(data, /uiFeatures\(user, env\)/);
