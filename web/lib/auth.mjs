@@ -58,7 +58,7 @@ export function createSessionToken(env = process.env, now = Math.floor(Date.now(
 }
 
 /** The v1 token's expiry in seconds when it is valid, else null. */
-function v1Expiry(token, env, now) {
+export function v1Expiry(token, env = process.env, now = Math.floor(Date.now() / 1000)) {
   if (!configured(env) || typeof token !== "string") return null;
   const separator = token.lastIndexOf(".");
   if (separator <= 0) return null;

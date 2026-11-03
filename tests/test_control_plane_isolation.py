@@ -9,7 +9,6 @@ no module of the engine knows the DB, the path or the variable.
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 
 from support.workflow_yaml import load
@@ -84,11 +83,9 @@ def test_the_primary_worker_strips_the_db_path_for_run_job():
     assert "env: runnerEnv(env," in worker
 
 
-def test_only_the_web_ships_sqlite_for_the_control_plane():
-    """The boundary test of the other side: nothing the render worker spawns loads web/lib/db."""
-    result = subprocess.run(
-        ["git", "grep", "-l", "lib/db/", "--", "web/scripts/render-storage-admission.mjs",
-         "web/lib/render-storage-admission.mjs", "web/lib/storage-admission.mjs"],
-        cwd=REPO, capture_output=True, text=True, check=False,
-    )
-    assert result.stdout.strip() == ""
+def test_what_the_render_worker_spawns_does_not_load_the_db_layer():
+    """The other side of the boundary; web/tests/sqlite-import-boundary follows the whole graph."""
+    web = REPO / "web"
+    for name in ("scripts/render-storage-admission.mjs", "lib/render-storage-admission.mjs", "lib/storage-admission.mjs"):
+        text = (web / name).read_text(encoding="utf-8")
+        assert "lib/db/" not in text and "./db/" not in text and "node:sqlite" not in text, name
