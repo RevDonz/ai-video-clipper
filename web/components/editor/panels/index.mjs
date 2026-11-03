@@ -47,7 +47,7 @@ function tab(id, panelId) {
 
 export const SHELL_TABS = Object.freeze([
   entry({ id: "text", component: "TextTab", file: "panels/TextTab.jsx", load: () => import("./TextTab.jsx") }),
-  tab("layout", "layout"),
+  entry({ id: "layout", component: "LayoutTab", file: "panels/LayoutTab.jsx", load: () => import("./LayoutTab.jsx") }),
   tab("audio", "music"),
   tab("logo", "logo"),
   tab("coldopen", "coldopen"),
