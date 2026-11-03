@@ -297,8 +297,9 @@ test("ingest: other methods get 405 with Allow, a stable code and no-store", asy
 test("the session proxy's API 401 carries a stable code like every Konteks Tren error", async () => {
   const response = await read(proxy({ headers: new Headers(), nextUrl: new URL("http://local/api/context/tokens") }));
   assert.equal(response.status, 401);
-  assert.deepEqual(Object.keys(response.body), ["error", "code"]);
+  assert.deepEqual(Object.keys(response.body), ["error", "code", "messageId"]);
   assert.equal(response.body.code, "unauthorized");
+  assert.equal(response.body.messageId, "web.unauthorized");
   assert.equal(response.cacheControl, "no-store");
 });
 
