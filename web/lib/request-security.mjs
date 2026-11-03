@@ -112,6 +112,22 @@ export class AuthRateLimiter {
   }
 }
 
+// One limiter per kind per process, across Next's route bundles (rombak 02 §7.1). In memory: a
+// restart empties them, which one app container accepts.
+const SHARED_LIMITERS = Symbol.for("potongin.auth-limiters");
+const AUTH_LIMITER_CONFIG = Object.freeze({
+  login: (env) => parseAuthRateLimitConfig(env),
+  password: () => ({ attempts: 5, windowMs: DEFAULT_WINDOW_MS }),
+});
+
+export function sharedAuthLimiter(kind, env = process.env) {
+  if (!Object.hasOwn(AUTH_LIMITER_CONFIG, kind)) throw new Error(`Unknown auth limiter: ${kind}`);
+  globalThis[SHARED_LIMITERS] ??= new Map();
+  const limiters = globalThis[SHARED_LIMITERS];
+  if (!limiters.has(kind)) limiters.set(kind, new AuthRateLimiter(AUTH_LIMITER_CONFIG[kind](env)));
+  return limiters.get(kind);
+}
+
 /**
  * The client IP from the reverse proxy header named by AUTH_TRUSTED_CLIENT_IP_HEADER
  * ("cloudflare": CF-Connecting-IP, "nginx": X-Real-IP), or null when no header is trusted or

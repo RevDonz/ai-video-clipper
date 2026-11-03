@@ -11,7 +11,7 @@ import { constants } from "node:fs";
 import { open, realpath } from "node:fs/promises";
 import path from "node:path";
 
-import { SESSION_COOKIE, verifySessionToken } from "../../../../lib/auth.mjs";
+import { currentUser } from "../../../../lib/auth.mjs";
 import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
@@ -37,19 +37,8 @@ const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_DEPTH = 5;
 const MAX_BYTES = 64 * 1024 * 1024;
 
-export function parityHarnessAllowed(token, env = process.env) {
-  return env.POTONGIN_PARITY_HARNESS === "1" && verifySessionToken(token, env);
-}
-
-function sessionToken(request) {
-  const header = request.headers.get("cookie") || "";
-  for (const item of header.split(";")) {
-    const separator = item.indexOf("=");
-    if (separator > 0 && item.slice(0, separator).trim() === SESSION_COOKIE) {
-      return item.slice(separator + 1).trim();
-    }
-  }
-  return null;
+export function parityHarnessAllowed(request, env = process.env) {
+  return env.POTONGIN_PARITY_HARNESS === "1" && currentUser(request, env) !== null;
 }
 
 function notFound() {
@@ -119,7 +108,7 @@ export function parseRange(header, size) {
 }
 
 async function handle(request, { params }, head) {
-  if (!parityHarnessAllowed(sessionToken(request))) return notFound();
+  if (!parityHarnessAllowed(request)) return notFound();
   const target = await resolveFile((await params).path, process.env);
   if (!target) return notFound();
   const body = await readContained(target);

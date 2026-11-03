@@ -5,7 +5,7 @@ import PageHead from "../../components/ui/PageHead.jsx";
 import { HELP_PATH, findHelpEntry } from "../../lib/help-catalog.mjs";
 import { guideView, helpGroupsView, helpSearchIndex, helpTitles, shortcutsView } from "../../lib/help-view.mjs";
 import { getLocale, getT, routeMetadata } from "../../lib/i18n/server.mjs";
-import { shellData } from "../../lib/shell-data.mjs";
+import { sessionShellData } from "../../lib/shell-session.mjs";
 import HelpGuide from "./HelpGuide.jsx";
 import HelpSearch from "./HelpSearch.jsx";
 import styles from "./bantuan.module.css";
@@ -88,7 +88,7 @@ export default async function HelpPage({ searchParams }) {
   };
 
   return (
-    <AppShell current="/bantuan" {...shellData()}>
+    <AppShell current="/bantuan" {...await sessionShellData()}>
       <div className={`shell ${styles.page}`}>
         <PageHead title={t("title")} />
 

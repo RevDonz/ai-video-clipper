@@ -617,7 +617,7 @@ test("auth redirects stay on the public origin behind a reverse proxy", async ()
     const loggedOut = await logout(new Request("http://0.0.0.0:3000/api/auth/logout", {
       method: "POST", headers: { Origin: "http://0.0.0.0:3000", Host: "0.0.0.0:3000" },
     }));
-    assert.equal(loggedOut.headers.get("location"), "/login");
+    assert.equal(loggedOut.headers.get("location"), "/login?keluar=1");
     assert.equal((await logout(new Request("http://0.0.0.0:3000/api/auth/logout", { method: "POST", headers: { Origin: "https://evil.example", Host: "0.0.0.0:3000" } }))).status, 403);
   } finally {
     for (const [key, value] of Object.entries(previous)) {

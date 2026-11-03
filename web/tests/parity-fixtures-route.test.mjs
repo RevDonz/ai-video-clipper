@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 
 import { SESSION_COOKIE, createSessionToken } from "../lib/auth.mjs";
+import { findUserByUsername } from "../lib/users.mjs";
+import { identityFixture, sessionCookieFor } from "./support/session.mjs";
 import { GET, HEAD, parityHarnessAllowed } from "../app/api/parity-fixtures/[...path]/route.js";
 
 const SECRET_ENV = {
@@ -81,11 +83,20 @@ test("the fixtures route is a 404 unless the harness flag is on and the user is 
 });
 
 test("parityHarnessAllowed needs both the flag and a valid session", async () => {
+  const withCookie = (value) => new Request("http://local/x", { headers: value ? { cookie: `${SESSION_COOKIE}=${value}` } : {} });
   const token = createSessionToken(SECRET_ENV);
-  assert.equal(parityHarnessAllowed(token, { ...SECRET_ENV, POTONGIN_PARITY_HARNESS: "1" }), true);
-  assert.equal(parityHarnessAllowed(token, { ...SECRET_ENV }), false);
-  assert.equal(parityHarnessAllowed("forged.token", { ...SECRET_ENV, POTONGIN_PARITY_HARNESS: "1" }), false);
-  assert.equal(parityHarnessAllowed(null, { ...SECRET_ENV, POTONGIN_PARITY_HARNESS: "1" }), false);
+  assert.equal(parityHarnessAllowed(withCookie(token), { ...SECRET_ENV, POTONGIN_PARITY_HARNESS: "1" }), true);
+  assert.equal(parityHarnessAllowed(withCookie(token), { ...SECRET_ENV }), false);
+  assert.equal(parityHarnessAllowed(withCookie("forged.token"), { ...SECRET_ENV, POTONGIN_PARITY_HARNESS: "1" }), false);
+  assert.equal(parityHarnessAllowed(withCookie(null), { ...SECRET_ENV, POTONGIN_PARITY_HARNESS: "1" }), false);
+});
+
+test("parityHarnessAllowed takes a real s2 session of the user database", async (t) => {
+  await identityFixture(t);
+  const { cookie } = sessionCookieFor(findUserByUsername("owner"));
+  const request = new Request("http://local/x", { headers: { cookie } });
+  assert.equal(parityHarnessAllowed(request, { ...process.env, POTONGIN_PARITY_HARNESS: "1" }), true);
+  assert.equal(parityHarnessAllowed(new Request("http://local/x"), { ...process.env, POTONGIN_PARITY_HARNESS: "1" }), false);
 });
 
 test("only allowlisted fixture files inside the root are served, with their types", async () => {

@@ -17,7 +17,8 @@
     "language": "Language",
     "shortcuts": "Single-key shortcuts",
     "search": "Search",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "breakGlass": "Emergency sign-in"
   },
   "badge": {
     "running": "{count, number} running · {percent, number}%",

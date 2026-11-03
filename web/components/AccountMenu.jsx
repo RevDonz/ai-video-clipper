@@ -30,7 +30,8 @@ export default function AccountMenu({ user, locales, onLogout, placement = "top 
   const [shortcuts, setShortcuts] = useShortcutPref();
   const languageFormRef = useRef(null);
   const name = typeof user?.displayName === "string" ? user.displayName : "";
-  const label = name ? t("account.named", { name }) : t("account.title");
+  const named = name ? t("account.named", { name }) : t("account.title");
+  const label = user?.breakGlass ? `${named} · ${t("account.breakGlass")}` : named;
   const choosable = Array.isArray(locales) && locales.length > 1;
   const onSelection = (keys) => setShortcuts(keys === "all" || keys.has(SHORTCUTS_ITEM));
   const onLanguage = (keys) => {
@@ -47,6 +48,7 @@ export default function AccountMenu({ user, locales, onLogout, placement = "top 
             <Avatar.Fallback>{user?.initials ? user.initials : <AppIcon name="account" size={16} />}</Avatar.Fallback>
           </Avatar>
           <span className="appAccountName">{name || t("account.title")}</span>
+          {user?.breakGlass && <span className="appAccountBreakGlass">{t("account.breakGlass")}</span>}
           <AppIcon name="chevron" size={16} className="appAccountChevron" />
         </Dropdown.Trigger>
         <Dropdown.Popover placement={placement} className="appAccountMenu">

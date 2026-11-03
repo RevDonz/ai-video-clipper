@@ -1,6 +1,6 @@
 import AppShell from "../../components/AppShell.jsx";
 import { getLocale, getT, routeMetadata } from "../../lib/i18n/server.mjs";
-import { shellData } from "../../lib/shell-data.mjs";
+import { sessionShellData } from "../../lib/shell-session.mjs";
 import { FONTS, FREETYPE_CREDIT, JASSUB, MEDIABUNNY, UI, WEB } from "./notices.mjs";
 import styles from "./licenses.module.css";
 
@@ -30,7 +30,7 @@ function Row({ label, children }) {
 export default async function LicensesPage() {
   const t = await getT(await getLocale(), "help");
   return (
-    <AppShell {...shellData()}>
+    <AppShell {...await sessionShellData()}>
       <div className={`shell ${styles.page}`}>
         <header className="pageHead">
           <div>

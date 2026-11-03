@@ -114,6 +114,9 @@ export const WEB = Object.freeze([
   { name: "@formatjs/fast-memoize", version: "3.1.7", license: "MIT", lockPath: "node_modules/@formatjs/fast-memoize", source: at("https://github.com/formatjs/formatjs", "@formatjs/fast-memoize@3.1.7"), texts: ["/licenses/web/formatjs-fast-memoize-LICENSE.txt"] },
   { name: "@formatjs/icu-messageformat-parser", version: "3.5.18", license: "MIT", lockPath: "node_modules/intl-messageformat/node_modules/@formatjs/icu-messageformat-parser", source: at("https://github.com/formatjs/formatjs", "@formatjs/icu-messageformat-parser@3.5.18"), texts: ["/licenses/web/formatjs-icu-messageformat-parser-LICENSE.txt"] },
   { name: "@formatjs/icu-skeleton-parser", version: "2.1.11", license: "MIT", lockPath: "node_modules/intl-messageformat/node_modules/@formatjs/icu-skeleton-parser", source: at("https://github.com/formatjs/formatjs", "@formatjs/icu-skeleton-parser@2.1.11"), texts: ["/licenses/web/formatjs-icu-skeleton-parser-LICENSE.txt"] },
+  // resources/auth/common-passwords.txt, the list of too-common passwords (rombak 02 §5): not an npm
+  // package, so no lockPath; the source pins the commit it was taken from.
+  { name: "SecLists 10k-most-common", version: "68bcd12", license: "MIT", source: at("https://github.com/danielmiessler/SecLists", "68bcd12457978649d41ae4f56e3b5d2db2b72560"), texts: ["/licenses/web/seclists-LICENSE.txt"] },
 ]);
 
 // The UI kit of the app pages (docs/plans/2026-10-24-rombak/05-ui-dashboard.md §3.1). HeroUI's
