@@ -80,7 +80,9 @@ COPY --from=web-builder /web/.next/static ./.next/static
 COPY --from=web-builder /web/public ./public
 COPY web/scripts ./scripts
 COPY web/lib ./lib
-RUN mkdir -p /data/jobs /control/settings /control/backups && chown -R node:node /data /control && chmod 700 /control /control/settings /control/backups
+RUN mkdir -p /data/jobs /data/settings && chown -R node:node /data && chmod 700 /data/settings
+# The control volume (rombak 01 §5.1): a new named volume takes this owner and mode from the image.
+RUN mkdir -p /control/settings /control/backups && chown -R node:node /control && chmod 700 /control /control/settings /control/backups
 
 # The commit this image is built from (compose passes the deploy's IMAGE_TAG; empty otherwise),
 # shown under Pengaturan "Tentang sistem". After the last RUN, so a new commit rebuilds no layer.

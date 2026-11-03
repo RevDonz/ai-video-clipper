@@ -500,5 +500,16 @@ di-merge, menunggu izin merge pemilik.
   apakah transkrip gold (`artifacts/eval`) perlu tersedia di CI supaya cek gold tidak hanya lokal
   (08 §11 butir 5).
 
+**Fase 4** (fondasi identitas: MU-M1, MU-M2, pemindahan settings, i18n M6a; status 2026-11-03). Satu
+PR, branch `feat/fase-4`, berbasis `build/node-24-v2` karena butuh `node:sqlite`; merge sesudah
+PR #48 lalu target PR diganti ke `main`. Status, run CI, dan keputusan delegasi ada di badan PR itu.
+- Baru: DB kontrol di `/control/potongin.sqlite` (`web/lib/db/`), akun dan sesi di server, cookie v1
+  ter-upgrade sekali, logout mencabut di server, `start-app`, backup harian, user smoke, settings
+  disalin ke `/control/settings`. Runbook: `docs/operations/PENGGUNA.md`.
+- Sebelum deploy, pemilik mengisi `.env` produksi (PENGGUNA.md): `POTONGIN_SETTINGS_SECRET`,
+  `E2E_SMOKE_*`, `AUTH_TRUSTED_CLIENT_IP_HEADER`. Kosong = deploy berhenti sebelum build.
+- `POTONGIN_DB_PATH` kosong = hanya login v1 (`APP_*`), dipakai app parity CI dan run lokal.
+- Tes yang butuh Python lokal: `uv sync --frozen --extra web` di worktree.
+
 Sampai fase yang bersangkutan selesai, UI tetap seperti di `main`; `DESIGN.md` menandai setiap
 pola sasaran dengan fase mulai berlakunya.

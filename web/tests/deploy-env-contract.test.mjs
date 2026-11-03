@@ -111,7 +111,7 @@ test("the image starts through start-app and allows it a 60 s start", () => {
   const dockerfile = repo("Dockerfile");
   assert.match(dockerfile, /^CMD \["node", "scripts\/start-app\.mjs"\]$/m);
   assert.match(dockerfile, /--start-period=60s/);
-  assert.match(dockerfile, /mkdir -p \/data\/jobs \/control\/settings \/control\/backups && chown -R node:node \/data \/control && chmod 700 \/control \/control\/settings \/control\/backups/);
+  assert.match(dockerfile, /mkdir -p \/control\/settings \/control\/backups && chown -R node:node \/control && chmod 700 \/control \/control\/settings \/control\/backups/);
   assert.match(dockerfile, /^COPY web\/scripts \.\/scripts$/m);
   assert.match(dockerfile, /^COPY web\/lib \.\/lib$/m);
   assert.match(dockerfile, /^COPY resources\/ \.\/resources\/$/m, "common-passwords.txt ships");
