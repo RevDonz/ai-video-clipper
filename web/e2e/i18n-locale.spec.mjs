@@ -9,6 +9,21 @@ import { LIn, pageTitle, pageTitleIn } from "./support/i18n.mjs";
 // page titles follow it, and no cache may keep a page in one language for everyone (Next sets
 // Vary itself on app pages, so the guard is Cache-Control: private, no-store).
 
+// The account's saved language, set through the route that owns it, from a context of its own.
+async function saveAccountLanguage(browser, baseURL, code) {
+  const context = await browser.newContext({ baseURL });
+  try {
+    const page = await context.newPage();
+    await login(page, "/bantuan");
+    const status = await page.evaluate(async (locale) => (await fetch("/api/locale", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale }),
+    })).status, code);
+    expect(status).toBe(200);
+  } finally {
+    await context.close();
+  }
+}
+
 // Through the HTTP client, not a browser: a browser context sends its own Accept-Language.
 async function served(playwright, baseURL, headers) {
   const client = await playwright.request.newContext({ baseURL, extraHTTPHeaders: headers });
@@ -74,7 +89,9 @@ test.describe("UI language", () => {
       await expect(page).toHaveTitle(pageTitleIn(target.code, "login"));
       await page.reload();
       await expect(page.locator("html")).toHaveAttribute("lang", target.code);
-      // Signing in without JavaScript lands on next, still in the chosen language.
+      // Signing in without JavaScript lands on next, still in the chosen language. A sign-in hands
+      // over the account's saved language (rombak 07 §9.4), so the account holds the same one here.
+      await saveAccountLanguage(browser, baseURL, target.code);
       await page.locator('input[name="username"]').fill(settings.username);
       await page.locator('input[name="password"]').fill(settings.password);
       await Promise.all([
@@ -85,6 +102,7 @@ test.describe("UI language", () => {
       await expect(page).toHaveTitle(pageTitleIn(target.code, "help"));
     } finally {
       await context.close();
+      await saveAccountLanguage(browser, baseURL, uiLocale);
     }
   });
 
