@@ -1,4 +1,4 @@
-import { SESSION_COOKIE, cookieValue, currentUser } from "../../../../lib/auth.mjs";
+import { SESSION_COOKIE, cookieValue, currentUser, v1Expiry } from "../../../../lib/auth.mjs";
 import { sameOriginMutation } from "../../../../lib/request-security.mjs";
 import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 import { clearSessionCookies, revokeSession, revokeV1Token } from "../../../../lib/sessions.mjs";
@@ -13,9 +13,8 @@ function revokeOnServer(request) {
   try {
     if (principal.sessionId) revokeSession(principal.sessionId, "logout");
     const v1 = cookieValue(request, SESSION_COOKIE);
-    if (v1 && principal.via === "upgrade_v1") {
-      revokeV1Token(v1, process.env.APP_SESSION_SECRET, { userId: principal.id, expiresAtMs: principal.v1ExpiresAt * 1000 });
-    }
+    const expiresAt = v1 ? v1Expiry(v1) : null;
+    if (expiresAt !== null) revokeV1Token(v1, process.env.APP_SESSION_SECRET, { userId: principal.id, expiresAtMs: expiresAt * 1000 });
   } catch (error) {
     console.warn(`[auth] logout tidak tercatat: ${error?.code ?? "error"}`);
   }

@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { closeDb, openDb } from "../lib/db/index.mjs";
 import { migrate } from "../lib/db/migrate.mjs";
 import { BackupError, runBackup, timestamp } from "../scripts/db-backup.mjs";
+import { msUntilDailyBackup } from "../scripts/start-app.mjs";
 import { tempControl } from "./support/session.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
@@ -174,4 +175,10 @@ test("the script never migrates and works on any schema", (t) => {
   const check = new DatabaseSync(control.dbFile, { readOnly: true });
   t.after(() => check.close());
   assert.equal(check.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'schema_migrations'").get().n, 0);
+});
+
+test("the daily backup is due at 03:00 UTC", () => {
+  assert.equal(msUntilDailyBackup(Date.UTC(2026, 9, 24, 2, 0, 0)), 3_600_000);
+  assert.equal(msUntilDailyBackup(Date.UTC(2026, 9, 24, 3, 0, 0)), 86_400_000);
+  assert.equal(msUntilDailyBackup(Date.UTC(2026, 9, 24, 3, 0, 1)), 86_399_000);
 });
