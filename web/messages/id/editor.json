@@ -13,7 +13,8 @@
     "timeline": "Linimasa detail",
     "checks": {
       "needs": "Perlu dicek {count}",
-      "notes": "Catatan {count}"
+      "notes": "Catatan {count}",
+      "fix": "Perbaiki"
     }
   },
   "clips": {
@@ -25,7 +26,18 @@
     "row": "Klip {index}, {duration}"
   },
   "stage": {
-    "ratio": "Pratinjau {ratio}"
+    "ratio": "Pratinjau {ratio}",
+    "source": {
+      "show": "Lihat sumber",
+      "back": "Kembali ke hasil",
+      "result": "Hasil",
+      "loading": "Memuat gambar…",
+      "followsFace": "Mengikuti wajah",
+      "helpFrame": "Seret kotak untuk mengatur bingkai di posisi ini. Panah menggeser 1%, Shift+panah 10%. Esc kembali.",
+      "helpSplit": "Seret kotak untuk memindahkan, tarik sudutnya untuk mengubah ukuran. Plus dan minus memperbesar. Esc kembali.",
+      "liveSource": "Sumber",
+      "liveResult": "Hasil"
+    }
   },
   "transcript": {
     "modeLabel": "Tampilan transkrip",
@@ -66,5 +78,368 @@
     "label": "Lanjutan",
     "summary": "{items}",
     "default": "Bawaan"
+  },
+  "applyAll": {
+    "captions": {
+      "button": "Pakai caption di semua klip",
+      "note": "Klip yang caption-nya sudah diubah tidak ikut.",
+      "title": "Pakai caption ini di semua klip?"
+    },
+    "layout": {
+      "button": "Pakai tata letak di semua klip",
+      "note": "Tanpa bingkai manual. Klip yang tata letaknya sudah diubah tidak ikut.",
+      "title": "Pakai tata letak ini di semua klip?"
+    },
+    "logo": {
+      "button": "Pakai logo di semua klip",
+      "note": "Logo dan teks watermark. Klip yang sudah diubah tidak ikut.",
+      "title": "Pakai logo ini di semua klip?"
+    },
+    "running": "Menerapkan…",
+    "cancel": "Batal",
+    "confirm": "Pakai di semua klip",
+    "undo": "Urungkan",
+    "undoing": "Mengurungkan…",
+    "skipped": "Lihat yang dilewati"
+  },
+  "text": {
+    "caption": {
+      "title": "Caption",
+      "show": "Tampilkan caption",
+      "style": "Gaya caption",
+      "size": "Ukuran",
+      "position": "Posisi",
+      "highlight": "Warna sorot",
+      "highlightOn": "Kata yang sedang diucapkan.",
+      "highlightGlow": "Kata yang sedang diucapkan dan cahayanya.",
+      "highlightOff": "Dipakai oleh Karaoke, Bold, Sorot dan Sinar; tidak tampak di gaya ini.",
+      "zoneAtSeed": "Posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.",
+      "zoneMoved": "Caption masuk area tombol TikTok/Reels; geser ke atas bila tertutup.",
+      "hookNear": "Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption.",
+      "overFace": "Caption menutupi wajah pembicara.",
+      "overFaceNoFix": "Caption menutupi wajah pembicara. Geser caption atau kecilkan ukurannya.",
+      "moveTo": "Pindah ke {place}",
+      "fineSize": "Ukuran caption",
+      "finePosition": "Posisi caption",
+      "wordsPerLine": "Kata per baris",
+      "entrance": "Animasi masuk",
+      "upper": "Huruf besar semua",
+      "emphasis": "Warna kata kunci",
+      "emphasisNote": "Tandai kata kunci di transkrip (pilih kata, Ctrl+E)."
+    },
+    "packs": {
+      "classic": "Klasik",
+      "classicNote": "Putih bergaris hitam",
+      "karaoke": "Karaoke",
+      "karaokeNote": "Kata terucap menyala",
+      "bold": "Bold",
+      "boldNote": "Tebal, kata aktif berwarna",
+      "box": "Box",
+      "boxNote": "Teks di kotak gelap",
+      "sorot": "Sorot",
+      "sorotNote": "Kotak warna di kata terucap",
+      "sinar": "Sinar",
+      "sinarNote": "Karaoke dengan cahaya lembut"
+    },
+    "sizes": {
+      "small": "Kecil",
+      "medium": "Sedang",
+      "large": "Besar"
+    },
+    "positions": {
+      "top": "Atas",
+      "middle": "Tengah",
+      "bottom": "Bawah"
+    },
+    "entrances": {
+      "none": "Tanpa",
+      "fade": "Fade",
+      "pop": "Pop",
+      "blur": "Blur"
+    },
+    "colours": {
+      "yellow": "Kuning",
+      "white": "Putih",
+      "green": "Hijau",
+      "blue": "Biru",
+      "pink": "Merah muda",
+      "orange": "Oranye"
+    },
+    "hook": {
+      "title": "Hook",
+      "show": "Tampilkan hook",
+      "writeFirst": "Tulis teks hook dulu",
+      "text": "Teks hook",
+      "fitChecking": "Memeriksa…",
+      "fitOverflow": "Akan terpotong",
+      "fits": "Muat",
+      "overflowNote": "Hook tidak muat 3 baris; ujungnya akan diganti “…”. Persingkat teksnya.",
+      "glyphs": "Font hook tidak punya {glyphs}; karakter ini tidak akan tampil di video.",
+      "unsafe": "Hook masuk area atas yang tertutup UI aplikasi.",
+      "suggestions": "Saran hook",
+      "design": "Desain hook",
+      "duration": "Durasi hook",
+      "position": "Posisi hook"
+    },
+    "designs": {
+      "bar": "Bar",
+      "barNote": "Teks putih di bar gelap",
+      "kicker": "Kicker",
+      "kickerNote": "Baris kecil di atas teks besar",
+      "kickerHint": "Baris kecil: kata sampai tanda baca pertama, misalnya “Ternyata:”. Tanpa tanda baca, 1–3 kata pertama.",
+      "blok": "Blok",
+      "blokNote": "Tiap baris di kotak kuning",
+      "kotak": "Kotak kata",
+      "kotakNote": "Satu kata di kotak kuning",
+      "kotakHint": "Kata berhuruf kapital masuk kotak, misalnya “SATPAM”. Tanpa itu, kata terpanjang."
+    },
+    "summary": {
+      "words": "{count} kata",
+      "size": "{percent}%",
+      "position": "Posisi {percent}%",
+      "upper": "Huruf besar",
+      "asWritten": "Huruf asli",
+      "emphasis": "Warna kunci",
+      "duration": "{seconds, number} dtk"
+    },
+    "fromTop": "{percent}% dari atas",
+    "seconds": "{seconds, number} dtk",
+    "editLines": "Edit per baris"
+  },
+  "layout": {
+    "title": "Tata letak video",
+    "choose": "Pilih tata letak",
+    "wholeClip": "Berlaku untuk seluruh klip.",
+    "inUse": "Dipakai",
+    "bars": "Garis hitam di tepi video sumber sudah dibuang.",
+    "zoom": "Zoom",
+    "zoomNote": "Perbesar gambar sampai {percent}%. Tepi gambar ikut terpotong.",
+    "zoomReset": "Kembali ke 100%",
+    "percent": "{percent}%",
+    "modes": {
+      "fitBlurNote": "Seluruh gambar terlihat. Bagian atas dan bawah diisi versi blur dari gambar yang sama.",
+      "cameraNote": "Potongan {ratio} bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah tampil dengan latar blur.",
+      "cameraCentredNote": "Potongan {ratio} bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah dipusatkan.",
+      "fillCenterNote": "Potongan {ratio} tetap di tengah gambar. Sisi kiri dan kanan terpotong.",
+      "splitNote": "Dua potongan dari video yang sama, bertumpuk atas dan bawah dengan garis tipis di antaranya."
+    },
+    "thumbs": {
+      "needsAnalysis": "Perlu analisis wajah",
+      "unavailable": "Contoh belum tersedia",
+      "loading": "Memuat contoh…",
+      "alt": "Contoh {name} di {time}"
+    },
+    "analysis": {
+      "label": "Analisis wajah",
+      "percent": "Menganalisis wajah… {percent}%",
+      "seconds": "Menganalisis wajah… {seconds} dtk",
+      "switchAfter": "Tata letak berganti setelah analisis selesai. Pilih yang lain untuk membatalkan.",
+      "retry": "Coba lagi"
+    },
+    "noFace": {
+      "title": "Bagian tanpa wajah",
+      "blur": "Latar blur",
+      "centre": "Dipusatkan",
+      "checking": "Memeriksa hasil analisis wajah…",
+      "none": "Wajah terdeteksi di seluruh klip.",
+      "runs": "{count, plural, other {# bagian tanpa wajah.}}",
+      "blurNote": "Di bagian ini seluruh gambar tampil dengan latar blur.",
+      "centreNote": "Di bagian ini video dipusatkan.",
+      "jump": "Lompat ke {time}"
+    },
+    "framing": {
+      "title": "Bingkai",
+      "autoCamera": "Otomatis: bingkai mengikuti wajah.",
+      "autoCentre": "Otomatis: bingkai di tengah.",
+      "manual": "{count, plural, other {Diatur manual: # titik.}}",
+      "manualCamera": "{count, plural, other {Diatur manual: # titik, juga di bagian tanpa wajah.}}",
+      "portrait": "Video sumber sudah tegak, tidak ada yang bisa digeser.",
+      "clear": "Kembali ke otomatis"
+    },
+    "split": {
+      "title": "Layar terbagi",
+      "summary": "Atas {top}%, bawah {bottom}%.",
+      "share": "Pembagian",
+      "swap": "Tukar atas dan bawah",
+      "zoomTop": "Perbesar atas",
+      "zoomBottom": "Perbesar bawah"
+    },
+    "keyframe": {
+      "title": "Titik bingkai",
+      "here": "Titik {index} dari {count} ada di sini.",
+      "notHere": "{count, plural, other {# titik. Tidak ada titik di posisi ini.}}",
+      "previous": "‹ Titik",
+      "next": "Titik ›",
+      "add": "Tambah titik",
+      "remove": "Hapus titik",
+      "move": "Perpindahan",
+      "cut": "Potong",
+      "slide": "Geser",
+      "moveNote": "Potong pindah tepat di titik ini; Geser bergerak pelan dari titik sebelumnya.",
+      "moveNoteFirst": "Pilih titik kedua atau sesudahnya untuk mengatur perpindahannya."
+    },
+    "summary": {
+      "keyframes": "{count} titik",
+      "bands": "Atas {top}% · Bawah {bottom}%"
+    }
+  },
+  "audio": {
+    "refused": "Perubahan ini tidak bisa diterapkan.",
+    "music": {
+      "title": "Musik latar",
+      "uploaded": "Musik terunggah",
+      "loudness": "kenyaringan lagu {value}",
+      "replace": "Ganti musik",
+      "remove": "Hapus musik",
+      "empty": "Belum ada musik. MP3, M4A, WAV, OGG atau FLAC, paling besar 50 MB dan 15 menit.",
+      "add": "Tambah musik",
+      "uploadsOff": "Unggah file belum diaktifkan di server ini.",
+      "volume": "Volume musik",
+      "volumeNote": "Awalnya diatur dari kenyaringan lagu, supaya tidak menutupi suara.",
+      "resetLabel": "Kembalikan volume musik",
+      "reset": "Kembalikan",
+      "shorter": "Musik lebih pendek dari klip, jadi bagian akhir klip tanpa musik. Nyalakan Ulangi di Lanjutan untuk mengisinya."
+    },
+    "duck": {
+      "on": "Kecilkan musik saat ada suara",
+      "strength": "Kekuatan",
+      "soft": "Halus",
+      "medium": "Sedang",
+      "strong": "Kuat",
+      "custom": "Kustom: {depth}"
+    },
+    "notice": {
+      "title": "Pakai musik yang boleh Anda gunakan",
+      "text": "Lagu berhak cipta bisa membuat video dibisukan atau diblokir oleh pemeriksaan hak cipta di TikTok, Instagram dan YouTube (Content ID).",
+      "agree": "Pilih file musik",
+      "cancel": "Batal"
+    },
+    "upload": {
+      "processing": "Memproses {name}…",
+      "progress": "Mengunggah {name} · {percent}%",
+      "label": "Mengunggah {name}",
+      "cancelLabel": "Batalkan unggahan",
+      "cancel": "Batal"
+    },
+    "fine": {
+      "offset": "Mulai dari",
+      "loop": "Ulangi sampai klip selesai",
+      "fadeIn": "Muncul perlahan",
+      "fadeOut": "Hilang perlahan",
+      "depth": "Kedalaman",
+      "attack": "Waktu turun",
+      "attackNote": "Musik mulai turun sebelum kata pertama.",
+      "release": "Waktu naik",
+      "hold": "Jeda tahan",
+      "holdNote": "Jeda bicara yang lebih pendek dari ini tidak membuat musik naik lagi."
+    },
+    "source": {
+      "title": "Suara asli",
+      "volume": "Volume suara asli",
+      "loudness": "Samakan kenyaringan ke {target}",
+      "suggest": "Disarankan saat ada musik agar volume stabil di semua klip.",
+      "preparing": "Menyiapkan audio…"
+    },
+    "summary": {
+      "loop": "Ulangi",
+      "noLoop": "Tanpa ulangi",
+      "fade": "Fade {inSeconds, number}/{outSeconds, number} dtk",
+      "offset": "Mulai {seconds, number} dtk",
+      "duck": "{count} detail"
+    }
+  },
+  "logo": {
+    "title": "Logo",
+    "defaultLogo": "Logo bawaan",
+    "pixels": "{w} × {h} px",
+    "empty": "Tampil di atas caption, sepanjang klip. PNG, JPEG atau WebP, maksimal 10 MB. Bisa juga seret file ke sini.",
+    "add": "Tambah logo",
+    "replace": "Ganti logo",
+    "remove": "Hapus logo",
+    "uploadsOff": "Unggah logo belum tersedia di server ini.",
+    "upload": {
+      "processing": "Memproses gambar…",
+      "progress": "Mengunggah {name} · {percent}%",
+      "label": "Unggahan logo",
+      "cancel": "Batalkan unggahan"
+    },
+    "unsafe": "Logo berada di area yang tertutup tombol TikTok/Reels.",
+    "moveSafe": "Geser ke area aman",
+    "corner": "Sudut",
+    "corners": {
+      "topLeft": "Kiri atas",
+      "topRight": "Kanan atas",
+      "bottomLeft": "Kiri bawah",
+      "bottomRight": "Kanan bawah"
+    },
+    "places": {
+      "topCenter": "Tengah atas",
+      "middleLeft": "Kiri tengah",
+      "middleCenter": "Tengah",
+      "middleRight": "Kanan tengah",
+      "bottomCenter": "Tengah bawah"
+    },
+    "dragHelp": "Seret logo di pratinjau untuk menaruhnya di mana saja; Alt mematikan magnet.",
+    "size": "Ukuran logo",
+    "opacity": "Opasitas logo",
+    "percent": "{percent}%",
+    "watermark": {
+      "title": "Teks watermark",
+      "text": "Teks watermark",
+      "placeholder": "@akun",
+      "note": "Satu baris sepanjang klip.",
+      "remove": "Hapus teks",
+      "glyphs": "Font watermark tidak punya {glyphs}; karakter ini tidak akan tampil di video.",
+      "place": "Posisi teks",
+      "size": "Ukuran teks",
+      "opacity": "Opasitas teks"
+    }
+  },
+  "coldOpen": {
+    "title": "Cold open",
+    "on": "Cold open aktif",
+    "pickFirst": "Pilih kalimat di transkrip dulu.",
+    "note": "Potongan singkat (0,5–8 dtk) yang diputar lebih dulu, lalu klip mulai dari awal.",
+    "playsFirst": "diputar di awal video",
+    "play": "Putar cold open",
+    "remove": "Hapus cold open",
+    "words": {
+      "label": "Geser tepi cold open",
+      "start": "Awal ± kata",
+      "end": "Akhir ± kata",
+      "addBefore": "Tambah kata sebelum",
+      "dropFirst": "Buang kata pertama",
+      "dropLast": "Buang kata terakhir",
+      "addAfter": "Tambah kata sesudah"
+    },
+    "fine": {
+      "label": "Geser tepi cold open 0,1 detik",
+      "start": "Awal ± 0,1 dtk",
+      "end": "Akhir ± 0,1 dtk",
+      "startEarlier": "Mulai cold open 0,1 detik lebih awal",
+      "startLater": "Mulai cold open 0,1 detik lebih akhir",
+      "endEarlier": "Akhiri cold open 0,1 detik lebih awal",
+      "endLater": "Akhiri cold open 0,1 detik lebih akhir"
+    },
+    "transition": {
+      "title": "Transisi",
+      "note": "Efek di sambungan cold open ke awal klip. Durasi klip tetap.",
+      "off": "Aktifkan cold open dulu.",
+      "readOnly": "Klip ini sedang dalam mode baca-saja",
+      "effect": "Efek gambar",
+      "cut": "Potong langsung",
+      "flash": "Kilat putih",
+      "dip": "Gelap sebentar",
+      "whoosh": "Suara whoosh",
+      "play": "Putar transisi",
+      "stop": "Hentikan",
+      "statusStyle": "Transisi: {name}.",
+      "statusSfxOn": "Whoosh aktif.",
+      "statusSfxOff": "Whoosh mati."
+    },
+    "summary": {
+      "in": "Awal {sign}{seconds, number} dtk",
+      "out": "Akhir {sign}{seconds, number} dtk"
+    }
   }
 }

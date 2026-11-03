@@ -30,11 +30,16 @@
 // the Klip list, the stage and its transport, the transcript, five tabs and the folded timeline.
 // The transcript there (Editor F2) has Kata | Baris and the Rapikan / Ejaan drawer; while the
 // drawer is open the global keys wait, as for every other modal.
+// Its tabs are panels/TextTab, LayoutTab, AudioPanel, LogoTab and ColdOpenTab (F3–F5). "Lihat
+// sumber" (F4a, lib/editor/stage-view.mjs) lays the source over the stage (shell/SourceStage.jsx)
+// and takes the place of the two dialogs, which only the old views still mount.
 // The old views stay the default until the phase passes and go in F10.
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "use-intl";
 
 import { createApplyAll } from "../../lib/editor/apply-all.mjs";
+import { checkTarget } from "../../lib/editor/disclosure.mjs";
+import { STAGE_OUTPUT, STAGE_SOURCE, sourceAllowed, stageViewAfter } from "../../lib/editor/stage-view.mjs";
 import { LEAVE_TEXT, clipNavHref, clipNavigation, saveBeforeLeaving } from "../../lib/editor/clip-nav.mjs";
 import { editorHref, prepareForEditor } from "../../lib/editor/open-clip.mjs";
 import { SHORTCUTS, globalShortcut } from "../../lib/editor/shortcuts.mjs";
@@ -66,6 +71,7 @@ import {
 import ClipList from "./shell/ClipList.jsx";
 import EditorShell from "./shell/EditorShell.jsx";
 import PanelTabs from "./shell/PanelTabs.jsx";
+import SourceStage from "./shell/SourceStage.jsx";
 import TimelineDetail from "./shell/TimelineDetail.jsx";
 import Scrubber from "./scrubber/Scrubber.jsx";
 import Stage from "./Stage.jsx";
@@ -79,6 +85,7 @@ import { runCommands } from "./transcript/actions.mjs";
 import { selectionStoreFor } from "./transcript/selection.mjs";
 import { transcriptMode } from "./transcript/transcript-view.mjs";
 import PillButton from "./ui/PillButton.jsx";
+import PillToggle from "./ui/PillToggle.jsx";
 import Switch from "./ui/Switch.jsx";
 
 const components = new Map();
@@ -267,6 +274,12 @@ function EditorWorkspace({
   // The transcript's view, Kata or Baris (an old ?card=lines link opens Baris), and its review drawer.
   const [transcriptView, setTranscriptView] = useState(() => transcriptMode(openingState?.transcript));
   const [reviewOpen, setReviewOpen] = useState(false);
+  // What the stage shows (rombak 06 §5.2), and "Perbaiki"'s way to a control behind a fold (§2.2 rule 2).
+  const [stageView, sendStageView] = useReducer(stageViewAfter, STAGE_OUTPUT);
+  const sourceShown = oneLayout && stageView === STAGE_SOURCE;
+  const [reveal, setReveal] = useState(null);
+  const [linesFocus, setLinesFocus] = useState(0);
+  const [sourceSeen, setSourceSeen] = useState(false);
   // "Pintasan satu tombol" (lib/ui-prefs.mjs): the page reads it on the server; the dialog's switch
   // writes the shared cookie and acts at once.
   const [singleKeyOn, setSingleKeyOn] = useState(singleKeyShortcuts !== false);
@@ -462,12 +475,14 @@ function EditorWorkspace({
   }, []);
 
   const toggleTruth = useCallback(() => {
+    sendStageView({ type: "back" });
     const frame = frameBus.get();
     if (playerState?.mode === "truth") player.seek(frame);
     else player.showTruthFrame(frame);
   }, [frameBus, player, playerState]);
 
   const playPause = useCallback(() => {
+    sendStageView({ type: "play" }); // playing goes back to the result first (06 §5.2)
     if (playerState?.playing) player.pause();
     else player.play();
   }, [player, playerState]);
@@ -553,7 +568,7 @@ function EditorWorkspace({
   useEffect(() => {
     const onKey = (event) => {
       // A focused panel (the transcript) handles its own keys and prevents their default.
-      if (modalRef.current || event.defaultPrevented) return;
+      if (modalRef.current || event.defaultPrevented || event.target?.closest?.('[role="alertdialog"]')) return;
       const id = globalShortcut(event, { singleKey: singleKeyRef.current });
       const action = id ? actionsRef.current[id] : null;
       if (!action) return;
@@ -593,6 +608,65 @@ function EditorWorkspace({
     state, getState: snapshot, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, llmEnabled, notify, readOnly,
     openFraming, openSplit, applyAll,
   }), [state, snapshot, dispatch, player, api, runtime, uploadsEnabled, llmEnabled, notify, readOnly, openFraming, openSplit, applyAll]);
+  // "Edit per baris" (tab Teks, 06 §2.2 rule 5): the transcript in Baris, focus in its first line.
+  const editLines = useCallback(() => {
+    setTranscriptView("lines");
+    setLinesFocus((count) => count + 1);
+  }, []);
+  const tabProps = useMemo(() => ({ ...panelProps, stageView, reveal, onEditLines: editLines, logoUpload: runtime.logoUpload ?? null }),
+    [panelProps, stageView, reveal, editLines, runtime]);
+
+  // Lihat sumber: Escape goes back, a document that no longer allows it too, and focus returns to
+  // the button (06 §5.2).
+  const doc = state.doc ?? null;
+  useEffect(() => { sendStageView({ type: "doc", doc }); }, [doc]);
+  useEffect(() => {
+    if (!sourceShown) return undefined;
+    const onKey = (event) => {
+      if (event.key !== "Escape" || modalRef.current || event.defaultPrevented) return;
+      event.preventDefault();
+      sendStageView({ type: "escape" });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sourceShown]);
+  const sourceWasShown = useRef(false);
+  useEffect(() => {
+    const was = sourceWasShown.current;
+    sourceWasShown.current = sourceShown;
+    if (sourceShown) setSourceSeen(true);
+    if (!was || sourceShown) return undefined;
+    const raf = requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body) document.querySelector("[data-source-toggle]")?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [sourceShown]);
+
+  // Moves focus once a lazily loaded control is on screen, past its fold opening.
+  const focusWhenShown = useCallback((find, done = () => {}) => {
+    let tries = 0;
+    const step = () => {
+      const element = find();
+      const shown = element && element.getClientRects().length > 0 && !element.closest("[hidden]");
+      if (shown) element.focus({ preventScroll: false });
+      if (shown || tries >= 120) {
+        done();
+        return;
+      }
+      tries += 1;
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, []);
+  useEffect(() => {
+    if (!linesFocus) return;
+    focusWhenShown(() => document.querySelector('[data-slot="transcript"] [data-transcript-mode="lines"] [data-line-input]'));
+  }, [linesFocus, focusWhenShown]);
+  useEffect(() => {
+    if (!reveal) return;
+    focusWhenShown(() => document.querySelector(`[data-slot="panel"] [data-control="${reveal.control}"]`), () => setReveal(null));
+  }, [reveal, focusWhenShown]);
 
   const errorCode = status === "error" ? (state.error?.code ?? state.errorCode ?? "internal_error") : null;
   const preparesNow = typeof onNeedsPrepare === "function" && PREPARE_CODES.has(errorCode);
@@ -629,8 +703,17 @@ function EditorWorkspace({
   // A tab of the one-layout editor puts ?panel in the address, so a reload and ‹ › keep it.
   const changeTab = useCallback((next) => {
     setTabId(next);
+    sendStageView({ type: "tab", tab: next });
     replaceUrlPanel(next);
   }, []);
+  const locateCheck = useCallback((check, dry = false) => {
+    const target = checkTarget(check, state.doc);
+    if (dry || !target) return target;
+    setChecksOpen(false);
+    changeTab(target.tab);
+    setReveal(target);
+    return target;
+  }, [state.doc, changeTab]);
 
   if (status === "error") {
     if (preparesNow) return <StatePage title="Menyiapkan klip untuk diedit" jobId={jobId} busy><p>Memeriksa analisis klip…</p></StatePage>;
@@ -706,9 +789,17 @@ function EditorWorkspace({
           onToggleSafeZone={() => setSafeZone((value) => !value)}
           zone={hasZone}
           disabled={!plan}
-        />
+        >
+          {oneLayout && tabId === "layout" && sourceAllowed(state.doc) ? (
+            <PillToggle pressed={sourceShown} data-source-toggle="" disabled={!plan}
+              onClick={() => sendStageView({ type: "show", doc: state.doc })}>
+              {tEditor("stage.source.show")}
+            </PillToggle>
+          ) : null}
+        </StageToggles>
       )}
       gizmos={gizmos.map((entry) => {
+        if (oneLayout && entry.id === "logo" && tabId !== "logo") return null; // the logo's box shows with its tab (06 §5.1)
         // W3 gizmos (T3.2's LogoGizmo) mount here from their registry (gizmos/index.mjs).
         const Gizmo = lazyComponent(entry);
         return (
@@ -730,6 +821,8 @@ function EditorWorkspace({
           const result = runCommands(dispatch, [command]);
           if (!result.ok) notify(result.message);
         }}
+        onLocate={oneLayout && !readOnly ? locateCheck : null}
+        locateLabel={tEditor("shell.checks.fix")}
       />
       <ExportDialog
         open={exportOpen}
@@ -754,7 +847,7 @@ function EditorWorkspace({
           Promise.resolve(store.resolveConflict?.(choices)).catch(() => {}); // the dialog shows conflict.error
         }}
       />
-      <FramingDialog
+      {oneLayout ? null : <FramingDialog
         open={framingOpen}
         onClose={closeFraming}
         state={state}
@@ -765,8 +858,8 @@ function EditorWorkspace({
         readOnly={readOnly}
         onUndo={() => { if (!readOnly) store.undo(); }}
         onRedo={() => { if (!readOnly) store.redo(); }}
-      />
-      <SplitDialog
+      />}
+      {oneLayout ? null : <SplitDialog
         open={splitOpen}
         onClose={closeSplit}
         state={state}
@@ -777,7 +870,7 @@ function EditorWorkspace({
         readOnly={readOnly}
         onUndo={() => { if (!readOnly) store.undo(); }}
         onRedo={() => { if (!readOnly) store.redo(); }}
-      />
+      />}
       <ShortcutHelp open={helpOpen} onClose={closeHelp} singleKey={singleKeyOn} onSingleKeyChange={changeSingleKey} />
       {toast && <div key={toast.id} className={styles.toast} role="status" aria-live="polite">{toast.text}</div>}
     </>
@@ -797,7 +890,16 @@ function EditorWorkspace({
             <div className={shellStyles.stageHead}>
               <p className={shellStyles.ratio} data-stage-ratio="">{tEditor("stage.ratio", { ratio: outputRatio(frame) })}</p>
             </div>
-            <div className={shellStyles.stageBody}>{stage}</div>
+            <div className={shellStyles.stageBody} data-stage-view={stageView}>
+              <div className={shellStyles.stageResult} inert={sourceShown ? true : undefined}>{stage}</div>
+              {sourceShown ? (
+                <SourceStage state={state} dispatch={dispatch} frameBus={frameBus} previewClient={runtime.kind === "fake" ? runtime.previewClient : null}
+                  readOnly={readOnly} onBack={() => sendStageView({ type: "back" })} />
+              ) : null}
+              <p className={shellStyles.visuallyHidden} role="status" data-stage-live="">
+                {sourceShown ? tEditor("stage.source.liveSource") : sourceSeen ? tEditor("stage.source.liveResult") : ""}
+              </p>
+            </div>
             <div className={shellStyles.transport}>
               <StageControls
                 fps={fps}
@@ -821,7 +923,7 @@ function EditorWorkspace({
               onReviewChange={setReviewOpen} />
           </Suspense>
         ) : null}
-        panel={<PanelTabs value={tabId} onChange={changeTab} panelProps={panelProps} />}
+        panel={<PanelTabs value={tabId} onChange={changeTab} panelProps={tabProps} />}
         timeline={(
           <TimelineDetail>
             <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />

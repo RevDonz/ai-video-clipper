@@ -81,9 +81,10 @@ export function SourceTimeReadout({ frameBus, plan }) {
 
 /** "Frame akhir" (Ctrl+Shift+R) and "Zona aman" ('), each a pressed-state pill; a 1:1 clip has
  * no TikTok zone, so `zone` false leaves Zona aman out (CONTRACTS §5.54). */
-export function StageToggles({ truth, onTruth, safeZone, onToggleSafeZone, zone = true, disabled = false }) {
+export function StageToggles({ truth, onTruth, safeZone, onToggleSafeZone, zone = true, disabled = false, children = null }) {
   return (
     <div className={styles.stageToggles} role="group" aria-label="Opsi pratinjau">
+      {children}
       <PillToggle pressed={truth} onClick={onTruth} disabled={disabled} aria-keyshortcuts="Control+Shift+R"
         title="Frame akhir (Ctrl+Shift+R)">
         Frame akhir

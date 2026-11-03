@@ -15,14 +15,13 @@
 // Props: { open, onClose, state, dispatch, player, frameBus, previewClient, readOnly, onUndo,
 // onRedo }. Without a `previewClient` (the app) the dialog keeps its own, so its stills never
 // cancel the stage's "Frame akhir".
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { framingSizes } from "../../lib/editor/framing.mjs";
-import { createPreviewClient } from "../../lib/editor/preview-client.mjs";
 import { ratioName } from "../../lib/output-frame.mjs";
 import {
   FRAMING_MOVES, clearKeyframesCommand, framingSummary, framingView, keyframeCommand, keyframeMoveCommand,
-  removeKeyframeCommand, sourceFrameDoc, stillKey,
+  removeKeyframeCommand,
 } from "./framing-model.mjs";
 import styles from "./framing.module.css";
 import FrameGizmo from "./gizmos/FrameGizmo.jsx";
@@ -30,99 +29,12 @@ import { frameGeometry, resultBackground } from "./gizmos/frame-geometry.mjs";
 import shell from "./shell.module.css";
 import { formatClock, frameToMs, rejectionText } from "./shell-model.mjs";
 import PillGroup from "./ui/PillGroup.jsx";
+import { useStill, useStillClient } from "./use-still.js";
 
-const STILL_REST_MS = 150; // the playhead rests this long before the picture follows it
-const RATE_LIMIT_RETRIES = 2; // preview/frame allows 4 per second per session (plan §9.1)
-const RATE_LIMIT_WAIT_MS = 350;
-
-const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 const clampFrame = (frame, total) => Math.min(Math.max(Number.isSafeInteger(frame) ? frame : 0, 0), Math.max(total - 1, 0));
 const pct = (fraction) => `${fraction * 100}%`;
 
-function useLatest(value) {
-  const ref = useRef(value);
-  ref.current = value;
-  return ref;
-}
-
-/** The dialog's own preview client (or `previewClient`), so its stills never cancel the stage's. */
-export function useStillClient(state, previewClient) {
-  const own = useRef(null);
-  const ids = useLatest({ jobId: state.jobId, clipId: state.clipId });
-  useEffect(() => () => {
-    own.current?.destroy?.();
-    own.current = null;
-  }, []);
-  return useCallback(() => {
-    if (previewClient) return previewClient;
-    if (!own.current) {
-      try {
-        own.current = createPreviewClient({ ...ids.current });
-      } catch {
-        return null;
-      }
-    }
-    return own.current;
-  }, [previewClient, ids]);
-}
-
-/**
- * The source picture at `frame`: `{url, state}` with state "loading", "ready" or "failed". "Atur
- * layar terbagi" (SplitDialog.jsx) draws on the same still.
- */
-export function useStill({ client, doc, frame }) {
-  const [still, setStill] = useState({ url: null, state: "loading" });
-  const [attempt, setAttempt] = useState(0);
-  const urlRef = useRef(null);
-  const docRef = useLatest(doc);
-  const key = stillKey(doc);
-
-  useEffect(() => () => {
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    urlRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    if (!docRef.current) return undefined;
-    let alive = true;
-    setStill((previous) => ({ ...previous, state: "loading" }));
-    const timer = setTimeout(async () => {
-      const api = client();
-      if (!api || typeof api.frame !== "function") {
-        if (alive) setStill((previous) => ({ ...previous, state: "failed" }));
-        return;
-      }
-      try {
-        let blob = null;
-        for (let tries = 0; ; tries += 1) {
-          try {
-            blob = await api.frame(sourceFrameDoc(docRef.current), frame);
-            break;
-          } catch (error) {
-            if (error?.code !== "rate_limited" || tries >= RATE_LIMIT_RETRIES) throw error;
-            await wait(RATE_LIMIT_WAIT_MS);
-            if (!alive) return;
-          }
-        }
-        if (!alive) return;
-        const url = URL.createObjectURL(blob);
-        const old = urlRef.current;
-        urlRef.current = url;
-        if (old) setTimeout(() => URL.revokeObjectURL(old), 1000); // once the new picture has taken over
-        setStill({ url, state: "ready" });
-      } catch (error) {
-        if (!alive || error?.name === "AbortError") return;
-        setStill((previous) => ({ ...previous, state: "failed" }));
-      }
-    }, STILL_REST_MS);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [key, frame, attempt, client, docRef]);
-
-  return { still, retry: () => setAttempt((count) => count + 1) };
-}
+export { useStill, useStillClient };
 
 function FramingBody({ state, dispatch, player, frameBus, client, readOnly, onClose, boxRef }) {
   const doc = state.doc;

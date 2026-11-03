@@ -5,9 +5,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fakeDoc } from "../components/editor/__dev__/fakes.mjs";
+import { fakeDoc, fakeWords } from "../components/editor/__dev__/fakes.mjs";
+import { applyCommand } from "../lib/editor/commands.mjs";
+import { createContext } from "../lib/editor/doc-model.mjs";
 import {
-  ADVANCED_GROUPS, DISCLOSURE_KEY, MAX_SUMMARY_ITEMS, advancedSummary, readDisclosure, writeDisclosure,
+  ADVANCED_GROUPS, DISCLOSURE_KEY, MAX_SUMMARY_ITEMS, advancedSummary, checkTarget, readDisclosure, writeDisclosure,
 } from "../lib/editor/disclosure.mjs";
 
 const seed = fakeDoc();
@@ -31,7 +33,7 @@ const LOGO = {
 };
 
 test("the groups with a Lanjutan fold, and at most three summary items", () => {
-  assert.deepEqual(ADVANCED_GROUPS, ["caption", "hook", "camera", "split", "music", "logo", "watermark"]);
+  assert.deepEqual(ADVANCED_GROUPS, ["caption", "hook", "camera", "split", "music", "logo", "watermark", "coldOpen"]);
   assert.equal(MAX_SUMMARY_ITEMS, 3);
 });
 
@@ -194,4 +196,34 @@ test("the fold is closed by default, remembered per group, and blocked storage o
   assert.equal(writeDisclosure(throwing, "caption", true), false);
   assert.equal(readDisclosure(null, "caption"), false);
   assert.equal(writeDisclosure(storage, "nope", true), false, "an unknown group is not stored");
+});
+
+test("cold open: the fine nudge away from the word gaps, per edge, signed (06 §8.5 \"+0,2 dtk\")", () => {
+  const words = fakeWords();
+  const ids = words.words.map((word) => word.id);
+  const ctx = createContext({ words, seed });
+  const made = applyCommand(seed, "SetColdOpen", { firstWord: ids[6], lastWord: ids[11] }, ctx).doc;
+  assert.deepEqual(advancedSummary("coldOpen", made, seed, { words }), { items: [] }, "a cold open on word gaps is the default");
+  const nudged = applyCommand(made, "NudgeEdge", { seg: "cold_open", edge: "out", ms: 100 }, ctx).doc;
+  const { items } = advancedSummary("coldOpen", nudged, seed, { words });
+  assert.deepEqual(items.map((item) => item.key), ["edgeOut"]);
+  assert.equal(items[0].values.sign, "+");
+  assert.equal(items[0].values.seconds, 0.1);
+  const earlier = applyCommand(made, "NudgeEdge", { seg: "cold_open", edge: "in", ms: -100 }, ctx).doc;
+  assert.deepEqual(advancedSummary("coldOpen", earlier, seed, { words }).items[0].values, { sign: "−", seconds: 0.1 });
+  assert.deepEqual(advancedSummary("coldOpen", nudged, seed), { items: [] }, "without the words nothing shows");
+  assert.deepEqual(advancedSummary("coldOpen", seed, seed, { words }), { items: [] }, "no cold open, no summary");
+});
+
+test("Perbaiki: a check's control, its tab and its fold (06 §2.2 rule 2)", () => {
+  const doc = edit((d) => { d.tracks.push(LOGO); });
+  const hookId = hook(doc).id;
+  assert.deepEqual(checkTarget({ code: "unsafe_zone", ref: hookId }, doc), { tab: "text", group: "hook", control: "hook-position" });
+  assert.deepEqual(checkTarget({ code: "unsafe_zone", ref: "it_logo" }, doc), { tab: "logo", group: null, control: "logo-safe" });
+  assert.deepEqual(checkTarget({ code: "unsafe_zone", path: "/captions/overrides/y_e5" }, doc), { tab: "text", group: "caption", control: "caption-position" });
+  assert.deepEqual(checkTarget({ code: "unsafe_zone" }, doc), { tab: "text", group: "caption", control: "caption-position" });
+  assert.deepEqual(checkTarget({ code: "hook_overflow", ref: hookId }, doc), { tab: "text", group: null, control: "hook-text" });
+  assert.equal(checkTarget({ code: "unsafe_zone", ref: "other" }, doc), null);
+  assert.equal(checkTarget({ code: "tight_cut" }, doc), null);
+  assert.equal(checkTarget(null, doc), null);
 });

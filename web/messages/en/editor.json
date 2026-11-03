@@ -13,7 +13,8 @@
     "timeline": "Detailed timeline",
     "checks": {
       "needs": "To check {count}",
-      "notes": "Notes {count}"
+      "notes": "Notes {count}",
+      "fix": "Fix"
     }
   },
   "clips": {
@@ -25,7 +26,18 @@
     "row": "Clip {index}, {duration}"
   },
   "stage": {
-    "ratio": "Preview {ratio}"
+    "ratio": "Preview {ratio}",
+    "source": {
+      "show": "View source",
+      "back": "Back to result",
+      "result": "Result",
+      "loading": "Loading picture…",
+      "followsFace": "Follows the face",
+      "helpFrame": "Drag the box to set the frame at this point. Arrows move it 1%, Shift+arrows 10%. Esc goes back.",
+      "helpSplit": "Drag a box to move it, pull a corner to resize. Plus and minus zoom. Esc goes back.",
+      "liveSource": "Source",
+      "liveResult": "Result"
+    }
   },
   "transcript": {
     "modeLabel": "Transcript view",
@@ -66,5 +78,368 @@
     "label": "Advanced",
     "summary": "{items}",
     "default": "Default"
+  },
+  "applyAll": {
+    "captions": {
+      "button": "Apply caption to all clips",
+      "note": "Clips whose caption was changed by hand are left out.",
+      "title": "Apply this caption to all clips?"
+    },
+    "layout": {
+      "button": "Apply layout to all clips",
+      "note": "Manual framing is not copied. Clips whose layout was changed by hand are left out.",
+      "title": "Apply this layout to all clips?"
+    },
+    "logo": {
+      "button": "Apply logo to all clips",
+      "note": "Logo and text watermark. Clips changed by hand are left out.",
+      "title": "Apply this logo to all clips?"
+    },
+    "running": "Applying…",
+    "cancel": "Cancel",
+    "confirm": "Apply to all clips",
+    "undo": "Undo",
+    "undoing": "Undoing…",
+    "skipped": "See skipped clips"
+  },
+  "text": {
+    "caption": {
+      "title": "Caption",
+      "show": "Show caption",
+      "style": "Caption style",
+      "size": "Size",
+      "position": "Position",
+      "highlight": "Highlight colour",
+      "highlightOn": "The word being spoken.",
+      "highlightGlow": "The word being spoken and its glow.",
+      "highlightOff": "Used by Karaoke, Bold, Highlight and Glow; it does not show in this style.",
+      "zoneAtSeed": "The default spot, near the TikTok buttons. If they cover it, move the caption up.",
+      "zoneMoved": "The caption is in the TikTok/Reels button area; move it up if they cover it.",
+      "hookNear": "The caption is close to the hook. If they overlap in the preview, move the caption down.",
+      "overFace": "The caption covers the speaker's face.",
+      "overFaceNoFix": "The caption covers the speaker's face. Move it or make it smaller.",
+      "moveTo": "Move to {place}",
+      "fineSize": "Caption size",
+      "finePosition": "Caption position",
+      "wordsPerLine": "Words per line",
+      "entrance": "Entrance",
+      "upper": "All capitals",
+      "emphasis": "Keyword colour",
+      "emphasisNote": "Mark keywords in the transcript (select a word, Ctrl+E)."
+    },
+    "packs": {
+      "classic": "Classic",
+      "classicNote": "White with a black outline",
+      "karaoke": "Karaoke",
+      "karaokeNote": "The spoken word lights up",
+      "bold": "Bold",
+      "boldNote": "Heavy, the active word in colour",
+      "box": "Box",
+      "boxNote": "Text in a dark box",
+      "sorot": "Highlight",
+      "sorotNote": "A colour box on the spoken word",
+      "sinar": "Glow",
+      "sinarNote": "Karaoke with a soft glow"
+    },
+    "sizes": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
+    "positions": {
+      "top": "Top",
+      "middle": "Middle",
+      "bottom": "Bottom"
+    },
+    "entrances": {
+      "none": "None",
+      "fade": "Fade",
+      "pop": "Pop",
+      "blur": "Blur"
+    },
+    "colours": {
+      "yellow": "Yellow",
+      "white": "White",
+      "green": "Green",
+      "blue": "Blue",
+      "pink": "Pink",
+      "orange": "Orange"
+    },
+    "hook": {
+      "title": "Hook",
+      "show": "Show hook",
+      "writeFirst": "Write the hook text first",
+      "text": "Hook text",
+      "fitChecking": "Checking…",
+      "fitOverflow": "Will be cut",
+      "fits": "Fits",
+      "overflowNote": "The hook does not fit 3 lines; its end becomes “…”. Shorten the text.",
+      "glyphs": "The hook font lacks {glyphs}; these characters will not show in the video.",
+      "unsafe": "The hook is in the top area the app's interface covers.",
+      "suggestions": "Hook suggestions",
+      "design": "Hook design",
+      "duration": "Hook length",
+      "position": "Hook position"
+    },
+    "designs": {
+      "bar": "Bar",
+      "barNote": "White text on a dark bar",
+      "kicker": "Kicker",
+      "kickerNote": "A small line above large text",
+      "kickerHint": "Small line: the words up to the first punctuation mark. Without one, the first 1–3 words.",
+      "blok": "Block",
+      "blokNote": "Each line in a yellow box",
+      "kotak": "Word box",
+      "kotakNote": "One word in a yellow box",
+      "kotakHint": "A word in capitals goes in the box. Without one, the longest word."
+    },
+    "summary": {
+      "words": "{count} words",
+      "size": "{percent}%",
+      "position": "Position {percent}%",
+      "upper": "Capitals",
+      "asWritten": "As written",
+      "emphasis": "Keyword colour",
+      "duration": "{seconds, number} s"
+    },
+    "fromTop": "{percent}% from the top",
+    "seconds": "{seconds, number} s",
+    "editLines": "Edit by line"
+  },
+  "layout": {
+    "title": "Video layout",
+    "choose": "Choose a layout",
+    "wholeClip": "Applies to the whole clip.",
+    "inUse": "In use",
+    "bars": "Black bars at the source's edges are left out.",
+    "zoom": "Zoom",
+    "zoomNote": "Enlarge up to {percent}%. The picture's edges are cut.",
+    "zoomReset": "Back to 100%",
+    "percent": "{percent}%",
+    "modes": {
+      "fitBlurNote": "The whole picture shows. Top and bottom are filled with a blurred copy of it.",
+      "cameraNote": "A {ratio} crop moves with the face. Needs one face analysis per clip; parts without a face show on a blurred background.",
+      "cameraCentredNote": "A {ratio} crop moves with the face. Needs one face analysis per clip; parts without a face are centred.",
+      "fillCenterNote": "A {ratio} crop stays at the picture's centre. Left and right are cut.",
+      "splitNote": "Two crops of the same video, stacked with a thin line between them."
+    },
+    "thumbs": {
+      "needsAnalysis": "Needs face analysis",
+      "unavailable": "No sample yet",
+      "loading": "Loading sample…",
+      "alt": "{name} sample at {time}"
+    },
+    "analysis": {
+      "label": "Face analysis",
+      "percent": "Analysing faces… {percent}%",
+      "seconds": "Analysing faces… {seconds} s",
+      "switchAfter": "The layout changes when the analysis ends. Choose another one to cancel.",
+      "retry": "Try again"
+    },
+    "noFace": {
+      "title": "Parts without a face",
+      "blur": "Blurred background",
+      "centre": "Centred",
+      "checking": "Checking the face analysis…",
+      "none": "A face was found in the whole clip.",
+      "runs": "{count, plural, one {# part without a face.} other {# parts without a face.}}",
+      "blurNote": "These parts show the whole picture on a blurred background.",
+      "centreNote": "These parts are centred.",
+      "jump": "Jump to {time}"
+    },
+    "framing": {
+      "title": "Frame",
+      "autoCamera": "Auto: the frame follows the face.",
+      "autoCentre": "Auto: the frame is centred.",
+      "manual": "{count, plural, one {Set by hand: # point.} other {Set by hand: # points.}}",
+      "manualCamera": "{count, plural, one {Set by hand: # point, also in parts without a face.} other {Set by hand: # points, also in parts without a face.}}",
+      "portrait": "The source is already upright; there is nothing to move.",
+      "clear": "Back to auto"
+    },
+    "split": {
+      "title": "Split screen",
+      "summary": "Top {top}%, bottom {bottom}%.",
+      "share": "Share",
+      "swap": "Swap top and bottom",
+      "zoomTop": "Zoom top",
+      "zoomBottom": "Zoom bottom"
+    },
+    "keyframe": {
+      "title": "Frame points",
+      "here": "Point {index} of {count} is here.",
+      "notHere": "{count, plural, one {# point. None at this position.} other {# points. None at this position.}}",
+      "previous": "‹ Point",
+      "next": "Point ›",
+      "add": "Add point",
+      "remove": "Remove point",
+      "move": "Move",
+      "cut": "Cut",
+      "slide": "Slide",
+      "moveNote": "Cut jumps exactly at this point; Slide moves slowly from the previous point.",
+      "moveNoteFirst": "Choose the second point or a later one to set its move."
+    },
+    "summary": {
+      "keyframes": "{count} points",
+      "bands": "Top {top}% · Bottom {bottom}%"
+    }
+  },
+  "audio": {
+    "refused": "This change cannot be applied.",
+    "music": {
+      "title": "Background music",
+      "uploaded": "Uploaded music",
+      "loudness": "track loudness {value}",
+      "replace": "Replace music",
+      "remove": "Remove music",
+      "empty": "No music yet. MP3, M4A, WAV, OGG or FLAC, up to 50 MB and 15 minutes.",
+      "add": "Add music",
+      "uploadsOff": "File uploads are off on this server.",
+      "volume": "Music volume",
+      "volumeNote": "Starts from the track's loudness, so it does not cover the voice.",
+      "resetLabel": "Reset music volume",
+      "reset": "Reset",
+      "shorter": "The music is shorter than the clip, so its end has none. Turn on Loop in Advanced to fill it."
+    },
+    "duck": {
+      "on": "Lower music under speech",
+      "strength": "Strength",
+      "soft": "Soft",
+      "medium": "Medium",
+      "strong": "Strong",
+      "custom": "Custom: {depth}"
+    },
+    "notice": {
+      "title": "Use music you may use",
+      "text": "Copyrighted songs can get a video muted or blocked by the copyright checks of TikTok, Instagram and YouTube (Content ID).",
+      "agree": "Choose music file",
+      "cancel": "Cancel"
+    },
+    "upload": {
+      "processing": "Processing {name}…",
+      "progress": "Uploading {name} · {percent}%",
+      "label": "Uploading {name}",
+      "cancelLabel": "Cancel upload",
+      "cancel": "Cancel"
+    },
+    "fine": {
+      "offset": "Start from",
+      "loop": "Loop until the clip ends",
+      "fadeIn": "Fade in",
+      "fadeOut": "Fade out",
+      "depth": "Depth",
+      "attack": "Fall time",
+      "attackNote": "The music starts falling before the first word.",
+      "release": "Rise time",
+      "hold": "Hold",
+      "holdNote": "Pauses shorter than this do not bring the music back up."
+    },
+    "source": {
+      "title": "Original sound",
+      "volume": "Original volume",
+      "loudness": "Match loudness to {target}",
+      "suggest": "Suggested with music, so the volume holds across clips.",
+      "preparing": "Preparing audio…"
+    },
+    "summary": {
+      "loop": "Loop",
+      "noLoop": "No loop",
+      "fade": "Fade {inSeconds, number}/{outSeconds, number} s",
+      "offset": "Start {seconds, number} s",
+      "duck": "{count} details"
+    }
+  },
+  "logo": {
+    "title": "Logo",
+    "defaultLogo": "Default logo",
+    "pixels": "{w} × {h} px",
+    "empty": "Shows above the caption for the whole clip. PNG, JPEG or WebP, up to 10 MB. You can also drop a file here.",
+    "add": "Add logo",
+    "replace": "Replace logo",
+    "remove": "Remove logo",
+    "uploadsOff": "Logo uploads are not available on this server.",
+    "upload": {
+      "processing": "Processing the picture…",
+      "progress": "Uploading {name} · {percent}%",
+      "label": "Logo upload",
+      "cancel": "Cancel upload"
+    },
+    "unsafe": "The logo is in the area the TikTok/Reels buttons cover.",
+    "moveSafe": "Move to the safe area",
+    "corner": "Corner",
+    "corners": {
+      "topLeft": "Top left",
+      "topRight": "Top right",
+      "bottomLeft": "Bottom left",
+      "bottomRight": "Bottom right"
+    },
+    "places": {
+      "topCenter": "Top centre",
+      "middleLeft": "Middle left",
+      "middleCenter": "Centre",
+      "middleRight": "Middle right",
+      "bottomCenter": "Bottom centre"
+    },
+    "dragHelp": "Drag the logo in the preview to place it anywhere; Alt turns the magnet off.",
+    "size": "Logo size",
+    "opacity": "Logo opacity",
+    "percent": "{percent}%",
+    "watermark": {
+      "title": "Text watermark",
+      "text": "Watermark text",
+      "placeholder": "@account",
+      "note": "One line for the whole clip.",
+      "remove": "Remove text",
+      "glyphs": "The watermark font lacks {glyphs}; these characters will not show in the video.",
+      "place": "Text position",
+      "size": "Text size",
+      "opacity": "Text opacity"
+    }
+  },
+  "coldOpen": {
+    "title": "Cold open",
+    "on": "Cold open on",
+    "pickFirst": "Select a sentence in the transcript first.",
+    "note": "A short piece (0.5–8 s) that plays first; then the clip starts from its beginning.",
+    "playsFirst": "plays at the start",
+    "play": "Play cold open",
+    "remove": "Remove cold open",
+    "words": {
+      "label": "Move the cold open's edges",
+      "start": "Start ± word",
+      "end": "End ± word",
+      "addBefore": "Add the word before",
+      "dropFirst": "Drop the first word",
+      "dropLast": "Drop the last word",
+      "addAfter": "Add the word after"
+    },
+    "fine": {
+      "label": "Move the cold open's edges by 0.1 s",
+      "start": "Start ± 0.1 s",
+      "end": "End ± 0.1 s",
+      "startEarlier": "Start the cold open 0.1 s earlier",
+      "startLater": "Start the cold open 0.1 s later",
+      "endEarlier": "End the cold open 0.1 s earlier",
+      "endLater": "End the cold open 0.1 s later"
+    },
+    "transition": {
+      "title": "Transition",
+      "note": "The effect where the cold open joins the clip. The clip's length stays.",
+      "off": "Turn on the cold open first.",
+      "readOnly": "This clip is read-only",
+      "effect": "Picture effect",
+      "cut": "Straight cut",
+      "flash": "White flash",
+      "dip": "Dip to black",
+      "whoosh": "Whoosh sound",
+      "play": "Play transition",
+      "stop": "Stop",
+      "statusStyle": "Transition: {name}.",
+      "statusSfxOn": "Whoosh on.",
+      "statusSfxOff": "Whoosh off."
+    },
+    "summary": {
+      "in": "Start {sign}{seconds, number} s",
+      "out": "End {sign}{seconds, number} s"
+    }
   }
 }
