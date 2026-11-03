@@ -59,7 +59,7 @@ async function createFakeRuntime({ jobId, clipId, scenario }) {
   };
 }
 
-const STORE_DEPS = Object.freeze(["draftStore", "channel", "lifecycle", "tabStorage", "now", "timers", "planPollMs"]);
+const STORE_DEPS = Object.freeze(["draftNamespace", "draftStore", "channel", "lifecycle", "tabStorage", "now", "timers", "planPollMs"]);
 
 async function createRealRuntime({ jobId, clipId, deps = {} }) {
   const [{ createApiClient, randomUuid }, { createPreviewClient }, { createEditorStore }, uploads] = await Promise.all([

@@ -199,3 +199,33 @@ test("login copy has no em dash, version label or English marketing label, in an
     assert.doesNotMatch(text, /SELF-HOSTED|Face Tracking/, locale);
   }
 });
+
+test("the login page clears this device's drafts after a logout, and only then", async () => {
+  const source = await read("app/login/page.jsx");
+  assert.match(source, /params\?\.keluar === "1" && <ClearDraftsAfterLogout \/>/);
+  assert.match(await read("components/ClearDraftsAfterLogout.jsx"), /clearAllDrafts\(\)/);
+});
+
+test("the password page is the card of /login, without the app shell, and its copy is in the catalogs", async () => {
+  const source = await read("app/akun/kata-sandi/page.jsx");
+  assert.match(source, /PublicCard/);
+  assert.doesNotMatch(source, /AppShell/);
+  assert.match(source, /login\/login\.module\.css/);
+  const form = await read("app/akun/kata-sandi/PasswordForm.jsx");
+  assert.match(form, /autoComplete="new-password"/);
+  for (const locale of ["id", "en"]) {
+    const { password } = JSON.parse(await read(`messages/${locale}/auth.json`));
+    assert.deepEqual(Object.keys(password).sort(), ["current", "failed", "next", "repeat", "save", "title"]);
+    for (const text of Object.values(password)) assert.doesNotMatch(text, FORBIDDEN_COPY);
+    const { account } = JSON.parse(await read(`messages/${locale}/errors.json`));
+    for (const code of ["password_wrong", "password_too_short", "password_too_long", "password_common", "password_same_as_username", "password_mismatch"]) {
+      assert.ok(account[code], `${locale}: errors.account.${code}`);
+    }
+  }
+});
+
+test("no user-facing page text hard-codes the login's server-side words", async () => {
+  // The route's Indonesian `error` strings stay (07 §10.1, additive), the UI reads messageId.
+  const route = await read("app/api/account/password/route.js");
+  assert.match(route, /messageId: `account\.\$\{code\}`/);
+});
