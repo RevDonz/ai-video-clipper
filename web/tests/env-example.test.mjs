@@ -72,3 +72,14 @@ test("the UI languages flag reaches the app service only, with id as the default
     if (name !== "app") assert.doesNotMatch(block, /POTONGIN_LOCALES/, `${name} renders no UI text`);
   }
 });
+
+test("the identity variables are in .env.example; the sealing secret has a value, the smoke login is the owner's", async () => {
+  const values = await envExample();
+  assert.ok(values.get("POTONGIN_SETTINGS_SECRET").length >= 32, "compose requires it, and start-app requires 32 characters");
+  for (const name of ["E2E_SMOKE_USERNAME", "E2E_SMOKE_PASSWORD", "AUTH_TRUSTED_CLIENT_IP_HEADER"]) {
+    assert.equal(values.get(name), "", `${name}: documented, empty, no real value in the repo`);
+  }
+  const text = await repoFile(".env.example");
+  assert.doesNotMatch(text, /\/data\/settings/, "the settings live in /control/settings now");
+  assert.match(text, /APP_SESSION_SECRET ke sini/, "says how to keep the sealed keys readable");
+});

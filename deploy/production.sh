@@ -24,6 +24,19 @@ cd "$RELEASE_DIR"
 [ -f .env ] || { echo "Release .env is missing" >&2; exit 2; }
 docker compose -p "$COMPOSE_PROJECT" config --quiet
 
+# Before anything is built or replaced: what the multi-user image needs from .env (rombak 02 §12.3).
+require_identity_env() (
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+  local name
+  for name in POTONGIN_SETTINGS_SECRET E2E_SMOKE_USERNAME E2E_SMOKE_PASSWORD AUTH_TRUSTED_CLIENT_IP_HEADER; do
+    [ -n "${!name:-}" ] || { echo "Deployment blocked: $name is empty in .env (docs/operations/PENGGUNA.md)" >&2; return 2; }
+  done
+)
+require_identity_env
+
 active_jobs() {
   docker exec -i "$APP_CONTAINER" python - <<'PY'
 import json
@@ -108,7 +121,32 @@ verify_runtime_identity() {
     restart_count=$(docker inspect "$container" --format '{{.RestartCount}}')
     [ "$restart_count" = 0 ] || { echo "$container restart count is $restart_count" >&2; return 1; }
   done
-  printf 'DATA_VOLUME=%s\nRESTART_COUNTS=0,0,0\n' "$actual_volume"
+  # The control volume: on the app and the primary worker, never on the render worker (rombak 01 §5.1).
+  local expected_control control_mount
+  expected_control="${COMPOSE_PROJECT}_potongin_control"
+  for container in "$APP_CONTAINER" "$PRIMARY_CONTAINER"; do
+    control_mount=$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/control"}}{{.Name}}{{end}}{{end}}')
+    [ "$control_mount" = "$expected_control" ] || {
+      echo "Unexpected control volume on $container: $control_mount (expected $expected_control)" >&2
+      return 1
+    }
+  done
+  control_mount=$(docker inspect "$RENDER_CONTAINER" --format '{{range .Mounts}}{{if eq .Destination "/control"}}{{.Name}}{{end}}{{end}}')
+  [ -z "$control_mount" ] || { echo "The render worker must not mount /control" >&2; return 1; }
+  printf 'DATA_VOLUME=%s\nCONTROL_VOLUME=%s\nRESTART_COUNTS=0,0,0\n' "$actual_volume" "$expected_control"
+}
+
+# The new image, before the old containers go: a snapshot of the control data (rombak 01 §7.1), then
+# the settings copy. /control/settings is complete before up -d, so a rollback from here on (old
+# image, this compose) reads it. Either step failing stops the deploy with the old image serving.
+backup_control_db() {
+  IMAGE_TAG="$DEPLOY_SHA" docker compose -p "$COMPOSE_PROJECT" run --rm --no-deps --entrypoint node app \
+    scripts/db-backup.mjs --reason deploy
+}
+
+prepare_control_settings() {
+  IMAGE_TAG="$DEPLOY_SHA" docker compose -p "$COMPOSE_PROJECT" run --rm --no-deps --entrypoint node app \
+    scripts/start-app.mjs --prepare-settings
 }
 
 run_read_only_e2e() {
@@ -119,8 +157,8 @@ run_read_only_e2e() {
   docker run --rm --ipc=host \
     -e CI=1 \
     -e E2E_BASE_URL="$PRODUCTION_URL" \
-    -e E2E_USERNAME="$APP_USERNAME" \
-    -e E2E_PASSWORD="$APP_PASSWORD" \
+    -e E2E_USERNAME="$E2E_SMOKE_USERNAME" \
+    -e E2E_PASSWORD="$E2E_SMOKE_PASSWORD" \
     -v "$RELEASE_DIR/web:/src:ro" \
     -v "$RELEASE_DIR/.gitignore:/workroot/.gitignore:ro" \
     "$PLAYWRIGHT_IMAGE" bash -lc '
@@ -151,12 +189,16 @@ docker tag "$previous_image" "ai-video-clipper:${rollback_tag}"
 
 IMAGE_TAG="$DEPLOY_SHA" docker compose -p "$COMPOSE_PROJECT" build app
 require_quiescent
+backup_control_db
+prepare_control_settings
 
 deployed=1
 rollback() {
   local exit_code=$?
   trap - ERR
   if [ "$deployed" = 1 ]; then
+    # This compose with the previous image: an image from before the control volume ignores the
+    # DB and reads /control/settings through POTONGIN_SETTINGS_DIR (rombak 01 §5.2).
     echo "Deployment verification failed; rolling back to previous image" >&2
     IMAGE_TAG="$rollback_tag" docker compose -p "$COMPOSE_PROJECT" up -d --no-build --remove-orphans || true
     wait_http_health || true

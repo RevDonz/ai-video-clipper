@@ -1,20 +1,22 @@
 import { expect } from "@playwright/test";
 
 import {
-  LOGIN_SUBMIT, expectPlaybackAdvances, login, resolveTarget, settings, skipWithoutCredentials, test,
+  LOGIN_SUBMIT, expectPlaybackAdvances, findTarget, login, settings, skipWithoutCredentials, test,
 } from "./support/harness.mjs";
 import { L } from "./support/i18n.mjs";
 
 const projectPath = (jobId) => `/projects/${encodeURIComponent(jobId)}`;
 const RETIRED_CANDIDATE = `cand_${"0".repeat(64)}`;
+// A project that does not exist: the routes and pages a user without projects can still check.
+const NO_PROJECT = "00000000-0000-4000-8000-000000000000";
 
 test.describe("read-only production-safe flows", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
   test("login keeps a project deep link", async ({ context, page }) => {
     await login(page);
-    const target = await resolveTarget(page);
-    const next = projectPath(target.jobId);
+    const target = await findTarget(page);
+    const next = target ? projectPath(target.jobId) : "/projects";
 
     // Leave the history first: its posters would otherwise load without the cleared cookie.
     await page.goto("about:blank");
@@ -27,12 +29,13 @@ test.describe("read-only production-safe flows", () => {
       page.waitForURL((url) => url.pathname === next),
       page.locator(LOGIN_SUBMIT).click(),
     ]);
-    await expect(page.getByRole("article")).toHaveCount(target.clipCount);
+    if (target) await expect(page.getByRole("article")).toHaveCount(target.clipCount);
   });
 
   test("a project shows every clip ready to post, without version labels, and the first one plays", async ({ page }) => {
     await login(page);
-    const target = await resolveTarget(page);
+    const target = await findTarget(page);
+    test.skip(!target, "this user has no project (the deploy's smoke user)");
     await page.goto(projectPath(target.jobId));
 
     // One poster per clip; each opens its clip in the clip viewer (05-ui-dashboard.md §6.4), ready
@@ -58,7 +61,8 @@ test.describe("read-only production-safe flows", () => {
 
   test("an old candidate-editor link opens the project page", async ({ page }) => {
     await login(page);
-    const target = await resolveTarget(page);
+    const target = await findTarget(page);
+    test.skip(!target, "this user has no project (the deploy's smoke user)");
     await page.goto(`${projectPath(target.jobId)}/candidates/${RETIRED_CANDIDATE}/edit`);
     await expect(page).toHaveURL((url) => url.pathname === projectPath(target.jobId));
     await expect(page.getByRole("article")).toHaveCount(target.clipCount);
@@ -66,11 +70,11 @@ test.describe("read-only production-safe flows", () => {
 
   test("the retired candidate-editor API routes answer 404", async ({ context, page }) => {
     await login(page);
-    const target = await resolveTarget(page);
+    const target = await findTarget(page);
     // A second tab: the diagnostics fixture fails every API response of 400 or more, and these
     // 404s are the point.
     const probe = await context.newPage();
-    await probe.goto(projectPath(target.jobId));
+    await probe.goto(target ? projectPath(target.jobId) : "/projects");
     const statuses = await probe.evaluate(async ({ jobId, candidate }) => {
       const base = `/api/jobs/${encodeURIComponent(jobId)}`;
       const paths = [
@@ -82,7 +86,7 @@ test.describe("read-only production-safe flows", () => {
         `${base}/preview-source`,
       ];
       return Promise.all(paths.map(async (path) => (await fetch(path, { cache: "no-store" })).status));
-    }, { jobId: target.jobId, candidate: RETIRED_CANDIDATE });
+    }, { jobId: target?.jobId ?? NO_PROJECT, candidate: RETIRED_CANDIDATE });
     await probe.close();
     expect(statuses).toEqual([404, 404, 404, 404, 404, 404]);
   });
