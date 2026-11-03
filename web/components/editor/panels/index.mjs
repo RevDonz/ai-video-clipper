@@ -40,17 +40,12 @@ export const PANELS = Object.freeze([
 // transcript is always on screen, so it is no tab, and Musik is Audio. The labels come from the
 // catalog (editor.shell.tabs.*), so these entries carry none. The list above stays the two-view
 // editor's until F10 removes that shell and its panels.
-function tab(id, panelId) {
-  const from = PANELS.find((entry) => entry.id === panelId);
-  return Object.freeze({ id, file: from.file, component: from.component, load: from.load });
-}
-
 export const SHELL_TABS = Object.freeze([
   entry({ id: "text", component: "TextTab", file: "panels/TextTab.jsx", load: () => import("./TextTab.jsx") }),
   entry({ id: "layout", component: "LayoutTab", file: "panels/LayoutTab.jsx", load: () => import("./LayoutTab.jsx") }),
-  tab("audio", "music"),
-  tab("logo", "logo"),
-  tab("coldopen", "coldopen"),
+  entry({ id: "audio", component: "AudioPanel", file: "panels/AudioPanel.jsx", load: () => import("./AudioPanel.jsx") }),
+  entry({ id: "logo", component: "LogoTab", file: "panels/LogoTab.jsx", load: () => import("./LogoTab.jsx") }),
+  entry({ id: "coldopen", component: "ColdOpenTab", file: "panels/ColdOpenTab.jsx", load: () => import("./ColdOpenTab.jsx") }),
 ]);
 
 export function panelById(id) {

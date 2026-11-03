@@ -21,6 +21,9 @@ function apply(commands) {
 
 // The DTO the fakes' upload client gives for this file, as when the panel uploads it.
 const MUSIC = await createFakeUploadClient().uploadAsset(FAKE_JOB_ID, { name: "lagu.m4a", size: 4096, type: "audio/mp4" }, "music");
+const LOGO = await createFakeUploadClient().uploadAsset(FAKE_JOB_ID, { name: "logo.png", size: 2048, type: "image/png" }, "logo");
+// A source frame inside the fakes' clip window, for a manual keyframe.
+const KEYFRAME_SF = fakeDoc().main.segments[0].in_sf + 30;
 
 export const SHELL_DOCS = Object.freeze({
   // "Jadi waktu itu kita datang subuh" played first (the fakes' words 6–11).
@@ -28,7 +31,10 @@ export const SHELL_DOCS = Object.freeze({
   music: () => apply([["SetMusic", { asset: MUSIC.sha256, meta: MUSIC }]]),
   watermark: () => apply([["SetWatermarkText", { text: "@akun" }]]),
   fillCenter: () => apply([["SetLayout", { mode: "fill_center" }]]),
+  camera: () => apply([["SetLayout", { mode: "camera" }]]),
+  keyframes: () => apply([["SetLayout", { mode: "fill_center" }], ["SetKeyframe", { sf: KEYFRAME_SF, pan_e5: 25000 }]]),
   split: () => apply([["SetLayout", { mode: "split" }]]),
+  logo: () => apply([["SetLogo", { asset: LOGO.sha256, meta: LOGO }]]),
 });
 
 /** The preset `name` as plain JSON, ready for addInitScript. */

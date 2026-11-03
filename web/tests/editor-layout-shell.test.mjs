@@ -27,7 +27,11 @@ test("five tabs in order, Musik renamed Audio and no Transkrip tab; the old shel
   assert.deepEqual(SHELL_TABS.map((entry) => entry.id), ["text", "layout", "audio", "logo", "coldopen"]);
   assert.deepEqual(SHELL_TABS.map((entry) => entry.id), [...TAB_IDS], "the address knows the same tabs");
   const byId = Object.fromEntries(SHELL_TABS.map((entry) => [entry.id, entry]));
-  assert.equal(byId.audio.file, "panels/MusicPanel.jsx", "Audio shows the music panel until F5 renames it");
+  assert.equal(byId.audio.file, "panels/AudioPanel.jsx", "Audio is its own panel from F5 on");
+  assert.equal(byId.text.file, "panels/TextTab.jsx");
+  assert.equal(byId.layout.file, "panels/LayoutTab.jsx");
+  assert.equal(byId.logo.file, "panels/LogoTab.jsx");
+  assert.equal(byId.coldopen.file, "panels/ColdOpenTab.jsx");
   for (const entry of SHELL_TABS) {
     assert.equal(typeof entry.load, "function", entry.id);
     assert.ok(existsSync(path.join(WEB, "components", "editor", entry.file)), entry.file);

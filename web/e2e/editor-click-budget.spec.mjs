@@ -21,11 +21,13 @@ const SCOPES = Object.freeze({
   panel: (page) => page.locator('[data-slot="panel"]'),
   menu: (page) => page.getByRole("menu"),
   dialog: (page) => page.getByRole("dialog"),
+  alertdialog: (page) => page.getByRole("alertdialog"),
 });
 
 function locate(page, descriptor) {
   const scope = SCOPES[descriptor.within](page);
   if (descriptor.testId) return scope.getByTestId(descriptor.testId);
+  if (descriptor.advanced) return scope.locator(`[data-advanced="${descriptor.advanced}"] button`).first();
   if (Object.hasOwn(descriptor, "word")) return scope.locator(`[data-transcript-words] [data-w="${descriptor.word}"]`);
   const name = descriptor.regex ? new RegExp(descriptor.name) : descriptor.name;
   const found = scope.getByRole(descriptor.role, { name, exact: descriptor.regex ? undefined : descriptor.exact ?? true });

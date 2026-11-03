@@ -10,9 +10,10 @@
 // dialog, a confirmation).
 //
 // A locator is data: `{ role, name, exact = true, within }` (`name` a RegExp source when `regex`),
-// `{ testId, within }`, or `{ word, within: "transcript" }` (a transcript word by its index in the
-// words artifact; words have no role of their own); `within` is "topBar", "clips", "stage",
-// "transcript", "panel", "timeline", "menu" or "dialog". `scenario` sets up the fakes for a row
+// `{ testId, within }`, `{ word, within: "transcript" }` (a transcript word by its index in the
+// words artifact; words have no role of their own) or `{ advanced: group, within: "panel" }` (the
+// Lanjutan fold's button of `group`); `within` is "topBar", "clips", "stage", "transcript", "panel",
+// "timeline", "menu", "dialog" or "alertdialog". `scenario` sets up the fakes for a row
 // (support/editor-shell.mjs openShell): neighbour clips, plan warnings, a read-only clip, a save
 // conflict, a cut (`removal: [first, last]` word indexes) or sentences outside the clip (`context`).
 // `scenario.doc` opens the clip with one part already set (support/shell-docs.mjs: music, a cold
@@ -23,6 +24,8 @@
 // today, within the same budget; one that cannot be walked yet says why (`gap`) and the spec
 // lists it as fixme. `excluded` rows have no control to count (a waiting screen) or are exempt
 // (Terbitkan, multi-field, 06 §2.3).
+import { shellDoc } from "./shell-docs.mjs";
+
 const tab = (name) => ({ role: "tab", name, within: "panel" });
 const bar = (role, name, extra = {}) => ({ role, name, within: "topBar", ...extra });
 const panel = (role, name, extra = {}) => ({ role, name, within: "panel", ...extra });
@@ -36,7 +39,8 @@ const LAYOUT = tab("Tata letak");
 const AUDIO = tab("Audio");
 const LOGO = tab("Logo");
 const COLD_OPEN = tab("Cold open");
-const NO_LOGO = "needs a logo, and the fakes have no logo picture to show";
+const fold = (group) => ({ advanced: group, within: "panel" });
+const LOGO_ITEM = shellDoc("logo").tracks.find((track) => track.items?.[0]?.type === "image").items[0].id;
 
 const WARNING = Object.freeze([{ code: "tight_cut", ref: "rm_01", f: 120 }]);
 
@@ -67,13 +71,13 @@ export const CLICK_BUDGET = Object.freeze([
   entry({ row: 15, docClicks: "1", budget: 1, steps: [], target: stage("button", "Frame akhir") }),
   entry({ row: 16, docClicks: "1", budget: 1, steps: [], target: stage("button", "Zona aman") }),
   // The caption box on the stage is the drag handle itself (one drag, counted as its click).
-  entry({ row: 17, docClicks: "1 seret", budget: 1, pending: "F3", steps: [], target: stage("slider", "Caption di video") }),
-  entry({ row: 18, docClicks: "2 (tab + seret)", budget: 2, pending: "F5", gap: `the logo gizmo ${NO_LOGO}` }),
-  // Until F4a brings Lihat sumber, Atur bingkai and Atur potongan open the dialogs the drag happens in.
-  entry({ row: 19, docClicks: "3 (tab + Lihat sumber + seret)", budget: 3, pending: "F4a", scenario: { doc: "fillCenter" },
-    steps: [LAYOUT], target: panel("button", "Atur bingkai"), extra: 1 }),
-  entry({ row: 20, docClicks: "3", budget: 3, pending: "F4a", scenario: { doc: "split" },
-    steps: [LAYOUT], target: panel("button", "Atur potongan"), extra: 1 }),
+  entry({ row: 17, docClicks: "1 seret", budget: 1, steps: [], target: stage("slider", "Caption di video") }),
+  // The logo's box shows with tab Logo; a press on it starts the drag.
+  entry({ row: 18, docClicks: "2 (tab + seret)", budget: 2, scenario: { doc: "logo" }, steps: [LOGO], target: { role: "group", name: "Logo", regex: true, within: "stage" } }),
+  // Lihat sumber, then the drag on the stage.
+  entry({ row: 19, docClicks: "3 (tab + Lihat sumber + seret)", budget: 3, scenario: { doc: "fillCenter" },
+    steps: [LAYOUT], target: stage("button", "Lihat sumber"), extra: 1 }),
+  entry({ row: 20, docClicks: "3", budget: 3, scenario: { doc: "split" }, steps: [LAYOUT], target: stage("button", "Lihat sumber"), extra: 1 }),
   entry({ row: 21, docClicks: "1", budget: 1, steps: [], target: word(BODY_WORD) }),
   entry({ row: 22, docClicks: "2", budget: 2, steps: [word(BODY_WORD)], target: words("button", "Hapus") }),
   entry({ row: 23, docClicks: "2", budget: 2, steps: [word(BODY_WORD)], target: words("button", "Edit kata") }),
@@ -102,52 +106,52 @@ export const CLICK_BUDGET = Object.freeze([
   entry({ row: 39, docClicks: "2", budget: 2, pending: "F7", gap: "new: duplicating a clip arrives with F7" }),
   entry({ row: 40, docClicks: "3", budget: 3, pending: "F7", gap: "new: derived clips arrive with F7" }),
   entry({ row: 41, docClicks: "1", budget: 1, steps: [], target: panel("switch", "Tampilkan caption") }),
-  // The packs and the layouts are still the panels' fieldsets (role group); F3 and F4a bring the
-  // RadioGroup of 06 §8. A menu item's name ends with its shortcut, hence the anchored regexes.
-  entry({ row: 42, docClicks: "1", budget: 1, steps: [], target: panel("group", "Gaya caption") }),
-  // Teks shows every caption and hook control today; F3 folds the fine ones into Lanjutan.
-  entry({ row: 43, docClicks: "1", budget: 1, pending: "F3", steps: [], target: panel("slider", "^Posisi caption", { regex: true }) }),
-  entry({ row: 44, docClicks: "3", budget: 3, pending: "F3", steps: [], target: panel("slider", "^Ukuran caption", { regex: true }) }),
-  entry({ row: 45, docClicks: "1", budget: 1, pending: "F3", gap: "shown only when the plan finds the caption over a face, which the fakes' plan never does" }),
-  entry({ row: 46, docClicks: "1", budget: 1, pending: "F3", steps: [], target: panel("radiogroup", "Warna sorot") }),
-  entry({ row: 47, docClicks: "2–3", budget: 3, pending: "F3", steps: [], target: panel("radiogroup", "Kata per baris") }),
+  // A menu item's name ends with its shortcut, hence the anchored regexes.
+  entry({ row: 42, docClicks: "1", budget: 1, steps: [], target: panel("radiogroup", "Gaya caption") }),
+  entry({ row: 43, docClicks: "1", budget: 1, steps: [], target: panel("radiogroup", "Posisi") }),
+  entry({ row: 44, docClicks: "3", budget: 3, steps: [fold("caption")], target: panel("slider", "Ukuran caption") }),
+  entry({ row: 45, docClicks: "1", budget: 1, scenario: { planWarnings: [{ code: "caption_over_face", ref: "tengah" }] }, steps: [],
+    target: panel("button", "Pindah ke Tengah") }),
+  entry({ row: 46, docClicks: "1", budget: 1, steps: [], target: panel("radiogroup", "Warna sorot") }),
+  entry({ row: 47, docClicks: "2–3", budget: 3, steps: [fold("caption")], target: panel("radiogroup", "Kata per baris") }),
   entry({ row: 48, docClicks: "1–2", budget: 2, steps: [], target: panel("switch", "Tampilkan hook") }),
-  entry({ row: 49, docClicks: "2", budget: 2, pending: "F3", steps: [], target: panel("button", "^Pakai hook: ", { regex: true, first: true }) }),
-  entry({ row: 50, docClicks: "3", budget: 3, pending: "F3", steps: [], target: panel("group", "Desain hook") }),
-  // F3 adds the confirmation and its Urungkan toast; today the button applies at once.
-  entry({ row: 51, docClicks: "2 (+1 kalau di tab lain)", budget: 3, budgetNote: "Tata letak and Logo add their tab's click", pending: "F3",
-    scenario: { clips: 3 }, steps: [], target: panel("button", "Pakai caption di semua klip") }),
-  entry({ row: 52, docClicks: "2", budget: 2, steps: [tab("Tata letak")], target: panel("group", "Pilih tata letak") }),
-  entry({ row: 53, docClicks: "2", budget: 2, pending: "F4b", gap: "new: the Otomatis card arrives with F4b" }),
+  entry({ row: 49, docClicks: "2", budget: 2, steps: [panel("button", "Saran hook")], target: panel("button", "^Pakai hook: ", { regex: true, first: true }) }),
+  entry({ row: 50, docClicks: "3", budget: 3, steps: [fold("hook")], target: panel("radiogroup", "Desain hook") }),
+  // The button, then the confirmation; the result carries Urungkan.
+  entry({ row: 51, docClicks: "2 (+1 kalau di tab lain)", budget: 3, budgetNote: "Tata letak and Logo add their tab's click",
+    scenario: { clips: 3 }, steps: [], target: panel("button", "Pakai caption di semua klip"), extra: 1 }),
+  entry({ row: 52, docClicks: "2", budget: 2, steps: [LAYOUT], target: panel("radiogroup", "Pilih tata letak") }),
+  entry({ row: 53, docClicks: "2", budget: 2, pending: "F4b", gap: "new: the Otomatis card arrives with RF-M5a (Fase 7) and its strip with F4b" }),
   entry({ row: 54, docClicks: "4 (tab + shot + Select + opsi); lanjutan ≤ 5", budget: 5, pending: "F4b", gap: "new: the shot strip arrives with F4b" }),
   entry({ row: 55, docClicks: "3", budget: 3, pending: "F4b", gap: "new: the shot popover arrives with F4b" }),
-  entry({ row: 56, docClicks: "0–1", budget: 1, pending: "F4a", gap: "shown only while a face analysis runs or after it fails, which the fakes do not stage" }),
-  entry({ row: 57, docClicks: "2", budget: 2, pending: "F4a", gap: "needs Ikuti wajah with a face analysis, which the fakes do not stage" }),
-  entry({ row: 58, docClicks: "3", budget: 3, pending: "F4a", gap: "needs manual keyframes, which no shell doc sets yet" }),
-  entry({ row: 59, docClicks: "3", budget: 3, pending: "F4a", steps: [LAYOUT], target: panel("slider", "Zoom") }),
-  entry({ row: 60, docClicks: "2 / 3", budget: 3, pending: "F4a", scenario: { doc: "split" }, steps: [LAYOUT], target: panel("radiogroup", "Pembagian") }),
+  entry({ row: 56, docClicks: "0–1", budget: 1, pending: "F4a", gap: "shown only while a face analysis runs or after it fails: walked in editor-layout-tab.spec.mjs, which stages both" }),
+  entry({ row: 57, docClicks: "2", budget: 2, scenario: { doc: "camera" }, steps: [LAYOUT], target: panel("radiogroup", "Bagian tanpa wajah") }),
+  entry({ row: 58, docClicks: "3", budget: 3, scenario: { doc: "keyframes" }, steps: [LAYOUT, fold("camera")], target: panel("button", "Kembali ke otomatis") }),
+  entry({ row: 59, docClicks: "3", budget: 3, steps: [LAYOUT, fold("camera")], target: panel("slider", "Zoom") }),
+  entry({ row: 60, docClicks: "2 / 3", budget: 3, scenario: { doc: "split" }, steps: [LAYOUT], target: panel("radiogroup", "Pembagian") }),
   // Tambah musik shows the one-time copyright notice; its Pilih file musik opens the OS dialog.
-  entry({ row: 61, docClicks: "4 (tab + Tambah + pilih file OS + Setuju)", budget: 4, pending: "F5",
-    steps: [AUDIO, panel("button", "Tambah musik")], target: panel("button", "Pilih file musik"), extra: 1 }),
-  entry({ row: 62, docClicks: "2", budget: 2, pending: "F5", scenario: { doc: "music" }, steps: [AUDIO], target: panel("button", "Hapus musik") }),
-  entry({ row: 63, docClicks: "2", budget: 2, pending: "F5", scenario: { doc: "music" }, steps: [AUDIO], target: panel("slider", "Volume musik") }),
-  entry({ row: 64, docClicks: "2", budget: 2, pending: "F5", scenario: { doc: "music" }, steps: [AUDIO],
+  entry({ row: 61, docClicks: "4 (tab + Tambah + pilih file OS + Setuju)", budget: 4,
+    steps: [AUDIO, panel("button", "Tambah musik")], target: { role: "button", name: "Pilih file musik", within: "alertdialog" }, extra: 1 }),
+  entry({ row: 62, docClicks: "2", budget: 2, scenario: { doc: "music" }, steps: [AUDIO], target: panel("button", "Hapus musik") }),
+  entry({ row: 63, docClicks: "2", budget: 2, scenario: { doc: "music" }, steps: [AUDIO], target: panel("slider", "Volume musik") }),
+  entry({ row: 64, docClicks: "2", budget: 2, scenario: { doc: "music" }, steps: [AUDIO],
     target: panel("switch", "Kecilkan musik saat ada suara") }),
-  entry({ row: 65, docClicks: "3–4", budget: 4, pending: "F5", scenario: { doc: "music" }, steps: [AUDIO], target: panel("slider", "Mulai dari") }),
-  entry({ row: 66, docClicks: "2", budget: 2, pending: "F5", steps: [AUDIO], target: panel("slider", "Volume suara asli") }),
-  entry({ row: 67, docClicks: "3 (tab + Tambah + file OS)", budget: 3, pending: "F5", steps: [LOGO], target: panel("button", "Unggah logo"), extra: 1 }),
-  ...[68, 69].map((row) => entry({ row, docClicks: "2", budget: 2, pending: "F5", gap: NO_LOGO })),
-  entry({ row: 70, docClicks: "3", budget: 3, pending: "F5", gap: NO_LOGO }),
-  entry({ row: 71, docClicks: "2", budget: 2, pending: "F5", gap: NO_LOGO }),
-  // Typing the text is not counted; its position, size and opacity show once it is set (row 89's doc).
-  entry({ row: 72, docClicks: "2 / 3", budget: 3, pending: "F5", steps: [LOGO], target: panel("textbox", "Teks watermark") }),
+  entry({ row: 65, docClicks: "3–4", budget: 4, scenario: { doc: "music" }, steps: [AUDIO, fold("music")], target: panel("slider", "Mulai dari") }),
+  entry({ row: 66, docClicks: "2", budget: 2, steps: [AUDIO], target: panel("slider", "Volume suara asli") }),
+  entry({ row: 67, docClicks: "3 (tab + Tambah + file OS)", budget: 3, steps: [LOGO], target: panel("button", "Tambah logo"), extra: 1 }),
+  entry({ row: 68, docClicks: "2", budget: 2, scenario: { doc: "logo" }, steps: [LOGO], target: panel("button", "Hapus logo") }),
+  entry({ row: 69, docClicks: "2", budget: 2, scenario: { doc: "logo" }, steps: [LOGO], target: panel("radiogroup", "Sudut") }),
+  entry({ row: 70, docClicks: "3", budget: 3, scenario: { doc: "logo" }, steps: [LOGO, fold("logo")], target: panel("slider", "Ukuran logo") }),
+  entry({ row: 71, docClicks: "2", budget: 2, scenario: { doc: "logo", planWarnings: [{ code: "unsafe_zone", ref: LOGO_ITEM }] }, steps: [LOGO],
+    target: panel("button", "Geser ke area aman") }),
+  // Typing the text is not counted; its place, size and opacity are in Lanjutan once it is set.
+  entry({ row: 72, docClicks: "2 / 3", budget: 3, steps: [LOGO], target: panel("textbox", "Teks watermark") }),
   entry({ row: 73, docClicks: "2", budget: 2, steps: [tab("Cold open")], target: panel("switch", "Cold open aktif") }),
-  entry({ row: 74, docClicks: "3", budget: 3, pending: "F5", gap: "needs cold-open candidates, which the shell scenario does not stage yet" }),
-  entry({ row: 75, docClicks: "2", budget: 2, pending: "F5", scenario: { doc: "coldOpen" }, steps: [COLD_OPEN],
-    target: panel("group", "Geser tepi cold open") }),
-  entry({ row: 76, docClicks: "3", budget: 3, pending: "F5", scenario: { doc: "coldOpen" }, steps: [COLD_OPEN],
+  entry({ row: 74, docClicks: "3", budget: 3, steps: [COLD_OPEN], target: panel("button", "^Pakai saran 1", { regex: true }) }),
+  entry({ row: 75, docClicks: "2", budget: 2, scenario: { doc: "coldOpen" }, steps: [COLD_OPEN], target: panel("group", "Geser tepi cold open") }),
+  entry({ row: 76, docClicks: "3", budget: 3, scenario: { doc: "coldOpen" }, steps: [COLD_OPEN, fold("coldOpen")],
     target: panel("group", "Geser tepi cold open 0,1 detik") }),
-  entry({ row: 77, docClicks: "2", budget: 2, pending: "F5", scenario: { doc: "coldOpen" }, steps: [COLD_OPEN], target: panel("group", "Efek gambar") }),
+  entry({ row: 77, docClicks: "2", budget: 2, scenario: { doc: "coldOpen" }, steps: [COLD_OPEN], target: panel("radiogroup", "Efek gambar") }),
   entry({ row: 78, docClicks: "1 buka + aksi", budget: 1, steps: [], target: { role: "button", name: "Linimasa detail", within: "timeline" } }),
   entry({ row: 79, docClicks: "2", budget: 2, steps: [], target: bar("button", "Ekspor") }),
   entry({ row: 80, docClicks: "3", budget: 3, pending: "F8", gap: "new: the 720p size arrives with F8" }),
@@ -159,9 +163,9 @@ export const CLICK_BUDGET = Object.freeze([
   entry({ row: 86, docClicks: "3", budget: 3, pending: "F8", gap: "new: Ekspor semua arrives with F8" }),
   entry({ row: 87, docClicks: "≥ 5", excluded: "Terbitkan is multi-field and exempt (06 §2.3)" }),
   entry({ row: 88, docClicks: "0", excluded: "no control: the presence avatars only show" }),
-  entry({ row: 89, docClicks: "2", budget: 2, pending: "F5", scenario: { doc: "watermark" }, steps: [LOGO], target: panel("button", "Hapus teks") }),
-  entry({ row: 90, docClicks: "1", budget: 1, pending: "F5", gap: "shown only while an upload runs, which the fakes finish at once" }),
-  entry({ row: 91, docClicks: "2", budget: 2, pending: "F5", scenario: { doc: "coldOpen" }, steps: [COLD_OPEN], target: panel("button", "Putar transisi") }),
+  entry({ row: 89, docClicks: "2", budget: 2, scenario: { doc: "watermark" }, steps: [LOGO], target: panel("button", "Hapus teks") }),
+  entry({ row: 90, docClicks: "1", budget: 1, pending: "F5", gap: "shown only while an upload runs, which the fakes finish at once: editor-audio-tab.spec.mjs walks it on a held upload" }),
+  entry({ row: 91, docClicks: "2", budget: 2, scenario: { doc: "coldOpen" }, steps: [COLD_OPEN], target: panel("button", "Putar transisi") }),
   entry({ row: 92, docClicks: "0", excluded: "no control: the pause marks only show" }),
 ]);
 

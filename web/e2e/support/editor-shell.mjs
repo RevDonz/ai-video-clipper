@@ -54,6 +54,12 @@ export const test = base.extend({
   },
 });
 
+/** Answers the thumbnail request of a logo with a small picture. */
+export function routeLogoPicture(page) {
+  return page.route(/\/api\/jobs\/[^/]+\/assets\//, (route) => route.fulfill({ status: 200, contentType: "image/png", body: PIXEL_PNG }));
+}
+
+const PIXEL_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
 const chrome = process.env.EDITOR_CHROME || process.env.PARITY_CHROME || defaultChrome();
 
 /** The spec-wide settings: Chrome when installed, 1366×768, the fakes and credentials required. */
@@ -99,6 +105,24 @@ function installShellScenario(config) {
   };
   window.__potonginEditorScenario = {
     shell: config.shell,
+    // The Logo tab uploads through the fakes' own client.
+    logoUpload: (_, fakes) => fakes.createFakeUploadClient().uploadAsset,
+    // `uploadHoldMs`: a music upload stays at 50 % this long, until a cancel aborts it.
+    ...(config.uploadHoldMs ? {
+      async uploadAsset(jobId, file, kind, { onProgress = () => {}, signal } = {}) {
+        onProgress(0.5);
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, config.uploadHoldMs);
+          signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(Object.assign(new Error("upload aborted"), { name: "AbortError" }));
+          });
+        });
+        const sha256 = "a".repeat(64);
+        return { sha256, kind: "music", mime: "audio/mp4", w: null, h: null, durationMs: 95_000, lufsC: -1620,
+          peaksUrl: `/api/jobs/${jobId}/assets/${sha256}?part=peaks` };
+      },
+    } : {}),
     api(base, fakes) {
       let api = config.doc ? fakes.createFakeApiClient({ doc: config.doc }) : base;
       if (config.context) {
@@ -191,9 +215,11 @@ export function closeShortcutDialog(page) {
  */
 export async function openShell(page, query = "", {
   shell = "v2", clips = null, at = 1, planWarnings = null, readOnly = false, conflict = false, removal = null, context = false,
-  doc = null, path: where = SHELL_PATH,
+  doc = null, path: where = SHELL_PATH, uploadHoldMs = 0,
 } = {}) {
-  await page.addInitScript(installShellScenario, { shell, clips, at, planWarnings, readOnly, conflict, removal, context, doc });
+  await page.addInitScript(installShellScenario, { shell, clips, at, planWarnings, readOnly, conflict, removal, context, doc, uploadHoldMs });
+  // The fakes have no asset store: a clip with a logo gets a small picture for its thumbnail.
+  if (Object.values(doc?.assets ?? {}).some((asset) => asset?.kind === "logo")) await routeLogoPicture(page);
   await page.goto(`${where}${query}`);
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
 }
