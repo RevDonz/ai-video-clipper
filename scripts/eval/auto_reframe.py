@@ -34,7 +34,7 @@ The shot detector of RF-M1 is measured the same way, in two steps::
     uv run python scripts/eval/auto_reframe.py --sweep --split dev --profiles PROFILES.json --out SWEEP.json
 
 ``--profile`` (on CI, no labels read) keeps per window what every rule configuration needs: the
-grid profile of ``edit_v2.shot_cuts.measure`` (scene scores and frame differences), the face scan
+grid profile of ``edit_v2.shot_cuts.measure`` (scene scores, frame differences and edge changes), the face scan
 of ``shot_context.scan_evidence`` and how long each took. ``--sweep`` then runs both stages of
 ``docs/evaluation/AUTO_REFRAME.md`` on those profiles without footage: stage 1 the cut keys, stage
 2 the mode keys with the cuts of stage 1. ``--write-rules`` writes the chosen values to
