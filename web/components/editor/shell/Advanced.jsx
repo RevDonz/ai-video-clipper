@@ -7,7 +7,7 @@
 // (`labelFor(item)`, from its editor.<tab>.summary.* keys). The open state is remembered per group
 // in this browser when it allows it.
 import { Disclosure } from "@heroui/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "use-intl";
 
 import { advancedSummary, readDisclosure, writeDisclosure } from "../../../lib/editor/disclosure.mjs";
@@ -28,10 +28,14 @@ export function summaryText(labels, t) {
   return named.length ? t("summary", { items: named.join(LIST_SEPARATOR) }) : t("default");
 }
 
-export default function Advanced({ group, doc, seed, labelFor, headingLevel = 4, children }) {
+export default function Advanced({ group, doc, seed, context = null, labelFor, headingLevel = 4, reveal = null, children }) {
   const t = useTranslations("editor.advanced");
   const [open, setOpen] = useState(() => readDisclosure(localStore(), group));
-  const { items } = advancedSummary(group, doc, seed);
+  const { items } = advancedSummary(group, doc, seed, context);
+  // "Perbaiki" in the checks opens this fold before it moves focus to the control (06 §2.2 rule 2).
+  useEffect(() => {
+    if (reveal?.group === group) setOpen(true);
+  }, [reveal, group]);
   const text = summaryText(items.map((item) => labelFor?.(item) ?? null), t);
   return (
     <Disclosure className={styles.advanced} data-advanced={group} isExpanded={open}

@@ -298,10 +298,135 @@
 }
 
 .stageBody {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
+}
+
+.stageResult {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ---------- Lihat sumber, over the stage ---------- */
+
+.sourceStage {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ed-space-2);
+  padding: var(--ed-space-2) var(--ed-space-4);
+  background: var(--bg);
+}
+
+.sourceHead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-3);
+}
+
+.sourceHelp,
+.sourceMessage {
+  margin: 0;
+  color: var(--text-muted);
+  font: var(--ed-font-size-sm) / 1.3 var(--ed-font-ui);
+}
+
+.sourceMessage {
+  color: var(--danger);
+}
+
+.sourceBody {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--ed-space-3);
+  min-height: 0;
+}
+
+.sourceFit {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+.sourcePicture {
+  position: relative;
+  width: min(100cqw, calc(100cqh * var(--source-ratio, 1.7778)));
+}
+
+.sourceMarks {
+  position: absolute;
+  inset: auto 0 -6px;
+  height: 8px;
+  pointer-events: none;
+}
+
+.sourceMark {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--text);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.sourceMark[data-here="true"] {
+  outline: 2px solid var(--focus);
+}
+
+.sourceResult {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  width: clamp(72px, 16%, 140px);
+  margin: 0;
+}
+
+.sourceResultLabel {
+  color: var(--text-muted);
+  font: 600 var(--ed-font-size-xs) / 1.2 var(--ed-font-ui);
+}
+
+.sourceResultFrame {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  border-radius: var(--ed-radius-md);
+  background-color: var(--surface);
+  background-repeat: no-repeat;
+}
+
+.sourceResultFrame[data-empty] {
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  color: var(--text-muted);
+  font: var(--ed-font-size-xs) / 1.2 var(--ed-font-ui);
+  text-align: center;
+}
+
+.sourceBand {
+  width: 100%;
+  background-repeat: no-repeat;
+}
+
+.sourceLine {
+  flex: none;
+  height: 1px;
+  background: var(--text);
 }
 
 .transport {

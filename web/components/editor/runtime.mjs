@@ -49,6 +49,8 @@ async function createFakeRuntime({ jobId, clipId, scenario }) {
       return hook("player", fakes.createFakePlayer(options), options);
     },
     setPlayhead() {},
+    // The one-layout editor's Logo tab on the fakes: a scenario may give it the fakes' upload client.
+    logoUpload: hook("logoUpload", null),
     pollMs: Number.isInteger(scenario?.pollMs) && scenario.pollMs > 0 ? scenario.pollMs : 1000,
     newKey: uuid,
     destroy() {

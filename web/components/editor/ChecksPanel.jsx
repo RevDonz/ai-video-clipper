@@ -12,7 +12,7 @@ import { captionFaceFix } from "./panels/caption-model.mjs";
 import { logoCaptionFix } from "./panels/logo-model.mjs";
 import styles from "./shell.module.css";
 
-function CheckItem({ check, onJump, onFix }) {
+function CheckItem({ check, onJump, onFix, onLocate, locateLabel }) {
   const tone = check.severity === "error" ? styles.checkItem_error : check.severity === "info" ? styles.checkItem_info : "";
   const fix = onFix ? captionFaceFix(check) ?? logoCaptionFix(check) : null;
   return (
@@ -27,6 +27,11 @@ function CheckItem({ check, onJump, onFix }) {
           {fix.label}
         </button>
       )}
+      {!fix && onLocate?.(check, true) ? (
+        <button type="button" className={`${styles.button} ${styles.checkFix}`} data-check-locate="" onClick={() => onLocate(check)}>
+          {locateLabel}
+        </button>
+      ) : null}
       {check.timeText !== null && (
         <button type="button" className={styles.linkButton} onClick={() => onJump(check)}>
           {`Lihat di ${check.timeText}`}
@@ -36,7 +41,9 @@ function CheckItem({ check, onJump, onFix }) {
   );
 }
 
-export default function ChecksPanel({ open, checks, onJump, onFix = null, onClose }) {
+// `onLocate(check, dry)` (the one-layout editor, rombak 06 §2.2 rule 2): "Perbaiki" opens the tab and
+// the Lanjutan fold of a check's control and focuses it; with `dry` it only says whether it can.
+export default function ChecksPanel({ open, checks, onJump, onFix = null, onClose, onLocate = null, locateLabel = null }) {
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -66,7 +73,7 @@ export default function ChecksPanel({ open, checks, onJump, onFix = null, onClos
           <p className={styles.muted}>Tidak ada yang perlu dicek.</p>
         ) : (
           <ul className={styles.checkList} aria-label="Perlu dicek">
-            {items.map((check) => <CheckItem key={check.key} check={check} onJump={onJump} onFix={onFix} />)}
+            {items.map((check) => <CheckItem key={check.key} check={check} onJump={onJump} onFix={onFix} onLocate={onLocate} locateLabel={locateLabel} />)}
           </ul>
         )}
         {notes.length > 0 && (

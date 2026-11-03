@@ -7,9 +7,9 @@
 // a new item's defaults stand in, so a value nobody touched never shows. The component names
 // each item with `editor.<tab>.summary.<key>` and joins them (07-i18n.md §7.3); no items means
 // `editor.advanced.default` ("Bawaan").
-import { DEFAULT_WATERMARK, defaultSplit, hookItem, logoItem, musicItem, watermarkOf, zoomOf } from "./doc-model.mjs";
+import { DEFAULT_WATERMARK, coldOpen, defaultSplit, hookItem, logoItem, musicItem, watermarkOf, zoomOf } from "./doc-model.mjs";
 
-export const ADVANCED_GROUPS = Object.freeze(["caption", "hook", "camera", "split", "music", "logo", "watermark"]);
+export const ADVANCED_GROUPS = Object.freeze(["caption", "hook", "camera", "split", "music", "logo", "watermark", "coldOpen"]);
 export const MAX_SUMMARY_ITEMS = 3;
 /** localStorage key of the open folds, `{ <group>: true|false }` (06 §2.2 rule 4). */
 export const DISCLOSURE_KEY = "potongin-editor-disclosure";
@@ -28,6 +28,18 @@ function seconds(frames, fps) {
   const [num, den] = Array.isArray(fps) && fps[0] > 0 && fps[1] > 0 ? fps : [30, 1];
   return tenths((frames * den) / num);
 }
+
+// A cold-open edge's distance from the nearest word gap, in signed tenths of a second: word nudges
+// land on a gap, "±0,1 dtk" moves off it. Words come with the context; without them nothing shows.
+function edgeOffset(sf, words, fps) {
+  const bounds = words?.bounds;
+  if (!Number.isSafeInteger(sf) || !Array.isArray(bounds) || !bounds.length) return 0;
+  let nearest = bounds[0].sf;
+  for (const bound of bounds) if (Math.abs(bound.sf - sf) < Math.abs(nearest - sf)) nearest = bound.sf;
+  return seconds(sf - nearest, fps);
+}
+
+const signed = (value) => ({ sign: value < 0 ? "−" : "+", seconds: Math.abs(value) });
 
 function overrides(doc) {
   return doc?.captions?.overrides ?? {};
@@ -85,6 +97,11 @@ const GROUPS = Object.freeze({
     ["size", (doc) => watermarkOf(doc)?.size_pm ?? DEFAULT_WATERMARK.size_pm, (pm) => ({ percent: percent(pm) })],
     ["opacity", (doc) => watermarkOf(doc)?.opacity_pm ?? DEFAULT_WATERMARK.opacity_pm, (pm) => ({ percent: percent(pm) })],
   ],
+  // Against the word gaps, not the AI version: a cold open made by hand has no seed to differ from.
+  coldOpen: [
+    ["edgeIn", (doc, context) => edgeOffset(coldOpen(doc)?.in_sf, context?.words, doc.output?.fps) || null, signed],
+    ["edgeOut", (doc, context) => edgeOffset(coldOpen(doc)?.out_sf, context?.words, doc.output?.fps) || null, signed],
+  ],
 });
 
 function musicPayload(doc) {
@@ -102,6 +119,7 @@ const NEEDS = Object.freeze({
   music: (doc) => Boolean(musicItem(doc)),
   logo: (doc) => Boolean(logoItem(doc)),
   watermark: (doc) => Boolean(watermarkOf(doc)),
+  coldOpen: (doc) => Boolean(coldOpen(doc)),
 });
 
 // The AI version as each group compares against: for music, the logo and the watermark, the
@@ -112,16 +130,19 @@ function reference(group, seed) {
   return seed;
 }
 
-function safeRead(read, doc) {
+function safeRead(read, doc, context) {
   try {
-    return read(doc);
+    return read(doc, context);
   } catch {
     return undefined;
   }
 }
 
-/** `{ items: [{ key, values }] }` of the fine values in `group` that differ from the AI version. */
-export function advancedSummary(group, doc, seed) {
+/**
+ * `{ items: [{ key, values }] }` of the fine values in `group` that differ from the AI version.
+ * `context` carries what a group reads besides the documents (`coldOpen`: the `words` artifact).
+ */
+export function advancedSummary(group, doc, seed, context = null) {
   const rows = Object.hasOwn(GROUPS, group) ? GROUPS[group] : null;
   if (!rows || !doc || typeof doc !== "object") return { items: [] };
   if (NEEDS[group] && !safeRead(NEEDS[group], doc)) return { items: [] };
@@ -129,12 +150,30 @@ export function advancedSummary(group, doc, seed) {
   const items = [];
   for (const [key, read, values] of rows) {
     if (items.length >= MAX_SUMMARY_ITEMS) break;
-    const now = safeRead(read, doc);
-    const before = base ? safeRead(read, base) : undefined;
+    const now = safeRead(read, doc, context);
+    const before = group === "coldOpen" ? undefined : base ? safeRead(read, base, context) : undefined;
     if (now === undefined || now === null || now === before) continue;
     items.push({ key, values: values(now, doc, base ?? {}) });
   }
   return { items };
+}
+
+/**
+ * Where "Perbaiki" takes a check whose fix is a value in a tab (06 §2.2 rule 2): `{ tab, group,
+ * control }` (`group` null when the control sits outside Lanjutan), or null. The controls name
+ * themselves with `data-control`.
+ */
+export function checkTarget(check, doc) {
+  if (check?.code === "hook_overflow") return { tab: "text", group: null, control: "hook-text" };
+  if (check?.code !== "unsafe_zone") return null;
+  const hook = safeRead((value) => hookItem(value), doc);
+  const logo = safeRead((value) => logoItem(value), doc);
+  if (check.ref && check.ref === hook?.id) return { tab: "text", group: "hook", control: "hook-position" };
+  if (check.ref && check.ref === logo?.id) return { tab: "logo", group: null, control: "logo-safe" };
+  if (typeof check.path === "string" ? check.path.startsWith("/captions") : !check.ref) {
+    return { tab: "text", group: "caption", control: "caption-position" };
+  }
+  return null;
 }
 
 function readAll(storage) {
