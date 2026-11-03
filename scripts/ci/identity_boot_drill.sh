@@ -109,6 +109,9 @@ V1=potongin_session
 PROBE='{"drill":"settings-probe"}'
 
 step "1. The old image with the old compose, as production runs today"
+# One service first: containers starting together race to fill a new named volume from the image.
+IMAGE_TAG=$OLD_TAG old_compose up -d --no-build --no-deps app
+check "old image app up" wait_health
 IMAGE_TAG=$OLD_TAG old_compose up -d --no-build --remove-orphans
 check "old image healthy" wait_health
 in_app sh -ec "mkdir -p /data/settings /data/jobs/$JOB_ID && printf '%s' '$PROBE' > /data/settings/drill-probe.json \
