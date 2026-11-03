@@ -1,7 +1,7 @@
 // Rombak 01 §8.3: on the pinned Node 24, importing node:sqlite writes nothing to stderr, with the
 // environment compose gives each service that runs Node. Several processes read a child's stderr,
-// so a runtime warning there is a behaviour change, not noise. The DB module (web/lib/db/) arrives
-// in Fase 4; until then the runtime module itself is the import under test.
+// so a runtime warning there is a behaviour change, not noise. The runtime module and the DB module
+// (web/lib/db/index.mjs) are both under test.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -56,6 +56,16 @@ for (const service of NODE_SERVICES) {
     const result = importSqlite(env);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "1");
+    assert.equal(result.stderr, "");
+  });
+}
+
+for (const service of ["app", "primary-worker"]) {
+  test(`lib/db/index.mjs writes nothing to stderr with the ${service} environment`, () => {
+    const env = { PATH: process.env.PATH, ...IMAGE_ENV, ...composeEnvironment(service) };
+    const result = spawnSync(process.execPath, ["-e", 'import("./lib/db/index.mjs").then((db) => process.stdout.write(db.DB_ROLES.join()))'], { cwd: WEB, env, encoding: "utf8", timeout: 30_000 });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "app,primary,social,cli,test");
     assert.equal(result.stderr, "");
   });
 }
