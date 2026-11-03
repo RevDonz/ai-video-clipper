@@ -198,8 +198,8 @@
 }
 
 .legend {
-  color: var(--text);
-  font: 600 var(--ed-font-size-sm) / 1.2 var(--ed-font-ui);
+  color: var(--text-muted);
+  font: var(--ed-font-size-sm) / 1.2 var(--ed-font-ui);
 }
 
 .cards {

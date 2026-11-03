@@ -8,7 +8,7 @@
 //   -f command='e2e/editor-audio-tab.spec.mjs'
 import { ACTION_LABELS } from "../components/editor/transcript/word-toolbar.mjs";
 import { openPanel, panelRegion } from "./support/editor-panels.mjs";
-import { expect, openShell, routeLogoPicture, test, useShellDefaults } from "./support/editor-shell.mjs";
+import { expect, openTabs as openShell, routeLogoPicture, test, useShellDefaults } from "./support/editor-shell.mjs";
 import { L } from "./support/i18n.mjs";
 import { shellDoc } from "./support/shell-docs.mjs";
 
@@ -63,15 +63,15 @@ test("Audio: volume with its reset, ducking and its strength; the details in Lan
   await expect.poll(async () => musicOf(await docOf(page)).payload.gain_cdb).toBe(start);
 
   const strength = panel.getByRole("radiogroup", { name: L("editor.audio.duck.strength") });
-  await strength.getByRole("radio", { name: new RegExp(`^${L("editor.audio.duck.strong")}`) }).check({ force: true });
+  await strength.getByRole("radio", { name: new RegExp(`^${L("editor.audio.duck.strong")}`) }).check();
   await expect.poll(async () => musicOf(await docOf(page)).payload.duck.depth_cdb).toBeGreaterThan(1000);
-  await panel.getByRole("switch", { name: L("editor.audio.duck.on") }).click({ force: true });
+  await panel.getByRole("switch", { name: L("editor.audio.duck.on") }).click();
   await expect.poll(async () => musicOf(await docOf(page)).payload.duck.on).toBe(false);
-  await panel.getByRole("switch", { name: L("editor.audio.duck.on") }).click({ force: true });
+  await panel.getByRole("switch", { name: L("editor.audio.duck.on") }).click();
 
   await expect(panel.getByRole("slider", { name: L("editor.audio.fine.offset") })).toBeHidden();
   await panel.locator('[data-advanced="music"] button').first().click();
-  await panel.getByRole("switch", { name: L("editor.audio.fine.loop") }).click({ force: true });
+  await panel.getByRole("switch", { name: L("editor.audio.fine.loop") }).click();
   await expect.poll(async () => musicOf(await docOf(page)).payload.loop).toBe(false);
   await expect(panel.locator('[data-advanced="music"] [data-advanced-summary]')).toContainText(L("editor.audio.summary.noLoop"));
   for (const key of ["fadeIn", "fadeOut", "depth", "attack", "release", "hold"]) {
@@ -89,7 +89,7 @@ test("Audio: Hapus musik, the original sound's volume and Samakan kenyaringan", 
   await source.focus();
   await page.keyboard.press("ArrowRight");
   await expect.poll(async () => (await docOf(page)).audio.source.gain_cdb).toBe(50);
-  await panel.locator('[data-tab-group="source"]').getByRole("switch").click({ force: true });
+  await panel.locator('[data-tab-group="source"]').getByRole("switch").click();
   await expect.poll(async () => (await docOf(page)).audio.master.mode).toBe("off");
 });
 
@@ -101,7 +101,7 @@ test("Logo: Tambah logo uploads, the corners snap, size and opacity in Lanjutan,
   await panel.getByRole("button", { name: L("editor.logo.add"), exact: true }).click();
   await (await chooser).setFiles(PICTURE);
   await expect.poll(async () => logoOf(await docOf(page)) !== null).toBe(true);
-  await panel.getByRole("radiogroup", { name: L("editor.logo.corner") }).getByRole("radio", { name: L("editor.logo.corners.bottomLeft"), exact: true }).check({ force: true });
+  await panel.getByRole("radiogroup", { name: L("editor.logo.corner") }).getByRole("radio", { name: L("editor.logo.corners.bottomLeft"), exact: true }).check();
   await expect.poll(async () => logoOf(await docOf(page)).transform.x_e5).toBeLessThan(50000);
   await panel.locator('[data-advanced="logo"] button').first().click();
   const opacity = panel.getByRole("slider", { name: L("editor.logo.opacity") });
@@ -114,7 +114,7 @@ test("Logo: Tambah logo uploads, the corners snap, size and opacity in Lanjutan,
 });
 
 test("Logo: the gizmo shows with its tab only; the unsafe note moves the logo out", async ({ page }) => {
-  const logo = shellDoc("logo");
+  const logo = shellDoc("logoUnsafe");
   const ref = logo.tracks.find((track) => track.items?.[0]?.type === "image").items[0].id;
   await openShell(page, "", { doc: logo, planWarnings: [{ code: "unsafe_zone", ref }] });
   const box = page.locator('[data-slot="stage"] [data-logo-box]');
@@ -138,7 +138,7 @@ test("Logo: the watermark's text, then place, size and opacity in Lanjutan, Hapu
   await expect.poll(async () => (await docOf(page)).watermark?.text).toBe("@akunku");
   await expect(panel.locator("[data-watermark-counter]")).toContainText("7/");
   await panel.locator('[data-advanced="watermark"] button').first().click();
-  await panel.getByRole("radiogroup", { name: L("editor.logo.watermark.place") }).getByRole("radio", { name: L("editor.logo.corners.topRight"), exact: true }).check({ force: true });
+  await panel.getByRole("radiogroup", { name: L("editor.logo.watermark.place") }).getByRole("radio", { name: L("editor.logo.corners.topRight"), exact: true }).check();
   await expect.poll(async () => (await docOf(page)).watermark.pos).toBe("top_right");
   await expect(panel.locator('[data-advanced="watermark"] [data-advanced-summary]')).toContainText(L("editor.logo.corners.topRight"));
   await expect(panel.getByRole("slider", { name: L("editor.logo.watermark.size") })).toBeVisible();
@@ -166,7 +166,7 @@ test("Cold open: the line, word edges, Putar, Hapus, and on again from the AI ve
   await expect.poll(async () => coldOf(await docOf(page))).toBeNull();
   await expect(panel.locator("[data-coldopen-line]")).toHaveCount(0);
   const toggle = panel.getByRole("switch", { name: L("editor.coldOpen.on") });
-  await toggle.click({ force: true });
+  await toggle.click();
   await expect.poll(async () => coldOf(await docOf(page)) !== null).toBe(true);
 });
 
@@ -185,10 +185,10 @@ test("Cold open: the transition's effect, whoosh and audition, off with a note w
   await openShell(page, "", { doc: shellDoc("coldOpen") });
   const panel = await openPanel(page, "coldopen");
   const effect = panel.getByRole("radiogroup", { name: L("editor.coldOpen.transition.effect") });
-  await effect.getByRole("radio", { name: L("editor.coldOpen.transition.flash"), exact: true }).check({ force: true });
+  await effect.getByRole("radio", { name: L("editor.coldOpen.transition.flash"), exact: true }).check();
   await expect.poll(async () => (await docOf(page)).main.joins[0].style).toBe("flash_white");
   await expect(panel.locator("[data-transition-status]")).toHaveText(L("editor.coldOpen.transition.statusStyle", { name: L("editor.coldOpen.transition.flash") }));
-  await panel.getByRole("switch", { name: L("editor.coldOpen.transition.whoosh") }).click({ force: true });
+  await panel.getByRole("switch", { name: L("editor.coldOpen.transition.whoosh") }).click();
   await expect.poll(async () => (await docOf(page)).main.joins[0].sfx).toBeTruthy();
   await expect(panel.getByRole("button", { name: L("editor.coldOpen.transition.play"), exact: true })).toBeEnabled();
   await panel.getByRole("button", { name: L("editor.coldOpen.remove"), exact: true }).click();

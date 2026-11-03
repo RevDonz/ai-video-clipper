@@ -162,7 +162,8 @@ function installShellScenario(config) {
       };
     },
     // A read-only clip or a conflict: the store as it is, with that state laid over it once ready.
-    store(store) {
+    store(given, fakes, parts) {
+      const store = config.realStore ? fakes.createRealEditorStore(parts) : given;
       const patch = config.readOnly ? { status: "readOnly", readOnlyReason: "transcript_changed" }
         : config.conflict ? { save: "conflict", conflict: { groups: [{ id: "hook", label: "Teks hook" }], error: null } } : null;
       if (!patch) return store;
@@ -209,17 +210,22 @@ export function closeShortcutDialog(page) {
   return shortcutDialog(page).getByRole("button", { name: "Tutup", exact: true });
 }
 
+/** openShell on the real store (real commands, undo and autosave over the fakes), for the tabs' specs. */
+export function openTabs(page, query = "", options = {}) {
+  return openShell(page, query, { realStore: true, ...options });
+}
+
 /**
  * Opens the editor at `SHELL_PATH + query` in the new shell (`shell: "legacy"` for the old one)
  * and waits until it is ready. The other options set up the fakes (installShellScenario).
  */
 export async function openShell(page, query = "", {
   shell = "v2", clips = null, at = 1, planWarnings = null, readOnly = false, conflict = false, removal = null, context = false,
-  doc = null, path: where = SHELL_PATH, uploadHoldMs = 0,
+  doc = null, path: where = SHELL_PATH, uploadHoldMs = 0, realStore = false,
 } = {}) {
-  await page.addInitScript(installShellScenario, { shell, clips, at, planWarnings, readOnly, conflict, removal, context, doc, uploadHoldMs });
+  await page.addInitScript(installShellScenario, { shell, clips, at, planWarnings, readOnly, conflict, removal, context, doc, uploadHoldMs, realStore });
   // The fakes have no asset store: a clip with a logo gets a small picture for its thumbnail.
-  if (Object.values(doc?.assets ?? {}).some((asset) => asset?.kind === "logo")) await routeLogoPicture(page);
+  if (Object.values(doc?.assets ?? {}).some((asset) => asset?.w > 0)) await routeLogoPicture(page);
   await page.goto(`${where}${query}`);
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
 }

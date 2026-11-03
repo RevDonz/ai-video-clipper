@@ -14,7 +14,6 @@ import { SPLIT_ZOOM_RANGE } from "../../../lib/editor/doc-model.mjs";
 import { STAGE_SOURCE } from "../../../lib/editor/stage-view.mjs";
 import { ratioName } from "../../../lib/output-frame.mjs";
 import ApplyAll from "../apply-all/ApplyAll.jsx";
-import { useLayoutNames } from "../../layout-names.jsx";
 import {
   FRAMING_MOVES, clearKeyframesCommand, framingSummary, framingView, keyframeCommand, keyframeMoveCommand, removeKeyframeCommand,
 } from "../framing-model.mjs";
@@ -132,7 +131,7 @@ function LayoutTabBody({
   state, getState = null, dispatch, player, api: apiProp, previewClient, analysisStore, applyAll = null, stageView = null, reveal = null,
 }) {
   const t = useTranslations("editor.layout");
-  const names = useLayoutNames();
+  const names = { fit_blur: t("names.fitBlur"), camera: t("names.camera"), fill_center: t("names.fillCenter"), split: t("names.split") };
   const doc = state.doc;
   const readOnly = state.status !== "ready";
   const layout = doc.layout.default.mode;

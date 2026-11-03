@@ -281,6 +281,12 @@
     "summary": {
       "keyframes": "{count} points",
       "bands": "Top {top}% · Bottom {bottom}%"
+    },
+    "names": {
+      "fitBlur": "Blurred background",
+      "camera": "Follow face",
+      "fillCenter": "Center crop",
+      "split": "Split screen"
     }
   },
   "audio": {

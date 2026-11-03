@@ -35,6 +35,8 @@ export const SHELL_DOCS = Object.freeze({
   keyframes: () => apply([["SetLayout", { mode: "fill_center" }], ["SetKeyframe", { sf: KEYFRAME_SF, pan_e5: 25000 }]]),
   split: () => apply([["SetLayout", { mode: "split" }]]),
   logo: () => apply([["SetLogo", { asset: LOGO.sha256, meta: LOGO }]]),
+  // Under the app's buttons on the right edge.
+  logoUnsafe: () => apply([["SetLogo", { asset: LOGO.sha256, meta: LOGO }], ["MoveLogo", { x_e5: 88000, y_e5: 50000 }]]),
 });
 
 /** The preset `name` as plain JSON, ready for addInitScript. */
