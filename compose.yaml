@@ -57,12 +57,16 @@ services:
       # Optional: the editor's hook suggestions use these free models first (provider/model,
       # comma-separated; K13). Blank = the saved Pengaturan chain.
       POTONGIN_LLM_EDITOR_MODELS: ${POTONGIN_LLM_EDITOR_MODELS:-}
-      # LLM settings are managed on the Pengaturan page (/settings) and stored,
-      # keys sealed with AES-256-GCM, in /data/settings (outside /data/jobs).
-      # The key-sealing secret is POTONGIN_SETTINGS_SECRET when set, else
-      # APP_SESSION_SECRET; the primary-worker must see the same value.
-      POTONGIN_SETTINGS_DIR: /data/settings
-      POTONGIN_SETTINGS_SECRET: ${POTONGIN_SETTINGS_SECRET:-}
+      # The control data (rombak 01 §5): the user database and the settings, on their own volume
+      # that the render-worker does not mount. LLM keys are sealed with AES-256-GCM under
+      # POTONGIN_SETTINGS_SECRET; the primary-worker must see the same value. To keep the sealed
+      # keys readable, copy APP_SESSION_SECRET into it unless .env already sets its own value.
+      POTONGIN_DB_PATH: /control/potongin.sqlite
+      POTONGIN_SETTINGS_DIR: /control/settings
+      POTONGIN_SETTINGS_SECRET: ${POTONGIN_SETTINGS_SECRET:?POTONGIN_SETTINGS_SECRET is required}
+      # The deploy's read-only user, made at boot by scripts/start-app.mjs (rombak 02 §6.6).
+      E2E_SMOKE_USERNAME: ${E2E_SMOKE_USERNAME:-}
+      E2E_SMOKE_PASSWORD: ${E2E_SMOKE_PASSWORD:-}
       # Fallback while no settings file exists, and the source of the one-click
       # "Impor dari konfigurasi server (.env)". Empty means "use the default".
       POTONGIN_LLM: ${POTONGIN_LLM:-}
@@ -120,6 +124,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - clipper_data:/data
+      - potongin_control:/control
     init: true
     mem_limit: 10g
     cpus: 6
@@ -170,8 +175,9 @@ services:
       # LLM settings saved on the Pengaturan page (docs/operations/LLM_PROVIDERS.md):
       # run-job.mjs opens the sealed keys with the same secret as the app and hands
       # them only to the engine process; yt-dlp never receives keys or secrets.
-      POTONGIN_SETTINGS_DIR: /data/settings
-      POTONGIN_SETTINGS_SECRET: ${POTONGIN_SETTINGS_SECRET:-}
+      POTONGIN_DB_PATH: /control/potongin.sqlite
+      POTONGIN_SETTINGS_DIR: /control/settings
+      POTONGIN_SETTINGS_SECRET: ${POTONGIN_SETTINGS_SECRET:?POTONGIN_SETTINGS_SECRET is required}
       APP_SESSION_SECRET: ${APP_SESSION_SECRET:?APP_SESSION_SECRET is required}
       # Fallback while no settings file exists (ignored once settings are saved).
       POTONGIN_LLM: ${POTONGIN_LLM:-}
@@ -229,6 +235,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - clipper_data:/data
+      - potongin_control:/control
     init: true
     mem_limit: 10g
     cpus: 6
@@ -239,7 +246,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      # Longer than the 60 s the worker waits for the app's migration (rombak 01 §2.4).
+      start_period: 70s
 
   render-worker:
     image: ai-video-clipper:${IMAGE_TAG:-latest}
@@ -266,6 +274,7 @@ services:
       JOBS_STORAGE_SCAN_DEADLINE_MS: ${JOBS_STORAGE_SCAN_DEADLINE_MS:?required}
       JOBS_STORAGE_RECHECK_BYTES: ${JOBS_STORAGE_RECHECK_BYTES:?required}
       JOBS_STORAGE_RECHECK_INTERVAL_MS: ${JOBS_STORAGE_RECHECK_INTERVAL_MS:?required}
+    # Never potongin_control: this service must not be able to open the DB or the sealed settings.
     volumes:
       - clipper_data:/data
     init: true
@@ -278,3 +287,4 @@ services:
 
 volumes:
   clipper_data:
+  potongin_control:

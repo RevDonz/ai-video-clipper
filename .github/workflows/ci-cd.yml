@@ -131,6 +131,7 @@ jobs:
           APP_USERNAME: ci-user
           APP_PASSWORD: ci-password
           APP_SESSION_SECRET: ci-session-secret-at-least-thirty-two-characters
+          POTONGIN_SETTINGS_SECRET: ci-session-secret-at-least-thirty-two-characters
           JOBS_STORAGE_QUOTA_BYTES: "1000000000"
           JOBS_STORAGE_MIN_FREE_BYTES: "0"
           JOBS_STORAGE_ACTIVE_RESERVE_BYTES: "1000000"

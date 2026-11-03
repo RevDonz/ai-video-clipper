@@ -80,7 +80,7 @@ COPY --from=web-builder /web/.next/static ./.next/static
 COPY --from=web-builder /web/public ./public
 COPY web/scripts ./scripts
 COPY web/lib ./lib
-RUN mkdir -p /data/jobs /data/settings && chown -R node:node /data && chmod 700 /data/settings
+RUN mkdir -p /data/jobs /control/settings /control/backups && chown -R node:node /data /control && chmod 700 /control /control/settings /control/backups
 
 # The commit this image is built from (compose passes the deploy's IMAGE_TAG; empty otherwise),
 # shown under Pengaturan "Tentang sistem". After the last RUN, so a new commit rebuilds no layer.
@@ -89,6 +89,6 @@ ENV POTONGIN_APP_COMMIT=${POTONGIN_APP_COMMIT}
 
 USER node
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -fsS http://127.0.0.1:3000/api/health || exit 1
-CMD ["node", "server.js"]
+CMD ["node", "scripts/start-app.mjs"]

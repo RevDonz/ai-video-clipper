@@ -14,6 +14,7 @@ import {
   validateClaimForExecution,
 } from "../lib/primary-job-queue.mjs";
 import { purgeDeletedJobs } from "../lib/job-deletion.mjs";
+import { SCHEMA_WAIT_EXIT, SchemaWaitError, waitForSchema } from "../lib/db/wait-schema.mjs";
 import { runPythonCli } from "../lib/python-cli.mjs";
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -21,6 +22,12 @@ const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mil
 function safeWorkerError(error, fallback) {
   const message = typeof error?.message === "string" ? error.message : fallback;
   return message.slice(0, 500);
+}
+
+// run-job never opens the DB (rombak 02 §3.1): its decisions come through this environment.
+export function runnerEnv(env, extra) {
+  const { POTONGIN_DB_PATH: _dbPath, ...rest } = env;
+  return { ...rest, ...extra };
 }
 
 export async function runClaim({
@@ -42,7 +49,7 @@ export async function runClaim({
           detached: false,
           shell: false,
           stdio: ["ignore", logFd, logFd],
-          env: { ...env, JOBS_ROOT: jobsRoot, PRIMARY_LEASE_MS: String(leaseMs) },
+          env: runnerEnv(env, { JOBS_ROOT: jobsRoot, PRIMARY_LEASE_MS: String(leaseMs) }),
         });
       } catch (error) {
         reject(error);
@@ -153,6 +160,7 @@ export function primaryHealthSnapshot({ pid, workerId, heartbeatAt, lastPollAt, 
 
 export async function main(env = process.env) {
   const config = parsePrimaryQueueConfig(env);
+  await waitForSchema(env, "primary");
   const jobsRoot = path.resolve(env.JOBS_ROOT || "/data/jobs");
   const pollMs = env.PRIMARY_WORKER_POLL_MS === undefined ? 2_000 : Number(env.PRIMARY_WORKER_POLL_MS);
   if (!Number.isSafeInteger(pollMs) || pollMs < 100 || pollMs > 60_000) {
@@ -245,5 +253,13 @@ export async function main(env = process.env) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  await main();
+  try {
+    await main();
+  } catch (error) {
+    if (error instanceof SchemaWaitError) {
+      process.stderr.write(`${error.message}\n`);
+      process.exit(SCHEMA_WAIT_EXIT);
+    }
+    throw error;
+  }
 }
