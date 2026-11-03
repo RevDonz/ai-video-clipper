@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import subprocess
 import sys
 import uuid
@@ -108,3 +109,57 @@ def test_an_unreadable_request_still_blocks_a_deploy(tmp_path):
     (queue / f"{uuid.uuid4()}.json").write_text("{not json")
     report = _guard(tmp_path)
     assert isinstance(report, dict) and report["errors"][0]["error"] == "JSONDecodeError"
+
+
+def _prune(tmp_path: Path, tags: list[str], *, rm_fails: bool = False) -> tuple[list[str], int]:
+    """Run prune_old_images as written, against a fake ``docker`` that logs its calls."""
+    text = SCRIPT.read_text(encoding="utf-8")
+    match = re.search(r"^prune_old_images\(\) \{\n.*?^\}\n", text, re.DOTALL | re.MULTILINE)
+    assert match, "deploy/production.sh no longer defines prune_old_images()"
+    log = tmp_path / "docker.log"
+    fake = tmp_path / "docker"
+    listing = " ".join(shlex.quote(tag) for tag in tags)
+    fake.write_text(
+        "#!/usr/bin/env bash\n"
+        f'printf "%s\\n" "$*" >> {str(log)!r}\n'
+        f'if [ "$1 $2" = "image ls" ]; then printf "%s\\n" {listing}; exit 0; fi\n'
+        f"exit {1 if rm_fails else 0}\n"
+    )
+    fake.chmod(0o755)
+    script = (
+        "set -Eeuo pipefail\n"
+        f"PATH={str(tmp_path)!r}:$PATH\n"
+        "DEPLOY_SHA=new\nrollback_tag=rollback-new\n"
+        f"{match.group(0)}\nprune_old_images\n"
+    )
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=60,
+                            check=False)
+    return log.read_text().splitlines(), result.returncode
+
+
+def test_a_deploy_drops_old_tags_and_keeps_the_release_and_its_rollback(tmp_path):
+    calls, code = _prune(tmp_path, ["new", "rollback-new", "old", "rollback-old", "<none>"])
+    assert code == 0
+    assert calls[0].startswith("image ls ai-video-clipper ")
+    assert calls[1:] == ["image rm ai-video-clipper:old", "image rm ai-video-clipper:rollback-old"]
+
+
+def test_pruning_with_nothing_old_succeeds(tmp_path):
+    calls, code = _prune(tmp_path, ["new", "rollback-new"])
+    assert code == 0
+    assert len(calls) == 1
+
+
+def test_an_image_that_cannot_be_removed_does_not_fail_a_verified_deploy(tmp_path):
+    calls, code = _prune(tmp_path, ["new", "rollback-new", "old", "older"], rm_fails=True)
+    assert code == 0
+    assert len(calls) == 3
+
+
+def test_pruning_runs_only_after_the_release_is_verified_and_never_forces():
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert text.index("run_read_only_e2e\nrequire_quiescent\n") < text.index("\nprune_old_images ||")
+    assert text.index("deployed=0") < text.index("\nprune_old_images ||")
+    assert "docker image prune" not in text and "docker system prune" not in text
+    function = re.search(r"^prune_old_images\(\) \{\n.*?^\}\n", text, re.DOTALL | re.MULTILINE).group(0)
+    assert " -f" not in function and "--force" not in function

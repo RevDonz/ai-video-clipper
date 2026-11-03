@@ -132,6 +132,18 @@ run_read_only_e2e() {
     '
 }
 
+# Every deploy builds a 2 GB image on a shared VM, and the disk also holds /data/jobs. Only this
+# project's tags go; `image rm` without force leaves anything a container still uses.
+prune_old_images() {
+  local tag
+  docker image ls ai-video-clipper --format '{{.Tag}}' | while IFS= read -r tag; do
+    case "$tag" in
+      "$DEPLOY_SHA"|"$rollback_tag"|'<none>'|'') continue ;;
+    esac
+    docker image rm "ai-video-clipper:$tag" >/dev/null || echo "Could not remove image tag $tag" >&2
+  done
+}
+
 require_quiescent
 previous_image=$(docker inspect "$APP_CONTAINER" --format '{{.Image}}')
 rollback_tag="rollback-${DEPLOY_SHA}"
@@ -163,4 +175,5 @@ require_quiescent
 
 trap - ERR
 deployed=0
+prune_old_images || echo "Old images were not pruned" >&2
 printf 'DEPLOYED_SHA=%s\nPRODUCTION_URL=%s\n' "$DEPLOY_SHA" "$PRODUCTION_URL"

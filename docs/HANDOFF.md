@@ -127,8 +127,12 @@ commit. Docker image gitleaks bisa dipakai dengan mode `dir` atas salinan file y
 - Judul klip fokus dari heuristik masih kasar: satu permintaan LLM untuk merapikan judulnya.
 - ~~Perbarui `docs/ROADMAP.md` dengan keputusan 2026-09-30.~~ Selesai di `feat/ui-latest-dark`.
 - Pemilik: ganti API key LLM dan password server yang pernah tertempel di chat (§8).
-- Disk server 81%: build cache Docker ± 17 GB dan image lama ± 10 GB bisa dibersihkan. Server
-  juga dipakai aplikasi lain, jadi pemilik yang memutuskan.
+- Disk server: `deploy/production.sh` sekarang menghapus tag `ai-video-clipper` lama setelah
+  rilis terverifikasi, hanya rilis itu dan `rollback-<sha>`-nya yang tersisa. Rollback lewat image
+  jadi satu versi; versi lebih lama di-build ulang dari git. Build cache Docker tidak ikut dihapus
+  karena dipakai bersama aplikasi lain di server (`docker builder prune` oleh pemilik). Pantau
+  `/data` terhadap `JOBS_STORAGE_MIN_FREE_BYTES`: di bawah batas itu job baru ditolak dengan
+  `storage_free_space_low` (terjadi 2026-11-03, `docs/operations/SOSMED.md` §12).
 
 ## 6. Menyiapkan lingkungan di device baru
 
