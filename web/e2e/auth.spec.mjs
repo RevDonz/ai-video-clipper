@@ -32,7 +32,7 @@ test.describe("sessions on the server", () => {
     expect(cookies.some((cookie) => cookie.name === V1)).toBe(false);
   });
 
-  test("Keluar ends the session on the server: the same cookie, replayed, gets a 401", async ({ context, page }) => {
+  test("Keluar ends the session on the server: the same cookie, replayed, gets a 401", async ({ context, page, request }) => {
     await login(page, "/bantuan");
     const session = (await context.cookies()).find((cookie) => cookie.name === S2);
     await page.evaluate(async () => {
@@ -44,13 +44,9 @@ test.describe("sessions on the server", () => {
     });
     await page.waitForURL((url) => url.pathname === "/login" && url.searchParams.get("keluar") === "1");
     expect((await context.cookies()).some((cookie) => cookie.name === S2)).toBe(false);
-    // A copy of the cookie, as a thief would hold it. A second tab: this 401 is the point.
-    await context.addCookies([{ name: S2, value: session.value, url: new URL(settings.baseURL).origin, httpOnly: true, secure: true, sameSite: "Lax" }]);
-    const probe = await context.newPage();
-    await probe.goto("/login");
-    const status = await probe.evaluate(async () => (await fetch("/api/storage/status", { cache: "no-store" })).status);
-    await probe.close();
-    expect(status).toBe(401);
+    // A copy of the cookie, as a thief would hold it, from outside the browser.
+    const replay = await request.get("/api/storage/status", { headers: { Cookie: `${S2}=${session.value}` } });
+    expect(replay.status()).toBe(401);
   });
 
   test("after a logout the login page clears this device's editor drafts", async ({ page }) => {
@@ -75,11 +71,11 @@ test.describe("sessions on the server", () => {
     await page.getByLabel(L("auth.password.next"), { exact: true }).fill("a-new-password-for-the-test");
     await page.getByLabel(L("auth.password.repeat")).fill("a-different-password-entirely");
     await page.getByRole("button", { name: L("auth.password.save") }).click();
-    await expect(page.getByRole("alert")).toHaveText(L("errors.account.password_mismatch"));
+    await expect(page.locator("form").getByRole("alert")).toHaveText(L("errors.account.password_mismatch"));
     await page.getByLabel(L("auth.password.repeat")).fill("a-new-password-for-the-test");
     expectFailedRequest(page, 403, "POST", "/api/account/password");
     await page.getByRole("button", { name: L("auth.password.save") }).click();
-    await expect(page.getByRole("alert")).toHaveText(L("errors.account.password_wrong"));
+    await expect(page.locator("form").getByRole("alert")).toHaveText(L("errors.account.password_wrong"));
     await expect(page).toHaveURL((url) => url.pathname === "/akun/kata-sandi");
   });
 });
