@@ -160,6 +160,11 @@ test("axe finds no critical or serious violation in any tab with its folds open"
     const panel = await openPanel(page, id);
     const folds = panel.locator('[data-advanced] button[aria-expanded="false"]');
     while (await folds.count()) await folds.first().click();
+    // Measure the panel at rest: the cold-open suggestions fade in as they load, and a colour read
+    // mid-fade is not the colour on screen.
+    await expect(panel.locator('[data-suggestions-state="loading"]')).toHaveCount(0);
+    await page.evaluate(() => Promise.all(document.getAnimations().filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+      .map((animation) => animation.finished.catch(() => {}))));
     const violations = await page.evaluate(async () => {
       const { violations: found } = await window.axe.run('[data-slot="panel"]', { resultTypes: ["violations"] });
       return found.filter((entry) => entry.impact === "critical" || entry.impact === "serious")
