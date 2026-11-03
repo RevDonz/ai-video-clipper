@@ -22,7 +22,7 @@ from ai_clipper.edit_v2 import audio_graph as ag
 from ai_clipper.edit_v2 import envelope as env
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2 import transitions
-from ai_clipper.edit_v2.compile_ffmpeg import SIDECAR_NAME, InputSpec
+from ai_clipper.edit_v2.compile_ffmpeg import SIDECAR_NAME, InputSpec, seek_arg
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 
 PAN = "pan=stereo|FL=FL+FC|FR=FR+FC"
@@ -512,6 +512,54 @@ def test_the_whoosh_adds_exactly_its_samples(sources, tmp_path):
     errors_ = [mixed[i] - cut[i] - wav[i - first] for i in range(first, last)]
     assert max(abs(e) for e in errors_) <= 1
     assert sum(e == 0 for e in errors_) >= 0.999 * len(errors_)
+
+
+def _matroska(sources, name, hole_s=None):
+    """The speech source as PCM in Matroska, whose millisecond timestamps wobble around the real
+    sample positions; ``hole_s`` drops that span of audio and keeps the later timestamps."""
+    path = sources.root / name
+    if not path.exists():
+        raw = sources.root / "speech.s16"
+        if not raw.exists():
+            harness._ffmpeg(["-i", str(sources.speech(fmt=".wav")), "-f", "s16le", str(raw)])
+        cut = [] if hole_s is None else ["-af", f"aselect='not(between(t,{hole_s[0]},{hole_s[1]}))'"]
+        harness._ffmpeg(["-f", "s16le", "-ar", "48000", "-ac", "2", "-i", str(raw), *cut,
+                         "-c:a", "pcm_s16le", "-map_metadata", "-1", "-fflags", "+bitexact",
+                         str(path)])
+    return path
+
+
+def test_millisecond_timestamps_still_give_the_planned_sample_count(sources, tmp_path):
+    """P-AUD's VFR case: one decoder run shared by the pieces (R2), as the compiler builds it.
+    Rounded timestamps moved ``atrim``'s cuts by 8 samples, 16 samples short over 4 pieces."""
+    plan = _plan(harness.audio_doc(segments=(("seg_b1", "body", 43, 540),), cut_fade_ms=0,
+                                   removals=harness.CLICK_REMOVALS))
+    fragment = ag.audio_fragment(plan, mode="reference", first_input_index=1)
+    assert not fragment.inputs
+    labels = "".join(f"[sa{piece.i}]" for piece in plan.pieces)
+    out = tmp_path / "mix.wav"
+    harness._ffmpeg(["-copyts", "-ss", seek_arg(plan.pieces[0].in_sf, plan.fps),
+                     "-i", str(_matroska(sources, "ms.mkv")), "-filter_complex",
+                     f"[0:a]asplit={len(plan.pieces)}{labels};{fragment.graph}", "-map", "[apre]",
+                     "-c:a", "pcm_s16le", str(out)])
+    assert len(harness.pcm(out)) == 2 * plan.total_samples
+
+
+def test_a_hole_in_the_source_audio_does_not_move_the_later_pieces(sources, tmp_path):
+    """The piece over the hole keeps its planned length, so what follows stays with the video."""
+    plan = _plan(harness.click_doc())
+    second = plan.pieces[2]
+    first_s = second.in_sf * plan.fps.den / plan.fps.num
+    hole = (round(first_s + 0.1, 3), round(first_s + 0.4, 3))
+    whole = harness.pcm(harness.run(
+        plan, mode="reference", sources=sources.media(_matroska(sources, "whole.mkv"), music_kind=None),
+        work=tmp_path, name="whole").output)
+    holed = harness.pcm(harness.run(
+        plan, mode="reference", sources=sources.media(_matroska(sources, "hole.mkv", hole), music_kind=None),
+        work=tmp_path, name="holed").output)
+    assert len(holed) == len(whole) == 2 * plan.total_samples
+    after = 2 * tm.smp(plan.pieces[3].out_f0, plan.fps)
+    assert holed[after:] == whole[after:]
 
 
 # --- gates (local run; evidence of record comes from the reference image) -------------------------
