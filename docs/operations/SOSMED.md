@@ -378,12 +378,12 @@ Direct Post TikTok, dan App Review Meta tidak menyebut lama.
 ## 12. Disk produksi
 
 Dok 08 Fase 0 meminta disk produksi diukur (baseline 81%) dan dicatat di sini atau di
-`UNDUHAN_M0.md`, untuk batas cache unduhan dan pin media sosmed. Agen tidak punya akses produksi.
-**Perlu pemilik:** ukur dan isi baris ini.
+`UNDUHAN_M0.md`, untuk batas cache unduhan dan pin media sosmed. Agen tidak punya akses produksi;
+angkanya diukur pemilik.
 
 | Tanggal | Volume | Ukuran | Terpakai | Bebas | Catatan |
 |---|---|---|---|---|---|
-| `<YYYY-MM-DD>` | `/data` | `<GiB>` | `<GiB> (<%>)` | `<GiB>` | diukur pemilik |
+| 2026-11-03 | `/data` | 119 GiB | 98,7 GiB (88%) | 14,2 GiB | Di bawah batas `JOBS_STORAGE_MIN_FREE_BYTES` (15 GiB), job baru ditolak. Disk ini juga dipakai aplikasi lain, dan image lama menumpuk karena deploy belum menghapusnya |
 
 ## 13. Sumber
 
