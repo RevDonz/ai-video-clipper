@@ -4,11 +4,16 @@ import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
 import { useState } from "react";
 import { useTranslations } from "use-intl";
 
-const KNOWN_CODES = new Set(["password_wrong", "password_too_short", "password_too_long", "password_common", "password_same_as_username", "password_mismatch"]);
-
 export default function PasswordForm({ className, errorClassName, submitClassName }) {
   const t = useTranslations("auth");
   const tAccount = useTranslations("errors.account");
+  const refusals = {
+    password_wrong: tAccount("password_wrong"),
+    password_too_short: tAccount("password_too_short"),
+    password_too_long: tAccount("password_too_long"),
+    password_common: tAccount("password_common"),
+    password_same_as_username: tAccount("password_same_as_username"),
+  };
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +37,7 @@ export default function PasswordForm({ className, errorClassName, submitClassNam
         return;
       }
       const body = await response.json().catch(() => ({}));
-      setError(KNOWN_CODES.has(body.code) ? tAccount(body.code) : t("password.failed"));
+      setError(Object.hasOwn(refusals, body.code) ? refusals[body.code] : t("password.failed"));
     } catch {
       setError(t("password.failed"));
     }

@@ -1,13 +1,14 @@
 // GET/PUT: the Pengaturan "Transkripsi" switch for Groq and its key (lib/transcription-settings.mjs).
 // A small JSON body, so web/proxy.js runs in front; every method still checks the session itself,
 // a change also its origin.
+import { requireAuth } from "../../../../lib/auth.mjs";
 import { createTranscriptionSettingsRoute } from "../../../../lib/transcription-settings.mjs";
 import { withErrorCodes } from "../../../../lib/api-error-response.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const route = createTranscriptionSettingsRoute();
+const route = createTranscriptionSettingsRoute({ authorize: requireAuth });
 
 async function handleGET(request) {
   return route.GET(request);

@@ -15,7 +15,6 @@ import { constants } from "node:fs";
 import { chmod, lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
-import { requireAuth } from "./auth.mjs";
 import { HttpBodyError, guardRequest, noStore, readJsonBody } from "./llm-settings-http.mjs";
 import { LLM_PRESETS, apiKeyProblem } from "./llm-presets.mjs";
 import {
@@ -267,7 +266,10 @@ function refusal(error) {
   return noStore({ error: "Pengaturan transkripsi gagal disimpan.", code: "internal" }, 500);
 }
 
-export function createTranscriptionSettingsRoute({ authorize = requireAuth, env = process.env, sameOrigin = sameOriginMutation, now = () => new Date() } = {}) {
+// `authorize` comes from the route file: run-job.mjs imports this module and must not reach the DB
+// layer through lib/auth.mjs (rombak 02 §3.1).
+export function createTranscriptionSettingsRoute({ authorize, env = process.env, sameOrigin = sameOriginMutation, now = () => new Date() } = {}) {
+  if (typeof authorize !== "function") throw new Error("createTranscriptionSettingsRoute needs authorize");
   return {
     async GET(request) {
       const denied = guardRequest(request, { authorize });

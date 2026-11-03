@@ -19,7 +19,6 @@ import { chmod, lstat, mkdir, mkdtemp, open, readdir, rename, rm } from "node:fs
 import os from "node:os";
 import path from "node:path";
 
-import { requireAuth } from "./auth.mjs";
 import { resolveSettingsPaths, settingsSecret } from "./llm-settings.mjs";
 import { sameOriginMutation } from "./request-security.mjs";
 import { CookiesFileError, MAX_COOKIES_FILE_BYTES, parseCookiesFile } from "./youtube-cookies-file.mjs";
@@ -313,7 +312,10 @@ async function readBody(request, limit) {
   return Buffer.concat(chunks, total);
 }
 
-export function createYoutubeCookiesRoute({ authorize = requireAuth, env = process.env, now = () => new Date(), sameOrigin = sameOriginMutation } = {}) {
+// `authorize` comes from the route file: run-job.mjs imports this module and must not reach the DB
+// layer through lib/auth.mjs (rombak 02 §3.1).
+export function createYoutubeCookiesRoute({ authorize, env = process.env, now = () => new Date(), sameOrigin = sameOriginMutation } = {}) {
+  if (typeof authorize !== "function") throw new Error("createYoutubeCookiesRoute needs authorize");
   async function status() {
     try { return json(await readYoutubeCookiesStatus(env)); } catch { return refusal("settings_unavailable", 503); }
   }
