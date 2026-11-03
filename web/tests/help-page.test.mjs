@@ -23,7 +23,7 @@ const translator = (code, namespace) => createTranslator({ locale: INTL[code], m
 
 test("the page renders every entry under its anchor, works without JS and sits behind the shared header", async () => {
   const page = await read("app/bantuan/page.jsx");
-  assert.match(page, /<AppShell current="\/bantuan" \{\.\.\.shellData\(\)\}>/);
+  assert.match(page, /<AppShell current="\/bantuan" \{\.\.\.await sessionShellData\(\)\}>/);
   assert.doesNotMatch(page, /^"use client"/m, "the entries are rendered on the server");
   assert.match(page, /helpGroupsView\(t, te\)/);
   assert.match(page, /<article id=\{entry\.id\}/);

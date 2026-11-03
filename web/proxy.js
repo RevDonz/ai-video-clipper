@@ -45,7 +45,7 @@ export function proxy(request) {
   // A v1 cookie upgrades here, once; a failure leaves it in place and the request still passes.
   // Next to a valid s2 cookie it is only cleared (rombak 02 §4.3).
   if (cookieValue(request, SESSION_COOKIE)) {
-    const cookies = principal.via === "upgrade_v1" ? upgradeLegacyCookie(request, principal)
+    const cookies = principal.v1ExpiresAt ? upgradeLegacyCookie(request, principal)
       : principal.via === "v1" ? []
         : [clearLegacyCookie()];
     return withCookies(NextResponse.next(), cookies);

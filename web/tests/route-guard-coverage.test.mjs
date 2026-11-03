@@ -21,7 +21,7 @@ const HTTP_METHODS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "
 // Routes that run without the proxy. `checks` are the guards the route file itself calls.
 const ALLOWLIST = Object.freeze({
   health: { reason: "liveness probe for compose and the deploy script; answers no data", checks: [] },
-  "auth/login": { reason: "the login form posts here before a session exists; origin checked and attempts rate limited", checks: ["sameOriginMutation", "AuthRateLimiter"] },
+  "auth/login": { reason: "the login form posts here before a session exists; origin checked and attempts rate limited", checks: ["sameOriginMutation", "sharedAuthLimiter"] },
   locale: { reason: "cookie preferensi bahasa; tanpa data pengguna; sejak multi-user memeriksa sesi sendiri (07 §9.3)", checks: ["sameOriginMutation", "TokenBucketLimiter"] },
   jobs: { reason: "video uploads are streamed: behind the proxy Next buffers the body at 10 MB", checks: ["requireAuth", "sameOriginMutation"] },
   "jobs/[id]/assets": { reason: "logo and music uploads up to 50 MB are streamed, not buffered by the proxy; wrapped in secureRoute", checks: ["secureRoute"] },
