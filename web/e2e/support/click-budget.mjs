@@ -142,7 +142,7 @@ export const CLICK_BUDGET = Object.freeze([
   entry({ row: 68, docClicks: "2", budget: 2, scenario: { doc: "logo" }, steps: [LOGO], target: panel("button", "Hapus logo") }),
   entry({ row: 69, docClicks: "2", budget: 2, scenario: { doc: "logo" }, steps: [LOGO], target: panel("radiogroup", "Sudut") }),
   entry({ row: 70, docClicks: "3", budget: 3, scenario: { doc: "logo" }, steps: [LOGO, fold("logo")], target: panel("slider", "Ukuran logo") }),
-  entry({ row: 71, docClicks: "2", budget: 2, scenario: { doc: "logo", planWarnings: [{ code: "unsafe_zone", ref: LOGO_ITEM }] }, steps: [LOGO],
+  entry({ row: 71, docClicks: "2", budget: 2, scenario: { doc: "logoUnsafe", planWarnings: [{ code: "unsafe_zone", ref: LOGO_ITEM }] }, steps: [LOGO],
     target: panel("button", "Geser ke area aman") }),
   // Typing the text is not counted; its place, size and opacity are in Lanjutan once it is set.
   entry({ row: 72, docClicks: "2 / 3", budget: 3, steps: [LOGO], target: panel("textbox", "Teks watermark") }),

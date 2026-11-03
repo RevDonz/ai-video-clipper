@@ -5,14 +5,14 @@
 // On GitHub Actions: gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e \
 //   -f command='e2e/editor-text-tab.spec.mjs'
 import { openPanel } from "./support/editor-panels.mjs";
-import { expect, openShell, test, useShellDefaults } from "./support/editor-shell.mjs";
+import { expect, openTabs as openShell, test, useShellDefaults } from "./support/editor-shell.mjs";
 import { L } from "./support/i18n.mjs";
 
 useShellDefaults();
 
 const docOf = (page) => page.evaluate(() => window.__potonginEditor.store.getState().doc);
 const hookOf = (doc) => doc.tracks.find((track) => track.kind === "hook")?.items?.[0] ?? null;
-const pick = (group, name) => group.getByRole("radio", { name, exact: true }).check({ force: true });
+const pick = (group, name) => group.getByRole("radio", { name, exact: true }).check();
 
 test("Teks opens with the caption's basics in view and the fine controls folded", async ({ page }) => {
   await openShell(page);
@@ -58,7 +58,7 @@ test("a size off the three pills presses none, and the fine slider shows it", as
 test("Tampilkan caption turns the caption off; the rest of the panel stays", async ({ page }) => {
   await openShell(page);
   const panel = await openPanel(page, "text");
-  await panel.getByRole("switch", { name: L("editor.text.caption.show") }).click({ force: true });
+  await panel.getByRole("switch", { name: L("editor.text.caption.show") }).click();
   await expect.poll(async () => (await docOf(page)).captions.enabled).toBe(false);
   await expect(panel.getByRole("radiogroup", { name: L("editor.text.caption.style") })).toBeVisible();
 });
@@ -78,11 +78,11 @@ test("the hook: text with its counter, and off and on again keeps the words", as
   await expect.poll(async () => hookOf(await docOf(page))?.payload.text).toBe("Hook baru dari saya");
   await expect(panel.locator("[data-hook-counter]")).toHaveText("19/90");
   const toggle = panel.getByRole("switch", { name: L("editor.text.hook.show") });
-  await toggle.click({ force: true });
+  await toggle.click();
   await expect.poll(async () => hookOf(await docOf(page))).toBeNull();
   await expect(field).toHaveValue("Hook baru dari saya");
   await expect(panel.locator('[data-advanced="hook"]')).toHaveCount(0);
-  await toggle.click({ force: true });
+  await toggle.click();
   await expect.poll(async () => hookOf(await docOf(page))?.payload.text).toBe("Hook baru dari saya");
 });
 

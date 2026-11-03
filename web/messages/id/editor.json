@@ -281,6 +281,12 @@
     "summary": {
       "keyframes": "{count} titik",
       "bands": "Atas {top}% · Bawah {bottom}%"
+    },
+    "names": {
+      "fitBlur": "Latar blur",
+      "camera": "Ikuti wajah",
+      "fillCenter": "Potong tengah",
+      "split": "Layar terbagi"
     }
   },
   "audio": {

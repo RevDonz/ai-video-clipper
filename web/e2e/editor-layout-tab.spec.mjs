@@ -6,7 +6,7 @@
 // On GitHub Actions: gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e \
 //   -f command='e2e/editor-layout-tab.spec.mjs'
 import { openPanel, panelRegion, panelTab } from "./support/editor-panels.mjs";
-import { expect, openShell, playButton, test, useShellDefaults } from "./support/editor-shell.mjs";
+import { expect, openTabs as openShell, playButton, test, useShellDefaults } from "./support/editor-shell.mjs";
 import { L } from "./support/i18n.mjs";
 import { shellDoc } from "./support/shell-docs.mjs";
 
@@ -32,7 +32,7 @@ test("Potong tengah switches at once; Lihat sumber shows only for a layout that 
   await openPanel(page, "layout");
   await expect(showSource(page)).toHaveCount(0);
   const panel = panelRegion(page).getByRole("tabpanel");
-  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("layout.names.fill_center")}`) }).check({ force: true });
+  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("editor.layout.names.fillCenter")}`) }).check();
   await expect.poll(async () => (await docOf(page)).layout.default.mode).toBe("fill_center");
   await expect(showSource(page)).toBeVisible();
   await panelTab(page, "text").click();
@@ -42,11 +42,11 @@ test("Potong tengah switches at once; Lihat sumber shows only for a layout that 
 test("Ikuti wajah runs the analysis first, then shows the no-face choice", async ({ page }) => {
   await openShell(page, "?panel=layout");
   const panel = panelRegion(page).getByRole("tabpanel");
-  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("layout.names.camera")}`) }).check({ force: true });
+  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("editor.layout.names.camera")}`) }).check();
   await expect.poll(async () => (await docOf(page)).layout.default.mode).toBe("camera");
   const noFace = panel.getByRole("radiogroup", { name: L("editor.layout.noFace.title") });
   await expect(noFace).toBeVisible();
-  await noFace.getByRole("radio", { name: L("editor.layout.noFace.centre"), exact: true }).check({ force: true });
+  await noFace.getByRole("radio", { name: L("editor.layout.noFace.centre"), exact: true }).check();
   await expect.poll(async () => (await docOf(page)).layout.default.no_face).toBe("center");
 });
 
@@ -67,7 +67,7 @@ test("the analysis's failure says so and Coba lagi runs it again (row 56)", asyn
     };
   });
   const panel = panelRegion(page).getByRole("tabpanel");
-  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("layout.names.camera")}`) }).check({ force: true });
+  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("editor.layout.names.camera")}`) }).check();
   const error = panel.locator("[data-layout-analysis-error]");
   await expect(error).toBeVisible();
   await error.getByRole("button", { name: L("editor.layout.analysis.retry"), exact: true }).click();
@@ -97,9 +97,9 @@ test("the split: share, swap, and each band's zoom in Lanjutan with its summary"
   await openShell(page, "?panel=layout", { doc: shellDoc("split") });
   const panel = panelRegion(page).getByRole("tabpanel");
   const share = panel.getByRole("radiogroup", { name: L("editor.layout.split.share") });
-  await share.getByRole("radio", { name: "50/50", exact: true }).check({ force: true });
+  await share.getByRole("radio", { name: "50/50", exact: true }).check();
   await expect.poll(async () => (await docOf(page)).layout.split.top_pm).toBe(500);
-  await share.getByRole("radio", { name: "30/70", exact: true }).check({ force: true });
+  await share.getByRole("radio", { name: "30/70", exact: true }).check();
   await panel.getByRole("button", { name: L("editor.layout.split.swap"), exact: true }).click();
   await expect.poll(async () => (await docOf(page)).layout.split.top_pm).toBe(700);
   await panel.locator('[data-advanced="split"] button').first().click();
@@ -171,7 +171,7 @@ test("a layout that does not allow it closes the source (latar blur, an undo)", 
   await openShell(page, "?panel=layout", { doc: shellDoc("fillCenter") });
   await showSource(page).click();
   const panel = panelRegion(page).getByRole("tabpanel");
-  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("layout.names.fit_blur")}`) }).check({ force: true });
+  await layoutCards(panel).getByRole("radio", { name: new RegExp(`^${L("editor.layout.names.fitBlur")}`) }).check();
   await expect(sourceStage(page)).toHaveCount(0);
   await expect(showSource(page)).toHaveCount(0);
 });

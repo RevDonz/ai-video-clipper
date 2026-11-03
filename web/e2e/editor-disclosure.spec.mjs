@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import { TAB_IDS, openPanel, panelRegion, panelTab } from "./support/editor-panels.mjs";
-import { expect, openShell, test, useShellDefaults } from "./support/editor-shell.mjs";
+import { expect, openTabs as openShell, test, useShellDefaults } from "./support/editor-shell.mjs";
 import { L } from "./support/i18n.mjs";
 import { shellDoc } from "./support/shell-docs.mjs";
 
@@ -56,9 +56,9 @@ test("caption: the title follows an edit, and goes back with undo", async ({ pag
   await openShell(page);
   const panel = await openPanel(page, "text");
   await title(panel, "caption").click();
-  await panel.getByRole("radiogroup", { name: L("editor.text.caption.entrance") }).getByRole("radio", { name: L("editor.text.entrances.pop"), exact: true }).check({ force: true });
+  await panel.getByRole("radiogroup", { name: L("editor.text.caption.entrance") }).getByRole("radio", { name: L("editor.text.entrances.pop"), exact: true }).check();
   await expect(summaryOf(panel, "caption")).toHaveText(`${SEPARATOR}${L("editor.text.entrances.pop")}`);
-  await panel.getByRole("radiogroup", { name: L("editor.text.caption.wordsPerLine") }).getByRole("radio", { name: "1", exact: true }).check({ force: true });
+  await panel.getByRole("radiogroup", { name: L("editor.text.caption.wordsPerLine") }).getByRole("radio", { name: "1", exact: true }).check();
   await expect(summaryOf(panel, "caption")).toHaveText(`${SEPARATOR}${L("editor.text.entrances.pop")}${SEPARATOR}${L("editor.text.summary.words", { count: 1 })}`);
   await page.evaluate(() => { window.__potonginEditor.store.undo(); window.__potonginEditor.store.undo(); });
   await expect(summaryOf(panel, "caption")).toHaveText(DEFAULT);
@@ -68,7 +68,7 @@ test("hook: design and position show in the title", async ({ page }) => {
   await openShell(page);
   const panel = await openPanel(page, "text");
   await title(panel, "hook").click();
-  await panel.getByRole("radiogroup", { name: L("editor.text.hook.design") }).getByRole("radio", { name: new RegExp(`^${L("editor.text.designs.kicker")}`) }).check({ force: true });
+  await panel.getByRole("radiogroup", { name: L("editor.text.hook.design") }).getByRole("radio", { name: new RegExp(`^${L("editor.text.designs.kicker")}`) }).check();
   await expect(summaryOf(panel, "hook")).toHaveText(`${SEPARATOR}${L("editor.text.designs.kicker")}`);
 });
 
