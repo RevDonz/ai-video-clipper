@@ -39,5 +39,9 @@
   "notFound": {
     "title": "Halaman tidak ditemukan",
     "description": "Alamatnya salah, atau halamannya sudah tidak ada."
+  },
+  "password": {
+    "title": "Ganti kata sandi",
+    "description": "Ganti kata sandi akun."
   }
 }

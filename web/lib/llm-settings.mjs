@@ -55,7 +55,7 @@ export const MIN_SECRET_LENGTH = 32;
 const HKDF_INFO = "potongin-llm-settings-v1";
 const HKDF_SALT = "potongin-settings";
 const KEY_VARIABLES = new Set(Object.values(LLM_PRESETS).flatMap((preset) => preset.keyEnv));
-const DASHBOARD_SECRETS = new Set(["APP_PASSWORD", "APP_SESSION_SECRET", "POTONGIN_SETTINGS_SECRET"]);
+const DASHBOARD_SECRETS = new Set(["APP_PASSWORD", "APP_SESSION_SECRET", "POTONGIN_SETTINGS_SECRET", "POTONGIN_DB_PATH", "NODE_OPTIONS"]);
 const PRIMARY_ONLY = new Set(["API_KEY", "BASE_URL", "MODEL", "FALLBACK_MODELS"]);
 const OFF_VALUES = new Set(["off", "0", "false", "no", "disabled", "disable", "none"]);
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);

@@ -1,6 +1,6 @@
-// The signed-in user as the shell shows it (05-ui-dashboard.md §4.2, §6.1): a name, the initials
-// on the account button and the role. Until the user database (Fase 4) there is one user, the
-// env login (APP_USERNAME), and they are the admin.
+// The signed-in user as the shell shows it (05-ui-dashboard.md §4.2, §6.1): a name, the initials on
+// the account button and the role. Without a principal (no user database) it is the env login,
+// the admin.
 
 const NAME_LIMIT = 64;
 
@@ -13,8 +13,11 @@ function initialsOf(name) {
   return letters.join("").toUpperCase();
 }
 
-export function shellUser(env = process.env) {
-  const name = typeof env?.APP_USERNAME === "string" ? env.APP_USERNAME.trim() : "";
+export function shellUser(env = process.env, principal = null) {
+  const source = principal?.displayName ?? env?.APP_USERNAME;
+  const name = typeof source === "string" ? source.trim() : "";
   const displayName = Array.from(name).slice(0, NAME_LIMIT).join("");
-  return { displayName, initials: initialsOf(displayName), role: "admin" };
+  const user = { displayName, initials: initialsOf(displayName), role: principal?.role ?? "admin" };
+  // The break-glass session says so in the account menu (rombak 02 §6.6).
+  return principal?.via === "break_glass" ? { ...user, breakGlass: true } : user;
 }

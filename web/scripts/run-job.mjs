@@ -249,7 +249,7 @@ export async function fetchYouTubeCaptions({ url, inputRoot, run, timeoutMs, vid
 
 // yt-dlp executes YouTube's player JavaScript (--js-runtimes node); it never needs
 // the engine's LLM keys, the settings that seal them, or the dashboard's secrets.
-const DOWNLOADER_SECRET = /^(?:POTONGIN_LLM|POTONGIN_LLM_.*|POTONGIN_SETTINGS_.*|[A-Z0-9_]*API_KEY|APP_PASSWORD|APP_SESSION_SECRET)$/;
+const DOWNLOADER_SECRET = /^(?:POTONGIN_LLM|POTONGIN_LLM_.*|POTONGIN_SETTINGS_.*|[A-Z0-9_]*API_KEY|APP_PASSWORD|APP_SESSION_SECRET|POTONGIN_DB_PATH|NODE_OPTIONS)$/;
 
 // The engine environment for this job: the LLM settings saved on the
 // Pengaturan page (or, without a settings file, the inherited environment)

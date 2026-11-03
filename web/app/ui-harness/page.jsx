@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import AppShell from "../../components/AppShell.jsx";
-import { SESSION_COOKIE, verifySessionToken } from "../../lib/auth.mjs";
+import { sessionFromCookieStore } from "../../lib/auth.mjs";
 import UiHarness from "./UiHarness.jsx";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +15,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Uji komponen", robots: { index: false, follow: false } };
 
 export default async function Page() {
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value ?? null;
-  if (process.env.POTONGIN_EDITOR_FAKES !== "1" || !verifySessionToken(token)) notFound();
+  const principal = sessionFromCookieStore(await cookies());
+  if (process.env.POTONGIN_EDITOR_FAKES !== "1" || !principal) notFound();
   return (
     <AppShell>
       <UiHarness />

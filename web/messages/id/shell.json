@@ -17,7 +17,8 @@
     "language": "Bahasa",
     "shortcuts": "Pintasan satu tombol",
     "search": "Cari",
-    "logout": "Keluar"
+    "logout": "Keluar",
+    "breakGlass": "Masuk darurat"
   },
   "badge": {
     "running": "{count, number} berjalan · {percent, number}%",
