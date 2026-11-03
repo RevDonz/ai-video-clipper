@@ -226,8 +226,7 @@
     "thumbs": {
       "needsAnalysis": "Needs face analysis",
       "unavailable": "No sample yet",
-      "loading": "Loading sample…",
-      "alt": "{name} sample at {time}"
+      "loading": "Loading sample…"
     },
     "analysis": {
       "label": "Face analysis",
@@ -254,7 +253,8 @@
       "manual": "{count, plural, one {Set by hand: # point.} other {Set by hand: # points.}}",
       "manualCamera": "{count, plural, one {Set by hand: # point, also in parts without a face.} other {Set by hand: # points, also in parts without a face.}}",
       "portrait": "The source is already upright; there is nothing to move.",
-      "clear": "Back to auto"
+      "clear": "Back to auto",
+      "pick": "Choose Follow face or Center crop to set the frame yourself."
     },
     "split": {
       "title": "Split screen",
@@ -441,7 +441,10 @@
       "stop": "Stop",
       "statusStyle": "Transition: {name}.",
       "statusSfxOn": "Whoosh on.",
-      "statusSfxOff": "Whoosh off."
+      "statusSfxOff": "Whoosh off.",
+      "cutDetail": "No effect",
+      "flashDetail": "0.2 s",
+      "dipDetail": "0.3 s"
     },
     "summary": {
       "in": "Start {sign}{seconds, number} s",

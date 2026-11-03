@@ -504,5 +504,14 @@ di-merge, menunggu izin merge pemilik.
   apakah transkrip gold (`artifacts/eval`) perlu tersedia di CI supaya cek gold tidak hanya lokal
   (08 §11 butir 5).
 
+**Fase 10, Editor F3, F4a, F5** (branch `feat/editor-f3-f5`, belum di-merge; run dan angka di badan
+PR-nya). Di balik `POTONGIN_EDITOR_SHELL=v2`, default tetap `legacy`.
+- Tab baru: `panels/TextTab.jsx`, `LayoutTab.jsx`, `AudioPanel.jsx`, `LogoTab.jsx`, `ColdOpenTab.jsx`;
+  panel dan dialog lama tetap untuk shell lama sampai F10 (lalu `*Tab` diberi nama `*Panel` sesuai
+  06 §8). Lihat sumber: `shell/SourceStage.jsx` + `lib/editor/stage-view.mjs`.
+- Otomatis belum ada (RF-M5a Fase 7); shot strip menyusul di F4b.
+- Teks yang masih dari modul lama sampai i18n M8a: daftar saran hook dan cold open, ringkasan hasil
+  Pakai di semua klip, pesan penolakan command, dan angka berformat musik, logo, watermark.
+
 Sampai fase yang bersangkutan selesai, UI tetap seperti di `main`; `DESIGN.md` menandai setiap
 pola sasaran dengan fase mulai berlakunya.

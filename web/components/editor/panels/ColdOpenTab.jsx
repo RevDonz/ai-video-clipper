@@ -49,6 +49,7 @@ function Transition({ doc, dispatch, player, readOnly, onError }) {
   const listening = audition.playing === "transition";
   const reason = view.reason === null ? null : readOnly ? t("transition.readOnly") : t("transition.off");
   const names = { cut: t("transition.cut"), flash_white: t("transition.flash"), dip_black: t("transition.dip") };
+  const details = { cut: t("transition.cutDetail"), flash_white: t("transition.flashDetail"), dip_black: t("transition.dipDetail") };
   const send = (command, choice) => {
     const result = runCommands(dispatch, [command]);
     onError(result.ok ? null : result.message);
@@ -60,7 +61,7 @@ function Transition({ doc, dispatch, player, readOnly, onError }) {
     <TabGroup title={t("transition.title")} data-tab-group="transition" data-coldopen-transition="">
       <TabNote id={`${uid}-note`} data-transition-note="">{reason ?? t("transition.note")}</TabNote>
       <PillGroup legend={t("transition.effect")} name={`${uid}-style`} columns={3} disabled={off} value={view.style} describedBy={off ? `${uid}-note` : undefined}
-        options={TRANSITION_STYLES.map((option) => ({ id: option.id, label: names[option.id] ?? option.name }))}
+        options={TRANSITION_STYLES.map((option) => ({ id: option.id, label: names[option.id] ?? option.name, detail: details[option.id] ?? option.detail }))}
         onChange={(style) => send(transitionCommands.style(style), { kind: "style", value: style })} />
       <Switch label={t("transition.whoosh")} checked={view.sfxOn} disabled={off} describedBy={off ? `${uid}-note` : undefined}
         onChange={(on) => send(transitionCommands.sfx(on), { kind: "sfx", value: on })} />

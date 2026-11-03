@@ -275,10 +275,8 @@
 }
 
 .cardName {
-  overflow: hidden;
   font: 600 var(--ed-font-size-xs) / 1.2 var(--ed-font-ui);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .cardBadge {

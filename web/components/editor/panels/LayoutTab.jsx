@@ -18,7 +18,7 @@ import {
   FRAMING_MOVES, clearKeyframesCommand, framingSummary, framingView, keyframeCommand, keyframeMoveCommand, removeKeyframeCommand,
 } from "../framing-model.mjs";
 import Advanced from "../shell/Advanced.jsx";
-import { formatClock, frameToMs, rejectionText } from "../shell-model.mjs";
+import { rejectionText } from "../shell-model.mjs";
 import { SPLIT_RATIOS, splitCropCommand, splitRatioCommand, splitSummary, swapSplitCommand, zoomPercent as splitZoomPercent } from "../split-model.mjs";
 import PillButton from "../ui/PillButton.jsx";
 import PillGroup from "../ui/PillGroup.jsx";
@@ -31,12 +31,12 @@ import { useLatest, useRestingPlayhead, useServices, useThumbnails } from "./lay
 import { CardGroup, TabGroup, TabNote, TabSlider } from "./tab-ui.jsx";
 import styles from "./tabs.module.css";
 
-function Thumbnail({ name, thumb, busy, emptyText, altText }) {
+function Thumbnail({ name, thumb, busy, emptyText }) {
   if (thumb?.url) {
     return (
       <span className={styles.thumbBox}>
         <img key={thumb.url} className={`${styles.layoutThumb} ${thumb.status === "refreshing" ? styles.thumbStale : ""}`} src={thumb.url}
-          width={90} height={160} alt={altText} data-layout-thumb={name} draggable={false} />
+          width={90} height={160} alt="" data-layout-thumb={name} draggable={false} />
       </span>
     );
   }
@@ -135,7 +135,6 @@ function LayoutTabBody({
   const doc = state.doc;
   const readOnly = state.status !== "ready";
   const layout = doc.layout.default.mode;
-  const fps = doc.output.fps;
   const services = useServices(state, { api: apiProp, previewClient });
   const run = useSyncExternalStore(analysisStore.subscribe, analysisStore.get, analysisStore.get);
   const [message, setMessage] = useState(null);
@@ -211,7 +210,7 @@ function LayoutTabBody({
     ? (framing.count
       ? (layout === "camera" ? t("framing.manualCamera", { count: framing.count }) : t("framing.manual", { count: framing.count }))
       : (layout === "camera" ? t("framing.autoCamera") : t("framing.autoCentre")))
-    : (framing.reason === "portrait" ? t("framing.portrait") : null);
+    : (framing.reason === "portrait" ? t("framing.portrait") : t("framing.pick"));
   const noFaceNoteId = `${uid}-noface`;
 
   const emptyText = (mode) => {
@@ -237,8 +236,7 @@ function LayoutTabBody({
             note: notes[option.id],
             badge: pending && option.id === layout ? t("inUse") : null,
             thumb: (
-              <Thumbnail name={option.id} thumb={thumbs[option.id]} busy={option.id === "camera" && running} emptyText={emptyText(option.id)}
-                altText={t("thumbs.alt", { name: names[option.id], time: formatClock(frameToMs(thumbs[option.id]?.frame ?? 0, fps)) })} />
+              <Thumbnail name={option.id} thumb={thumbs[option.id]} busy={option.id === "camera" && running} emptyText={emptyText(option.id)} />
             ),
           }))} />
         <TabNote id={`${uid}-whole`}>{`${t("wholeClip")} ${notes[shownLayout] ?? ""}`}</TabNote>
